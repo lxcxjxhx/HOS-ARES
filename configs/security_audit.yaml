@@ -1,0 +1,20 @@
+# HOS-ARES Agent 调度配置示例：security_audit（安全审计）
+#
+# 配置说明：
+#   task.type     —— 任务类型标识（本文件为 security_audit）
+#   agents        —— 参与调度的 Agent 列表（按执行顺序）
+#   workflow      —— 工作流步骤（按顺序执行）
+#                    步骤列表按顺序对应到 agents（第 i 步由 agents[i] 执行），
+#                    也可写成带 agent 字段的 dict 形式显式指定。
+task:
+  type: security_audit
+
+agents:
+  - repoaudit   # 代码仓库审计
+  - deepaudit   # 深度漏洞分析
+  - argus       # 复核与风险判定
+
+workflow:
+  - analyze   # 由 repoaudit 执行：分析代码 / 扫描风险
+  - verify    # 由 deepaudit 执行：深度验证与确认
+  - report    # 由 argus 执行：汇总生成最终报告

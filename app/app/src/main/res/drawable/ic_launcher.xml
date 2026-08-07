@@ -1,0 +1,51 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- HOS 品牌图标：安全盾 + AI 智能节点，深海军蓝底色 -->
+    <!-- 背景圆角 -->
+    <path
+        android:fillColor="#0B1220"
+        android:pathData="M12,6 h84 a6,6 0 0 1 6,6 v84 a6,6 0 0 1 -6,6 h-84 a6,6 0 0 1 -6,-6 v-84 a6,6 0 0 1 6,-6 z" />
+    <!-- 顶部微光 -->
+    <path
+        android:fillColor="#1B3358"
+        android:pathData="M12,6 h84 a6,6 0 0 1 6,6 v24 h-96 v-24 a6,6 0 0 1 6,-6 z" />
+    <!-- 内圈装饰线 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#1E3A5F"
+        android:strokeWidth="2"
+        android:pathData="M18,18 h72 a6,6 0 0 1 6,6 v60 a6,6 0 0 1 -6,6 h-72 a6,6 0 0 1 -6,-6 v-60 a6,6 0 0 1 6,-6 z" />
+    <!-- 盾牌（安全）主体 -->
+    <path
+        android:fillColor="#1D4ED8"
+        android:pathData="M54,28 L78,38 L78,58 C78,76 67,88 54,95 C41,88 30,76 30,58 L30,38 Z" />
+    <!-- 盾牌高光面 -->
+    <path
+        android:fillColor="#3B82F6"
+        android:pathData="M54,30 L76,39 L76,52 C76,62 71,70 65,77 L54,83 L43,77 C37,70 32,62 32,52 L32,39 Z" />
+    <!-- 盾牌底部暗影 -->
+    <path
+        android:fillColor="#1E40AF"
+        android:pathData="M54,83 L65,77 C71,70 76,62 76,52 L76,58 C76,76 65,88 54,95 C43,88 32,76 32,58 L32,52 C32,62 37,70 43,77 Z" />
+    <!-- 智能节点六边形 -->
+    <path
+        android:fillColor="#0E1526"
+        android:pathData="M54,42 L65,48 L65,60 L54,66 L43,60 L43,48 Z" />
+    <!-- 六边形描边 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#22D3EE"
+        android:strokeWidth="2.5"
+        android:pathData="M54,42 L65,48 L65,60 L54,66 L43,60 L43,48 Z" />
+    <!-- 核心光点 -->
+    <path
+        android:fillColor="#22D3EE"
+        android:pathData="M54,46 a8,8 0 1 1 0,16 a8,8 0 1 1 0,-16 z" />
+    <!-- 核心亮点 -->
+    <path
+        android:fillColor="#A5F3FC"
+        android:pathData="M54,49.5 a4.5,4.5 0 1 1 0,9 a4.5,4.5 0 1 1 0,-9 z" />
+</vector>

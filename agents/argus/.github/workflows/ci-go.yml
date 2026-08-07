@@ -1,0 +1,93 @@
+name: Go CI
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'packages/go/**'
+      - '.github/workflows/ci-go.yml'
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - 'packages/go/**'
+
+defaults:
+  run:
+    working-directory: packages/go
+
+jobs:
+  build-and-test:
+    name: Build & test (Go ${{ matrix.go-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        go-version: ['1.21', '1.22']
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Tidy dependencies
+        run: go mod tidy
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race ./...
+
+      - name: Test with coverage (Linux only)
+        if: matrix.go-version == '1.22' && matrix.os == 'ubuntu-latest'
+        run: go test -coverprofile=coverage.out ./...
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        if: matrix.go-version == '1.22' && matrix.os == 'ubuntu-latest'
+        with:
+          files: packages/go/coverage.out
+          flags: go
+
+  release-binaries:
+    name: Release cross-platform binaries
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build binary
+        run: |
+          BINARY=argus
+          [ "${{ matrix.goos }}" = "windows" ] && BINARY="${BINARY}.exe"
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
+            go build -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" \
+            -o "dist/${BINARY}-${{ matrix.goos }}-${{ matrix.goarch }}" \
+            ./cmd/argus
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v1
+        with:
+          files: packages/go/dist/*

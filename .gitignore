@@ -1,0 +1,49 @@
+# ============================================================
+# HOS-ARES .gitignore
+# ============================================================
+
+# ---------- 环境变量与密钥 ----------
+.env
+.env.local
+*.key
+*.pem
+id_rsa
+id_ed25519
+
+# ---------- 构建产物 ----------
+build/
+dist/
+out/
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# ---------- Android ----------
+local.properties
+.kotlin/
+captures/
+
+# ---------- Python ----------
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# ---------- 依赖与缓存 ----------
+node_modules/
+.pnpm-store/
+.gradle/
+~/.gradle
+
+# ---------- 日志与临时文件 ----------
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+
+# ---------- IDE / 编辑器（不创建 .trae 相关）----------
+.idea/
+.vscode/
+*.iml

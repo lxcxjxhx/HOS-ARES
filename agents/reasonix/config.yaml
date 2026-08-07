@@ -1,0 +1,35 @@
+# agents/reasonix/config.yaml — Reasonix Agent 默认配置（占位）
+#
+# 说明：
+#   本文件为 Reasonix Agent 的默认配置占位。
+#   敏感信息（API Key 等）请勿写入本文件，统一通过环境变量注入
+#   （见 HOS_ARES_API_KEY / HOS_ARES_REASONIX_MODEL / REASONIX_API_KEY）。
+
+# 默认模型
+model: reasonix-default
+
+# 环境配置（占位，真实值由环境变量/运行时注入）
+env:
+  # 大模型 API Key（真实环境从 HOS_ARES_API_KEY 读取）
+  api_key: ""
+  # Reasonix 服务端口（Android 内本地服务，默认 8080）
+  reasonix_port: "8080"
+  # Reasonix 服务地址（占位）
+  reasonix_base_url: "http://127.0.0.1:8080"
+
+# 工具 / Agent 技能插件注册（占位）
+# 以「审计这个项目」为例的调度链：
+#   RepoAudit（仓库审计） → DeepAudit（深度审计） → Argus（漏洞验证/风险评估）
+tools:
+  - repoaudit
+  - deepaudit
+  - argus
+
+# 任务类型 -> 调度链映射（占位）
+workflows:
+  security_audit:
+    agents: [repoaudit, deepaudit, argus]
+    description: "RepoAudit → DeepAudit → Argus"
+  general:
+    agents: []
+    description: "直接处理"

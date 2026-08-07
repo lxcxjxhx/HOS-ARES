@@ -1,0 +1,18 @@
+<resources>
+    <!-- HOS 品牌深色配色（安全 · 智能 · 终端） -->
+    <color name="bg">#0B1220</color>
+    <color name="surface">#111B2E</color>
+    <color name="surface2">#182442</color>
+    <color name="border">#223A66</color>
+    <color name="primary">#2563EB</color>
+    <color name="primary_dark">#1E40AF</color>
+    <color name="accent">#22D3EE</color>
+    <color name="accent_soft">#67E8F9</color>
+    <color name="text_primary">#E6EDF3</color>
+    <color name="text_secondary">#93A4BF</color>
+    <color name="text_muted">#64748B</color>
+    <color name="output_bg">#070C17</color>
+    <color name="accent_green">#34D399</color>
+    <color name="accent_red">#F87171</color>
+    <color name="error">#E5533D</color>
+</resources>

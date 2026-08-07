@@ -1,0 +1,20 @@
+# security-audit 技能插件的声明式元数据（manifest）
+# Skill/Tool Registry 解析该文件以注册技能（name / tools / trigger）。
+name: security_audit
+
+# 该技能依赖的底层工具（Security Tool Layer 中的工具命令）
+tools:
+  - repoaudit
+  - deepaudit
+  - argus
+  - strix
+  - pentestgpt
+
+# 可触发的任务类型（与 gateway 的 TaskRecognizer 输出对应）
+trigger:
+  - code_review
+  - vulnerability
+  - penetration_test
+
+# 可选：该技能对应的编排流程名（后续由 workflow 引擎消费）
+workflow: security_audit_flow

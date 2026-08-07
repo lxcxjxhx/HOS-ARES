@@ -1,0 +1,13 @@
+# HOS 默认 Token 优化 Skills 清单
+# 安装顺序即优先级；所有 skill 为纯提示/流程层优化，安装失败不阻断初始化。
+skills:
+  - name: ponytail
+    desc: 避免过度设计、最小修改、减少代码输出与 token 消耗
+  - name: repomap
+    desc: 仓库结构地图 + 高价值片段，压缩上下文
+  - name: codegraph
+    desc: 代码语义图谱 MCP，结构化代码理解替代 grep
+  - name: astgrep
+    desc: AST 精准检索与漏洞规则检测
+  - name: owlpath
+    desc: 代码知识压缩，降低 Bug 修复上下文需求

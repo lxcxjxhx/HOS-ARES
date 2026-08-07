@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+*.cover
+
+# Node.js / npm
+node_modules/
+dist/
+*.js.map
+# Note: do not ignore *.d.ts globally — packages/npm/src/types/ has hand-written declarations.
+# Generated .d.ts files live under dist/, which is already ignored above.
+
+# VS Code
+.vscode/
+*.vsix
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+*.env
+
+# Temporary scan output
+*.sarif
+zap-report.json
+trivy-report.json
