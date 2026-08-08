@@ -188,7 +188,7 @@ class RepoAudit:
 
 def configure_args():
     parser = argparse.ArgumentParser(
-        description="RepoAudit: Run metascan or dfbscan on a project."
+        description="HOS ARES Security Agent: Run metascan or dfbscan on a project."
     )
     parser.add_argument(
         "--scan-type",

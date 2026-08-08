@@ -3,7 +3,10 @@ package com.hos.ares
 import android.app.Dialog
 import android.content.Intent
 import android.graphics.drawable.ColorDrawable
+import android.net.ConnectivityManager
+import android.net.Network
 import android.os.Bundle
+import android.view.View
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -14,6 +17,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.hos.ares.databinding.ActivityMainBinding
 import com.hos.ares.databinding.DialogAgentDetailBinding
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /**
@@ -26,11 +30,29 @@ import kotlinx.coroutines.launch
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
-    private lateinit var gateway: ReasonixGateway
+    private lateinit var gateway: AresGateway
+    private lateinit var proot: ProotRuntime
     private lateinit var taskStore: TaskStore
     private lateinit var settings: SettingsStore
     private lateinit var adapter: TaskAdapter
     private lateinit var agentCardAdapter: AgentCardAdapter
+    private var runJob: Job? = null
+
+    // 顶栏状态：运行时就绪阶段 + 是否正在分析
+    private var runtimeState: RuntimeState = RuntimeState.INITIALIZING
+    private var isRunning: Boolean = false
+
+    // 网络监听：联网后若运行环境未就绪则自动重试初始化/依赖安装
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) {
+            lifecycleScope.launch {
+                if (runtimeState != RuntimeState.READY) {
+                    binding.tvStatus.text = getString(R.string.status_net_recovered)
+                    proot.init()
+                }
+            }
+        }
+    }
 
     // SAF 目录选择：回调中持久化权限并回填 /sdcard 路径
     private val pickDirLauncher =
@@ -62,30 +84,64 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         val proot = ProotRuntime(applicationContext)
+        this.proot = proot
         settings = SettingsStore(this)
         taskStore = TaskStore(this)
-        gateway = ReasonixGateway(proot) { settings.envMap() }
+        gateway = AresGateway(proot) { settings.envMap() }
+
+        // 注册网络监听：联网后自动重试初始化/依赖安装
+        try {
+            getSystemService(ConnectivityManager::class.java)
+                .registerDefaultNetworkCallback(networkCallback)
+        } catch (_: Exception) {
+            // 网络监听注册失败不影响主流程
+        }
 
         setupTaskList()
         setupAgentCards()
         setupActions()
 
-        // 首次启动在后台解包 rootfs / 安装 proot / 写入 run.sh / 安装默认 skills
-        lifecycleScope.launch {
-            binding.tvStatus.text = getString(R.string.status_init)
-            proot.initIfNeeded()
-            binding.tvStatus.text = getString(R.string.status_ready)
-        }
+        // 首次启动在后台自愈式初始化（解包 rootfs / 装依赖 / 自愈），不阻塞主线程
+        lifecycleScope.launch { proot.init() }
         lifecycleScope.launch {
             gateway.output.collect { binding.tvOutput.text = it }
         }
         lifecycleScope.launch {
+            proot.state.collect { state ->
+                runtimeState = state
+                updateStatus()
+            }
+        }
+        lifecycleScope.launch {
             gateway.running.collect {
-                binding.tvStatus.text = if (it) "HOS 正在分析…" else getString(R.string.status_ready)
+                isRunning = it
+                updateStatus()
             }
         }
         lifecycleScope.launch {
             gateway.events.collect { agentCardAdapter.submit(it) }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // 注销网络监听，避免泄漏
+        try {
+            getSystemService(ConnectivityManager::class.java)
+                .unregisterNetworkCallback(networkCallback)
+        } catch (_: Exception) {
+            // 注销失败无副作用
+        }
+    }
+
+    /** 根据运行时就绪阶段 + 是否正在分析，刷新顶栏状态文案。 */
+    private fun updateStatus() {
+        binding.tvStatus.text = when {
+            isRunning -> getString(R.string.status_running)
+            runtimeState == RuntimeState.READY -> getString(R.string.status_ready)
+            runtimeState == RuntimeState.NEEDS_NETWORK -> getString(R.string.status_needs_network)
+            runtimeState == RuntimeState.ERROR -> getString(R.string.status_error)
+            else -> getString(R.string.status_init)
         }
     }
 
@@ -128,17 +184,48 @@ class MainActivity : AppCompatActivity() {
             AgentStatus.RUNNING -> "运行中"
             AgentStatus.DONE -> "完成"
             AgentStatus.FAILED -> "失败"
+            AgentStatus.CANCELLED -> "已取消"
+            AgentStatus.TIMEOUT -> "超时"
         }
         val statusColor = when (event.status) {
             AgentStatus.PENDING -> R.color.text_muted
             AgentStatus.RUNNING -> R.color.accent
             AgentStatus.DONE -> R.color.accent_green
             AgentStatus.FAILED -> R.color.error
+            AgentStatus.CANCELLED -> R.color.text_muted
+            AgentStatus.TIMEOUT -> R.color.accent_red
         }
         b.tvDetailStatus.text = statusText
         b.tvDetailStatus.setTextColor(ContextCompat.getColor(this, statusColor))
         b.tvDetail.text = event.detail.ifEmpty { "（暂无输出）" }
+
+        // 实时流式：订阅网关事件，持续刷新该 Agent 的状态与详细输出
+        val skillName = b.tvDetailTitle.text.toString()
+        val collectJob = lifecycleScope.launch {
+            gateway.events.collect { evList ->
+                evList.firstOrNull { it.skill == skillName }?.let { live ->
+                    b.tvDetailStatus.text = when (live.status) {
+                        AgentStatus.PENDING -> "等待中"
+                        AgentStatus.RUNNING -> "运行中"
+                        AgentStatus.DONE -> "完成"
+                        AgentStatus.FAILED -> "失败"
+                        AgentStatus.CANCELLED -> "已取消"
+                        AgentStatus.TIMEOUT -> "超时"
+                    }
+                    b.tvDetailStatus.setTextColor(ContextCompat.getColor(this@MainActivity, when (live.status) {
+                        AgentStatus.PENDING -> R.color.text_muted
+                        AgentStatus.RUNNING -> R.color.accent
+                        AgentStatus.DONE -> R.color.accent_green
+                        AgentStatus.FAILED -> R.color.error
+                        AgentStatus.CANCELLED -> R.color.text_muted
+                        AgentStatus.TIMEOUT -> R.color.accent_red
+                    }))
+                    b.tvDetail.text = live.detail.ifEmpty { "（暂无输出）" }
+                }
+            }
+        }
         b.btnClose.setOnClickListener { dialog.dismiss() }
+        dialog.setOnDismissListener { collectJob.cancel() }
         dialog.show()
     }
 
@@ -184,11 +271,19 @@ class MainActivity : AppCompatActivity() {
             val current = taskStore.getOrCreate(directory, task)
             refreshTasks()
             binding.tvOutput.text = ""
-            lifecycleScope.launch {
+            runJob = lifecycleScope.launch {
                 binding.btnRun.isEnabled = false
-                gateway.run(task)
+                binding.btnCancel.visibility = View.VISIBLE
+                gateway.run(task, directory, 15 * 60 * 1000L)
                 binding.btnRun.isEnabled = true
+                binding.btnCancel.visibility = View.GONE
             }
+        }
+
+        binding.btnCancel.setOnClickListener {
+            runJob?.cancel()
+            binding.btnRun.isEnabled = true
+            binding.btnCancel.visibility = View.GONE
         }
     }
 }

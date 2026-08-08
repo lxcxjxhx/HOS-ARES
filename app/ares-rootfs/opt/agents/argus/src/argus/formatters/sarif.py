@@ -95,7 +95,7 @@ def aggregated_report_to_sarif(report_dict: dict[str, Any]) -> dict[str, Any]:
         "tool": {
             "driver": {
                 "name": "argus-scan",
-                "informationUri": "https://github.com/argus-code-scanning/argus-codescan-mcp",
+                "informationUri": "",
                 "rules": driver_rules,
             }
         },

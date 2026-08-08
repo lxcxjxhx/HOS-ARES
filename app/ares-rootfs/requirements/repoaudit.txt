@@ -1,0 +1,10 @@
+# RepoAudit 基于 LLM 的符号执行 + 神经代码审计。
+# 运行入口: python3 /opt/agents/repoaudit/src/repoaudit.py --scan-type <metascan|dfbscan> ...
+# 本清单基于源码实际 import 归纳 (python3/pip 自带标准库不计)。
+# 依据:
+#   - src/llmtool/LLM_utils.py        -> from openai import * / import anthropic
+#     (repoaudit.py 顶层 from agent.dfbscan import * 会连带加载 LLM_utils, 故必需)
+#   - src/tstool/analyzer/TS_analyzer.py 等 -> from tqdm import tqdm
+openai
+anthropic
+tqdm

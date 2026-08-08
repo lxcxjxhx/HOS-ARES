@@ -47,7 +47,7 @@ import { ProInlineCta } from "@/components/ProCta";
 export type View = "overview" | "issues" | "agents" | "history" | "email" | "feedback";
 
 const TRUST_BANNER =
-  "Your findings stay on your machine. They're rendered here locally in your browser and never uploaded or stored by Strix.";
+  "Your findings stay on your machine. They're rendered here locally in your browser and never uploaded or stored.";
 
 const SEVERITY_ORDER: VulnerabilitySeverity[] = ["critical", "high", "medium", "low"];
 const POLL_MS = 500;
@@ -265,15 +265,14 @@ export default function App() {
         <div className="border-b border-[#222]">
           <div className="max-w-[88rem] mx-auto px-3 sm:px-6 py-4 flex items-center gap-1.5">
             <a
-              href={ctaUrl("https://app.strix.ai", "logo")}
+              href={ctaUrl("#", "logo")}
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => trackCta("logo", "topbar")}
               className="flex items-center gap-1.5 opacity-90 transition-opacity hover:opacity-100 lg:hidden"
-              title="Open Strix Cloud"
+              title="HOS ARES"
             >
-              <img src="./logo.png" alt="Strix" className="w-10 h-8 object-cover" />
-              <div className="text-base text-white font-medium tracking-tight">Strix</div>
+              <div className="text-base text-white font-medium tracking-tight">HOS ARES</div>
             </a>
             {run && <LiveIndicator finished={run.finished} />}
             <div className="ml-auto flex items-center gap-3">
@@ -768,7 +767,7 @@ function AgentsTab({ run, canSteer }: { run: LoadedRun; canSteer: boolean }) {
         <p className="mt-0.5 text-xs text-[#666]">Re-run this pentest on managed infra in the cloud.</p>
         <div className="mt-3 flex flex-wrap gap-2.5">
           <ProInlineCta
-            label="Re-run in Strix Pro with more depth"
+            label="Re-run with more depth"
             desc="Run this pentest on managed infra with more depth."
             slug="live_scan"
             surface="agents"

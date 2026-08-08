@@ -44,7 +44,9 @@ class SettingsActivity : AppCompatActivity() {
 
         binding.btnDeepseekPreset.setOnClickListener {
             binding.spBackend.setSelection(0)
-            binding.etModel.setText("deepseek-chat")
+            binding.etModel.setText("deepseek-v4-flash")
+            settings.backend = "deepseek"
+            settings.llmBaseUrl = "https://api.deepseek.com"
             binding.tvSaveHint.text = "已填入 DeepSeek 默认配置，请填入你的 API Key 后保存"
         }
 

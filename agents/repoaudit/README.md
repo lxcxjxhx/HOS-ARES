@@ -15,9 +15,9 @@ RepoAudit is a repo-level bug detector for general bugs. Currently, it supports 
 
 **[March 2025]** RepoAudit has helped identify over 100 bugs in open-source projects this quarter!
 
-## Agents in RepoAudit
+## Agents in HOS ARES Repo Audit
 
-RepoAudit is a multi-agent framework for code auditing. We offer two agent instances in our current version:
+HOS ARES is a multi-agent framework for code auditing. We offer two agent instances in our current version:
 
 - **MetaScanAgent** in `metascan.py`: Scan the project using tree-sitter–powered parsing-based analyzers and obtains the basic syntactic properties of the program.
 

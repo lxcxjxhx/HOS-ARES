@@ -6,13 +6,14 @@
 Security Tool Layer（工具链）完成实际扫描。
 
 ## 工具链（tools）
-该技能依赖以下底层安全工具（见 `security-tools/`）：
+该技能依赖以下底层安全工具（见 `security-tools/`），统一通过
+`security-tools/adapters/__init__.py::run_agent(name, target)` 调度真实 Agent 源码：
 
-| 工具        | 作用                       | 对应封装模块                 |
-|-------------|----------------------------|------------------------------|
-| `repoaudit` | 仓库代码审计（scan）       | `security-tools/tools/repoaudit.py` |
-| `deepaudit` | 深度漏洞审计（analyze）    | `security-tools/tools/deepaudit.py` |
-| `argus`     | 安全扫描/监测（review）    | `security-tools/tools/argus.py`     |
+| 工具        | 作用                       | 对应适配器                           |
+|-------------|----------------------------|--------------------------------------|
+| `repoaudit` | 仓库代码审计（scan）       | `security-tools/adapters` → `RepoAuditAdapter` |
+| `deepaudit` | 深度漏洞审计（analyze）    | `security-tools/adapters` → `DeepAuditAdapter`（API 集成占位） |
+| `argus`     | 安全扫描/监测（review）    | `security-tools/adapters` → `ArgusAdapter`     |
 
 ## 触发方式
 本技能声明了如下任务类型（trigger）：

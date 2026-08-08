@@ -15,10 +15,35 @@ scheduler/executor.py — 调度执行器
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List
+import os
+import sys
+from typing import Any, Dict, List, Optional
 
 from .config import load_config
 from .schema import TaskSpec, WorkflowStep
+
+
+def _import_tool_executor():
+    """
+    导入 security-tools 的 ToolExecutor。
+
+    security-tools/ 不是顶层包，因此优先尝试将 security-tools 目录加入
+    sys.path 后按模块名导入；失败时返回 None（由调用方决定是否回退占位）。
+    """
+    try:
+        from tool_executor import ToolExecutor  # type: ignore
+        return ToolExecutor
+    except ImportError:
+        pass
+    try:
+        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        st = os.path.join(base, "security-tools")
+        if os.path.isdir(st) and st not in sys.path:
+            sys.path.insert(0, st)
+        from tool_executor import ToolExecutor  # type: ignore
+        return ToolExecutor
+    except ImportError:
+        return None
 
 
 class Scheduler:
@@ -29,14 +54,22 @@ class Scheduler:
     汇聚到最终报告 dict 中。
     """
 
-    def __init__(self, skills_registry: Any = None) -> None:
+    def __init__(self, skills_registry: Any = None, tool_executor: Any = None) -> None:
         """
         参数：
             skills_registry: 技能/工具注册表（预留）。
                 真实实现可注入一个可调用对象，按 agent 名执行对应技能；
-                默认 None 时使用占位执行器。
+                传入后优先使用。
+            tool_executor:   可注入的安全工具执行器（如 security-tools 的 ToolExecutor）。
+                缺省时若未提供 skills_registry，则自动导入 security-tools 的真实执行器；
+                若导入失败，回退到占位执行器。
         """
         self.skills_registry = skills_registry
+        if tool_executor is None and skills_registry is None:
+            ToolExecutorCls = _import_tool_executor()
+            if ToolExecutorCls is not None:
+                tool_executor = ToolExecutorCls()
+        self.tool_executor = tool_executor
 
     # ------------------------------------------------------------------
     # 对外接口
@@ -86,11 +119,24 @@ class Scheduler:
         """
         执行单个工作流步骤。
 
-        1. 若有 skills_registry，则调用其执行对应 agent 技能（占位约定）；
-        2. 否则调用占位执行器 _placeholder_run_agent。
+        1. 若有 skills_registry，则调用其执行对应 agent 技能；
+        2. 否则若有 tool_executor，调用真实 ToolExecutor.exec()；
+        3. 否则回退到占位执行器。
         """
         if self.skills_registry is not None:
             agent_output = self.skills_registry.run_agent(step.agent, step.name, task_input)
+        elif self.tool_executor is not None:
+            target = str(task_input.get("target", "<未指定>"))
+            result = self.tool_executor.exec(step.agent, target, **step.params)
+            agent_output = {
+                "status": result.status,
+                "agent": getattr(result, "agent", None) or step.agent,
+                "step": step.name,
+                "message": result.output or result.status,
+                "output": result.output,
+                "findings": result.findings,
+                "returncode": result.returncode,
+            }
         else:
             agent_output = self._placeholder_run_agent(step.agent, step.name, task_input)
 

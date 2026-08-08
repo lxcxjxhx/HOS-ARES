@@ -653,8 +653,8 @@ def _install_openrouter_stream_cost_capture() -> None:
 
 
 _OPENROUTER_ATTRIBUTION_HEADERS = {
-    "HTTP-Referer": "https://strix.ai",
-    "X-Title": "Strix",
+    "HTTP-Referer": "https://hos-ares.local",
+    "X-Title": "HOS-ARES",
     "X-OpenRouter-Categories": "cli-agent",
 }
 

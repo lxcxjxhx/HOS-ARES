@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 def run_view(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(
         prog="strix view",
-        description="Open a local web view of a Strix run (live or finished).",
+        description="Open a local web view of a scan run (live or finished).",
     )
     parser.add_argument(
         "run",

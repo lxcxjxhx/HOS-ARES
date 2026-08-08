@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "DeepAudit"
+    PROJECT_NAME: str = "HOS ARES Audit"
     API_V1_STR: str = "/api/v1"
     
     # SECURITY

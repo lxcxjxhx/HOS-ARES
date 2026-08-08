@@ -176,6 +176,18 @@
                 android:textColor="#FFFFFF"
                 android:textSize="16sp"
                 app:cornerRadius="10dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnCancel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:backgroundTint="@color/surface2"
+                android:text="@string/cancel"
+                android:textColor="@color/error"
+                android:visibility="gone"
+                android:textSize="16sp"
+                app:cornerRadius="10dp" />
         </LinearLayout>
 
         <!-- 状态 + 输出 -->

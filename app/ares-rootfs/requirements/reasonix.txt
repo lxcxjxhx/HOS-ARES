@@ -1,0 +1,5 @@
+# HOS-ARES reasonix 统一 Agent 入口依赖清单
+#
+# reasonix 统一入口（reasonix_agent.py）仅依赖 Python 标准库（os / sys / subprocess），
+# 不依赖任何外部 pip 包，因此本文件无需列出第三方依赖，
+# 从而保证其在离线 proot 环境中稳定可用。

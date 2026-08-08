@@ -97,10 +97,10 @@ def get_results(
 
 # Function to display the Home page
 def display_home():
-    st.title("Welcome to RepoAudit")
+    st.title("Welcome to HOS ARES")
     st.markdown(
         """
-**RepoAudit** is a repo-level bug detector for general bugs. Currently, it supports the detection of diverse bug types (such as Null Pointer Dereference, Memory Leak, and Use After Free) in multiple programming languages (including C/C++, Java, Python, and Go). It leverages **LLMSCAN** to parse the codebase and uses **LLM** to mimic the process of manual code auditing.
+**HOS ARES** is a repo-level bug detector for general bugs. Currently, it supports the detection of diverse bug types (such as Null Pointer Dereference, Memory Leak, and Use After Free) in multiple programming languages (including C/C++, Java, Python, and Go). It leverages **LLMSCAN** to parse the codebase and uses **LLM** to mimic the process of manual code auditing.
 
 ### Advantages
 - **Compilation-Free Analysis**

@@ -209,7 +209,7 @@ def notify_update(console: Console) -> None:
     if not latest:
         return
     console.print(
-        f"[#eab308]A new version of strix is available:[/] "
+        f"[#eab308]A new version of HOS-ARES is available:[/] "
         f"[dim]{get_version()}[/] [dim]→[/] [bold #22c55e]{latest}[/]"
         f"  [dim]·[/]  [#60a5fa]{get_upgrade_command()}[/]"
     )
@@ -231,7 +231,7 @@ def run_package_upgrade(console: Console, method: str) -> bool:
             f"Run it manually: [#60a5fa]{get_upgrade_command(method)}[/]"
         )
         return False
-    console.print("[#22c55e]✓ strix updated — restart the scan to use the new version[/]")
+    console.print("[#22c55e]✓ HOS-ARES updated — restart the scan to use the new version[/]")
     return True
 
 
@@ -245,13 +245,13 @@ def prompt_update_if_available(console: Console) -> bool:
         return False
     console.print()
     console.print(
-        f"[#eab308]A new version of strix is available:[/] "
+        f"[#eab308]A new version of HOS-ARES is available:[/] "
         f"[dim]{get_version()}[/] [dim]→[/] [bold #22c55e]{latest}[/]"
     )
     console.print(
         "[dim]  y — update now    n — not now (ask again next run)    s — skip this version[/]"
     )
-    choice = Prompt.ask("Update strix?", choices=["y", "n", "s"], default="n")
+    choice = Prompt.ask("Update HOS-ARES?", choices=["y", "n", "s"], default="n")
     console.print()
     if choice == "s":
         skip_version(latest)
@@ -357,19 +357,19 @@ def self_update(console: Console | None = None, version: str | None = None) -> b
     if not is_binary_install():
         method = get_install_method()
         console.print(
-            f"[#eab308]This strix was installed via {method};[/] "
+            f"[#eab308]This HOS-ARES was installed via {method};[/] "
             f"upgrade it with: [#60a5fa]{get_upgrade_command(method)}[/]"
         )
         return False
 
     latest = version or _fetch_latest_version()
     if not latest:
-        console.print("[bold red]Could not determine the latest strix version.[/]")
+        console.print("[bold red]Could not determine the latest HOS-ARES version.[/]")
         return False
 
     current = get_version()
     if current != "unknown" and not _is_newer(latest, current):
-        console.print(f"[#22c55e]strix {current} is already the latest version.[/]")
+        console.print(f"[#22c55e]HOS-ARES {current} is already the latest version.[/]")
         return True
 
     target = _release_target()
@@ -387,10 +387,10 @@ def self_update(console: Console | None = None, version: str | None = None) -> b
         console.print(f"[bold red]Update failed:[/] {e}")
         console.print(
             "[dim]You can reinstall manually with:[/] "
-            "[#60a5fa]curl -sSL https://strix.ai/install | bash[/]"
+            '[#60a5fa]echo "HOS-ARES: 请通过应用内更新"[/]'
         )
         return False
 
     _write_cache(latest_version=latest, checked_at=time.time())
-    console.print(f"[#22c55e]✓ Updated strix to {latest}[/]")
+    console.print(f"[#22c55e]✓ Updated HOS-ARES to {latest}[/]")
     return True

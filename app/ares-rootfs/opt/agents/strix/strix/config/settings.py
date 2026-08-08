@@ -117,7 +117,7 @@ class RuntimeSettings(BaseSettings):
 class TelemetrySettings(BaseSettings):
     model_config = _BASE_CONFIG
 
-    enabled: bool = Field(default=True, alias="STRIX_TELEMETRY")
+    enabled: bool = Field(default=False, alias="STRIX_TELEMETRY")
 
 
 class IntegrationSettings(BaseSettings):
@@ -141,7 +141,7 @@ class ViewerSettings(BaseSettings):
     # Base URL of the Strix relay the local viewer proxies to for email
     # verification and encrypted report delivery. The browser never talks to
     # the relay directly; the local server is the only caller.
-    app_url: str = Field(default="https://app.strix.ai", alias="STRIX_APP_URL")
+    app_url: str = Field(default="", alias="STRIX_APP_URL")
 
 
 class Settings(BaseSettings):

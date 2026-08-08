@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Strix Agent Interface
+HOS ARES Agent Interface
 """
 
 import argparse
@@ -171,7 +171,7 @@ async def warm_up_llm(show_model_warning: bool = True) -> None:
             console.print(
                 Panel(
                     warn_text,
-                    title="[bold white]STRIX",
+                    title="[bold white]HOS ARES",
                     title_align="left",
                     border_style="yellow",
                     padding=(1, 2),
@@ -185,7 +185,7 @@ async def warm_up_llm(show_model_warning: bool = True) -> None:
             warn_text.append("\n\n", style="white")
             warn_text.append(f"'{raw_model}'", style="bold cyan")
             warn_text.append(
-                " is not a recommended frontier model for Strix.\nSecurity scans work best with:\n",
+                " is not a recommended frontier model for HOS-ARES.\nSecurity scans work best with:\n",
                 style="white",
             )
             for recommended_model in RECOMMENDED_MODEL_NAMES:
@@ -198,7 +198,7 @@ async def warm_up_llm(show_model_warning: bool = True) -> None:
             console.print(
                 Panel(
                     warn_text,
-                    title="[bold white]STRIX",
+                    title="[bold white]HOS ARES",
                     title_align="left",
                     border_style="yellow",
                     padding=(1, 2),
@@ -315,7 +315,7 @@ def display_completion_message(args: argparse.Namespace, results_path: Path) -> 
 
     panel = Panel(
         panel_content,
-        title="[bold white]STRIX",
+        title="[bold white]HOS ARES",
         title_align="left",
         border_style=border_style,
         padding=(1, 2),
@@ -325,9 +325,7 @@ def display_completion_message(args: argparse.Namespace, results_path: Path) -> 
     console.print(panel)
     console.print()
     console.print(
-        "[#60a5fa]strix.ai[/]  [dim]·[/]  "
-        "[#60a5fa]docs.strix.ai[/]  [dim]·[/]  "
-        "[#60a5fa]discord.gg/strix-ai[/]"
+        "[#60a5fa]HOS-ARES[/]"
     )
     console.print()
     if not args.non_interactive:
@@ -342,7 +340,7 @@ def _print_error_panel(title: str, message: str) -> None:
     error_text.append(message, style="white")
     panel = Panel(
         error_text,
-        title="[bold white]STRIX",
+        title="[bold white]HOS ARES",
         title_align="left",
         border_style="red",
         padding=(1, 2),
@@ -375,7 +373,7 @@ def _print_model_connection_error(exc: BaseException, model_name: str) -> None:
 
     panel = Panel(
         error_text,
-        title="[bold white]STRIX",
+        title="[bold white]HOS ARES",
         title_align="left",
         border_style=border_style,
         padding=(1, 2),

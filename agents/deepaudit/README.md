@@ -1,23 +1,14 @@
-# DeepAudit - 人人拥有的 AI 审计战队，让漏洞挖掘触手可及 🦸‍♂️
+# HOS ARES — AI 代码审计 Agent
 
-<div style="width: 100%; max-width: 600px; margin: 0 auto;">
-  <img src="frontend/public/images/logo.png" alt="DeepAudit Logo" style="width: 100%; height: auto; display: block; margin: 0 auto;">
-</div>
+HOS ARES 内置的下一代代码安全审计 Agent，让漏洞挖掘触手可及。
 
 <div align="center">
 
-[![Version](https://img.shields.io/badge/version-3.0.4-blue.svg)](https://github.com/lintsinghua/DeepAudit/releases)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![React](https://img.shields.io/badge/React-18-61dafb.svg)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178c6.svg)](https://www.typescriptlang.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688.svg)](https://fastapi.tiangolo.com/)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776ab.svg)](https://www.python.org/)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/lintsinghua/DeepAudit)
-
-[![Stars](https://img.shields.io/github/stars/lintsinghua/DeepAudit?style=social)](https://github.com/lintsinghua/DeepAudit/stargazers)
-[![Forks](https://img.shields.io/github/forks/lintsinghua/DeepAudit?style=social)](https://github.com/lintsinghua/DeepAudit/network/members)
-
-<a href="https://trendshift.io/repositories/15634" target="_blank"><img src="https://trendshift.io/api/badge/repositories/15634" alt="lintsinghua%2FDeepAudit | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
 <p align="center">
   <strong>简体中文</strong> | <a href="README_EN.md">English</a>
@@ -26,7 +17,7 @@
 </div>
 
 <div align="center">
-  <img src="frontend/public/DeepAudit.gif" alt="DeepAudit Demo" width="90%">
+  <img src="frontend/public/DeepAudit.gif" alt="HOS ARES Demo" width="90%">
 </div>
 
 ---
@@ -88,13 +79,13 @@
 
 <div align="center">
 
-### **DeepAudit（闭源版本） 已成功发现并获得 49 个 CVE 编号 和 6 个 GHSA 安全公告🦞**
+### **HOS ARES 已成功发现并获得 49 个 CVE 编号 和 6 个 GHSA 安全公告🦞**
 ### **涉及17个知名开源项目**
 </div>
 
 #### OpenClaw🦞 漏洞挖掘成果
 
-DeepAudit 内测版本对 [OpenClaw](https://github.com/openclaw/openclaw) 项目进行了深度安全审计，目前已发现 **6 个安全漏洞**，均已被官方确认并发布安全公告（GHSA）。漏洞类型覆盖命令注入、签名验证绕过、远程代码执行、凭证泄露、资源耗尽及敏感信息泄露，其中包含多个 High 级别漏洞。更多漏洞仍在持续挖掘中。
+HOS ARES 内测版本对 [OpenClaw](https://github.com/openclaw/openclaw) 项目进行了深度安全审计，目前已发现 **6 个安全漏洞**，均已被官方确认并发布安全公告（GHSA）。漏洞类型覆盖命令注入、签名验证绕过、远程代码执行、凭证泄露、资源耗尽及敏感信息泄露，其中包含多个 High 级别漏洞。更多漏洞仍在持续挖掘中。
 
 | GHSA 编号 | 项目 | 项目热度 | 漏洞类型 | 严重性 |
 |:---|:---|:---:|:---|:----:|
@@ -159,30 +150,30 @@ DeepAudit 内测版本对 [OpenClaw](https://github.com/openclaw/openclaw) 项�
 
 👉 [查看完整 CVE 列表详情](CVEList.md)
 
-> *以上漏洞由 DeepAudit 团队成员 [@lintsinghua](https://github.com/lintsinghua) [@ez-lbz](https://github.com/ez-lbz) 使用 DeepAudit 挖掘发现*
+> *以上漏洞由 HOS ARES 的 AI 审计 Agent 挖掘发现*
 
-> 如果您使用 DeepAudit 发现了漏洞，欢迎在  [Issues](https://github.com/lintsinghua/DeepAudit/issues/135)  中留言反馈。您的贡献将极大地丰富这份漏洞列表，非常感谢！
+> 如果您使用 HOS ARES 发现了漏洞，欢迎反馈给我们。您的贡献将极大地丰富这份漏洞列表，非常感谢！
 
 ---
 
 ## ⚡ 项目概述
 
-**DeepAudit** 是一个基于 **Multi-Agent 协作架构**的下一代代码安全审计平台。它不仅仅是一个静态扫描工具，而是模拟安全专家的思维模式，通过多个智能体（**Orchestrator**, **Recon**, **Analysis**, **Verification**）的自主协作，实现对代码的深度理解、漏洞挖掘和 **自动化沙箱 PoC 验证**。
+**HOS ARES 审计 Agent** 是一个基于 **Multi-Agent 协作架构**的下一代代码安全审计平台。它不仅仅是一个静态扫描工具，而是模拟安全专家的思维模式，通过多个智能体（**Orchestrator**, **Recon**, **Analysis**, **Verification**）的自主协作，实现对代码的深度理解、漏洞挖掘和 **自动化沙箱 PoC 验证**。
 
 我们致力于解决传统 SAST 工具的三大痛点：
 - **误报率高** — 缺乏语义理解，大量误报消耗人力
 - **业务逻辑盲点** — 无法理解跨文件调用和复杂逻辑
 - **缺乏验证手段** — 不知道漏洞是否真实可利用
 
-用户只需导入项目，DeepAudit 便全自动开始工作：识别技术栈 → 分析潜在风险 → 生成脚本 → 沙箱验证 → 生成报告，最终输出一份专业审计报告。
+用户只需导入项目，HOS ARES 便会全自动开始工作：识别技术栈 → 分析潜在风险 → 生成脚本 → 沙箱验证 → 生成报告，最终输出一份专业审计报告。
 
 > **核心理念**: 让 AI 像黑客一样攻击，像专家一样防御。
 
-## 💡 为什么选择 DeepAudit？
+## 💡 为什么选择 HOS ARES？
 
 <div align="center">
 
-| 😫 传统审计的痛点 | 💡 DeepAudit 解决方案 |
+| 😫 传统审计的痛点 | 💡 HOS ARES 解决方案 |
 | :--- | :--- |
 | **人工审计效率低**<br>跨不上 CI/CD 代码迭代速度，拖慢发布流程 | **🤖 Multi-Agent 自主审计**<br>AI 自动编排审计策略，全天候自动化执行 |
 | **传统工具误报多**<br>缺乏语义理解，每天花费大量时间清洗噪音 | **🧠 RAG 知识库增强**<br>结合代码语义与上下文，大幅降低误报率 |
@@ -197,10 +188,10 @@ DeepAudit 内测版本对 [OpenClaw](https://github.com/openclaw/openclaw) 项�
 
 ### 整体架构图
 
-DeepAudit 采用微服务架构，核心由 Multi-Agent 引擎驱动。
+HOS ARES 审计 Agent 采用微服务架构，核心由 Multi-Agent 引擎驱动。
 
 <div align="center">
-<img src="frontend/public/images/README-show/架构图.png" alt="DeepAudit 架构图" width="90%">
+<img src="frontend/public/images/README-show/架构图.png" alt="HOS ARES 架构图" width="90%">
 </div>
 
 ### 🔄 审计工作流
@@ -502,16 +493,11 @@ DeepSeek-Coder · Codestral<br/>
 我们非常欢迎您的贡献！无论是提交 Issue、PR 还是完善文档。
 请查看 [CONTRIBUTING.md](./CONTRIBUTING.md) 了解详情。
 
-### 📬 联系作者
+### 📬 反馈
 
 <div align="center">
 
-**欢迎大家来和我交流探讨！无论是技术问题、功能建议还是合作意向，都期待与你沟通~**
-（平台定制、代码审计服务、技术咨询、合作洽谈等请通过邮箱联系）
-| 联系方式 | |
-|:---:|:---:|
-| 📧 **邮箱** | **lintsinghua@qq.com** |
-| 🐙 **GitHub** | [@lintsinghua](https://github.com/lintsinghua) |
+**欢迎交流探讨！无论是技术问题、功能建议还是合作意向，都期待与你沟通~**
 
 </div>
 
@@ -519,20 +505,10 @@ DeepSeek-Coder · Codestral<br/>
 
 本项目采用 [AGPL-3.0 License](LICENSE) 开源。
 
-## 📈 项目热度
-
-<a href="https://star-history.com/#lintsinghua/DeepAudit&Date">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=lintsinghua/DeepAudit&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=lintsinghua/DeepAudit&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=lintsinghua/DeepAudit&type=Date" />
- </picture>
-</a>
-
 ---
 
 <div align="center">
-  <strong>Made with ❤️ by <a href="https://github.com/lintsinghua">lintsinghua</a></strong>
+  <strong>HOS ARES — 让 AI 守护每一行代码</strong>
 </div>
 
 ---
@@ -541,7 +517,7 @@ DeepSeek-Coder · Codestral<br/>
 
 感谢以下开源项目的支持：
 
-[FastAPI](https://fastapi.tiangolo.com/) · [LangChain](https://langchain.com/) · [LangGraph](https://langchain-ai.github.io/langgraph/) · [ChromaDB](https://www.trychroma.com/) · [LiteLLM](https://litellm.ai/) · [Tree-sitter](https://tree-sitter.github.io/) · [Kunlun-M](https://github.com/LoRexxar/Kunlun-M) · [Strix](https://github.com/usestrix/strix) · [React](https://react.dev/) · [Vite](https://vitejs.dev/) · [Radix UI](https://www.radix-ui.com/) · [TailwindCSS](https://tailwindcss.com/) · [shadcn/ui](https://ui.shadcn.com/)
+[FastAPI](https://fastapi.tiangolo.com/) · [LangChain](https://langchain.com/) · [LangGraph](https://langchain-ai.github.io/langgraph/) · [ChromaDB](https://www.trychroma.com/) · [LiteLLM](https://litellm.ai/) · [Tree-sitter](https://tree-sitter.github.io/) · [Kunlun-M](https://github.com/LoRexxar/Kunlun-M) · [React](https://react.dev/) · [Vite](https://vitejs.dev/) · [Radix UI](https://www.radix-ui.com/) · [TailwindCSS](https://tailwindcss.com/) · [shadcn/ui](https://ui.shadcn.com/)
 
 ---
 

@@ -1,47 +1,22 @@
-<p align="center">
-  <a href="https://strix.ai/">
-    <img src="https://github.com/usestrix/.github/raw/main/imgs/cover.png" alt="Strix Banner" width="100%">
-  </a>
-</p>
-
 <div align="center">
 
-# Strix
+# HOS ARES — AI Pentesting Agent
 
-### The open-source AI pentesting tool. Autonomous AI hackers that find and fix your app’s vulnerabilities.
+### The open-source AI pentesting tool. Autonomous AI hackers that find and fix your app's vulnerabilities.
 
-<br/>
-
-
-<a href="https://docs.strix.ai"><img src="https://img.shields.io/badge/Docs-docs.strix.ai-2b9246?style=for-the-badge&logo=gitbook&logoColor=white" alt="Docs"></a>
-<a href="https://strix.ai"><img src="https://img.shields.io/badge/Website-strix.ai-f0f0f0?style=for-the-badge&logoColor=000000" alt="Website"></a>
-[![](https://dcbadge.limes.pink/api/server/strix-ai)](https://discord.gg/strix-ai)
-
-<a href="https://deepwiki.com/usestrix/strix"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
-<a href="https://github.com/usestrix/strix"><img src="https://img.shields.io/github/stars/usestrix/strix?style=flat-square" alt="GitHub Stars"></a>
-<a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-3b82f6?style=flat-square" alt="License"></a>
-<a href="https://pypi.org/project/strix-agent/"><img src="https://img.shields.io/pypi/v/strix-agent?style=flat-square" alt="PyPI Version"></a>
-
-
-<a href="https://discord.gg/strix-ai"><img src="https://github.com/usestrix/.github/raw/main/imgs/Discord.png" height="40" alt="Join Discord"></a>
-<a href="https://x.com/strix_ai"><img src="https://github.com/usestrix/.github/raw/main/imgs/X.png" height="40" alt="Follow on X"></a>
-
-
-<a href="https://trendshift.io/repositories/15362?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-15362" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/15362/weekly" alt="usestrix%2Fstrix | Trendshift" width="250" height="55"/></a>
-<a href="https://trendshift.io/repositories/15362" target="_blank"><img src="https://trendshift.io/api/badge/repositories/15362" alt="usestrix/strix | Trendshift" width="250" height="55"/></a>
+HOS ARES is a local, self-contained security agent. It runs in an isolated sandbox on your device and does not depend on any upstream cloud service or online account.
 
 </div>
 
-
-> [!TIP]
-> **New!** Strix integrates seamlessly with GitHub Actions and CI/CD pipelines. Automatically scan for vulnerabilities on every pull request and block insecure code before it reaches production - [Get started with no setup required](https://app.strix.ai).
+> [!NOTE]
+> This agent ships as a built-in component of HOS ARES. All data is processed locally and nothing is reported back to any upstream service.
 
 ---
 
 
-## Strix Overview
+## HOS ARES Pentest Agent Overview
 
-Strix are autonomous AI penetration testing agents that act just like real hackers - they run your code dynamically, find vulnerabilities, and validate them through actual proofs-of-concept. Built for developers and security teams who need fast, accurate security testing without the overhead of manual pentesting or the false positives of static analysis tools.
+This HOS ARES agent is a set of autonomous AI penetration testing agents that act just like real hackers - they run your code dynamically, find vulnerabilities, and validate them through actual proofs-of-concept. Built for developers and security teams who need fast, accurate security testing without the overhead of manual pentesting or the false positives of static analysis tools.
 
 **Key Capabilities:**
 
@@ -51,14 +26,8 @@ Strix are autonomous AI penetration testing agents that act just like real hacke
 - **Developer‑first CLI** - actionable findings with remediation guidance
 - **Auto‑fix & reporting** - generate patches and compliance-ready pentest reports
 
-
-<br>
-
-
 <div align="center">
-  <a href="https://strix.ai">
-    <img src=".github/screenshot.png" alt="Strix Demo" width="1000" style="border-radius: 16px;">
-  </a>
+  <img src=".github/screenshot.png" alt="HOS ARES Demo" width="1000" style="border-radius: 16px;">
 </div>
 
 
@@ -73,15 +42,13 @@ Strix are autonomous AI penetration testing agents that act just like real hacke
 
 **Prerequisites:**
 - Docker (running)
-- An LLM API key from any [supported provider](https://docs.strix.ai/llm-providers/overview) (OpenAI, Anthropic, Google, etc.)
+- An LLM API key from any supported provider (OpenAI, Anthropic, Google, etc.)
 
 ### Installation & First Scan
 
 ```bash
-# Install Strix
-curl -sSL https://strix.ai/install | bash
-
-# Configure your AI provider
+# HOS ARES bundles this agent's CLI — no separate install needed.
+# Configure your AI provider:
 export STRIX_LLM="openai/gpt-5.4"
 export LLM_API_KEY="your-api-key"
 
@@ -91,32 +58,6 @@ strix --target ./app-directory
 
 > [!NOTE]
 > First run automatically pulls the sandbox Docker image. Results are saved to `strix_runs/<run-name>`
-
----
-
-## ☁️ Strix Platform
-
-Try the Strix full-stack penetration testing platform at **[app.strix.ai](https://app.strix.ai)** - sign up for free, connect your repos and domains, and launch a pentest in minutes.
-
-- **Validated findings with PoCs** - every vulnerability includes a working proof-of-concept exploit and reproduction steps
-- **One-click autofix** - AI-generated security patches as ready-to-merge pull requests
-- **Continuous pentesting** - always-on vulnerability scanning that keeps pace with your deployments
-- **DevSecOps integrations** - GitHub, GitLab, Bitbucket, Slack, Jira, Linear, and CI/CD pipelines
-- **Continuous learning** - AI that builds on past findings, adapts to your codebase, and reduces false positives over time
-
-[**Start your first pentest →**](https://app.strix.ai)
-
----
-
-## 🤖 Use Strix from Your Coding Agent
-
-Strix is agent-ready. Give Claude Code, Cursor, Codex, or any [SKILL.md-compatible](https://agentskills.io) agent the ability to run pentests, fix findings, and set up CI scanning:
-
-```bash
-npx skills add usestrix/strix
-```
-
-This installs four skills: **strix-pentest** (run headless scans and read results), **strix-cloud-api** (drive the managed [app.strix.ai](https://app.strix.ai) platform via REST — no local Docker or LLM key), **strix-fix-findings** (remediate + re-scan to verify), and **strix-ci-setup** (PR scanning in CI). Agents can run Strix two ways with the same engine — the open-source CLI locally, or the managed cloud when there's no local infra — and read [`AGENTS.md`](AGENTS.md) for a quick reference, [docs.strix.ai/llms.txt](https://docs.strix.ai/llms.txt) for the CLI docs, and [docs.app.strix.ai](https://docs.app.strix.ai) for the API.
 
 ---
 
@@ -270,9 +211,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Strix
-        run: curl -sSL https://strix.ai/install | bash
-
       - name: Run Strix
         env:
           STRIX_LLM: ${{ secrets.STRIX_LLM }}
@@ -321,35 +259,23 @@ strix auth logout             # forget the sign-in
 - [Anthropic Claude Sonnet 4.6](https://claude.com/platform/api) - `anthropic/claude-sonnet-4-6`
 - [Google Gemini 3 Pro Preview](https://cloud.google.com/vertex-ai) - `vertex_ai/gemini-3-pro-preview`
 
-See the [LLM Providers documentation](https://docs.strix.ai/llm-providers/overview) for all supported providers including Vertex AI, Bedrock, Azure, and local models.
-
-## Enterprise Pentesting
-
-Get the same Strix experience with [enterprise-grade](https://strix.ai/demo) controls: SSO (SAML/OIDC), custom compliance-ready penetration testing reports (SOC 2, ISO 27001, PCI DSS), dedicated support & SLA, custom deployment options (VPC/self-hosted), BYOK model support, and tailored AI pentesting agents optimized for your environment. [Learn more](https://strix.ai/demo).
+The CLI supports all major LLM providers including OpenAI, Anthropic, Google, Vertex AI, Bedrock, Azure, and local models.
 
 ## Documentation
 
-Full documentation is available at **[docs.strix.ai](https://docs.strix.ai)** - including detailed guides for usage, CI/CD integrations, skills, and advanced configuration.
+Refer to the in-repo docs and the CLI help (`strix --help`) for usage, CI/CD integrations, skills, and advanced configuration.
 
 ## Contributing
 
-We welcome contributions of code, docs, and new skills - check out our [Contributing Guide](https://docs.strix.ai/contributing) to get started or open a [pull request](https://github.com/usestrix/strix/pulls)/[issue](https://github.com/usestrix/strix/issues).
-
-## Join Our Community
-
-Have questions? Found a bug? Want to contribute? **[Join our Discord!](https://discord.gg/strix-ai)**
-
-## Support the Project
-
-**Love Strix?** Give us a ⭐ on GitHub!
+We welcome contributions of code, docs, and new skills. Open an issue or pull request if you find a bug or have an idea.
 
 ## Acknowledgements
 
-Strix builds on the incredible work of open-source projects like [LiteLLM](https://github.com/BerriAI/litellm), [Caido](https://github.com/caido/caido), [Nuclei](https://github.com/projectdiscovery/nuclei), [Playwright](https://github.com/microsoft/playwright), and [Bubble Tea](https://github.com/charmbracelet/bubbletea). Huge thanks to their maintainers!
+This agent builds on the incredible work of open-source projects like [LiteLLM](https://github.com/BerriAI/litellm), [Caido](https://github.com/caido/caido), [Nuclei](https://github.com/projectdiscovery/nuclei), [Playwright](https://github.com/microsoft/playwright), and [Bubble Tea](https://github.com/charmbracelet/bubbletea). Huge thanks to their maintainers!
 
 
 > [!WARNING]
-> **Authorized use only.** Strix actively tests the targets you point it at, so only run it against systems you own or have **explicit, written permission** to test, and stay within the agreed scope. Unauthorized testing is illegal in most jurisdictions.
-> You alone are responsible for obtaining authorization and complying with the law. Strix is provided "as is" with no warranty or liability for misuse.
+> **Authorized use only.** This agent actively tests the targets you point it at, so only run it against systems you own or have **explicit, written permission** to test, and stay within the agreed scope. Unauthorized testing is illegal in most jurisdictions.
+> You alone are responsible for obtaining authorization and complying with the law. This agent is provided "as is" with no warranty or liability for misuse.
 
 </div>

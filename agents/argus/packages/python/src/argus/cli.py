@@ -33,7 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="argus",
         description=(
-            "Code security scanner — SAST, DAST, SCA, Secrets, IaC, Terraform, Ansible.\n"
+            "HOS ARES Security Agent — code security scanner (SAST, DAST, SCA, Secrets, IaC, Terraform, Ansible).\n"
             "All scanners are open-source. No AI token or subscription needed for CLI use."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -92,7 +92,7 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument(
             "--upload",
             action="store_true",
-            help="Upload results to Argus cloud dashboard (requires ARGUS_API_KEY)",
+            help="Upload results to the cloud dashboard (requires ARGUS_API_KEY)",
         )
         p.add_argument(
             "--no-upload",
@@ -620,7 +620,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.version:
         from argus import __version__
 
-        print(f"argus-scan {__version__}")
+        print(f"HOS ARES Security Agent {__version__}")
         return 0
 
     if args.command is None:

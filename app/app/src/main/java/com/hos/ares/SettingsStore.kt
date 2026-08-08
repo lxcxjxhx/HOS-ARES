@@ -12,9 +12,38 @@ class SettingsStore(context: Context) {
 
     private val prefs = context.getSharedPreferences("hos_settings", Context.MODE_PRIVATE)
 
+    init {
+        migrate()
+    }
+
     companion object {
         /** 默认工作目录根路径。 */
         val defaultProjectDir: String = "/sdcard/.ares/project"
+
+        /** 当前设置 schema 版本。升级时若需要迁移旧默认值，递增此值并补充迁移分支。 */
+        private const val SETTINGS_VERSION = 1
+        private const val KEY_SETTINGS_VERSION = "settings_version"
+    }
+
+    /**
+     * 设置项自愈迁移：检测到旧版本（version 缺失/较低）时，把已持久化的旧默认值
+     * （deepseek-chat / dsv4flash 等）归一化为当前默认值，避免用户升级后手动清数据。
+     * 幂等，仅在版本变化时执行一次。
+     */
+    private fun migrate() {
+        val stored = prefs.getInt(KEY_SETTINGS_VERSION, 0)
+        if (stored >= SETTINGS_VERSION) return
+        val editor = prefs.edit()
+        // 旧默认模型名（历史版本曾用）→ 归一化为当前默认
+        val oldModel = prefs.getString("model", "").orEmpty()
+        if (oldModel == "deepseek-chat" || oldModel == "dsv4flash") {
+            editor.putString("model", "deepseek-v4-flash")
+        }
+        // 旧 base URL 为空 → 回填默认
+        if (prefs.getString("llm_base_url", "").isNullOrBlank()) {
+            editor.putString("llm_base_url", "https://api.deepseek.com")
+        }
+        editor.putInt(KEY_SETTINGS_VERSION, SETTINGS_VERSION).apply()
     }
 
     /**
@@ -61,13 +90,18 @@ class SettingsStore(context: Context) {
 
     /** 模型名。 */
     var model: String
-        get() = prefs.getString("model", "deepseek-chat") ?: "deepseek-chat"
+        get() = prefs.getString("model", "deepseek-v4-flash") ?: "deepseek-v4-flash"
         set(v) = prefs.edit().putString("model", v).apply()
 
     /** 电脑端 Agent Server 地址（协同模式）。 */
     var serverUrl: String
         get() = prefs.getString("server_url", "") ?: ""
         set(v) = prefs.edit().putString("server_url", v).apply()
+
+    /** LLM API Base URL（reasonix/agent 入口通过 HOS_LLM_BASE_URL 读取）。 */
+    var llmBaseUrl: String
+        get() = prefs.getString("llm_base_url", "https://api.deepseek.com") ?: "https://api.deepseek.com"
+        set(v) = prefs.edit().putString("llm_base_url", v).apply()
 
     /** 是否已联网安装依赖（用于提示）。 */
     var bootstrapWarned: Boolean
@@ -80,10 +114,12 @@ class SettingsStore(context: Context) {
         if (anthropicKey.isNotBlank()) m["ANTHROPIC_API_KEY"] = anthropicKey
         if (openaiKey.isNotBlank()) m["OPENAI_API_KEY"] = openaiKey
         if (geminiKey.isNotBlank()) m["GOOGLE_API_KEY"] = geminiKey
+        if (deepseekKey.isNotBlank()) m["DEEPSEEK_API_KEY"] = deepseekKey
         if (deepseekKey.isNotBlank()) m["DEEPSEEK_API_KEY2"] = deepseekKey
         if (serverUrl.isNotBlank()) m["HOS_SERVER_URL"] = serverUrl
         m["HOS_BACKEND"] = backend
         m["HOS_MODEL"] = model
+        m["HOS_LLM_BASE_URL"] = llmBaseUrl
         return m
     }
 }

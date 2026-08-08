@@ -14,7 +14,11 @@ PYTHONPATH，供上层 ToolExecutor / Skill Registry 按名称调度。
 """
 from __future__ import annotations
 
+import json
 import os
+import urllib.parse
+import urllib.request
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from .base import AdapterResult, AgentAdapter
@@ -130,21 +134,137 @@ class PentestGPTAdapter(AgentAdapter):
 
 
 class DeepAuditAdapter(AgentAdapter):
-    """DeepAudit — FastAPI 后端 AI 审计平台（服务式，通过 HTTP API 调用）。"""
+    """DeepAudit — FastAPI 后端 AI 审计平台（服务式，通过 REST API 同步扫描）。"""
 
     name = "deepaudit"
     agent_dir = "deepaudit"
 
-    # 默认后端服务地址（需先启动 backend，见 agents/deepaudit 文档）
-    DEFAULT_BASE_URL = os.environ.get("DEEPAUDIT_URL", "http://127.0.0.1:8000")
+    # 文本扩展名 → DeepAudit 识别的语言名（与 backend get_language_from_path 近似）
+    EXT_LANG: Dict[str, str] = {
+        ".py": "Python", ".js": "JavaScript", ".ts": "TypeScript", ".tsx": "TypeScript",
+        ".jsx": "JavaScript", ".java": "Java", ".go": "Go", ".rs": "Rust",
+        ".cpp": "C++", ".c": "C", ".h": "C++", ".cc": "C++", ".cs": "C#",
+        ".php": "PHP", ".rb": "Ruby", ".kt": "Kotlin", ".swift": "Swift",
+        ".sql": "SQL", ".sh": "Shell", ".json": "JSON", ".yml": "YAML", ".yaml": "YAML",
+    }
+    MAX_FILE_BYTES = int(os.environ.get("DEEPAUDIT_MAX_FILE_BYTES", "1048576"))  # 1MB
+    DEFAULT_MAX_FILES = int(os.environ.get("DEEPAUDIT_MAX_FILES", "50"))
+
+    def __init__(self, timeout: int = 600) -> None:
+        super().__init__(timeout)
+        self.base_url = (os.environ.get("DEEPAUDIT_URL") or "http://127.0.0.1:8000").rstrip("/")
+        self.token = os.environ.get("DEEPAUDIT_TOKEN") or ""
+        self.email = os.environ.get("DEEPAUDIT_EMAIL")
+        self.password = os.environ.get("DEEPAUDIT_PASSWORD")
 
     def build_cmd(self, target: str, kwargs: Dict[str, Any]) -> Tuple[List[str], Dict[str, str]]:
-        # 这里仅返回校验结果占位；真实扫描通过其 REST API 触发。
-        base = self.DEFAULT_BASE_URL
-        raise ValueError(
-            f"[deepaudit] 需先启动后端服务（uvicorn backend.main:app），"
-            f"然后通过 {base} 的 REST API 触发扫描（适配器暂以 API 集成）。"
+        # REST 集成，不使用 subprocess
+        raise NotImplementedError(
+            "[deepaudit] 适配器通过 REST API 集成，不走命令行；请直接调用 run()。"
         )
+
+    def run(self, target: str, **kwargs: Any) -> AdapterResult:
+        if not (self.base_url and self.base_url.startswith("http")):
+            return AdapterResult(
+                self.name, target, "error",
+                output=f"[deepaudit] 未配置有效 DEEPAUDIT_URL: {self.base_url!r}",
+            )
+        try:
+            token = self._get_token()
+        except Exception as exc:
+            return AdapterResult(
+                self.name, target, "error",
+                output=f"[deepaudit] 获取 token 失败: {exc}",
+            )
+
+        files = self._collect_files(target, kwargs)
+        if not files:
+            return AdapterResult(
+                self.name, target, "not_available",
+                output=f"[deepaudit] 目标目录无代码文件或不可读: {target}",
+            )
+
+        findings: List[str] = []
+        lines: List[str] = []
+        total_issues = 0
+        failed = 0
+        for rel, lang, content in files:
+            try:
+                issues = self._instant(token, content, lang)
+            except Exception as exc:
+                failed += 1
+                lines.append(f"[deepaudit] 分析 {rel} 失败: {exc}")
+                continue
+            total_issues += len(issues)
+            lines.append(f"[deepaudit] {rel} ({lang}): {len(issues)} issues")
+            for it in issues:
+                sev = str(it.get("severity", "low"))
+                title = str(it.get("title", it.get("message", "")))
+                findings.append(f"[{rel}] {sev}: {title}")
+
+        status = "error" if (files and failed == len(files)) else "ok"
+        header = f"[deepaudit] 扫描完成：{len(files)} 文件，{total_issues} issues，{failed} 失败"
+        return AdapterResult(
+            self.name, target, status,
+            output="\n".join([header] + lines),
+            findings=findings,
+        )
+
+    # ------------------------------------------------------------------
+    # 内部 REST 辅助
+    # ------------------------------------------------------------------
+    def _get_token(self) -> str:
+        if self.token:
+            return self.token
+        if not (self.email and self.password):
+            raise ValueError(
+                "未配置 DEEPAUDIT_TOKEN 或 DEEPAUDIT_EMAIL/DEEPAUDIT_PASSWORD，"
+                "无法调用需认证的 DeepAudit API。"
+            )
+        url = f"{self.base_url}/api/v1/auth/login"
+        data = urllib.parse.urlencode(
+            {"username": self.email, "password": self.password}
+        ).encode("utf-8")
+        req = urllib.request.Request(url, data=data, method="POST")
+        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        token = payload.get("access_token")
+        if not token:
+            raise ValueError(f"登录响应缺少 access_token: {payload}")
+        return token
+
+    def _instant(self, token: str, code: str, language: str) -> List[Dict[str, Any]]:
+        url = f"{self.base_url}/api/v1/scan/instant"
+        body = json.dumps({"code": code, "language": language}).encode("utf-8")
+        req = urllib.request.Request(url, data=body, method="POST")
+        req.add_header("Content-Type", "application/json")
+        req.add_header("Authorization", f"Bearer {token}")
+        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        return payload.get("issues", []) or []
+
+    def _collect_files(self, target: str, kwargs: Dict[str, Any]) -> List[Tuple[str, str, str]]:
+        root = Path(target)
+        if not root.exists() or not root.is_dir():
+            return []
+        max_files = int(kwargs.get("max_files") or self.DEFAULT_MAX_FILES)
+        out: List[Tuple[str, str, str]] = []
+        for p in root.rglob("*"):
+            if not p.is_file():
+                continue
+            lang = self.EXT_LANG.get(p.suffix.lower())
+            if lang is None:
+                continue
+            try:
+                content = p.read_text(encoding="utf-8", errors="ignore")
+            except Exception:
+                continue
+            if len(content.encode("utf-8", errors="ignore")) > self.MAX_FILE_BYTES:
+                continue
+            out.append((p.relative_to(root).as_posix(), lang, content))
+            if len(out) >= max_files:
+                break
+        return out
 
 
 # ---------------------------------------------------------------------------

@@ -275,7 +275,7 @@ def _fail(console: Console, exc: codex.CodexAuthError) -> int:
     console.print(
         Panel(
             error_text,
-            title="[bold white]STRIX",
+            title="[bold white]HOS ARES",
             title_align="left",
             border_style="red",
             padding=(1, 2),
@@ -302,7 +302,7 @@ def _print_success(console: Console) -> None:
     console.print(
         Panel(
             text,
-            title="[bold white]STRIX",
+            title="[bold white]HOS ARES",
             title_align="left",
             border_style="#22c55e",
             padding=(1, 2),
@@ -319,7 +319,7 @@ def _logo_img_tag() -> str:
 
     The callback page is served offline by the local OAuth server, so the logo
     is embedded rather than linked. Missing/unreadable file degrades to just the
-    "Strix" wordmark.
+    "HOS-ARES" wordmark.
     """
     try:
         data = _LOGO_PATH.read_bytes()
@@ -336,7 +336,7 @@ def _render_callback_html() -> str:
 _CALLBACK_HTML = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Strix — signed in</title>
+<title>HOS-ARES — signed in</title>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
@@ -390,27 +390,19 @@ _CALLBACK_HTML = """<!doctype html>
   .close { margin: 24px 0 0; color: #5a5a5a; font-size: .78rem; text-align: center; }
 </style></head>
 <body>
-  <a class="topbar" href="https://strix.ai" target="_blank" rel="noopener"
-     aria-label="Strix — strix.ai">
+  <a class="topbar" href="#" aria-label="HOS-ARES">
     <!--LOGO-->
-    <span>Strix</span>
+    <span>HOS-ARES</span>
   </a>
-  <div class="brand">Strix</div>
+  <div class="brand">HOS-ARES</div>
   <h1>You're signed in</h1>
   <main class="card">
     <div class="badge">✓</div>
-    <p class="msg">Strix is connected to your ChatGPT subscription. Head back to your
+    <p class="msg">HOS-ARES is connected to your ChatGPT subscription. Head back to your
       terminal — your security test runs there.</p>
     <div class="rule"></div>
     <p class="tagline">Autonomous AI hackers that <b>find and fix</b> your app's
       vulnerabilities.</p>
-    <nav class="links">
-      <a href="https://strix.ai" target="_blank" rel="noopener">strix.ai</a>
-      <span class="dot">·</span>
-      <a href="https://docs.strix.ai" target="_blank" rel="noopener">docs</a>
-      <span class="dot">·</span>
-      <a href="https://discord.gg/strix-ai" target="_blank" rel="noopener">community</a>
-    </nav>
   </main>
   <p class="close">You can close this tab.</p>
 </body></html>"""

@@ -34,6 +34,8 @@ class AgentCardAdapter(
         AgentStatus.RUNNING -> "运行中"
         AgentStatus.DONE -> "完成"
         AgentStatus.FAILED -> "失败"
+        AgentStatus.CANCELLED -> "已取消"
+        AgentStatus.TIMEOUT -> "超时"
     }
 
     private fun statusColor(s: AgentStatus): Int = when (s) {
@@ -41,6 +43,8 @@ class AgentCardAdapter(
         AgentStatus.RUNNING -> R.color.accent
         AgentStatus.DONE -> R.color.accent_green
         AgentStatus.FAILED -> R.color.error
+        AgentStatus.CANCELLED -> R.color.text_muted
+        AgentStatus.TIMEOUT -> R.color.accent_red
     }
 
     fun submit(list: List<AgentRunEvent>) {

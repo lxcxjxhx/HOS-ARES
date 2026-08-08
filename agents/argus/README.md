@@ -1,23 +1,18 @@
-# Argus
-
-> *In Greek mythology, Argus Panoptes was the hundred-eyed giant — an all-seeing guardian who never slept.*
+# HOS ARES Code Scanner
 
 **One open-source scanner. Many eyes. SAST, SCA, secrets, IaC, Terraform, Ansible — CLI, MCP, and GitHub SARIF.**
 
-Argus orchestrates **20+ industry-standard tools** (Semgrep, Trivy, Gitleaks, tfsec, Checkov, OWASP ZAP, and more) behind a single command and an **MCP server** for any MCP-compatible IDE or AI client. Runs locally. **No Argus subscription.** MIT licensed.
+HOS ARES orchestrates **20+ industry-standard tools** (Semgrep, Trivy, Gitleaks, tfsec, Checkov, OWASP ZAP, and more) behind a single command and an **MCP server** for any MCP-compatible IDE or AI client. Runs locally. **No subscription.** MIT licensed.
 
-[![Python CI](https://github.com/argus-code-scanning/argus-codescan-mcp/actions/workflows/ci-python.yml/badge.svg)](https://github.com/argus-code-scanning/argus-codescan-mcp/actions/workflows/ci-python.yml)
-[![npm CI](https://github.com/argus-code-scanning/argus-codescan-mcp/actions/workflows/ci-npm.yml/badge.svg)](https://github.com/argus-code-scanning/argus-codescan-mcp/actions/workflows/ci-npm.yml)
-[![Go CI](https://github.com/argus-code-scanning/argus-codescan-mcp/actions/workflows/ci-go.yml/badge.svg)](https://github.com/argus-code-scanning/argus-codescan-mcp/actions/workflows/ci-go.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 **Install:** `pip install argus-scan` · `npm install -D argus-codescan` · [Docker](packages/docker/README.md) · [Launch kit](docs/launch/show-hn.md)
 
 ---
 
-## Why Argus?
+## Why HOS ARES?
 
-| | Run scanners yourself | Argus |
+| | Run scanners yourself | HOS ARES |
 |---|----------------------|--------|
 | **Setup** | Install & configure each tool separately | One CLI / MCP config |
 | **Output** | Different JSON/text per tool | Unified report + SARIF |
@@ -28,7 +23,7 @@ Argus orchestrates **20+ industry-standard tools** (Semgrep, Trivy, Gitleaks, tf
 
 **Good for:** solo devs, OSS maintainers, teams wanting DevSecOps without a proprietary scanner SaaS.
 
-**Not a replacement for:** managed AppSec platforms with centralized policy, SOC, or compliance sign-off — Argus is a **local orchestrator** you own.
+**Not a replacement for:** managed AppSec platforms with centralized policy, SOC, or compliance sign-off — HOS ARES is a **local orchestrator** you own.
 
 ---
 
