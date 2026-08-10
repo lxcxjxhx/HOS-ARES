@@ -1,0 +1,13 @@
+# Argus 开源安全扫描器 (SAST/DAST/SCA/Secrets/IaC)，无需 AI。
+# 运行入口: python3 -m argus.cli scan all <target> --format markdown
+# 本清单基于源码实际 import 归纳 (python3/pip 自带标准库不计)。
+# 依据:
+#   - src/argus/policy.py  -> import yaml
+#   - src/argus/tools/code.py -> from argus_languages import ...
+#     (code.py 被 `scan all` 的 sast 流程导入，故 argus-languages 为必需)
+pyyaml
+argus-languages
+
+# 可选依赖（仅 argus server MCP 模式需要，cli scan 不依赖）：
+# 依据: src/argus/server.py -> import mcp
+# mcp

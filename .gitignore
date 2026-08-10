@@ -1,0 +1,37 @@
+# ============================================================
+# HOS-ARES .gitignore
+# ============================================================
+
+# ---------- 构建产物 / 工具链（本地开发用，不上传） ----------
+tools/
+dist/
+vendor/
+DeepSeek-Reasonix/
+docs/reference/
+*.apk
+*.zip
+*.tgz
+*.tar.gz
+
+# ---------- 大体积编译产物 → 放 GitHub Release ----------
+app/app/src/main/assets/rootfs.tar
+app/app/src/main/assets/usr/bin/reasonix
+app/app/src/main/assets/usr/bin/pty-bridge
+
+# ---------- 核心方案文档（内部资料，仅本地） ----------
+IMG/
+PLAN.MD
+PLAN2.MD
+PLAN3.MD
+
+# ---------- 机器特定 / 构建缓存 ----------
+app/local.properties
+app/build/
+app/app/build/
+.gradle/
+*.iml
+.idea/
+
+# ---------- 系统 ----------
+.DS_Store
+Thumbs.db

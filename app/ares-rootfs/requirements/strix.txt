@@ -1,0 +1,21 @@
+# Strix 开源 AI 渗透测试 Agent。
+# 运行入口: python3 -m strix -n -t <target> --scan-mode <mode>
+# 本清单基于源码实际 import 归纳 (python3/pip 自带标准库不计)。
+# 依据:
+#   - strix/core/execution.py, llm/* -> import litellm, from openai import ...
+#   - strix/config/settings.py       -> pydantic, pydantic_settings
+#   - strix/utils/api_spec.py 等     -> requests, yaml
+#   - strix/agents/prompt.py         -> jinja2
+#   - strix/report/writer.py         -> pygments
+#   - strix/interface/*              -> rich
+#   - strix/interface/viewer/report_pdf.py -> reportlab
+litellm
+openai
+pydantic
+pydantic-settings
+requests
+rich
+pygments
+jinja2
+reportlab
+pyyaml

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 深紫黑径向渐变背景（PLAN3：暗夜能量场） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient
+        android:type="radial"
+        android:gradientRadius="100%p"
+        android:centerX="0.5"
+        android:centerY="0.35"
+        android:startColor="#1A1230"
+        android:centerColor="#0B0710"
+        android:endColor="#000000" />
+</shape>

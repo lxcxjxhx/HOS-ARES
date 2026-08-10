@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>HOS-ARES · Reasonix</title>
+<link rel="stylesheet" href="xterm.css">
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #0B0710; overflow: hidden; }
+  #term { padding: 6px; height: calc(100% - 12px); box-sizing: border-box; }
+  .xterm { height: 100%; }
+  #hint {
+    position: fixed; right: 4px; bottom: 12px;
+    color: #8A7BAB; font-size: 10px; font-family: monospace;
+    pointer-events: none; z-index: 10; opacity: .6;
+  }
+</style>
+</head>
+<body>
+<div id="term"></div>
+<div id="hint">HOS-ARES · 滑动滚动 / 长按粘贴</div>
+<script src="xterm.js"></script>
+<script>
+var term = new Terminal({
+  convertEol: true,
+  cursorBlink: true,
+  fontSize: 13,
+  fontFamily: 'Menlo, Consolas, "DejaVu Sans Mono", monospace',
+  theme: {
+    background: '#0B0710',
+    foreground: '#e6edf3',
+    cursor: '#A855F7',
+    selectionBackground: '#3A2A5C'
+  },
+  scrollback: 8000
+});
+term.open(document.getElementById('term'));
+
+// ---- 自研尺寸计算（替代 addon-fit）：按视口与字符尺寸估算行列 ----
+function computeSize() {
+  var el = document.getElementById('term');
+  var style = window.getComputedStyle(el);
+  var pad = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+  var w = el.clientWidth - pad - 12;
+  var h = el.clientHeight - 12;
+  var dim = term._core._renderService.dimensions;
+  var cols = Math.max(20, Math.floor(w / dim.actualCellWidth));
+  var rows = Math.max(5, Math.floor(h / dim.actualCellHeight));
+  term.resize(cols, rows);
+  if (window.Android) Android.onResize(cols, rows);
+}
+
+// ---- JS -> Java 桥 ----
+term.onData(function (data) {
+  if (window.Android) Android.onData(data);
+});
+
+// 滚动事件（reasonix alt-screen 用 SGR 鼠标；普通滚动用 scrollback）
+var scrolling = false;
+term.element.addEventListener('touchstart', function () { scrolling = false; });
+term.element.addEventListener('touchmove', function () {
+  if (term.buffer.active.type === 'alternate') {
+    // alt screen：模拟 SGR 鼠标滚轮，交给 reasonix 滚动
+    if (window.Android) Android.onData('\x1b[<65;1;1M');
+    scrolling = true;
+  }
+});
+
+// 长按粘贴
+var t0 = 0;
+term.element.addEventListener('touchstart', function () { t0 = Date.now(); });
+term.element.addEventListener('touchend', function () {
+  if (Date.now() - t0 > 600) { navigator.clipboard && navigator.clipboard.readText().then(function (t) {
+    if (t && window.Android) Android.onData(t);
+  }).catch(function(){}); }
+});
+
+window.addEventListener('resize', function () { setTimeout(computeSize, 50); });
+window.addEventListener('orientationchange', function () { setTimeout(computeSize, 200); });
+setTimeout(computeSize, 200);
+setInterval(computeSize, 2000); // 键盘弹起/隐藏后兜底校正
+
+// ---- Java -> JS 桥 ----
+window.writeData = function (data) { term.write(data); };
+window.notifyExit = function () {
+  term.write('\r\n\x1b[31m[会话已结束]\x1b[0m\r\n');
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,286 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- HOS-ARES 安全风信子主界面（PLAN3） -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_home"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <!-- 品牌区 -->
+        <ImageView
+            android:id="@+id/home_logo"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="28dp"
+            android:contentDescription="HOS-ARES"
+            android:src="@mipmap/ic_launcher" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="10dp"
+            android:text="HOS-ARES"
+            android:textColor="@color/text_primary"
+            android:textSize="30sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="2dp"
+            android:text="AI 安全实验室 · DeepSeek-Reasonix"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="6dp"
+            android:text="Argus · PentestGPT · RepoAudit 已预装"
+            android:textColor="@color/text_dim"
+            android:textSize="11sp" />
+
+        <!-- 工具状态卡片 -->
+        <LinearLayout
+            android:id="@+id/card_reasonix"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="26dp"
+            android:background="@drawable/bg_card"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="14dp">
+
+            <View
+                android:id="@+id/dot_reasonix"
+                android:layout_width="10dp"
+                android:layout_height="10dp"
+                android:background="@drawable/bg_dot_init" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Reasonix"
+                    android:textColor="@color/text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/status_reasonix"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="首次启动将自动初始化"
+                    android:textColor="@color/text_dim"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="进入 ›"
+                android:textColor="@color/purple"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_card"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="14dp">
+
+            <View
+                android:id="@+id/dot_argus"
+                android:layout_width="10dp"
+                android:layout_height="10dp"
+                android:background="@drawable/bg_dot_init" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Argus · AI 红队测试"
+                    android:textColor="@color/text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/status_argus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="对 AI 端点跑 500+ 对抗探针"
+                    android:textColor="@color/text_dim"
+                    android:textSize="11sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_card"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="14dp">
+
+            <View
+                android:id="@+id/dot_pentestgpt"
+                android:layout_width="10dp"
+                android:layout_height="10dp"
+                android:background="@drawable/bg_dot_init" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="PentestGPT · 渗透测试"
+                    android:textColor="@color/text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/status_pentestgpt"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="自动化渗透 / CTF 解题"
+                    android:textColor="@color/text_dim"
+                    android:textSize="11sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_card"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="14dp">
+
+            <View
+                android:id="@+id/dot_repoaudit"
+                android:layout_width="10dp"
+                android:layout_height="10dp"
+                android:background="@drawable/bg_dot_init" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="RepoAudit · 代码审计"
+                    android:textColor="@color/text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/status_repoaudit"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="空指针 / 内存泄漏 / UAF"
+                    android:textColor="@color/text_dim"
+                    android:textSize="11sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 主按钮 -->
+        <Button
+            android:id="@+id/btn_enter"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="24dp"
+            android:background="@drawable/bg_btn_purple"
+            android:text="进入 Reasonix 终端"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <!-- Root 状态（高级功能可用性） -->
+        <LinearLayout
+            android:id="@+id/card_root"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_card"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="14dp">
+
+            <View
+                android:id="@+id/dot_root"
+                android:layout_width="10dp"
+                android:layout_height="10dp"
+                android:background="@drawable/bg_dot_init" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Root 权限 · 高级功能"
+                    android:textColor="@color/text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/status_root"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="检测中..."
+                    android:textColor="@color/text_dim"
+                    android:textSize="11sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="14dp"
+            android:layout_marginBottom="10dp"
+            android:text="LLM 统一使用 DeepSeek · 无需额外配置"
+            android:textColor="@color/text_dim"
+            android:textSize="11sp" />
+    </LinearLayout>
+</ScrollView>
