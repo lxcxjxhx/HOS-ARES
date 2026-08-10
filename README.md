@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/banner.png" alt="HOS-ARES" width="100%">
+  <img src="docs/banner.svg" alt="HOS-ARES" width="100%">
 </p>
 
 <p align="center">
