@@ -42,10 +42,6 @@
             android:windowSoftInputMode="adjustResize" />
 
         <activity
-            android:name=".HomeActivity"
-            android:exported="false" />
-
-        <activity
             android:name=".TerminalActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
