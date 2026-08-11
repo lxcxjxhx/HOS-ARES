@@ -108,6 +108,31 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean("bootstrap_warned", false)
         set(v) = prefs.edit().putBoolean("bootstrap_warned", v).apply()
 
+    /** 自循环模式：reasonix 无人值守自动执行（--max-steps 0），手机端不需逐轮确认。默认开。 */
+    var selfLoop: Boolean
+        get() = prefs.getBoolean("self_loop", true)
+        set(v) = prefs.edit().putBoolean("self_loop", v).apply()
+
+    /** YOLO 模式：reasonix --yolo（跳过审批），提升无人值守时自行查看/执行能力。默认开。 */
+    var yolo: Boolean
+        get() = prefs.getBoolean("yolo", true)
+        set(v) = prefs.edit().putBoolean("yolo", v).apply()
+
+    /** 定时任务开关。 */
+    var scheduleEnabled: Boolean
+        get() = prefs.getBoolean("schedule_enabled", false)
+        set(v) = prefs.edit().putBoolean("schedule_enabled", v).apply()
+
+    /** 定时任务内容（到点自动发送给 reasonix）。 */
+    var scheduleTask: String
+        get() = prefs.getString("schedule_task", "").orEmpty()
+        set(v) = prefs.edit().putString("schedule_task", v).apply()
+
+    /** 定时任务间隔（小时）。 */
+    var scheduleIntervalHours: Int
+        get() = prefs.getInt("schedule_interval_hours", 24)
+        set(v) = prefs.edit().putInt("schedule_interval_hours", v).apply()
+
     /** 构建注入 rootfs 的环境变量表。 */
     fun envMap(): Map<String, String> {
         val m = HashMap<String, String>()
@@ -120,6 +145,8 @@ class SettingsStore(context: Context) {
         m["HOS_BACKEND"] = backend
         m["HOS_MODEL"] = model
         m["HOS_LLM_BASE_URL"] = llmBaseUrl
+        m["HOS_SELF_LOOP"] = if (selfLoop) "1" else "0"
+        m["HOS_YOLO"] = if (yolo) "1" else "0"
         return m
     }
 }

@@ -1,10 +1,6 @@
 package com.hos.ares
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -52,12 +48,10 @@ class AresGateway(
                 // reasonix 成功 → 直接进入汇总，reasonix 卡片置为 DONE
                 setStatus(reasonixName, AgentStatus.DONE, "✓ 统一入口执行完成\n")
             } else {
-                // reasonix 失败 → 回退到原直连并行调度（保留各技能工具可用性），reasonix 卡片置为 FAILED
-                setStatus(reasonixName, AgentStatus.FAILED, "✗ 统一入口失败，回退直连调度\n")
-                _output.update { it + "\nHOS: reasonix 统一入口失败，回退到直连并行调度。\n" }
-                coroutineScope {
-                    skills.map { async(Dispatchers.IO) { runOne(it, task, projectDir, timeoutMillis) } }.awaitAll()
-                }
+                // reasonix 失败：如实报告（rootfs 无其它 agent 的 run.sh，直连回退不可用）
+                val err = (reasonixResult as? Result.Failure)?.error ?: "未知错误"
+                setStatus(reasonixName, AgentStatus.FAILED, "✗ $err\n")
+                _output.update { it + "\nHOS: reasonix 统一入口失败：$err\n" }
             }
 
             _output.update { it + "\n" }
@@ -122,34 +116,6 @@ class AresGateway(
         setStatus(name, status, "")
     }
 
-    private suspend fun runOne(
-        skill: SkillRegistry.Skill,
-        task: String,
-        projectDir: String?,
-        timeoutMillis: Long,
-    ) {
-        setStatus(skill.name, AgentStatus.RUNNING, "开始执行 ${skill.name}…\n")
-        _output.update { it + "→ 调用 ${skill.name}${if (skill.requiresLl) " [需 LLM]" else ""}\n" }
-        try {
-            when (val r = proot.runAgent(
-                skill.name, task, projectDir, envProvider(), timeoutMillis,
-                onOutput = { line -> streamAppend(skill.name, line) },
-            )) {
-                is Result.Success -> setStatus(skill.name, AgentStatus.DONE, "✓ 完成: ${r.value}\n")
-                is Result.Failure -> {
-                    if (r.error.startsWith("超时")) {
-                        setStatus(skill.name, AgentStatus.TIMEOUT, "⏱ ${r.error}\n")
-                    } else {
-                        setStatus(skill.name, AgentStatus.FAILED, "✗ ${r.error}\n")
-                    }
-                }
-            }
-        } catch (e: CancellationException) {
-            setStatus(skill.name, AgentStatus.CANCELLED, "已取消\n")
-            throw e
-        }
-    }
-
     /** 按 skill 更新对应事件状态并追加 detail。 */
     private fun setStatus(skill: String, status: AgentStatus, detailAppend: String) {
         _events.update { list ->
@@ -157,19 +123,6 @@ class AresGateway(
             val base = if (idx >= 0) list[idx] else AgentRunEvent(skill, AgentStatus.PENDING, "")
             val newItem = base.copy(status = status, detail = base.detail + detailAppend)
             if (idx >= 0) list.toMutableList().also { it[idx] = newItem } else list + newItem
-        }
-    }
-
-    /** 同时更新 _output 与对应事件的 detail。 */
-    private fun streamAppend(skill: String, line: String) {
-        _output.update { it + line }
-        _events.update { list ->
-            val idx = list.indexOfFirst { it.skill == skill }
-            if (idx >= 0) {
-                list.toMutableList().also { it[idx] = it[idx].copy(detail = it[idx].detail + line) }
-            } else {
-                list + AgentRunEvent(skill, AgentStatus.RUNNING, line)
-            }
         }
     }
 

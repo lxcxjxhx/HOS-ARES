@@ -8,6 +8,7 @@
     <string name="new_task">新建任务</string>
     <string name="hint_directory">工作目录（留空使用默认 /sdcard/.ares/project）</string>
     <string name="hint_task">输入任务，如：帮我审计这个项目</string>
+    <string name="hint_chat">输入需求，或上传文件/图片…</string>
     <string name="run">执行</string>
     <string name="cancel">取消</string>
     <string name="cancelled">已取消</string>
@@ -19,4 +20,14 @@
     <string name="status_needs_network">首次使用需联网完成依赖安装</string>
     <string name="status_net_recovered">网络已恢复，正在自动安装依赖…</string>
     <string name="status_error">运行环境初始化失败</string>
+
+    <!-- 环境选择器 -->
+    <string name="env_switch">切换环境</string>
+    <string name="env_new">新建环境</string>
+    <string name="env_name_hint">如：渗透测试-VPN</string>
+    <string name="env_note_hint">如：搭载 VPN 对目标网段渗透 / 涉密代码导入</string>
+    <string name="env_save">保存环境</string>
+    <string name="env_delete_title">删除环境</string>
+    <string name="env_delete_msg">确定删除该环境？</string>
+    <string name="env_empty">暂无环境，点下方「新建环境」创建</string>
 </resources>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 设置页行式单元：深紫卡片 + 1px 紫灰边，12dp 圆角（Linear/Cursor 系） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/surface2" />
+    <stroke android:width="1dp" android:color="@color/border" />
+    <corners android:radius="12dp" />
+</shape>

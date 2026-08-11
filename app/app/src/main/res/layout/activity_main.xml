@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- HOS-ARES AI IDE 聊天工作台（安全风信子 · 深紫黑 + 电光紫） -->
 <androidx.drawerlayout.widget.DrawerLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -8,54 +9,52 @@
     android:background="@color/bg">
 
     <!-- 主内容区 -->
-    <LinearLayout
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical">
+        android:layout_height="match_parent">
 
-        <!-- 顶栏：菜单按钮 + HOS 品牌 -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingHorizontal="8dp"
-            android:paddingTop="8dp"
-            android:paddingBottom="4dp"
-            android:background="@color/bg">
+            android:layout_height="match_parent"
+            android:orientation="vertical">
 
-            <ImageButton
-                android:id="@+id/btnMenu"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:src="@drawable/ic_menu"
-                android:contentDescription="菜单" />
-
+            <!-- ══ 顶部：品牌 + 运行时状态 + 菜单/设置 ══ -->
             <LinearLayout
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical"
-                android:paddingLeft="4dp">
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="12dp"
+                android:paddingTop="10dp"
+                android:paddingBottom="8dp"
+                android:background="@color/bg">
+
+                <ImageButton
+                    android:id="@+id/btnMenu"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/ic_menu"
+                    android:contentDescription="菜单" />
+
+                <ImageView
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
+                    android:layout_marginStart="4dp"
+                    android:src="@drawable/ic_logo"
+                    android:contentDescription="@string/brand_wordmark" />
 
                 <LinearLayout
-                    android:layout_width="wrap_content"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
-
-                    <ImageView
-                        android:layout_width="26dp"
-                        android:layout_height="26dp"
-                        android:src="@drawable/ic_logo"
-                        android:contentDescription="@string/brand_wordmark" />
+                    android:layout_weight="1"
+                    android:layout_marginStart="8dp"
+                    android:orientation="vertical">
 
                     <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
-                        android:layout_marginStart="8dp"
                         android:gravity="center_vertical">
 
                         <TextView
@@ -63,176 +62,152 @@
                             android:layout_height="wrap_content"
                             android:text="HOS"
                             android:textColor="@color/text_primary"
-                            android:textSize="22sp"
+                            android:textSize="18sp"
                             android:textStyle="bold"
                             android:letterSpacing="0.08" />
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text=" "
-                            android:textColor="@color/text_primary"
-                            android:textSize="22sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="ARES"
-                            android:textColor="@color/accent"
-                            android:textSize="22sp"
+                            android:text=" ARES"
+                            android:textColor="@color/primary"
+                            android:textSize="18sp"
                             android:textStyle="bold"
                             android:letterSpacing="0.08" />
                     </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/tvStatus"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/status_ready"
+                        android:textColor="@color/accent_green"
+                        android:textSize="11sp"
+                        android:letterSpacing="0.05" />
                 </LinearLayout>
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/app_tagline"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12sp" />
+                <FrameLayout
+                    android:id="@+id/btnAvatar"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:layout_marginEnd="2dp"
+                    android:background="@drawable/bg_avatar"
+                    android:foreground="?attr/selectableItemBackgroundBorderless">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:gravity="center"
+                        android:text="安"
+                        android:textColor="#FFFFFF"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+                </FrameLayout>
             </LinearLayout>
 
-            <ImageButton
-                android:id="@+id/btnNewTask"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:src="@drawable/ic_plus"
-                android:contentDescription="新建任务" />
-        </LinearLayout>
+            <!-- ══ 聊天消息流 ══ -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvChat"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:clipToPadding="false"
+                android:paddingHorizontal="12dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="8dp"
+                android:scrollbars="vertical" />
 
-        <!-- 输入区 -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingHorizontal="16dp"
-            android:paddingTop="8dp">
+            <!-- ══ 快捷能力行（可用高亮 / 未集成灰置） ══ -->
+            <HorizontalScrollView
+                android:id="@+id/toolRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:scrollbars="none"
+                android:paddingHorizontal="12dp">
 
+                <LinearLayout
+                    android:id="@+id/llTools"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal" />
+            </HorizontalScrollView>
+
+            <!-- ══ 底部输入区（AI IDE 命令栏） ══ -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal">
+                android:layout_marginHorizontal="10dp"
+                android:layout_marginTop="6dp"
+                android:layout_marginBottom="10dp"
+                android:background="@drawable/bg_input"
+                android:orientation="vertical"
+                android:padding="8dp">
 
-                <com.google.android.material.textfield.TextInputLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                    android:hint="@string/hint_directory"
-                    app:boxStrokeColor="@color/primary"
-                    app:hintTextColor="@color/text_secondary">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etDirectory"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="textUri"
-                        android:singleLine="true"
-                        android:textColor="@color/text_primary"
-                        android:textColorHint="@color/text_muted" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnPickDir"
-                    android:layout_width="96dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:backgroundTint="@color/surface2"
-                    android:text="选择目录"
-                    android:textColor="@color/text_primary"
-                    android:textSize="13sp"
-                    app:cornerRadius="10dp" />
-            </LinearLayout>
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                android:layout_marginTop="8dp"
-                android:hint="@string/hint_task"
-                app:boxStrokeColor="@color/primary"
-                app:hintTextColor="@color/text_secondary">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etTask"
+                <!-- 附件预览行（选择后显示） -->
+                <HorizontalScrollView
+                    android:id="@+id/attachRow"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:inputType="text"
-                    android:maxLines="3"
-                    android:textColor="@color/text_primary"
-                    android:textColorHint="@color/text_muted" />
-            </com.google.android.material.textfield.TextInputLayout>
+                    android:scrollbars="none"
+                    android:visibility="gone">
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnRun"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:backgroundTint="@color/primary"
-                android:text="@string/run"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                app:cornerRadius="10dp" />
+                    <LinearLayout
+                        android:id="@+id/llAttachments"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal" />
+                </HorizontalScrollView>
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnCancel"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:backgroundTint="@color/surface2"
-                android:text="@string/cancel"
-                android:textColor="@color/error"
-                android:visibility="gone"
-                android:textSize="16sp"
-                app:cornerRadius="10dp" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="bottom">
+
+                    <!-- 附件按钮 -->
+                    <ImageButton
+                        android:id="@+id/btnAttach"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:src="@drawable/ic_attach"
+                        android:contentDescription="添加附件"
+                        android:padding="10dp" />
+
+                    <EditText
+                        android:id="@+id/etInput"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginHorizontal="4dp"
+                        android:background="@null"
+                        android:gravity="top"
+                        android:hint="@string/hint_chat"
+                        android:inputType="textMultiLine"
+                        android:maxLines="4"
+                        android:textColor="@color/text_primary"
+                        android:textColorHint="@color/text_muted"
+                        android:textSize="15sp"
+                        android:minHeight="44dp" />
+
+                    <ImageButton
+                        android:id="@+id/btnSend"
+                        android:layout_width="46dp"
+                        android:layout_height="46dp"
+                        android:background="@drawable/bg_fab"
+                        android:src="@drawable/ic_send"
+                        android:contentDescription="@string/run"
+                        android:padding="11dp"
+                        android:elevation="2dp" />
+                </LinearLayout>
+            </LinearLayout>
         </LinearLayout>
+    </FrameLayout>
 
-        <!-- 状态 + 输出 -->
-        <TextView
-            android:id="@+id/tvStatus"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:layout_marginTop="8dp"
-            android:text="@string/status_ready"
-            android:textColor="@color/primary"
-            android:textSize="13sp" />
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rvAgentCards"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:clipToPadding="false"
-            android:paddingHorizontal="16dp" />
-
-        <ScrollView
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_marginTop="8dp"
-            android:layout_weight="1"
-            android:fillViewport="true">
-
-            <TextView
-                android:id="@+id/tvOutput"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="@color/output_bg"
-                android:fontFamily="monospace"
-                android:padding="12dp"
-                android:textColor="#D8DEE9"
-                android:textIsSelectable="true"
-                android:textSize="13sp" />
-        </ScrollView>
-    </LinearLayout>
-
-    <!-- 侧边栏抽屉：任务卡 + 底部设置按钮 -->
+    <!-- 侧边栏抽屉：品牌 + 环境信息 + 设置 -->
     <LinearLayout
         android:id="@+id/drawer"
-        android:layout_width="320dp"
+        android:layout_width="300dp"
         android:layout_height="match_parent"
         android:layout_gravity="start"
         android:background="@color/surface"
@@ -266,44 +241,20 @@
                     android:layout_marginStart="10dp"
                     android:orientation="vertical">
 
-                    <LinearLayout
+                    <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="HOS"
-                            android:textColor="@color/text_primary"
-                            android:textSize="20sp"
-                            android:textStyle="bold"
-                            android:letterSpacing="0.1" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text=" "
-                            android:textColor="@color/text_primary"
-                            android:textSize="20sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="ARES"
-                            android:textColor="@color/accent"
-                            android:textSize="20sp"
-                            android:textStyle="bold"
-                            android:letterSpacing="0.1" />
-                    </LinearLayout>
+                        android:text="HOS ARES"
+                        android:textColor="@color/text_primary"
+                        android:textSize="20sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.1" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="@string/brand_subtitle"
-                        android:textColor="@color/accent"
+                        android:textColor="@color/text_secondary"
                         android:textSize="10sp"
                         android:letterSpacing="0.18" />
                 </LinearLayout>
@@ -319,30 +270,57 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
+                android:text="@string/app_tagline"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="DeepSeek-Reasonix · 安全工具预装 · 未集成项灰置"
+                android:textColor="@color/text_muted"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <!-- 历史任务列表 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="14dp"
+            android:layout_marginEnd="16dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:text="@string/drawer_tasks"
-                android:textColor="@color/text_primary"
-                android:textSize="18sp"
-                android:textStyle="bold" />
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp"
+                android:letterSpacing="0.1" />
 
             <TextView
                 android:id="@+id/tvTaskCount"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_weight="1"
+                android:gravity="end"
                 android:textColor="@color/text_muted"
-                android:textSize="12sp" />
+                android:textSize="11sp" />
         </LinearLayout>
 
-        <!-- 任务卡列表 -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rvTasks"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
+            android:layout_marginTop="6dp"
             android:clipToPadding="false"
-            android:paddingTop="4dp" />
+            android:paddingHorizontal="8dp" />
 
-        <!-- 底部：新建 + 设置 -->
+        <!-- 底部：设置 -->
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
@@ -361,6 +339,6 @@
             android:text="@string/settings"
             android:textColor="@color/text_primary"
             android:textSize="15sp"
-            app:cornerRadius="10dp" />
+            app:cornerRadius="12dp" />
     </LinearLayout>
 </androidx.drawerlayout.widget.DrawerLayout>
