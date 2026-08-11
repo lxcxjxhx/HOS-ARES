@@ -3,6 +3,7 @@ package com.hos.ares
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.util.Log
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import java.io.BufferedReader
@@ -65,9 +66,11 @@ class ProotRuntime(private val context: Context) {
     /** 内置到 assets 的 agent 启动脚本清单（对应 ares-rootfs/agents/<name>/run.sh）。 */
     private val agents = listOf("argus", "repoaudit", "strix", "pentestgpt", "deepaudit", "securityresearch", "reasonix")
 
+    /** 手机端默认 rootfs 路径（用户指定，与 TerminalActivity 统一）。 */
     private val rootfsDir: File
-        get() = File(context.filesDir, "alpine-rootfs")
+        get() = File("/sdcard/data/.Ares")
 
+    /** proot 二进制等可执行组件仍放 App 私有目录：/sdcard 为 noexec 挂载，不可直接执行。 */
     private val binDir: File
         get() = File(context.filesDir, "bin")
 
@@ -86,11 +89,29 @@ class ProotRuntime(private val context: Context) {
     /** 返回 proot 可执行文件路径；未打包 proot 二进制时返回 null。 */
     private fun prootBinary(): String? {
         val candidates = listOf(
+            File(context.applicationInfo.nativeLibraryDir, "proot.so"),
             File(context.applicationInfo.nativeLibraryDir, "libproot.so"),
             File(context.filesDir, "proot"),
             File(binDir, "proot"),
         )
         return candidates.firstOrNull { it.exists() }?.absolutePath
+    }
+
+    /**
+     * proot 需要的宿主环境变量：PROOT_TMP_DIR 指向 App 私有可写目录。
+     * Android 上宿主默认 /tmp 不存在/不可写，proot 创建 glue rootfs 临时目录时会报
+     * "can't create temporary directory"，因此必须显式指向可写位置（cacheDir 保证可写）。
+     * 所有启动 proot 的进程都应注入该环境变量。
+     */
+    private fun prootEnv(): Map<String, String> {
+        val tmp = File(context.cacheDir, "proot-tmp").apply { mkdirs() }
+        val env = HashMap<String, String>()
+        env["PROOT_TMP_DIR"] = tmp.absolutePath
+        // /sdcard 挂载为 noexec：proot 必须通过 PROOT_LOADER 才能执行 rootfs 内的 ELF
+        // （busybox/sh/python），否则启动即 Permission denied。
+        val loader = File(context.applicationInfo.nativeLibraryDir, "loader.so")
+        if (loader.exists()) env["PROOT_LOADER"] = loader.absolutePath
+        return env
     }
 
     /**
@@ -178,8 +199,8 @@ class ProotRuntime(private val context: Context) {
             copyAsset("proot", prootFile)
             prootFile.setExecutable(true, false)
         }
-        // 2. rootfs：缺失/损坏自愈
-        if (!rootfsDir.exists() || !File(rootfsDir, "etc").exists()) {
+        // 2. rootfs：缺失/损坏自愈（校验 etc + bin/sh，防止 /sdcard 解压半途失败残留）
+        if (!rootfsDir.exists() || !File(rootfsDir, "etc").exists() || !File(rootfsDir, "bin/sh").exists()) {
             extractRootfs()
         }
         // 3. 基础骨架一次性拷贝（setupMarker 存在则跳过）
@@ -238,14 +259,14 @@ class ProotRuntime(private val context: Context) {
         if (!rootfsDir.exists()) return false
         val cmd = "$proot -0 -r ${rootfsDir.absolutePath} -b /dev -b /proc -b /sys -w / " +
             "/bin/sh -c 'command -v python3'"
-        return runShell(cmd) is Result.Success
+        return runShell(cmd, prootEnv()) is Result.Success
     }
 
     /** 通过 proot 在 rootfs 内执行引导脚本；成功返回 true，失败仅告警不阻断。 */
     private fun runBootstrap(bootstrap: File): Boolean {
         val proot = prootBinary() ?: return false
         val cmd = "$proot -0 -r ${rootfsDir.absolutePath} -b /dev -b /proc -b /sys -w / /bin/sh /bootstrap.sh"
-        return runShell(cmd) is Result.Success
+        return runShell(cmd, prootEnv()) is Result.Success
     }
 
     /**
@@ -281,6 +302,7 @@ class ProotRuntime(private val context: Context) {
         val builder = ProcessBuilder("/system/bin/sh", "-c", cmd)
         builder.redirectErrorStream(true) // 合并 stdout+stderr，避免读管道死锁
         builder.environment().putAll(env)
+        builder.environment().putAll(prootEnv()) // PROOT_TMP_DIR → App 私有可写目录，避免 Android 上 /tmp 不可写
         val proc = builder.start()
 
         suspendCancellableCoroutine<Result<String>> { cont ->
@@ -355,28 +377,72 @@ class ProotRuntime(private val context: Context) {
         }
     }
 
-    /** 将内置的 Alpine minirootfs 解包到 rootfsDir。 */
+    /**
+     * 将内置 rootfs 解包到 rootfsDir。优先使用完整预装环境 rootfs.tar（与
+     * TerminalActivity 一致，含 python3/依赖/工具），缺失时才回退 minirootfs。
+     * 正确处理 symlink：minirootfs 中 /bin/sh 等是指向 busybox 的软链，
+     * 若当普通文件写出会变成 0 字节文件，导致 '/bin/sh' not found。
+     */
     private fun extractRootfs() {
         rootfsDir.mkdirs()
+        // 完整预装 rootfs（gzip 压缩 tar）；rootfs.tar 由构建流程生成，始终为 gzip。
+        val fullName = "rootfs.tar"
         // AGP 可能把 .tar.gz 资产自动解压为 .tar 打进 APK，需兼容两种命名。
         val gzName = "alpine-minirootfs.tar.gz"
         val rawName = "alpine-minirootfs.tar"
+        val useFull = assetsContains(fullName)
         val isGz = assetsContains(gzName)
-        context.assets.open(if (isGz) gzName else rawName).use { input ->
-            val stream = if (isGz) GzipCompressorInputStream(input) else input
+        val assetName = when {
+            useFull -> fullName
+            isGz -> gzName
+            else -> rawName
+        }
+        context.assets.open(assetName).use { input ->
+            // rootfs.tar 与 alpine-minirootfs.tar.gz 均为 gzip；.tar 裸格式不压缩。
+            val stream = if (assetName.endsWith(".gz") || assetName == fullName)
+                GzipCompressorInputStream(input) else input
             TarArchiveInputStream(stream).use { tar ->
                 var entry = tar.nextTarEntry
                 while (entry != null) {
                     val name = entry.name.removePrefix("./")
                     val dest = File(rootfsDir, name)
-                    if (entry.isDirectory) {
-                        dest.mkdirs()
-                    } else {
-                        dest.parentFile?.mkdirs()
-                        FileOutputStream(dest).use { out -> tar.copyTo(out) }
+                    when {
+                        entry.isSymbolicLink -> {
+                            dest.parentFile?.mkdirs()
+                            createSymlink(entry.linkName, dest)
+                        }
+                        entry.isDirectory -> dest.mkdirs()
+                        entry.isFile -> {
+                            dest.parentFile?.mkdirs()
+                            FileOutputStream(dest).use { out -> tar.copyTo(out) }
+                        }
+                        // hardlink / 其他类型：忽略（minirootfs 无关键 hardlink）
                     }
                     entry = tar.nextTarEntry
                 }
+            }
+        }
+    }
+
+    /** 创建符号链接：优先 toybox ln（/sdcard 上 Java NIO 受限），失败则尝试 NIO 兜底。 */
+    private fun createSymlink(linkName: String, dest: File) {
+        var ok = false
+        try {
+            val p = ProcessBuilder("/system/bin/ln", "-s", linkName, dest.absolutePath)
+                .redirectErrorStream(true).start()
+            p.waitFor()
+            ok = java.nio.file.Files.isSymbolicLink(dest.toPath())
+        } catch (_: Exception) {
+            // 走 NIO 兜底
+        }
+        if (!ok) {
+            try {
+                java.nio.file.Files.createSymbolicLink(
+                    dest.toPath(), java.nio.file.Paths.get(linkName)
+                )
+                ok = java.nio.file.Files.isSymbolicLink(dest.toPath())
+            } catch (e: Exception) {
+                Log.w("HOSARES", "创建 symlink 失败: $dest -> $linkName (${e.message})")
             }
         }
     }

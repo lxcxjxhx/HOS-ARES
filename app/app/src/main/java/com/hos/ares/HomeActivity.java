@@ -20,7 +20,8 @@ public class HomeActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_home);
 
-        File rootfs = new File(getFilesDir(), "rootfs");
+        // 手机端默认 rootfs 路径（与 TerminalActivity/ProotRuntime 统一）
+        File rootfs = new File("/sdcard/data/.Ares");
         boolean envReady = new File(rootfs, "root/entry.sh").exists();
         boolean toolsReady = new File(rootfs, "root/tools/install.log").exists();
 
@@ -77,6 +78,25 @@ public class HomeActivity extends Activity {
     }
 
     private void enterTerminal() {
+        if (TerminalActivity.needsStoragePermission(this)) {
+            Toast.makeText(this, "需要「所有文件访问」权限部署 rootfs，请授权后重试",
+                    Toast.LENGTH_LONG).show();
+            pendingEnter = true; // 授权返回后 onResume 自动进入
+            TerminalActivity.requestStoragePermission(this);
+            return;
+        }
         startActivity(new Intent(this, TerminalActivity.class));
     }
+
+    /** API 30+ 授权返回后自动进入终端，减少一次手动点击。 */
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (pendingEnter && !TerminalActivity.needsStoragePermission(this)) {
+            pendingEnter = false;
+            startActivity(new Intent(this, TerminalActivity.class));
+        }
+    }
+
+    private boolean pendingEnter = false;
 }

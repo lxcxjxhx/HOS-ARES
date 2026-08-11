@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 终端区域：深色圆角卡片（TUI 深色界面） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#0B0710" />
+    <corners android:radius="16dp" />
+</shape>

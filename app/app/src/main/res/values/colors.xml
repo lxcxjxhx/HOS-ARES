@@ -1,18 +1,34 @@
 <resources>
-    <!-- HOS 品牌深色配色（安全 · 智能 · 终端） -->
-    <color name="bg">#0B1220</color>
-    <color name="surface">#111B2E</color>
-    <color name="surface2">#182442</color>
-    <color name="border">#223A66</color>
-    <color name="primary">#2563EB</color>
-    <color name="primary_dark">#1E40AF</color>
-    <color name="accent">#22D3EE</color>
-    <color name="accent_soft">#67E8F9</color>
-    <color name="text_primary">#E6EDF3</color>
-    <color name="text_secondary">#93A4BF</color>
-    <color name="text_muted">#64748B</color>
-    <color name="output_bg">#070C17</color>
+    <!-- 安全风信子设计令牌（HOS-ARES 品牌：深紫黑 + 电光紫） -->
+    <!-- 背景层 / 卡片层 -->
+    <color name="bg">#0B0710</color>            <!-- 深紫黑整页底色 -->
+    <color name="surface">#131020</color>       <!-- 卡片容器 -->
+    <color name="surface2">#1D1830</color>      <!-- 次级容器 / 输入框底 -->
+    <color name="border">#2A2240</color>        <!-- 紫灰边框 -->
+
+    <!-- 主调电光紫 / 辅助洋红紫 -->
+    <color name="primary">#A855F7</color>       <!-- FAB、发送按钮、强调图标 -->
+    <color name="primary_dark">#9333EA</color>  <!-- 按压态 -->
+    <color name="accent">#D946EF</color>        <!-- 洋红紫：头像背景/强调 -->
+    <color name="accent_soft">#7C3AED</color>   <!-- 柔和紫 -->
+
+    <!-- 文本 -->
+    <color name="text_primary">#E6EDF3</color>  <!-- 主标题 -->
+    <color name="text_secondary">#9CA3AF</color><!-- 辅助信息 / 副标题 -->
+    <color name="text_muted">#6B7280</color>    <!-- 更弱化的小字 -->
+    <color name="output_bg">#070C17</color>     <!-- 输出区（近黑） -->
+
+    <!-- 状态色 -->
     <color name="accent_green">#34D399</color>
     <color name="accent_red">#F87171</color>
     <color name="error">#E5533D</color>
+
+    <!-- 兼容引用（渲染依赖的旧色名，值对齐安全风信子） -->
+    <color name="purple">#A855F7</color>
+    <color name="magenta">#D946EF</color>
+    <color name="card_bg">#131020</color>
+    <color name="card_border">#2A2240</color>
+    <color name="text_dim">#9CA3AF</color>
+    <color name="danger">#F87171</color>
+    <color name="warn">#EAB308</color>
 </resources>

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HOS-ARES 设置页 · 四方向预览</title>
+<style>
+  :root { --bg:#0B0710; --card:#131020; --card2:#1D1830; --border:#2A2240;
+          --primary:#A855F7; --accent:#D946EF; --text:#E6EDF3; --muted:#9CA3AF; --dim:#6B7280;
+          --green:#34D399; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:#05030A; color:var(--text); font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; padding:24px 12px 60px; }
+  h1 { font-size:20px; text-align:center; letter-spacing:.1em; margin-bottom:6px; }
+  .sub { text-align:center; color:var(--muted); font-size:12px; margin-bottom:24px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:20px; max-width:1400px; margin:0 auto; }
+  .dir { border:1px solid var(--border); border-radius:16px; background:var(--card); padding:16px; }
+  .dir-head { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+  .dir-tag { font-size:11px; font-weight:700; letter-spacing:.15em; color:var(--primary); background:rgba(168,85,247,.12); padding:3px 10px; border-radius:999px; }
+  .dir-name { font-size:15px; font-weight:700; }
+  .dir-reco { font-size:10px; color:#0B0710; background:var(--green); padding:2px 8px; border-radius:999px; font-weight:700; }
+  .constraint { font-size:11px; color:var(--muted); margin-bottom:10px; line-height:1.5; }
+  .phone { background:var(--bg); border:1px solid var(--border); border-radius:24px; padding:14px; margin:6px 0 12px; }
+  .ph-top { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+  .ph-back { width:28px; height:28px; border-radius:8px; background:var(--card2); display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--muted); }
+  .ph-title { font-size:15px; font-weight:700; flex:1; }
+  .ph-badge { width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; }
+  .group-label { font-size:10px; letter-spacing:.15em; color:var(--dim); margin:8px 2px 4px; }
+  .cell { display:flex; align-items:center; gap:10px; background:var(--card2); border-radius:12px; padding:10px 12px; margin-bottom:6px; }
+  .cell-icon { width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; }
+  .cell-body { flex:1; min-width:0; }
+  .cell-label { font-size:12px; font-weight:600; }
+  .cell-sub { font-size:10px; color:var(--muted); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cell-right { font-size:11px; color:var(--primary); flex-shrink:0; }
+  .dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .seg { display:flex; gap:4px; }
+  .seg-item { flex:1; text-align:center; font-size:10px; padding:7px 0; border-radius:8px; background:var(--bg); color:var(--muted); border:1px solid var(--border); }
+  .seg-item.on { background:var(--primary); color:#fff; border-color:var(--primary); font-weight:600; }
+  .btn-save { margin-top:12px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; }
+  .why { font-size:11px; color:var(--muted); line-height:1.6; }
+  .why b { color:var(--text); }
+  .divider { border:none; border-top:1px solid var(--border); margin:6px -2px; }
+  /* 方向差异 */
+  .d-a .cell { border-radius:14px; }
+  .d-b .cell { border-radius:6px; }
+  .d-b { font-family:"SF Mono",Consolas,monospace; }
+  .d-b .ph-title, .d-b .cell-label { font-family:-apple-system,"PingFang SC",sans-serif; }
+  .d-c .cell { background:transparent; border-bottom:1px solid var(--border); border-radius:0; margin-bottom:0; }
+  .d-c .cell:last-child { border-bottom:none; }
+  .d-d .phone { border:1px dashed var(--accent); }
+  .d-d .cell { border-radius:16px; }
+</style>
+</head>
+<body>
+<h1>HOS-ARES · 设置页方向预览</h1>
+<div class="sub">4 个方向按互斥约束发散 · 按键盘 1-4 快速切换偏好</div>
+
+<div class="grid">
+
+  <!-- A 深色专业 -->
+  <div class="dir d-a">
+    <div class="dir-head"><span class="dir-tag">A</span><span class="dir-name">深色专业 · 命令感</span><span class="dir-reco">推荐</span></div>
+    <div class="constraint">硬约束：必须像高效专业工具（Linear/Cursor），卡片直角、等宽数字、状态点即信息。</div>
+    <div class="phone">
+      <div class="ph-top"><div class="ph-back">‹</div><div class="ph-title">设置</div><div class="ph-badge" style="background:var(--green);color:#0B0710">✓</div></div>
+      <div class="group-label">模型</div>
+      <div class="cell"><div class="cell-icon" style="background:rgba(168,85,247,.15);color:var(--primary)">🧠</div><div class="cell-body"><div class="cell-label">LLM 后端</div><div class="cell-sub">DeepSeek · v4-flash</div></div><div class="cell-right">›</div></div>
+      <div class="cell"><div class="cell-icon" style="background:rgba(52,211,153,.12);color:var(--green)">⚙️</div><div class="cell-body"><div class="cell-label">模型名</div><div class="cell-sub">deepseek-v4-flash</div></div><div class="cell-right">✎</div></div>
+      <div class="group-label">API Key</div>
+      <div class="cell"><div class="dot" style="background:var(--green)"></div><div class="cell-body"><div class="cell-label">DeepSeek</div><div class="cell-sub">sk-••••••••</div></div><div class="cell-right">已配置</div></div>
+      <div class="cell"><div class="dot" style="background:var(--dim)"></div><div class="cell-body"><div class="cell-label">Anthropic / OpenAI / Gemini</div><div class="cell-sub">可选</div></div><div class="cell-right">+</div></div>
+      <div class="btn-save" style="background:var(--primary)">保存设置</div>
+    </div>
+    <div class="why"><b>为什么：</b>与主界面 AI IDE 同源；"一键填入"合并进后端行，Key 按需展开，健康度徽章顶栏常驻。</div>
+  </div>
+
+  <!-- B 企业稳重 -->
+  <div class="dir d-b">
+    <div class="dir-head"><span class="dir-tag">B</span><span class="dir-name">企业稳重 · 信任感</span></div>
+    <div class="constraint">硬约束：必须暗色高密度、结构化、蓝紫信任色系（IBM/Hashicorp），等宽数字。</div>
+    <div class="phone">
+      <div class="ph-top"><div class="ph-back">‹</div><div class="ph-title">LLM 配置</div><div class="ph-badge" style="background:var(--primary)">3</div></div>
+      <div class="group-label">后端</div>
+      <div class="seg"><div class="seg-item on">DeepSeek</div><div class="seg-item">Claude</div><div class="seg-item">OpenAI</div><div class="seg-item">Gemini</div></div>
+      <div class="group-label">凭证</div>
+      <div class="cell"><div class="dot" style="background:var(--green)"></div><div class="cell-body"><div class="cell-label">deepseek_key</div><div class="cell-sub">/env · sk-••••</div></div></div>
+      <div class="cell"><div class="dot" style="background:var(--dim)"></div><div class="cell-body"><div class="cell-label">anthropic_key</div><div class="cell-sub">未配置</div></div></div>
+      <div class="cell"><div class="dot" style="background:var(--dim)"></div><div class="cell-body"><div class="cell-label">openai_key</div><div class="cell-sub">未配置</div></div></div>
+      <div class="group-label">协同</div>
+      <div class="cell"><div class="cell-icon" style="background:rgba(168,85,247,.15);color:var(--primary)">🖥</div><div class="cell-body"><div class="cell-label">Agent Server</div><div class="cell-sub">https://…</div></div><div class="cell-right">✎</div></div>
+      <div class="btn-save" style="background:var(--primary)">应用</div>
+    </div>
+    <div class="why"><b>为什么：</b>凭证即环境变量，工程感强；段式后端切换一眼可见；适合"工具信任"定位。</div>
+  </div>
+
+  <!-- C 卡片精致 -->
+  <div class="dir d-c">
+    <div class="dir-head"><span class="dir-tag">C</span><span class="dir-name">卡片精致 · 消费级</span></div>
+    <div class="constraint">硬约束：必须亮色印刷质感、分隔线分组（非卡片堆叠）、圆润大圆角。</div>
+    <div class="phone">
+      <div class="ph-top"><div class="ph-back">‹</div><div class="ph-title">设置</div><div class="ph-badge" style="background:var(--accent);color:#fff">安</div></div>
+      <div class="group-label">AI 模型</div>
+      <div class="cell"><div class="cell-body"><div class="cell-label">后端服务</div><div class="cell-sub">DeepSeek</div></div><div class="cell-right">›</div></div>
+      <div class="cell"><div class="cell-body"><div class="cell-label">模型</div><div class="cell-sub">deepseek-v4-flash</div></div><div class="cell-right">›</div></div>
+      <div class="divider"></div>
+      <div class="group-label">API Key</div>
+      <div class="cell"><div class="cell-body"><div class="cell-label">DeepSeek</div><div class="cell-sub">已配置 ✓</div></div><div class="cell-right">›</div></div>
+      <div class="cell"><div class="cell-body"><div class="cell-label">Anthropic</div><div class="cell-sub">未配置</div></div><div class="cell-right">›</div></div>
+      <div class="cell"><div class="cell-body"><div class="cell-label">OpenAI</div><div class="cell-sub">未配置</div></div><div class="cell-right">›</div></div>
+      <div class="cell"><div class="cell-body"><div class="cell-label">Gemini</div><div class="cell-sub">未配置</div></div><div class="cell-right">›</div></div>
+      <div class="btn-save" style="background:var(--accent)">保存</div>
+    </div>
+    <div class="why"><b>为什么：</b>消费级设置页范式（iOS 式 inset 分组 + 箭头行），上手最熟；弱点是工程感弱。</div>
+  </div>
+
+  <!-- D 终端原生 -->
+  <div class="dir d-d">
+    <div class="dir-head"><span class="dir-tag">D</span><span class="dir-name">终端原生 · 极客签名</span></div>
+    <div class="constraint">硬约束：必须借用非数字时代视觉语言（终端/打印），等宽、虚线框、低饱和。</div>
+    <div class="phone">
+      <div class="ph-top"><div class="ph-back">‹</div><div class="ph-title">~/.ares/config</div></div>
+      <div class="group-label" style="font-family:monospace">$ hos set backend</div>
+      <div class="cell"><div class="cell-body" style="font-family:monospace"><div class="cell-label" style="font-family:monospace">backend: deepseek</div><div class="cell-sub">model: deepseek-v4-flash</div></div></div>
+      <div class="cell"><div class="cell-body" style="font-family:monospace"><div class="cell-label" style="font-family:monospace">DEEPSEEK_API_KEY</div><div class="cell-sub">sk-•••••••• ✅</div></div></div>
+      <div class="cell"><div class="cell-body" style="font-family:monospace"><div class="cell-label" style="font-family:monospace">ANTHROPIC_API_KEY</div><div class="cell-sub">未设置</div></div></div>
+      <div class="cell"><div class="cell-body" style="font-family:monospace"><div class="cell-label" style="font-family:monospace">HOS_SERVER_URL</div><div class="cell-sub">null</div></div></div>
+      <div class="btn-save" style="background:var(--bg);border:1px solid var(--accent);color:var(--accent);font-family:monospace">$ hos apply</div>
+    </div>
+    <div class="why"><b>为什么：</b>最强签名与个性，安全研究员会心一笑；弱点是普通用户学习成本高。</div>
+  </div>
+
+</div>
+</body>
+</html>

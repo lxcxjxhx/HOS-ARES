@@ -35,3 +35,4 @@ app/app/build/
 # ---------- 系统 ----------
 .DS_Store
 Thumbs.db
+.reasonix/
