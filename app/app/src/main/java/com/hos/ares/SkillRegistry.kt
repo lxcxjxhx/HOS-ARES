@@ -5,6 +5,7 @@ package com.hos.ares
  *
  * 对应 PLAN 中的 Security Skill Layer：每个安全 Agent 是一个"技能插件"，
  * 声明了触发关键词与参与的工作流。Ares 统一入口据此做任务识别与调度。
+ * 仅收录 rootfs 真实预装的 agent（reasonix 统一入口优先，其余为直连回退候选）。
  */
 object SkillRegistry {
 
@@ -17,14 +18,7 @@ object SkillRegistry {
     val skills: List<Skill> = listOf(
         Skill("argus", listOf("漏洞", "扫描", "vulnerability", "scan"), requiresLl = false),
         Skill("repoaudit", listOf("审计", "符号执行", "audit", "code review"), requiresLl = true),
-        Skill("strix", listOf("渗透", "pentest", "攻击", "exploit"), requiresLl = true),
         Skill("pentestgpt", listOf("渗透测试", "pentestgpt"), requiresLl = true),
-        Skill("deepaudit", listOf("深度", "deep", "后端"), requiresLl = true),
-        Skill(
-            "securityresearch",
-            listOf("cve", "漏洞情报", "威胁情报", "情报", "search", "research"),
-            requiresLl = false,
-        ),
         // 统一 Agent 入口：触发词宽松，作为 reasonix 统一入口的候选识别
         Skill(
             "reasonix",

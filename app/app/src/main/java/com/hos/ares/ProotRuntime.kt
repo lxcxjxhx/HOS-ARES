@@ -28,7 +28,7 @@ import kotlinx.coroutines.withContext
  *   2. 用 proot 以"无 root"方式 chroot 进 rootfs，执行 Linux 安全工具
  *   3. 每个 agent 命令都在 proot 环境内、以指定 shell 脚本运行
  *
- * 这样 Argus / RepoAudit / Strix / PentestGPT / DeepAudit 等 Linux 工具
+ * 这样 Argus / RepoAudit / PentestGPT 等 Linux 工具
  * 都能在手机端原生运行，不再依赖电脑或 Docker。
  */
 /**
@@ -63,8 +63,9 @@ class ProotRuntime(private val context: Context) {
     /** 最近一次初始化失败的原因。 */
     private var lastError: String = ""
 
-    /** 内置到 assets 的 agent 启动脚本清单（对应 ares-rootfs/agents/<name>/run.sh）。 */
-    private val agents = listOf("argus", "repoaudit", "strix", "pentestgpt", "deepaudit", "securityresearch", "reasonix")
+    /** 内置到 assets 的 agent 启动脚本清单（对应 ares-rootfs/agents/<name>/run.sh）。
+     *  仅真实预装的 run.sh 项（reasonix 走专用分支，不在此清单）。 */
+    private val agents = listOf("argus", "repoaudit", "pentestgpt")
 
     /** 手机端默认 rootfs 路径（用户指定，与 TerminalActivity 统一）。 */
     private val rootfsDir: File
@@ -205,22 +206,36 @@ class ProotRuntime(private val context: Context) {
         }
         // 3. 基础骨架一次性拷贝（setupMarker 存在则跳过）
         if (!setupMarker.exists()) {
-            installDefaultSkills()
+            try { installDefaultSkills() } catch (_: Exception) {}
             val bootstrap = File(rootfsDir, "bootstrap.sh")
             if (!bootstrap.exists()) {
-                copyAsset("bootstrap.sh", bootstrap)
-                bootstrap.setExecutable(true, false)
+                try {
+                    copyAsset("bootstrap.sh", bootstrap)
+                    bootstrap.setExecutable(true, false)
+                } catch (_: Exception) {
+                    // bootstrap.sh 未随构建打包（rootfs.tar 已预装依赖时无需引导）
+                }
             }
             setupMarker.writeText("done")
         }
-        // 4. agent 资产版本化：版本落后则强制补拷（含源码、run.sh、llm_connect、requirements）
+        // 4. agent 资产版本化：版本落后则强制补拷（含源码、run.sh、llm_connect、requirements）。
+        //    assets 缺失的 agent（构建产物缺省，如 strix/deepaudit/securityresearch）跳过，
+        //    绝不因缺一个 run.sh 阻断整个初始化。
         if (needsAssetRefresh()) {
-            copyAssetDir("opt/agents", File(rootfsDir, "opt/agents"))
-            copyAssetDir("requirements", File(rootfsDir, "opt/agents-requirements"))
+            try {
+                copyAssetDir("opt/agents", File(rootfsDir, "opt/agents"))
+            } catch (_: Exception) {}
+            try {
+                copyAssetDir("requirements", File(rootfsDir, "opt/agents-requirements"))
+            } catch (_: Exception) {}
             for (agent in agents) {
-                val script = File(rootfsDir, "opt/agents/$agent/run.sh")
-                copyAsset("agents/$agent/run.sh", script)
-                script.setExecutable(true, false)
+                try {
+                    val script = File(rootfsDir, "opt/agents/$agent/run.sh")
+                    copyAsset("agents/$agent/run.sh", script)
+                    script.setExecutable(true, false)
+                } catch (_: Exception) {
+                    // 该 agent 未随构建打包，跳过（reasonix 走专用分支，不依赖 run.sh）
+                }
             }
             assetVersionMarker.writeText(ASSETS_VERSION.toString())
         }
