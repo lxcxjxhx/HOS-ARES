@@ -150,11 +150,49 @@ class MainActivity : AppCompatActivity() {
         if (runtimeState != RuntimeState.READY && !TerminalActivity.needsStoragePermission(this)) {
             initRuntime()
         }
+        scheduleRefresh()
+    }
+
+    /** 定时任务广播：收到即把任务文本送入 reasonix（无人值守，自循环/YOLO 已默认开）。 */
+    private val scheduleReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: Intent) {
+            val task = intent.getStringExtra(ScheduleManager.EXTRA_TASK)?.trim()
+            if (task.isNullOrEmpty()) return
+            val dir = envStore.current()?.directory
+                ?.takeIf { it.isNotBlank() }
+                ?: settings.defaultWorkspaceDir("default")
+            adapter.add(ChatMessage(ChatType.USER, "⏰ 定时任务：$task"))
+            runTask(task, dir)
+        }
+    }
+
+    private var scheduleRegistered = false
+
+    /** 注册/刷新定时任务（App 存活期；重启后 onResume 自动重挂）。 */
+    private fun scheduleRefresh() {
+        if (!scheduleRegistered) {
+            scheduleRegistered = true
+            // API 26+ 需显式 not-exported；24-25 无导出概念，走双参重载
+            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                registerReceiver(
+                    scheduleReceiver,
+                    ScheduleManager.filter(),
+                    android.content.Context.RECEIVER_NOT_EXPORTED
+                )
+            } else {
+                registerReceiver(scheduleReceiver, ScheduleManager.filter())
+            }
+        }
+        ScheduleManager.refresh(this, settings)
     }
 
     override fun onDestroy() {
         super.onDestroy()
         htmlPreviewDialog?.dismiss()
+        if (scheduleRegistered) {
+            try { unregisterReceiver(scheduleReceiver) } catch (_: Exception) {}
+            scheduleRegistered = false
+        }
         try {
             getSystemService(ConnectivityManager::class.java)
                 .unregisterNetworkCallback(networkCallback)
@@ -220,15 +258,6 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "请输入需求，例如：帮我审计这个项目", Toast.LENGTH_SHORT).show()
             return
         }
-        if (!llmKeyConfigured()) {
-            Toast.makeText(this, "未配置 LLM Key：请先到设置中配置 DeepSeek Key", Toast.LENGTH_LONG).show()
-            startActivity(Intent(this, SettingsActivity::class.java))
-            return
-        }
-        if (runtimeState != RuntimeState.READY) {
-            Toast.makeText(this, "运行环境未就绪，请稍候或联网后重试", Toast.LENGTH_SHORT).show()
-            return
-        }
 
         val dir = envStore.current()?.directory
             ?.takeIf { it.isNotBlank() }
@@ -245,6 +274,32 @@ class MainActivity : AppCompatActivity() {
             append(text)
         }
 
+        pendingAttachments.clear()
+        renderAttachments()
+        binding.etInput.setText("")
+
+        runTask(taskText, dir)
+    }
+
+    /**
+     * 执行任务（用户发送 / 定时任务共用）：状态行 + AI 占位 + reasonix 无人值守运行。
+     * 自循环 / YOLO 开关经 SettingsStore.envMap() 注入，ProotRuntime 拼参数。
+     */
+    private fun runTask(taskText: String, dir: String) {
+        if (running) {
+            Toast.makeText(this, "上一任务仍在运行，请等待完成或稍后再试", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (!llmKeyConfigured()) {
+            Toast.makeText(this, "未配置 LLM Key：请先到设置中配置 DeepSeek Key", Toast.LENGTH_LONG).show()
+            startActivity(Intent(this, SettingsActivity::class.java))
+            return
+        }
+        if (runtimeState != RuntimeState.READY) {
+            Toast.makeText(this, "运行环境未就绪，请稍候或联网后重试", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         // 状态行 + AI 占位
         adapter.add(ChatMessage(ChatType.STATUS, "调度 reasonix 统一入口 …"))
         var aiMsg = ChatMessage(ChatType.AI, "")
@@ -253,9 +308,6 @@ class MainActivity : AppCompatActivity() {
 
         running = true
         updateStatus()
-        pendingAttachments.clear()
-        renderAttachments()
-        binding.etInput.setText("")
 
         val gw = AresGateway(proot) { settings.envMap() }
         runJob = lifecycleScope.launch {

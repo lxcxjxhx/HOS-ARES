@@ -74,6 +74,11 @@ class SettingsActivity : AppCompatActivity() {
         // 其他字段回填
         binding.etModel.setText(settings.model)
         binding.etServer.setText(settings.serverUrl)
+        binding.swSelfLoop.isChecked = settings.selfLoop
+        binding.swYolo.isChecked = settings.yolo
+        binding.swSchedule.isChecked = settings.scheduleEnabled
+        binding.etScheduleTask.setText(settings.scheduleTask)
+        binding.etScheduleInterval.setText(settings.scheduleIntervalHours.toString())
 
         binding.btnBack.setOnClickListener { finish() }
 
@@ -103,6 +108,12 @@ class SettingsActivity : AppCompatActivity() {
             settings.deepseekKey = keyBuffer["DeepSeek"] ?: settings.deepseekKey
             settings.model = binding.etModel.text.toString().trim()
             settings.serverUrl = binding.etServer.text.toString().trim()
+            settings.selfLoop = binding.swSelfLoop.isChecked
+            settings.yolo = binding.swYolo.isChecked
+            settings.scheduleEnabled = binding.swSchedule.isChecked
+            settings.scheduleTask = binding.etScheduleTask.text.toString().trim()
+            settings.scheduleIntervalHours =
+                binding.etScheduleInterval.text.toString().toIntOrNull()?.coerceIn(1, 720) ?: 24
             binding.tvSaveHint.text = "已保存 ✓"
             updateHealth()
             Toast.makeText(this, "设置已保存", Toast.LENGTH_SHORT).show()

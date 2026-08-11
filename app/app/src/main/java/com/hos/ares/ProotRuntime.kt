@@ -297,11 +297,22 @@ class ProotRuntime(private val context: Context) {
         if (prefix == null) {
             return@withContext Result.Failure("proot 运行时未就绪（rootfs 或 proot 二进制缺失）")
         }
-        val cmd = "$prefix /bin/sh /opt/agents/$agent/run.sh /work \"$task\""
+        // reasonix 统一入口：rootfs 无 /opt/agents/*/run.sh（构建产物缺省），
+        // 直接调 reasonix run 无人值守模式，并从 env 读取自循环/YOLO 开关拼参数。
+        // task 经 HOS_TASK 环境变量传入，绕开外层 /system/bin/sh 的引号/命令替换解析。
+        val cmd = if (agent == "reasonix") {
+            val loop = if (env["HOS_SELF_LOOP"] == "1") "--max-steps 0 " else ""
+            val yolo = if (env["HOS_YOLO"] == "1") "--yolo" else "--auto"
+            "$prefix /bin/sh -c 'export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; " +
+                "exec reasonix run $loop$yolo \"\$(printf %s \"\$HOS_TASK\")\"' sh"
+        } else {
+            "$prefix /bin/sh /opt/agents/$agent/run.sh /work \"$task\""
+        }
 
         val builder = ProcessBuilder("/system/bin/sh", "-c", cmd)
         builder.redirectErrorStream(true) // 合并 stdout+stderr，避免读管道死锁
         builder.environment().putAll(env)
+        if (agent == "reasonix") builder.environment()["HOS_TASK"] = task
         builder.environment().putAll(prootEnv()) // PROOT_TMP_DIR → App 私有可写目录，避免 Android 上 /tmp 不可写
         val proc = builder.start()
 
