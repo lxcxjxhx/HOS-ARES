@@ -1,4 +1,4 @@
-package com.hos.ares
+﻿package com.hos.ares
 
 import android.content.Context
 import android.net.ConnectivityManager
@@ -47,9 +47,19 @@ enum class RuntimeState {
 class ProotRuntime(private val context: Context) {
 
     companion object {
-        /** 内置 agent 资产版本。升级时若新增/更新了 agents 资产（源码、run.sh、llm_connect 等），
-         *  递增此值，保证旧 rootfs 也能自动补拷，无需用户清除数据。 */
-        private const val ASSETS_VERSION = 1
+        /** 整体资产版本（rootfs.tar 等基础资产 + requirements + run.sh）。
+         *  递增此值，保证旧 rootfs 也能自动补拷基础资产，无需用户清除数据。
+         *  注意：此值不再控制 opt/agents 全量拷贝，agents 改为按 AGENT_VERSIONS 增量更新。 */
+        private const val ASSETS_VERSION = 3
+
+        /** 各 agent 独立版本号（仅当对应 agent 资产变化时递增）。
+         *  用于逐 agent 增量更新：仅版本变化的 agent 被重新拷贝，避免全量刷新。 */
+        private val AGENT_VERSIONS = mapOf(
+            "argus" to 2,
+            "repoaudit" to 2,
+            "strix" to 2,
+            "reasonix" to 2,
+        )
     }
 
     /** 运行时就绪状态（供 UI 观察）。 */
@@ -62,8 +72,10 @@ class ProotRuntime(private val context: Context) {
     /** 最近一次初始化失败的原因。 */
     private var lastError: String = ""
 
-    /** 内置到 assets 的 agent 启动脚本清单（对应 ares-rootfs/agents/<name>/run.sh）。 */
-    private val agents = listOf("argus", "repoaudit", "strix", "pentestgpt", "deepaudit", "securityresearch", "reasonix")
+    /** 内置到 assets 的 agent 启动脚本清单（对应 ares-rootfs/agents/<name>/run.sh）。
+     *  仅真实预装的 run.sh 项（reasonix 走专用分支，不在此清单）。
+     *  4 Agent 精简：Argus / RepoAudit / Strix */
+    private val agents = listOf("argus", "repoaudit", "strix")
 
     private val rootfsDir: File
         get() = File(context.filesDir, "alpine-rootfs")
@@ -113,25 +125,39 @@ class ProotRuntime(private val context: Context) {
     /**
      * 后台自愈式初始化：校验 proot 二进制、rootfs、agent 脚本，并确保依赖已装好。
      * 幂等、可重入（互斥保护），返回就绪状态。
+     *
+     * 预装模式检测：如果 rootfs 内含 /opt/HOSARES_PREINSTALLED 标记，
+     * 说明所有 Python 依赖已随 APK 预装，跳过在线 bootstrap，直接验证就绪。
      */
     suspend fun init(): RuntimeState = initMutex.withLock {
         withContext(Dispatchers.IO) {
             _state.value = RuntimeState.INITIALIZING
             val ready = try {
                 ensureExtracted()
-                // 依赖未就绪且当前无网络时，跳过 bootstrap，置为 NEEDS_NETWORK（而非失败）
-                if (!isPythonReady() && !hasNetwork()) {
-                    _state.value = RuntimeState.NEEDS_NETWORK
-                    return@withContext RuntimeState.NEEDS_NETWORK
-                }
-                ensureBootstrapped()
-                // 汇总最终就绪：基础组件齐全且 python3 可用
-                if (bootstrapMarker.exists() || isPythonReady()) {
-                    prootBinary() != null &&
-                        rootfsDir.exists() &&
-                        File(rootfsDir, "etc").exists()
+                // 预装模式：检测 rootfs 是否预装了依赖
+                if (isPreinstalled()) {
+                    // 预装 rootfs 只需验证 python3 可用，无需在线 bootstrap
+                    if (isPythonReady() && prootBinary() != null && File(rootfsDir, "etc").exists()) {
+                        if (!bootstrapMarker.exists()) bootstrapMarker.writeText("pre-installed")
+                        true
+                    } else {
+                        lastError = "预装 rootfs 环境异常（python3 或基础组件缺失），建议清除应用数据后重试"
+                        false
+                    }
                 } else {
-                    false
+                    // 在线模式（fallback）：需要 bootstrap
+                    if (!isPythonReady() && !hasNetwork()) {
+                        _state.value = RuntimeState.NEEDS_NETWORK
+                        return@withContext RuntimeState.NEEDS_NETWORK
+                    }
+                    ensureBootstrapped()
+                    if (bootstrapMarker.exists() || isPythonReady()) {
+                        prootBinary() != null &&
+                            rootfsDir.exists() &&
+                            File(rootfsDir, "etc").exists()
+                    } else {
+                        false
+                    }
                 }
             } catch (e: Exception) {
                 lastError = e.message ?: "初始化失败"
@@ -166,9 +192,8 @@ class ProotRuntime(private val context: Context) {
      * 1. proot 二进制缺失则重新拷贝并置可执行；
      * 2. rootfs 缺失/损坏（无 etc）则重新解包；
      * 3. 一次性：拷贝默认 skills、bootstrap.sh（setupMarker 存在则跳过）；
-     * 4. agent 资产版本化：本地资产版本落后于内置 ASSETS_VERSION 时，强制补拷
-     *    agents 源码 / run.sh / llm_connect / requirements，保证升级后新工具自动可用，
-     *    无需用户清除数据。
+     * 4. agent 资产增量更新：按 AGENT_VERSIONS 逐 agent 比对版本，仅版本变化的 agent 被重新拷贝；
+     *    requirements 与 run.sh 仍由 ASSETS_VERSION 控制（体积小、变化频繁）。
      */
     private fun ensureExtracted() {
         // 1. proot 二进制：缺失自愈
@@ -192,10 +217,19 @@ class ProotRuntime(private val context: Context) {
             }
             setupMarker.writeText("done")
         }
-        // 4. agent 资产版本化：版本落后则强制补拷（含源码、run.sh、llm_connect、requirements）
+        // 4. 逐 agent 增量更新：仅版本变化的 agent 被拷贝（assets 缺失则跳过，绝不阻断初始化）。
+        for (agent in listOf("argus", "repoaudit", "strix", "reasonix")) {
+            if (needsAgentRefresh(agent)) {
+                try {
+                    copyAssetDir("opt/agents/$agent", File(rootfsDir, "opt/agents/$agent"))
+                } catch (_: Exception) {}
+                agentVersionMarker(agent).writeText((AGENT_VERSIONS[agent] ?: 0).toString())
+            }
+        }
+        // 5. requirements 目录仍全量拷（体积小，变化频繁）；run.sh 同步刷新。
+        //    由 ASSETS_VERSION 控制：仅当整体版本落后时刷新基础资产。
         if (needsAssetRefresh()) {
-            copyAssetDir("opt/agents", File(rootfsDir, "opt/agents"))
-            copyAssetDir("requirements", File(rootfsDir, "opt/agents-requirements"))
+            try { copyAssetDir("requirements", File(rootfsDir, "opt/agents-requirements")) } catch (_: Exception) {}
             for (agent in agents) {
                 val script = File(rootfsDir, "opt/agents/$agent/run.sh")
                 copyAsset("agents/$agent/run.sh", script)
@@ -205,7 +239,8 @@ class ProotRuntime(private val context: Context) {
         }
     }
 
-    /** 本地 agent 资产版本是否落后于内置版本（标记缺失视为 0）。 */
+    /** 本地基础资产版本是否落后于内置版本（标记缺失视为 0）。
+     *  仅控制 requirements 与 run.sh；opt/agents 的拷贝改由 needsAgentRefresh 控制。 */
     private fun needsAssetRefresh(): Boolean {
         val cur = try {
             assetVersionMarker.readText().trim().toInt()
@@ -213,6 +248,20 @@ class ProotRuntime(private val context: Context) {
             0
         }
         return cur < ASSETS_VERSION
+    }
+
+    /** 单个 agent 的版本标记文件路径。 */
+    private fun agentVersionMarker(agent: String): File =
+        File(rootfsDir, ".hosares-agent-ver-$agent")
+
+    /** 指定 agent 是否需要刷新（本地版本低于内置版本，或标记缺失视为 0）。
+     *  未在 AGENT_VERSIONS 中登记的 agent 返回 false（不刷新）。 */
+    private fun needsAgentRefresh(agent: String): Boolean {
+        val expected = AGENT_VERSIONS[agent] ?: return false
+        val cur = try {
+            agentVersionMarker(agent).readText().trim().toInt()
+        } catch (e: Exception) { 0 }
+        return cur < expected
     }
 
     /**
@@ -230,6 +279,14 @@ class ProotRuntime(private val context: Context) {
         if (runBootstrap(bootstrap) && isPythonReady()) {
             bootstrapMarker.writeText("done")
         }
+    }
+
+    /**
+     * 检测 rootfs 是否为预装模式（含 /opt/HOSARES_PREINSTALLED 标记）。
+     * 预装模式下所有 Python 依赖已随 APK 打包，无需在线 bootstrap。
+     */
+    private fun isPreinstalled(): Boolean {
+        return File(rootfsDir, "opt/HOSARES_PREINSTALLED").exists()
     }
 
     /** 检测 rootfs 内 python3 是否可用（作为依赖就绪的判定）。 */
@@ -276,7 +333,17 @@ class ProotRuntime(private val context: Context) {
         if (prefix == null) {
             return@withContext Result.Failure("proot 运行时未就绪（rootfs 或 proot 二进制缺失）")
         }
-        val cmd = "$prefix /bin/sh /opt/agents/$agent/run.sh /work \"$task\""
+        // AresGateway 非交互任务流：调用 reasonix 软路由（reasonix_agent.py），
+        // 其内部以 import 方式单进程调度 Argus / RepoAudit / Strix。
+        // task 经 HOS_TASK 环境变量传入，绕开外层 /system/bin/sh 的引号/命令替换解析；
+        // project 目录 bind 到 /work，reasonix_agent.py 接收 /work 作为 target 参数。
+        val cmd = if (agent == "reasonix") {
+            "$prefix /bin/sh -c 'export HOME=/root; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; " +
+                "source /opt/agents/llm_connect.sh >/dev/null 2>&1 || true; " +
+                "exec python3 /opt/agents/reasonix/reasonix_agent.py /work \"\$(printf %s \"\$HOS_TASK\")\"' sh"
+        } else {
+            "$prefix /bin/sh /opt/agents/$agent/run.sh /work \"$task\""
+        }
 
         val builder = ProcessBuilder("/system/bin/sh", "-c", cmd)
         builder.redirectErrorStream(true) // 合并 stdout+stderr，避免读管道死锁
@@ -355,25 +422,42 @@ class ProotRuntime(private val context: Context) {
         }
     }
 
-    /** 将内置的 Alpine minirootfs 解包到 rootfsDir。 */
+    /**
+     * 将内置 rootfs 解包到 rootfsDir。优先使用完整预装环境 rootfs.tar（含
+     * python3/依赖/工具/Agent 源码），缺失时才回退 minirootfs。
+     * 正确处理 symlink：minirootfs 中 /bin/sh 等是指向 busybox 的软链，
+     * 若当普通文件写出会变成 0 字节文件，导致 '/bin/sh' not found。
+     */
     private fun extractRootfs() {
         rootfsDir.mkdirs()
-        // AGP 可能把 .tar.gz 资产自动解压为 .tar 打进 APK，需兼容两种命名。
-        val gzName = "alpine-minirootfs.tar.gz"
-        val rawName = "alpine-minirootfs.tar"
-        val isGz = assetsContains(gzName)
-        context.assets.open(if (isGz) gzName else rawName).use { input ->
+        // 优先级: rootfs.tar.gz > rootfs.tar > alpine-minirootfs.tar.gz > alpine-minirootfs.tar
+        val candidates = listOf(
+            "rootfs.tar.gz",      // 预装 + gzip 压缩（推荐，体积小）
+            "rootfs.tar",          // 预装 + 裸 tar（解压快，体积大）
+            "alpine-minirootfs.tar.gz",  // 精简 fallback
+            "alpine-minirootfs.tar",     // 精简 fallback
+        )
+        val assetName = candidates.firstOrNull { assetsContains(it) }
+            ?: throw IllegalStateException("No rootfs asset found in APK")
+
+        val isGz = assetName.endsWith(".gz")
+        context.assets.open(assetName).use { input ->
             val stream = if (isGz) GzipCompressorInputStream(input) else input
             TarArchiveInputStream(stream).use { tar ->
                 var entry = tar.nextTarEntry
                 while (entry != null) {
                     val name = entry.name.removePrefix("./")
                     val dest = File(rootfsDir, name)
-                    if (entry.isDirectory) {
-                        dest.mkdirs()
-                    } else {
-                        dest.parentFile?.mkdirs()
-                        FileOutputStream(dest).use { out -> tar.copyTo(out) }
+                    when {
+                        entry.isSymbolicLink -> {
+                            dest.parentFile?.mkdirs()
+                            createSymlink(entry.linkName, dest)
+                        }
+                        entry.isDirectory -> dest.mkdirs()
+                        entry.isFile -> {
+                            dest.parentFile?.mkdirs()
+                            FileOutputStream(dest).use { out -> tar.copyTo(out) }
+                        }
                     }
                     entry = tar.nextTarEntry
                 }
@@ -417,6 +501,37 @@ class ProotRuntime(private val context: Context) {
             copyAssetDir(src, File(rootfsDir, "opt/skills"))
         } catch (e: Exception) {
             // skills 仅为默认体验增强，安装失败不阻断初始化
+        }
+    }
+
+    /**
+     * 将执行失败原因转为面向用户的、可操作的提示文本。
+     * 根据错误内容匹配常见场景（网络、Key、权限、超时等），给出具体建议。
+     */
+    fun humanizeError(error: String): String {
+        val e = error.lowercase()
+        return when {
+            "timeout" in e || "timed out" in e ->
+                "⏰ 执行超时。可能原因：任务过大、LLM 响应慢。建议：缩小审计范围或检查网络。"
+            "exit=137" in e || "killed" in e ->
+                "💀 进程被系统杀掉（内存不足）。建议：缩小审计范围或关闭其他后台应用。"
+            "exit=127" in e || "not found" in e ->
+                "🔧 工具未找到。可能原因：Agent 源码或依赖缺失。建议：清除应用数据后重试。"
+            "exit=126" in e || "permission denied" in e ->
+                "🔒 权限不足。建议：检查存储权限或重新授权。"
+            "key" in e && ("invalid" in e || "unauthorized" in e || "401" in e) ->
+                "🔑 API Key 无效。建议：检查 Key 是否正确、是否已过期。"
+            "rate" in e && ("limit" in e || "exceeded" in e || "429" in e) ->
+                "⚠️ API 限流。建议：等待几秒后重试或降低请求频率。"
+            "network" in e || "connection" in e || "dns" in e ->
+                "📡 网络错误。建议：检查网络连接，确保设备可访问互联网。"
+            "rootfs" in e && ("not" in e || "missing" in e) ->
+                "📂 运行时环境未就绪。建议：清除应用数据后重新启动。"
+            "python" in e && ("not" in e || "missing" in e) ->
+                "🐍 Python 环境缺失。建议：清除应用数据后重新安装应用。"
+            "pre-installed" in e || "preinstalled" in e ->
+                "📦 预装环境异常。建议：清除应用数据后重新安装 APK。"
+            else -> "❌ $error\n\n建议：检查日志或重试。如持续出现，请清除应用数据后重新配置。"
         }
     }
 }
