@@ -1,0 +1,148 @@
+# HOS-ARES 完整 rootfs 构建
+# 在 Docker 内构建预装了 Python3 + 所有 Agent 依赖的完整 Alpine 运行时
+#
+# 用法 (在项目根目录):
+#   docker build -f scripts/Dockerfile.rootfs -t hosares-rootfs .
+#   docker run --rm -v "$(pwd)/app/ares-rootfs:/output" hosares-rootfs
+#
+# Windows PowerShell:
+#   docker build -f scripts/Dockerfile.rootfs -t hosares-rootfs .
+#   docker run --rm -v "${PWD}/app/ares-rootfs:/output" hosares-rootfs
+
+FROM alpine:3.20
+
+# 1. 安装 Python + 构建依赖
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    py3-wheel \
+    busybox-extras \
+    ca-certificates
+
+# 2. 设置 pip 镜像源加速 (使用阿里云镜像)
+RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ \
+    && pip config set global.trusted-host mirrors.aliyun.com
+
+# 3. 预下载所有 wheels 到 /tmp/wheels (用于打包)
+RUN mkdir -p /tmp/wheels
+
+# 4. 安装所有 Agent 依赖
+# Argus 依赖
+RUN pip install --no-cache-dir pyyaml argus-languages 2>&1 | tail -1
+
+# RepoAudit 依赖
+RUN pip install --no-cache-dir openai anthropic tqdm 2>&1 | tail -1
+
+# Strix 依赖
+RUN pip install --no-cache-dir \
+    litellm \
+    pydantic \
+    pydantic-settings \
+    requests \
+    rich \
+    pygments \
+    jinja2 \
+    reportlab \
+    2>&1 | tail -1
+
+# Reasonix 依赖
+RUN pip install --no-cache-dir deepseek-reasonix 2>&1 | tail -1
+
+# 通用传递依赖
+RUN pip install --no-cache-dir \
+    cryptography \
+    charset-normalizer \
+    idna \
+    certifi \
+    urllib3 \
+    click \
+    markdown-it-py \
+    mdurl \
+    colorama \
+    markdown \
+    frozenlist \
+    multidict \
+    yarl \
+    aiohttp \
+    attrs \
+    distro \
+    httpx \
+    anyio \
+    starlette \
+    h11 \
+    httpcore \
+    sniffio \
+    typing-extensions \
+    jsonpatch \
+    jsonpointer \
+    tiktoken \
+    regex \
+    sentencepiece \
+    protobuf \
+    httptools \
+    python-dotenv \
+    pillow \
+    pypdf \
+    2>&1 | tail -1
+
+# 5. 下载所有 wheel 用于打包备份
+RUN pip download --dest /tmp/wheels --no-deps \
+    pyyaml argus-languages \
+    openai anthropic tqdm \
+    litellm pydantic pydantic-settings requests rich pygments jinja2 reportlab \
+    deepseek-reasonix \
+    cryptography charset-normalizer idna certifi urllib3 click markdown-it-py \
+    mdurl colorama markdown frozenlist multidict yarl aiohttp attrs distro \
+    httpx anyio starlette h11 httpcore sniffio typing-extensions jsonpatch \
+    jsonpointer tiktoken regex sentencepiece protobuf httptools python-dotenv \
+    pillow pypdf \
+    2>&1 | tail -1
+
+# 6. 创建 Agent 运行时目录
+RUN mkdir -p /opt/agents/argus/src \
+    /opt/agents/repoaudit/src \
+    /opt/agents/strix \
+    /opt/agents/reasonix \
+    /opt/skills \
+    /opt/agents-requirements \
+    /opt/python-deps
+
+# 7. 创建 shim 脚本
+RUN printf '#!/bin/sh\nPYTHONPATH=/opt/agents/reasonix exec python3 /opt/agents/reasonix/reasonix_agent.py "$@"\n' > /usr/local/bin/reasonix \
+    && chmod +x /usr/local/bin/reasonix \
+    && printf '#!/bin/sh\nPYTHONPATH=/opt/agents/argus/src exec python3 -m argus.cli "$@"\n' > /usr/local/bin/argus \
+    && chmod +x /usr/local/bin/argus \
+    && printf '#!/bin/sh\nPYTHONPATH=/opt/agents/repoaudit/src:$PYTHONPATH exec python3 /opt/agents/repoaudit/src/repoaudit.py "$@"\n' > /usr/local/bin/repoaudit \
+    && chmod +x /usr/local/bin/repoaudit \
+    && printf '#!/bin/sh\nPYTHONPATH=/opt/agents/strix exec python3 -m strix "$@"\n' > /usr/local/bin/strix \
+    && chmod +x /usr/local/bin/strix
+
+# 8. 创建预装标记
+RUN printf 'HOS-ARES pre-installed rootfs\npython3: pre-installed\npip-deps: pre-installed\nbuild: fully-offline\n' > /opt/HOSARES_PREINSTALLED
+
+# 9. 清理缓存减小体积
+RUN pip cache purge 2>/dev/null || true \
+    && find /usr/lib/python* -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true \
+    && find /usr/lib/python* -name "*.pyc" -delete 2>/dev/null || true \
+    && rm -rf /tmp/* /var/cache/apk/*
+
+# 10. 验证
+RUN python3 --version && echo "Python OK" \
+    && python3 -c "import yaml, openai, rich, litellm; print('核心依赖 OK')"
+
+# 11. 导出入口 - 将 rootfs 打包到 /output/rootfs.tar
+CMD ["sh", "-c", "\
+    echo '=== 打包 rootfs ===' && \
+    cd / && \
+    tar cf /output/rootfs.tar \
+        --exclude='.dockerenv' \
+        --exclude='proc/*' \
+        --exclude='sys/*' \
+        --exclude='dev/*' \
+        --exclude='tmp/*' \
+        --exclude='run/*' \
+        bin/ etc/ lib/ libexec/ sbin/ usr/ var/ opt/ root/ home/ && \
+    cp -r /tmp/wheels /output/python-wheels && \
+    echo \"rootfs.tar 大小: $(du -h /output/rootfs.tar | cut -f1)\" && \
+    echo 'wheel 备份: $(ls /tmp/wheels | wc -l) 个文件' && \
+    echo '=== 构建完成 ==='"]
