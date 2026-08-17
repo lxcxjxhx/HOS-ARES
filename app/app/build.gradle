@@ -14,11 +14,15 @@ android {
         targetSdk 34
         versionCode 1
         versionName "0.1.0"
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
     }
 
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
@@ -34,7 +38,14 @@ android {
         viewBinding true
     }
     packagingOptions {
-        resources { excludes += ['META-INF/DEPENDENCIES', 'META-INF/LICENSE*', 'META-INF/NOTICE*'] }
+        resources {
+            excludes += [
+                'META-INF/DEPENDENCIES', 'META-INF/LICENSE*', 'META-INF/NOTICE*',
+                'META-INF/*.kotlin_module', 'META-INF/kotlin-tooling-metadata.json',
+                'META-INF/INDEX.LIST', 'META-INF/io.netty.versions.properties',
+                'META-INF/versions/**', 'kotlin/**', 'kotlinx/**'
+            ]
+        }
     }
 
     // 将 ares-rootfs (Alpine minirootfs + proot 二进制 + agent 启动脚本) 打包进 APK assets
