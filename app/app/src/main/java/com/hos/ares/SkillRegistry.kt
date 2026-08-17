@@ -1,4 +1,4 @@
-package com.hos.ares
+﻿package com.hos.ares
 
 /**
  * HOS-ARES 安全技能注册表（原创实现）
@@ -15,16 +15,9 @@ object SkillRegistry {
     )
 
     val skills: List<Skill> = listOf(
-        Skill("argus", listOf("漏洞", "扫描", "vulnerability", "scan"), requiresLl = false),
-        Skill("repoaudit", listOf("审计", "符号执行", "audit", "code review"), requiresLl = true),
-        Skill("strix", listOf("渗透", "pentest", "攻击", "exploit"), requiresLl = true),
-        Skill("pentestgpt", listOf("渗透测试", "pentestgpt"), requiresLl = true),
-        Skill("deepaudit", listOf("深度", "deep", "后端"), requiresLl = true),
-        Skill(
-            "securityresearch",
-            listOf("cve", "漏洞情报", "威胁情报", "情报", "search", "research"),
-            requiresLl = false,
-        ),
+        Skill("argus", listOf("漏洞", "扫描", "vulnerability", "scan", "sast", "sca", "secrets"), requiresLl = false),
+        Skill("repoaudit", listOf("审计", "符号执行", "audit", "code review", "代码审计", "空指针", "uaf", "内存泄漏"), requiresLl = true),
+        Skill("strix", listOf("渗透", "pentest", "攻击", "exploit", "渗透测试", "漏洞利用", "ctf"), requiresLl = true),
         // 统一 Agent 入口：触发词宽松，作为 reasonix 统一入口的候选识别
         Skill(
             "reasonix",
