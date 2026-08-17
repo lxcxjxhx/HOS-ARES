@@ -1,4 +1,4 @@
-package com.hos.ares;
+﻿package com.hos.ares;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -10,6 +10,9 @@ import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
 import org.json.JSONObject;
 
 import java.io.File;
@@ -50,14 +53,15 @@ public class TerminalActivity extends Activity {
 
     /* ---------- 环境准备：解压预装 rootfs + 部署 assets ---------- */
     private void ensureEnvironment() throws IOException {
-        if (!new File(rootfs, "root/entry.sh").exists()) {
-            File tar = new File(getFilesDir(), "rootfs.tar");
-            extractAsset("rootfs.tar", tar);
-            Process p = new ProcessBuilder("/system/bin/tar", "-xzf", tar.getAbsolutePath(), "-C", rootfs.getAbsolutePath())
-                    .redirectErrorStream(true).start();
-            try { p.waitFor(); } catch (InterruptedException ignored) {}
-            tar.delete();
-            Log.i(TAG, "rootfs 解压完成");
+        // rootfs 已解压（存在 etc + bin/sh）则跳过 tar 解压，只补部署 assets；
+        // 与 ProotRuntime 共用 /sdcard/data/.Ares，避免两处重复解压 455MB。
+        boolean rootfsReady = new File(rootfs, "etc").exists() && new File(rootfs, "bin/sh").exists();
+        if (!rootfsReady) {
+            if (!rootfs.exists() && !rootfs.mkdirs()) {
+                throw new IOException("无法创建 rootfs 目录: " + rootfs.getAbsolutePath());
+            }
+            extractRootfs();
+            Log.i(TAG, "rootfs 解压完成 → " + rootfs.getAbsolutePath());
         }
         deploy("usr/bin/reasonix", new File(rootfs, "usr/local/bin/reasonix"));
         deploy("usr/bin/pty-bridge", new File(rootfs, "usr/bin/pty-bridge"));
@@ -77,6 +81,90 @@ public class TerminalActivity extends Activity {
     private void deploy(String asset, File dst) throws IOException {
         extractAsset(asset, dst);
         dst.setExecutable(true, false);
+    }
+
+    /**
+     * 将内置 rootfs 解包到 rootfs 路径。优先使用完整预装环境 rootfs.tar（与
+     * ProotRuntime 一致），缺失时回退 alpine-minirootfs.tar.gz → alpine-minirootfs.tar。
+     * 正确处理 symlink：minirootfs 中 /bin/sh 等是指向 busybox 的软链，/sdcard 上
+     * 直接 tar -xzf 可能丢链或失效，故对 symlink entry 单独以 ln -s 或 NIO 创建。
+     */
+    private void extractRootfs() throws IOException {
+        String fullName = "rootfs.tar";
+        // AGP 可能把 .tar.gz 资产自动解压为 .tar 打进 APK，需兼容两种命名。
+        String gzName = "alpine-minirootfs.tar.gz";
+        String rawName = "alpine-minirootfs.tar";
+        String assetName;
+        if (assetsContains(fullName)) {
+            assetName = fullName;
+        } else if (assetsContains(gzName)) {
+            assetName = gzName;
+        } else {
+            assetName = rawName;
+        }
+        try (InputStream in = getAssets().open(assetName)) {
+            // rootfs.tar 与 alpine-minirootfs.tar.gz 均为 gzip；.tar 裸格式不压缩。
+            boolean isGz = assetName.endsWith(".gz") || assetName.equals(fullName);
+            InputStream stream = isGz ? new GzipCompressorInputStream(in) : in;
+            try (TarArchiveInputStream tar = new TarArchiveInputStream(stream)) {
+                TarArchiveEntry entry;
+                while ((entry = tar.getNextTarEntry()) != null) {
+                    String name = entry.getName().replaceFirst("^\\./", "");
+                    File dest = new File(rootfs, name);
+                    if (entry.isSymbolicLink()) {
+                        dest.getParentFile().mkdirs();
+                        createSymlink(entry.getLinkName(), dest);
+                    } else if (entry.isDirectory()) {
+                        dest.mkdirs();
+                    } else if (entry.isFile()) {
+                        dest.getParentFile().mkdirs();
+                        try (FileOutputStream out = new FileOutputStream(dest)) {
+                            byte[] buf = new byte[65536];
+                            int n;
+                            while ((n = tar.read(buf)) > 0) out.write(buf, 0, n);
+                        }
+                    }
+                    // hardlink / 其他类型：忽略（minirootfs 无关键 hardlink）
+                }
+            }
+        }
+    }
+
+    /** 判断某个顶层资产是否存在。 */
+    private boolean assetsContains(String name) {
+        try (InputStream in = getAssets().open(name)) {
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    /** 创建符号链接：优先 toybox ln（/sdcard 上 Java NIO 在 API 26 前不可用），失败则尝试 NIO 兜底。 */
+    private void createSymlink(String linkName, File dest) {
+        boolean ok = false;
+        try {
+            Process p = new ProcessBuilder("/system/bin/ln", "-s", linkName, dest.getAbsolutePath())
+                    .redirectErrorStream(true).start();
+            p.waitFor();
+            // NIO Files 仅 API 26+ 可用；API 24-25 乐观假设 ln -s 已成功
+            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                ok = java.nio.file.Files.isSymbolicLink(dest.toPath());
+            } else {
+                ok = true;
+            }
+        } catch (Exception ignored) {
+            // 走 NIO 兜底
+        }
+        if (!ok && android.os.Build.VERSION.SDK_INT >= 26) {
+            try {
+                java.nio.file.Files.createSymbolicLink(
+                        dest.toPath(), java.nio.file.Paths.get(linkName)
+                );
+                ok = java.nio.file.Files.isSymbolicLink(dest.toPath());
+            } catch (Exception e) {
+                Log.w(TAG, "创建 symlink 失败: " + dest + " -> " + linkName + " (" + e.getMessage() + ")");
+            }
+        }
     }
 
     /* ---------- 终端 WebView ---------- */
