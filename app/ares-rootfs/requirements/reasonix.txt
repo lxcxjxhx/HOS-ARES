@@ -1,5 +1,13 @@
-# HOS-ARES reasonix 统一 Agent 入口依赖清单
+# HOS-ARES reasonix 基座 Agent 框架依赖清单（保证始终可更新）。
 #
-# reasonix 统一入口（reasonix_agent.py）仅依赖 Python 标准库（os / sys / subprocess），
-# 不依赖任何外部 pip 包，因此本文件无需列出第三方依赖，
-# 从而保证其在离线 proot 环境中稳定可用。
+# deepseek-reasonix 是 HOS-ARES 的 Agent 运行时框架（Terminal 交互模式用
+# `reasonix` CLI、MCP server 注册、skills/memory 加载等都依赖它）。
+# 通过将其放在 requirements 中，每次 bootstrap（或升级 APK 后）会执行
+# `pip install --upgrade deepseek-reasonix`，从而保证基座始终可从 PyPI
+# 获取最新更新，无需随 APK 重新打包发布。
+#
+# 说明：
+#   - 非交互 AresGateway 任务流不依赖 deepseek-reasonix 包本身，
+#     使用自研软路由 reasonix_agent.py 调度（纯 stdlib）；
+#   - Terminal 交互模式（entry.sh）依赖 reasonix CLI（本包提供）。
+deepseek-reasonix>=0.2.0
