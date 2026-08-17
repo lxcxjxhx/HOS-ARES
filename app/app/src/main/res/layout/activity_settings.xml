@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -71,18 +71,19 @@
                 android:background="@drawable/bg_input"
                 android:paddingHorizontal="12dp" />
 
+            <!-- 当前使用的 API Key -->
             <com.google.android.material.textfield.TextInputLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
                 style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                android:hint="Anthropic API Key"
+                android:hint="当前 API Key"
                 app:boxStrokeColor="@color/primary"
                 app:endIconMode="password_toggle"
                 app:hintTextColor="@color/text_secondary">
 
                 <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etAnthropic"
+                    android:id="@+id/etKey"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:inputType="textPassword"
@@ -90,79 +91,68 @@
                     android:textColorHint="@color/text_muted" />
             </com.google.android.material.textfield.TextInputLayout>
 
-                    <AutoCompleteTextView
-                        android:id="@+id/spBackend"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="none"
-                        android:textColor="@color/text_primary"
-                        android:textColorHint="@color/text_muted"
-                        android:textSize="15sp" />
-                </com.google.android.material.textfield.TextInputLayout>
+            <!-- 模型名 -->
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                android:hint="模型名（留空用后端默认）"
+                app:boxStrokeColor="@color/primary"
+                app:boxStrokeWidth="1dp"
+                app:hintTextColor="@color/text_secondary">
 
-                <!-- 模型名 -->
-                <com.google.android.material.textfield.TextInputLayout
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etModel"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                    android:hint="模型名（留空用后端默认）"
-                    app:boxStrokeColor="@color/primary"
-                    app:boxStrokeWidth="1dp"
-                    app:hintTextColor="@color/text_secondary">
+                    android:fontFamily="monospace"
+                    android:inputType="text"
+                    android:singleLine="true"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
+                    android:textSize="15sp" />
+            </com.google.android.material.textfield.TextInputLayout>
 
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etModel"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="monospace"
-                        android:inputType="text"
-                        android:singleLine="true"
-                        android:textColor="@color/text_primary"
-                        android:textColorHint="@color/text_muted"
-                        android:textSize="15sp" />
-                </com.google.android.material.textfield.TextInputLayout>
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnDeepseekPreset"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:backgroundTint="@color/surface2"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:text="⚡ 一键填入 DeepSeek 默认配置"
+                android:textColor="@color/primary"
+                android:textSize="13sp"
+                app:cornerRadius="10dp" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnDeepseekPreset"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:backgroundTint="@color/surface2"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:text="⚡ 一键填入 DeepSeek 默认配置"
-                    android:textColor="@color/primary"
-                    android:textSize="13sp"
-                    app:cornerRadius="10dp" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnTestConn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:backgroundTint="@color/surface2"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:text="🔍 测试连通性"
+                android:textColor="@color/primary"
+                android:textSize="13sp"
+                app:cornerRadius="10dp" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnTestConn"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:backgroundTint="@color/surface2"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:text="🔍 测试连通性"
-                    android:textColor="@color/primary"
-                    android:textSize="13sp"
-                    app:cornerRadius="10dp" />
-            </LinearLayout>
-
-            <!-- ══ 分组：API Key（下拉选提供商，一次只显示一个输入框） ══ -->
+            <!-- ══ 分组：API Key 存储（各提供商独立存储） ══ -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="4dp"
                 android:layout_marginTop="18dp"
                 android:layout_marginBottom="6dp"
-                android:text="API Key"
+                android:text="API Key 存储"
                 android:textColor="@color/text_secondary"
                 android:textSize="12sp"
                 android:letterSpacing="0.12" />
 
-            <LinearLayout
+            <com.google.android.material.textfield.TextInputLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
@@ -174,6 +164,25 @@
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etDeepseek"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textPassword"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                android:hint="Anthropic API Key"
+                app:boxStrokeColor="@color/primary"
+                app:endIconMode="password_toggle"
+                app:hintTextColor="@color/text_secondary">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etAnthropic"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:inputType="textPassword"
@@ -219,42 +228,24 @@
                     android:textColorHint="@color/text_muted" />
             </com.google.android.material.textfield.TextInputLayout>
 
-            <com.google.android.material.textfield.TextInputLayout
-                android:layout_width="match_parent"
+            <!-- 协同模式 -->
+            <TextView
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                android:hint="模型名（留空则用后端默认）"
-                app:boxStrokeColor="@color/primary"
-                app:hintTextColor="@color/text_secondary">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etModel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="text"
-                    android:singleLine="true"
-                    android:textColor="@color/text_primary"
-                    android:textColorHint="@color/text_muted" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnDeepseekPreset"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:backgroundTint="@color/surface2"
-                android:text="一键填入 DeepSeek 默认配置"
-                android:textColor="@color/text_primary"
-                android:textSize="14sp"
-                app:cornerRadius="10dp" />
+                android:layout_marginStart="4dp"
+                android:layout_marginTop="18dp"
+                android:layout_marginBottom="6dp"
+                android:text="协同模式（可选）"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp"
+                android:letterSpacing="0.12" />
 
             <com.google.android.material.textfield.TextInputLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                android:hint="电脑端 Agent Server 地址（协同模式，可留空）"
+                android:hint="电脑端 Agent Server 地址"
                 app:boxStrokeColor="@color/primary"
                 app:hintTextColor="@color/text_secondary">
 

@@ -32,6 +32,17 @@ app/app/build/
 *.iml
 .idea/
 
+# ---------- IDE / 编辑器 ----------
+.reasonix/
+.trae/
+__pycache__/
+*.pyc
+
+# ---------- 构建调试日志 ----------
+debug_build.log
+update_agp.py
+update_gradle.py
+
 # ---------- 系统 ----------
 .DS_Store
 Thumbs.db

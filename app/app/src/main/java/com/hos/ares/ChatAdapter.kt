@@ -1,4 +1,4 @@
-﻿package com.hos.ares
+package com.hos.ares
 
 import android.net.Uri
 import android.view.LayoutInflater

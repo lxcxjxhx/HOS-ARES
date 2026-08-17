@@ -1,4 +1,4 @@
-﻿package com.hos.ares
+package com.hos.ares
 
 import android.os.Bundle
 import android.widget.ArrayAdapter

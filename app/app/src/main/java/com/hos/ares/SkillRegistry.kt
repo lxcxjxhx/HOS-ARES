@@ -1,4 +1,4 @@
-﻿package com.hos.ares
+package com.hos.ares
 
 /**
  * HOS-ARES 安全技能注册表（原创实现）

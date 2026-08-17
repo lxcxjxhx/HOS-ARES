@@ -1,4 +1,4 @@
-﻿package com.hos.ares
+package com.hos.ares
 
 import android.content.Context
 import android.net.ConnectivityManager
@@ -462,6 +462,24 @@ class ProotRuntime(private val context: Context) {
                     entry = tar.nextTarEntry
                 }
             }
+        }
+    }
+
+    /**
+     * 创建符号链接：rootfs 中 /bin/sh 等指向 busybox 的软链，
+     * 在 Android 私有目录中需要用 NIO 或 Runtime 方式创建。
+     */
+    private fun createSymlink(linkName: String, dest: File) {
+        try {
+            dest.parentFile?.mkdirs()
+            if (dest.exists()) dest.delete()
+            try {
+                java.nio.file.Files.createSymbolicLink(dest.toPath(), java.io.File(linkName).toPath())
+            } catch (_: Exception) {
+                Runtime.getRuntime().exec(arrayOf("ln", "-s", linkName, dest.absolutePath))
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("ProotRuntime", "创建 symlink 失败: ${dest} -> ${linkName} (${e.message})")
         }
     }
 
