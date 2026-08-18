@@ -3,49 +3,62 @@
     android:height="48dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- HOS 品牌图标：安全盾 + AI 智能节点，深海军蓝底色 -->
-    <!-- 背景圆角 -->
     <path
-        android:fillColor="#0B1220"
+        android:fillColor="#0B0710"
         android:pathData="M12,6 h84 a6,6 0 0 1 6,6 v84 a6,6 0 0 1 -6,6 h-84 a6,6 0 0 1 -6,-6 v-84 a6,6 0 0 1 6,-6 z" />
-    <!-- 顶部微光 -->
     <path
-        android:fillColor="#1B3358"
+        android:fillColor="#1A0F2E"
         android:pathData="M12,6 h84 a6,6 0 0 1 6,6 v24 h-96 v-24 a6,6 0 0 1 6,-6 z" />
-    <!-- 内圈装饰线 -->
     <path
         android:fillColor="#00000000"
-        android:strokeColor="#1E3A5F"
+        android:strokeColor="#2D1B4E"
         android:strokeWidth="2"
         android:pathData="M18,18 h72 a6,6 0 0 1 6,6 v60 a6,6 0 0 1 -6,6 h-72 a6,6 0 0 1 -6,-6 v-60 a6,6 0 0 1 6,-6 z" />
-    <!-- 盾牌（安全）主体 -->
     <path
-        android:fillColor="#1D4ED8"
+        android:fillColor="#5B21B6"
         android:pathData="M54,28 L78,38 L78,58 C78,76 67,88 54,95 C41,88 30,76 30,58 L30,38 Z" />
-    <!-- 盾牌高光面 -->
     <path
-        android:fillColor="#3B82F6"
+        android:fillColor="#7C3AED"
         android:pathData="M54,30 L76,39 L76,52 C76,62 71,70 65,77 L54,83 L43,77 C37,70 32,62 32,52 L32,39 Z" />
-    <!-- 盾牌底部暗影 -->
     <path
-        android:fillColor="#1E40AF"
-        android:pathData="M54,83 L65,77 C71,70 76,62 76,52 L76,58 C76,76 65,88 54,95 C43,88 32,76 32,58 L32,52 C32,62 37,70 43,77 Z" />
-    <!-- 智能节点六边形 -->
+        android:fillColor="#A855F7"
+        android:pathData="M54,35 L73,44 L73,54 C73,60 69,65 64,70 L54,76 L44,70 C39,65 35,60 35,54 L35,44 Z" />
     <path
-        android:fillColor="#0E1526"
+        android:fillColor="#C084FC"
+        android:pathData="M54,42 L68,49 L68,58 C68,62 65,65 61,68 L54,72 L47,68 C43,65 40,62 40,58 L40,49 Z" />
+    <path
+        android:fillColor="#0B0710"
         android:pathData="M54,42 L65,48 L65,60 L54,66 L43,60 L43,48 Z" />
-    <!-- 六边形描边 -->
     <path
         android:fillColor="#00000000"
-        android:strokeColor="#22D3EE"
+        android:strokeColor="#D946EF"
         android:strokeWidth="2.5"
         android:pathData="M54,42 L65,48 L65,60 L54,66 L43,60 L43,48 Z" />
-    <!-- 核心光点 -->
     <path
-        android:fillColor="#22D3EE"
+        android:fillColor="#D946EF"
         android:pathData="M54,46 a8,8 0 1 1 0,16 a8,8 0 1 1 0,-16 z" />
-    <!-- 核心亮点 -->
     <path
-        android:fillColor="#A5F3FC"
+        android:fillColor="#F3E8FF"
         android:pathData="M54,49.5 a4.5,4.5 0 1 1 0,9 a4.5,4.5 0 1 1 0,-9 z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#D946EF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:pathData="M44,45 L38,40 M46,55 L40,62 M62,45 L68,40 M60,55 L66,62" />
+    <path
+        android:fillColor="#D946EF"
+        android:pathData="M37,39 a1.5,1.5 0 1 1 0,3 a1.5,1.5 0 1 1 0,-3 z" />
+    <path
+        android:fillColor="#D946EF"
+        android:pathData="M39,63 a1.5,1.5 0 1 1 0,3 a1.5,1.5 0 1 1 0,-3 z" />
+    <path
+        android:fillColor="#D946EF"
+        android:pathData="M68,39 a1.5,1.5 0 1 1 0,3 a1.5,1.5 0 1 1 0,-3 z" />
+    <path
+        android:fillColor="#D946EF"
+        android:pathData="M67,63 a1.5,1.5 0 1 1 0,3 a1.5,1.5 0 1 1 0,-3 z" />
+    <path
+        android:fillColor="#F3E8FF"
+        android:pathData="M48,28 L54,25 L60,28 L54,35 Z" />
 </vector>
