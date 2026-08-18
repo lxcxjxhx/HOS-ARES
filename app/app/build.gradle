@@ -8,12 +8,22 @@ android {
     namespace 'com.hos.ares'
     compileSdk 34
 
+    signingConfigs {
+        release {
+            storeFile file('../release-key.jks')
+            storePassword 'hosares2024'
+            keyAlias 'hosares'
+            keyPassword 'hosares2024'
+        }
+    }
+
     defaultConfig {
         applicationId "com.hos.ares"
         minSdk 24
         targetSdk 34
         versionCode 3
         versionName "0.3.0"
+        signingConfig signingConfigs.release
         ndk {
             abiFilters 'arm64-v8a'
         }
@@ -22,15 +32,6 @@ android {
     lint {
         checkReleaseBuilds false
         abortOnError false
-    }
-
-    signingConfigs {
-        release {
-            storeFile file('../release-key.jks')
-            storePassword 'hosares2024'
-            keyAlias 'hosares'
-            keyPassword 'hosares2024'
-        }
     }
 
     buildTypes {
@@ -63,7 +64,6 @@ android {
         }
     }
 
-    // 将 ares-rootfs (Alpine minirootfs + proot 二进制 + agent 启动脚本) 打包进 APK assets
     sourceSets {
         main {
             assets.srcDirs += '../ares-rootfs'
