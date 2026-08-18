@@ -13,6 +13,10 @@ docs/reference/
 *.tgz
 *.tar.gz
 
+# ---------- 签名密钥（切勿提交） ----------
+*.jks
+*.keystore
+
 # ---------- 大体积编译产物 → 放 GitHub Release ----------
 app/app/src/main/assets/rootfs.tar
 app/app/src/main/assets/rootfs.dat
