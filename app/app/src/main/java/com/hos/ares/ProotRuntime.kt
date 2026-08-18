@@ -423,24 +423,26 @@ class ProotRuntime(private val context: Context) {
     }
 
     /**
-     * 将内置 rootfs 解包到 rootfsDir。优先使用完整预装环境 rootfs.tar（含
+     * 将内置 rootfs 解包到 rootfsDir。优先使用完整预装环境 rootfs.dat（含
      * python3/依赖/工具/Agent 源码），缺失时才回退 minirootfs。
      * 正确处理 symlink：minirootfs 中 /bin/sh 等是指向 busybox 的软链，
      * 若当普通文件写出会变成 0 字节文件，导致 '/bin/sh' not found。
      */
     private fun extractRootfs() {
         rootfsDir.mkdirs()
-        // 优先级: rootfs.tar.gz > rootfs.tar > alpine-minirootfs.tar.gz > alpine-minirootfs.tar
+        // 优先级: rootfs.dat > rootfs.tar.gz > rootfs.tar > alpine-minirootfs.tar.gz > alpine-minirootfs.tar
         val candidates = listOf(
-            "rootfs.tar.gz",      // 预装 + gzip 压缩（推荐，体积小）
-            "rootfs.tar",          // 预装 + 裸 tar（解压快，体积大）
+            "rootfs.dat",           // 预装 + gzip 压缩（.dat 扩展名，避免 AGP 解压）
+            "rootfs.tar.gz",        // 预装 + gzip 压缩
+            "rootfs.tar",           // 预装 + 裸 tar
             "alpine-minirootfs.tar.gz",  // 精简 fallback
             "alpine-minirootfs.tar",     // 精简 fallback
         )
         val assetName = candidates.firstOrNull { assetsContains(it) }
             ?: throw IllegalStateException("No rootfs asset found in APK")
 
-        val isGz = assetName.endsWith(".gz")
+        // rootfs.dat 本质上是 .tar.gz，需要 gzip 解压
+        val isGz = assetName.endsWith(".gz") || assetName.endsWith(".dat")
         context.assets.open(assetName).use { input ->
             val stream = if (isGz) GzipCompressorInputStream(input) else input
             TarArchiveInputStream(stream).use { tar ->

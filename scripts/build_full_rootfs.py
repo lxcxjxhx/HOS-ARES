@@ -14,7 +14,7 @@ HOS-ARES 完整 rootfs 打包器 (Windows 版，无需 Docker)。
 用法: python build_full_rootfs.py
 输出: app/app/src/main/assets/rootfs.tar
 """
-import os, sys, tarfile, zipfile, shutil, stat, gzip, io, json, hashlurllib.request
+import os, sys, tarfile, zipfile, shutil, stat, gzip, io, json, hashlib, urllib.request
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.join(ROOT, '..')
@@ -24,12 +24,12 @@ BUILD = os.path.join(ROOT, 'rootfs-build')
 CACHE = os.path.join(ROOT, 'cache')
 REQ_DIR = os.path.join(PROJECT_ROOT, 'app', 'ares-rootfs', 'requirements')
 
-MINIROOTFS_GZ = os.path.join(ASSETS, 'alpine-minirootfs.tar.gz')
-FULL_ROOTFS = os.path.join(ASSETS, 'rootfs.tar')
+MINIROOTFS_GZ = os.path.join(PROJECT_ROOT, 'app', 'ares-rootfs', 'alpine-minirootfs.tar.gz')
+FULL_ROOTFS = os.path.join(PROJECT_ROOT, 'app', 'ares-rootfs', 'rootfs.tar')
 
-# Alpine 3.20 包仓库 (x86_64 架构，用于构建)
+# Alpine 3.20 包仓库 (aarch64/ARM64 架构，匹配 Android 设备)
 ALPINE_VERSION = '3.20'
-ALPINE_ARCH = 'x86_64'
+ALPINE_ARCH = 'aarch64'
 ALPINE_REPO = f'https://dl-cdn.alpinelinux.org/alpine/v{ALPINE_VERSION}/packages/{ALPINE_ARCH}'
 
 # 需要下载的 Alpine 包 (运行时依赖)
@@ -40,6 +40,26 @@ ALPINE_PACKAGES = [
     'py3-wheel',
     'busybox-extras',
     'ca-certificates',
+    # C 扩展包（PyPI 无 musl/arm64 wheel，从 Alpine 仓库获取）
+    'py3-cryptography',
+    'py3-pillow',
+    'py3-pyyaml',
+    'py3-regex',
+    'py3-httptools',
+    'py3-sentencepiece',
+    'py3-tiktoken',
+    # 系统库（部分 Python 包运行时需要）
+    'libjpeg-turbo',
+    'zlib',
+    'libpng',
+    'libffi',
+    'openssl',
+    'musl',
+    'libxz',
+    'libstdc++',
+    'libgcc',
+    'libcrypto3',
+    'libssl3',
 ]
 
 # 需要预装的 pip 依赖 (与 download_wheels.py 保持一致)
@@ -365,7 +385,7 @@ def main():
     for d in agent_dirs:
         os.makedirs(os.path.join(BUILD, d), exist_ok=True)
 
-    # 7. 复制 Agent 源码
+    # 7. 复制 Agent 源码 (从 ares-rootfs/opt/agents)
     print('\n[6] 复制 Agent 源码...')
     agent_src_map = {
         'opt/agents/argus/src': os.path.join(PROJECT_ROOT, 'app', 'ares-rootfs', 'opt', 'agents', 'argus', 'src', 'argus'),
@@ -382,6 +402,48 @@ def main():
             shutil.copytree(src, dest, symlinks=True,
                             ignore=shutil.ignore_patterns('.git', '__pycache__', '.pyc'))
             print(f'  ✓ {dest_rel}')
+
+    # 7b. 注入 vendor 仓库（tengu/ghostprobe/mcts/pentestgpt）
+    vendor_map = {
+        'opt/agents/tengu': os.path.join(PROJECT_ROOT, 'vendor', 'tengu'),
+        'opt/agents/ghostprobe': os.path.join(PROJECT_ROOT, 'vendor', 'ghostprobe'),
+        'opt/agents/mcts': os.path.join(PROJECT_ROOT, 'vendor', 'mcts'),
+        'opt/agents/pentestgpt': os.path.join(PROJECT_ROOT, 'vendor', 'pentestgpt'),
+        'opt/agents/argus/vendor': os.path.join(PROJECT_ROOT, 'vendor', 'argus'),
+    }
+    vendor_keep = {
+        'opt/agents/argus/vendor': ['orchestrator', 'cli', 'demo', 'demo_target', 'docs', 'README.md', 'LICENSE', 'NOTICE', 'SECURITY.md'],
+    }
+    for dest_rel, src in vendor_map.items():
+        dest = os.path.join(BUILD, dest_rel)
+        if os.path.isdir(src):
+            if os.path.exists(dest):
+                shutil.rmtree(dest, ignore_errors=True)
+            keep = vendor_keep.get(dest_rel)
+            if keep is None:
+                shutil.copytree(src, dest, symlinks=True,
+                                ignore=shutil.ignore_patterns('.git', '.github', '__pycache__', '.pyc', '.venv', 'node_modules'))
+            else:
+                os.makedirs(dest, exist_ok=True)
+                for item in keep:
+                    s = os.path.join(src, item)
+                    if os.path.isdir(s):
+                        shutil.copytree(s, os.path.join(dest, item), symlinks=True,
+                                        ignore=shutil.ignore_patterns('.git', '__pycache__', '.pyc'))
+                    elif os.path.isfile(s):
+                        shutil.copy2(s, os.path.join(dest, item))
+            print(f'  ✓ {dest_rel}')
+
+    # 7c. 复制 agent 辅助脚本（llm_connect.sh 等）
+    ares_opt = os.path.join(PROJECT_ROOT, 'app', 'ares-rootfs', 'opt')
+    if os.path.isdir(ares_opt):
+        for item in os.listdir(ares_opt):
+            src = os.path.join(ares_opt, item)
+            if item.endswith('.sh') and os.path.isfile(src):
+                dest = os.path.join(BUILD, 'opt', item)
+                shutil.copy2(src, dest)
+                os.chmod(dest, 0o755)
+                print(f'  ✓ opt/{item}')
 
     # 8. 复制 requirements
     req_dest = os.path.join(BUILD, 'opt', 'agents-requirements')
@@ -401,12 +463,23 @@ def main():
         'argus': '#!/bin/sh\nPYTHONPATH=/opt/agents/argus/src exec python3 -m argus.cli "$@"\n',
         'repoaudit': '#!/bin/sh\nPYTHONPATH=/opt/agents/repoaudit/src:$PYTHONPATH exec python3 /opt/agents/repoaudit/src/repoaudit.py "$@"\n',
         'strix': '#!/bin/sh\nPYTHONPATH=/opt/agents/strix exec python3 -m strix "$@"\n',
+        # Vendor 工具
+        'tengu': '#!/bin/sh\nPYTHONPATH=/opt/agents/tengu/src exec python3 -m tengu.server "$@"\n',
+        'ghostprobe': '#!/bin/sh\nPYTHONPATH=/opt/agents/ghostprobe exec python3 -c "from ghostprobe.cli import main; import sys; sys.exit(main())" "$@"\n',
+        'mcts-mcp': '#!/bin/sh\nPYTHONPATH=/opt/agents/mcts/src exec python3 -c "from mcts.mcp_server.main import run; import sys; sys.exit(run())" "$@"\n',
+        'pentestgpt': '#!/bin/sh\nPYTHONPATH=/opt/agents/pentestgpt exec python3 -c "from pentestgpt_legacy.main import main; import sys; sys.exit(main())" "$@"\n',
+        # 网络工具（预装 mitmproxy + zap 如果可用）
+        'mitmproxy': '#!/bin/sh\nexec python3 -c "from mitmproxy.tools.main import mitmproxy; import sys; sys.exit(mitmproxy(sys.argv[1:]))" "$@"\n',
+        'mitmdump': '#!/bin/sh\nexec python3 -c "from mitmproxy.tools.main import mitmdump; import sys; sys.exit(mitmdump(sys.argv[1:]))" "$@"\n',
     }
     for name, content in shims.items():
         path = os.path.join(shims_dir, name)
         with open(path, 'w', newline='\n') as f:
             f.write(content)
-        os.chmod(path, 0o755)
+        try:
+            os.chmod(path, 0o755)
+        except:
+            pass
         print(f'  ✓ usr/local/bin/{name}')
 
     # 10. 创建版本标记

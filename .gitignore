@@ -15,8 +15,14 @@ docs/reference/
 
 # ---------- 大体积编译产物 → 放 GitHub Release ----------
 app/app/src/main/assets/rootfs.tar
+app/app/src/main/assets/rootfs.dat
 app/app/src/main/assets/usr/bin/reasonix
 app/app/src/main/assets/usr/bin/pty-bridge
+app/ares-rootfs/rootfs.dat
+app/ares-rootfs/rootfs.tar.gz.sha256
+scripts/cache/
+scripts/wheels/
+scripts/rootfs-build/
 
 # ---------- 核心方案文档（内部资料，仅本地） ----------
 IMG/

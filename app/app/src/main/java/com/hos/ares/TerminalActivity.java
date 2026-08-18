@@ -84,18 +84,20 @@ public class TerminalActivity extends Activity {
     }
 
     /**
-     * 将内置 rootfs 解包到 rootfs 路径。优先使用完整预装环境 rootfs.tar（与
+     * 将内置 rootfs 解包到 rootfs 路径。优先使用完整预装环境 rootfs.dat（与
      * ProotRuntime 一致），缺失时回退 alpine-minirootfs.tar.gz → alpine-minirootfs.tar。
      * 正确处理 symlink：minirootfs 中 /bin/sh 等是指向 busybox 的软链，/sdcard 上
      * 直接 tar -xzf 可能丢链或失效，故对 symlink entry 单独以 ln -s 或 NIO 创建。
      */
     private void extractRootfs() throws IOException {
-        String fullName = "rootfs.tar";
-        // AGP 可能把 .tar.gz 资产自动解压为 .tar 打进 APK，需兼容两种命名。
-        String gzName = "alpine-minirootfs.tar.gz";
-        String rawName = "alpine-minirootfs.tar";
+        String datName = "rootfs.dat";       // 预装 + gzip（.dat 扩展名避免 AGP 解压）
+        String fullName = "rootfs.tar";       // 预装 + 裸 tar
+        String gzName = "alpine-minirootfs.tar.gz";  // 精简 fallback
+        String rawName = "alpine-minirootfs.tar";    // 精简 fallback
         String assetName;
-        if (assetsContains(fullName)) {
+        if (assetsContains(datName)) {
+            assetName = datName;
+        } else if (assetsContains(fullName)) {
             assetName = fullName;
         } else if (assetsContains(gzName)) {
             assetName = gzName;
@@ -103,8 +105,8 @@ public class TerminalActivity extends Activity {
             assetName = rawName;
         }
         try (InputStream in = getAssets().open(assetName)) {
-            // rootfs.tar 与 alpine-minirootfs.tar.gz 均为 gzip；.tar 裸格式不压缩。
-            boolean isGz = assetName.endsWith(".gz") || assetName.equals(fullName);
+            // rootfs.dat / .tar.gz 均为 gzip；.tar 裸格式不压缩。
+            boolean isGz = assetName.endsWith(".gz") || assetName.endsWith(".dat");
             InputStream stream = isGz ? new GzipCompressorInputStream(in) : in;
             try (TarArchiveInputStream tar = new TarArchiveInputStream(stream)) {
                 TarArchiveEntry entry;

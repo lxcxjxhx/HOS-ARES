@@ -26,32 +26,29 @@ if [ -f "$PREINSTALLED" ]; then
         exit 1
     fi
 
-    # 验证核心依赖
+    # 验证核心依赖（仅检查关键的、预装的包）
     echo "[bootstrap] 验证核心依赖..."
     MISSING=0
-    for mod in yaml argus_languages openai anthropic tqdm litellm rich jinja2 reportlab deepseek_reasonix; do
-        # 用 python3 -c 检测每个模块
-        MOD_NAME=$(echo "$mod" | tr '_' '.')
+    for mod in yaml openai anthropic tqdm litellm rich jinja2 cryptography requests fastapi flask pydantic; do
         if python3 -c "import $mod" 2>/dev/null; then
             echo "[bootstrap]   ✓ $mod"
         else
-            # 有些包名和 pip 名不同
-            case "$mod" in
-                deepseek_reasonix)
-                    if python3 -c "import reasonix" 2>/dev/null; then
-                        echo "[bootstrap]   ✓ reasonix"
-                    else
-                        echo "[bootstrap]   ✗ $mod (未安装)"
-                        MISSING=$((MISSING + 1))
-                    fi
-                    ;;
-                *)
-                    echo "[bootstrap]   ✗ $mod (未安装)"
-                    MISSING=$((MISSING + 1))
-                    ;;
-            esac
+            echo "[bootstrap]   ✗ $mod (未安装)"
+            MISSING=$((MISSING + 1))
         fi
     done
+    # argus_languages 单独检查
+    if python3 -c "import argus_languages" 2>/dev/null; then
+        echo "[bootstrap]   ✓ argus_languages"
+    else
+        echo "[bootstrap]   ⚠ argus_languages (可选, Argus 专有)"
+    fi
+    # reportlab 单独检查
+    if python3 -c "import reportlab" 2>/dev/null; then
+        echo "[bootstrap]   ✓ reportlab"
+    else
+        echo "[bootstrap]   ⚠ reportlab (可选, PDF 生成)"
+    fi
 
     if [ "$MISSING" -gt 0 ]; then
         echo "[bootstrap] ⚠ 有 $MISSING 个依赖缺失，可能影响部分 Agent 功能。"

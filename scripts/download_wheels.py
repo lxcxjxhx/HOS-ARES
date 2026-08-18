@@ -77,8 +77,8 @@ PACKAGES = [
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--python-version', default='3.12', help='Alpine Python version')
-    ap.add_argument('--platform', default='manylinux2014_x86_64', help='Target platform')
+    ap.add_argument('--python-version', default='3.20', help='Alpine Python version')
+    ap.add_argument('--platform', default='manylinux_2_31_arm64', help='Target platform (aarch64 for Android)')
     ap.add_argument('--output', default=WHEELS, help='Output directory')
     ap.add_argument('--skip-download', action='store_true', help='Skip download if wheels exist')
     args = ap.parse_args()
