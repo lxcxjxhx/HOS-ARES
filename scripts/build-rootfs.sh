@@ -35,11 +35,19 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -sSf | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}" CARGO_HOME=/root/.cargo RUSTUP_HOME=/root/.rustup
 
 # ── bpf-linker：mitmproxy-linux-ebpf build.rs 硬依赖（eBPF 重定向程序链接）──
-#   需要 clang/llvm（libclang）+ libbpf-dev；cargo install 从 crates.io 拉取（CI 网络可达）。
-#   不加将报：Failed to find 'bpf-linker' executable on PATH（实测第 4 轮 CI 日志）。
-RUN apk add --no-cache clang clang-dev llvm libbpf-dev \
- && /root/.cargo/bin/cargo install --locked bpf-linker \
- && /root/.cargo/bin/bpf-linker --version
+#   实测：Apache build.rs 需 PATH 中可执行 bpf-linker（第 4 轮日志）；
+#   但 cargo install 源码构建需 llvm-config（llvm-sys ≥231 匹配 LLVM≥23，Alpine 3.20 仅 LLVM17）
+#   → 源码构建在 Alpine 3.20 必然失败（第 5 轮日志 exit 101）。
+#   正确路线：官方预编译 musl 二进制（v0.11.0 tar.zst，零编译依赖，asset 已实测确认）。
+RUN apk add --no-cache zstd libbpf-dev \
+ && mkdir -p /tmp/bpf \
+ && curl -sSL -o /tmp/bpf-linker.tar.zst \
+      https://github.com/aya-rs/bpf-linker/releases/download/v0.11.0/bpf-linker-x86_64-unknown-linux-musl.tar.zst \
+ && zstd -d -f /tmp/bpf-linker.tar.zst -o /tmp/bpf-linker.tar \
+ && tar -xf /tmp/bpf-linker.tar -C /tmp/bpf \
+ && install -m755 "$(find /tmp/bpf -name bpf-linker -type f | head -n1)" /usr/local/bin/bpf-linker \
+ && /usr/local/bin/bpf-linker --version \
+ && rm -rf /tmp/bpf /tmp/bpf-linker.tar /tmp/bpf-linker.tar.zst
 
 # ── reasonix（统一 Agent 框架，npm 全局）──
 RUN npm install -g reasonix@VERSION && reasonix --version
