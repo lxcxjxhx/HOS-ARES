@@ -1,4 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.HosAres" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Ares-V3 Neon：系统级暗色主题（启动即暗，无白闪） -->
+    <style name="Theme.HosAres" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/ic_launcher_background</item>
+        <item name="android:statusBarColor">@color/ic_launcher_background</item>
+        <item name="android:navigationBarColor">@color/ic_launcher_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:colorAccent">@color/neon_cyan</item>
+    </style>
 </resources>

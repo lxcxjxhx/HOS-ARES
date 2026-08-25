@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  HOS-ARES · Ares-V3 Neon App 图标前景（108dp 安全画布，图形居 66dp 安全区）
+  语义：电光紫扫描雷达环 + 霓虹终端提示符 >_ （安全 + 智能 Agent）
+  纯矢量 → 任意密度清晰，APK 零图片依赖。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 外环：电光紫扫描雷达（stroke 环） -->
+    <path
+        android:pathData="M54,16 A38,38 0 1,1 53.99,16"
+        android:strokeColor="#A855F7"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round" />
+
+    <!-- 右上卫星点：霓虹粉 -->
+    <path
+        android:pathData="M78,26 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0"
+        android:fillColor="#D946EF" />
+
+    <!-- 中央终端提示符 > ：粉色折线 -->
+    <path
+        android:pathData="M38,46 L46,54 L38,62"
+        android:strokeColor="#F472B6"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+
+    <!-- 下划线 _ ：电光青 -->
+    <path
+        android:pathData="M54,63 L68,63"
+        android:strokeColor="#22D3EE"
+        android:strokeWidth="4"
+        android:strokeLineCap="round" />
+
+    <!-- 光标块：电光青小方块 -->
+    <path
+        android:pathData="M72,58 h6 v5 h-6 z"
+        android:fillColor="#22D3EE" />
+
+    <!-- 底部数据三点（紫 / 粉 / 青 = 状态呼吸） -->
+    <path
+        android:pathData="M33,82 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0"
+        android:fillColor="#A855F7" />
+    <path
+        android:pathData="M54,86 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0"
+        android:fillColor="#D946EF" />
+    <path
+        android:pathData="M75,82 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0"
+        android:fillColor="#22D3EE" />
+</vector>
