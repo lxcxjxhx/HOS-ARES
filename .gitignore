@@ -1,0 +1,50 @@
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+*.iml
+.vscode/
+
+# Node
+node_modules/
+tools/.npm-cache/
+tools/js-libs/
+package-lock.json
+
+# Python æœ¬åœ°ä¾èµ–ï¼ˆå·¥ä½œåŒºå†… vendoredï¼‰
+tools/python-libs/
+__pycache__/
+*.pyc
+
+# Android / Kotlin
+android/.gradle/
+android/build/
+android/app/build/
+local.properties
+*.apk
+*.aab
+
+# reasonix è¿è¡Œæ—¶ï¼ˆä¼šè¯/æ—¥å¿—ï¼Œä¸å…¥åº“ï¼‰
+reasonix.sessions/
+*.log
+.env
+
+# å®¹å™¨ç´ æ
+container/rootfs/
+
+# å‹ç¼©åŒ…
+*.zip
+# ¹¤¾ßÁ´¼æÈİ°²×°Ä¿Â¼£¨º¬ÉÏÇ§¸ö pip °ü£¬½ûÓÃÌá½»£©
+tools/python-libs-*/
+# ¹¹½¨²úÎï
+build/
+# CI Ì½Õë½Å±¾£¨Ò»´ÎĞÔ£©
+tools/cmd-*.ps1
+tools/probe-*.txt
+
+
+# ÁÙÊ±²úÎï
+tools/*.txt
+# LibreOffice ËøÎÄ¼ş
+.~lock.*#
+
