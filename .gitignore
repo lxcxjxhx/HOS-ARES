@@ -1,58 +1,50 @@
-# ============================================================
-# HOS-ARES .gitignore
-# ============================================================
-
-# ---------- 构建产物 / 工具链（本地开发用，不上传） ----------
-tools/
-dist/
-vendor/
-DeepSeek-Reasonix/
-docs/reference/
-*.apk
-*.zip
-*.tgz
-*.tar.gz
-
-# ---------- 签名密钥（切勿提交） ----------
-*.jks
-*.keystore
-
-# ---------- 大体积编译产物 → 放 GitHub Release ----------
-app/app/src/main/assets/rootfs.tar
-app/app/src/main/assets/rootfs.dat
-app/app/src/main/assets/usr/bin/reasonix
-app/app/src/main/assets/usr/bin/pty-bridge
-app/ares-rootfs/rootfs.dat
-app/ares-rootfs/rootfs.tar.gz.sha256
-scripts/cache/
-scripts/wheels/
-scripts/rootfs-build/
-
-# ---------- 核心方案文档（内部资料，仅本地） ----------
-IMG/
-PLAN.MD
-PLAN2.MD
-PLAN3.MD
-
-# ---------- 机器特定 / 构建缓存 ----------
-app/local.properties
-app/build/
-app/app/build/
-.gradle/
-*.iml
+# OS / IDE
+.DS_Store
+Thumbs.db
 .idea/
+*.iml
+.vscode/
 
-# ---------- IDE / 编辑器 ----------
-.reasonix/
-.trae/
+# Node
+node_modules/
+tools/.npm-cache/
+tools/js-libs/
+package-lock.json
+
+# Python 本地依赖（工作区内 vendored）
+tools/python-libs/
 __pycache__/
 *.pyc
 
-# ---------- 构建调试日志 ----------
-debug_build.log
-update_agp.py
-update_gradle.py
+# Android / Kotlin
+android/.gradle/
+android/build/
+android/app/build/
+local.properties
+*.apk
+*.aab
 
-# ---------- 系统 ----------
-.DS_Store
-Thumbs.db
+# reasonix 运行时（会话/日志，不入库）
+reasonix.sessions/
+*.log
+.env
+
+# 容器素材
+container/rootfs/
+
+# 压缩包
+*.zip
+# ���������ݰ�װĿ¼������ǧ�� pip ���������ύ��
+tools/python-libs-*/
+# ��������
+build/
+# CI ̽��ű���һ���ԣ�
+tools/cmd-*.ps1
+tools/probe-*.txt
+
+
+# ��ʱ����
+tools/*.txt
+# LibreOffice ���ļ�
+.~lock.*#
+

@@ -1,0 +1,81 @@
+# HOS-ARES 项目配置（生效优先级最高：./reasonix.toml > home config.toml > 内置默认值）
+# 依据实测 v1.19.1 schema（见 方案/HOS-ARES-重构方案-v3.0/07-实测偏差与修正.md）
+# 模板副本：config/reasonix.toml（本文件为仓库根的活动配置）
+
+config_version = 5
+default_model  = "deepseek-flash"
+language       = "zh"
+
+# ---------- LLM Provider ----------
+[[providers]]
+name        = "deepseek-flash"
+kind        = "openai"
+base_url    = "https://api.deepseek.com"
+models      = ["deepseek-v4-flash"]
+default     = "deepseek-v4-flash"
+api_key_env = "DEEPSEEK_API_KEY"
+context_window = 1000000
+price       = { cache_hit = 0.02, input = 1, output = 2, currency = "¥" }
+
+[[providers]]
+name        = "deepseek-pro"
+kind        = "openai"
+base_url    = "https://api.deepseek.com"
+model       = "deepseek-v4-pro"
+api_key_env = "DEEPSEEK_API_KEY"
+context_window = 1000000
+price       = { cache_hit = 0.025, input = 3, output = 6, currency = "¥" }
+
+# ---------- Agent ----------
+[agent]
+temperature       = 0.0
+soft_compact_ratio  = 0.5
+compact_ratio       = 0.8
+compact_force_ratio = 0.9
+recovery_model      = "deepseek-pro"
+
+# ---------- 权限门控（deny > ask > allow > fallback） ----------
+[permissions]
+mode = "ask"
+
+# ---------- 工具 ----------
+[tools]
+bash_timeout_seconds = 120
+mcp_call_timeout_seconds = 300
+
+# ---------- 沙箱 ----------
+[sandbox]
+bash    = "off"
+network = true
+
+# ---------- MCP 服务器（[[plugins]]）----------
+# 演示服务器（零依赖，Phase 2 E2E 验证用）：
+[[plugins]]
+name    = "hos-ares-demo"
+command = "node"
+args    = ["tools/mcp-demo-server.js"]
+
+# 移动安全 MCP（Android 逆向完整工具链）——经 mcp-compat-gw 适配层接入：
+#   · 原包 handler 为单参签名 call_tool(request)，mcp-SDK 各版本均以双参派发
+#     → 直连必报 "takes 1 positional argument but 2 were given"（实测）。
+#   · 适配层绕过 SDK Server 装饰器：tools/list 直取自 TOOL_SCHEMAS(54 项)，
+#     tools/call 按名 getattr(handler, name)(args) 单参调用（实测通过，见 12 文）。
+#   · 依赖目录：tools/python-libs-compat（mcp==1.28.1 + mobile-security-mcp，全新完整安装）
+#   开发机安装命令：
+#   python -m pip install --no-cache-dir --target tools/python-libs-compat "mcp==1.28.1" "mobile-security-mcp==0.1.4"
+[[plugins]]
+name    = "mobile-security"
+command = "python"
+args    = ["tools/mcp-compat-gw.py"]
+env     = { PYTHONPATH = "${HOS_ARES_PYTHONPATH:-tools/python-libs-compat}" }
+
+# mcp-termux（73 个 RE 工具，Termux/Android 部署；开发机无此命令）
+[[plugins]]
+name    = "mcp-termux"
+command = "mcp-termux"
+args    = ["--port", "65534"]
+
+# jadx-headless-mcp（大应用无头反编译；npm 全局安装）
+[[plugins]]
+name    = "jadx-headless"
+command = "jadx-headless-mcp"
