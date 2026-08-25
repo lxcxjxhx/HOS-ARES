@@ -3,11 +3,12 @@
 # HOS-ARES · Phase 5 打包 Job 1：烘烤 Alpine rootfs（自包含装载，APK 内嵌资产）
 # 产出：build/rootfs.tar.xz（含 Node + reasonix + MCP 安全工具链）
 # 用法：bash scripts/build-rootfs.sh   （需 Docker；CI 中用同一脚本）
-# 修订记录：v3.0-ui 修正 CI 失败根因——
-#   1) Alpine 官方源无 apktool/jadx 包（apk: no such package）→ 移除，改由
-#      mobile-security-mcp 工具链（check_tools/analyze 等）完成 APK 静态分析闭环；
-#   2) reasonix 版本锁定为本机实测通过的最低稳定版 1.19.1（npm 全局实测兼容），
-#      避免臆测的 1.31.4 在 CI 装上后不可用。
+# 修订记录：
+#   v3.0-uifix1  Alpine 官方源无 apktool/jadx → 移除；reasonix 锁 1.19.1
+#   v3.0-uifix2  mobile-security-mcp 原生依赖（frida/aioquic/mitmproxy-rs/mitmproxy-linux）
+#               在 Alpine musl 无预编译 wheel → 需源码构建：补 Rust/C 构建链
+#               （rust cargo gcc musl-dev python3-dev libffi-dev openssl-dev zlib-dev）
+#               并 --prefer-binary 优先复用已有 wheel；mobile-security-mcp 锁 0.1.4 实测版
 # ============================================================
 set -euo pipefail
 
@@ -15,27 +16,31 @@ OUT_DIR="${OUT_DIR:-build}"
 ROOTFS_TAG="hos-ares-rootfs:$(date +%Y%m%d)"
 REASONIX_VERSION="${REASONIX_VERSION:-1.19.1}"   # npm 全局实测稳定版（12 文兼容闭环）
 MCP_VERSION="${MCP_VERSION:-1.28.1}"              # mobile-security-mcp 依赖锁定（12 文实测结论）
+MOBILE_SEC_MCP_VERSION="${MOBILE_SEC_MCP_VERSION:-0.1.4}"  # 12 文实测安装版
 
 mkdir -p "${OUT_DIR}"
 
 cat > "${OUT_DIR}/Dockerfile.rootfs" <<'EOF'
 FROM alpine:3.20
 
-# ── 基础（Node 运行时 + 常用 RE 系统工具；注明：Alpine 官方源无 apktool/jadx，故不列出）──
+# ── 基础（Node 运行时 + RE 系统工具 + Rust/C 构建链——mobile-security-mcp 原生依赖源码编译所需）──
 RUN apk add --no-cache nodejs npm python3 py3-pip git bash curl \
-    radare2 binutils file zip unzip
+    radare2 binutils file zip unzip \
+    rust cargo gcc musl-dev python3-dev libffi-dev openssl-dev zlib-dev
 
 # ── reasonix（统一 Agent 框架）──
 RUN npm install -g reasonix@VERSION && reasonix --version
 
 # ── mobile-security-mcp 工具链（隔离在 /opt/ares-libs，mcp SDK 锁 1.28.1）──
-# 注意：原包 handler 为单参签名 call_tool(request)，mcp-SDK 各版本均以双参派发
+# 注意1：原包 handler 为单参签名 call_tool(request)，mcp-SDK 各版本均以双参派发
 #   → 直连必报 "takes 1 positional argument but 2 were given"（实测，见 12 文）。
 #   解法：通过 mcp-compat-gw.py 适配层接入（绕过 SDK Server 装饰器，直调 handler），
 #   本镜像已把网关脚本拷入 /root/hos-ares/tools/mcp-compat-gw.py。
-RUN pip3 install --break-system-packages --no-cache-dir \
+# 注意2：Alpine musl 下 frida/aioquic/mitmproxy-rs/mitmproxy-linux 无预编译 wheel，
+#   pip 走源码构建（maturin/cargo）→ 已装 rust+cargo+gcc+musl-dev 等；--prefer-binary 尽量复用已有 wheel。
+RUN pip3 install --break-system-packages --no-cache-dir --prefer-binary \
         --target /opt/ares-libs \
-        "mcp==MCP_VERSION" "mobile-security-mcp" \
+        "mcp==MCP_VERSION" "mobile-security-mcp==MSEC_VERSION" \
     && python3 -c "import sys; sys.path.insert(0,'/opt/ares-libs'); import mobile_security_mcp; print('mobile-security-mcp OK')"
 
 # ── 运行时站点统一：reasonix 全局、MCP 库经 PYTHONPATH 注入 ──
@@ -52,8 +57,8 @@ ENV HOS_ARES_PYTHONPATH=/opt/ares-libs
 HEALTHCHECK NONE
 EOF
 
-# 替换版本占位符
-sed -i "s/@VERSION/@${REASONIX_VERSION}/; s/MCP_VERSION/${MCP_VERSION}/" "${OUT_DIR}/Dockerfile.rootfs"
+# 替换版本占位符（@VERSION / MCP_VERSION / MSEC_VERSION 均对齐 heredoc 文本）
+sed -i "s/@VERSION/@${REASONIX_VERSION}/; s/MCP_VERSION/${MCP_VERSION}/; s/MSEC_VERSION/${MOBILE_SEC_MCP_VERSION}/" "${OUT_DIR}/Dockerfile.rootfs"
 
 # 烘烤与归档（/ 目录瘦身后打 tar.xz）
 docker build -t "${ROOTFS_TAG}" -f "${OUT_DIR}/Dockerfile.rootfs" .
