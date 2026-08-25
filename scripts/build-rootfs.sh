@@ -34,6 +34,13 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -sSf | sh -s -- -y
  && /root/.cargo/bin/cargo --version
 ENV PATH="/root/.cargo/bin:${PATH}" CARGO_HOME=/root/.cargo RUSTUP_HOME=/root/.rustup
 
+# ── bpf-linker：mitmproxy-linux-ebpf build.rs 硬依赖（eBPF 重定向程序链接）──
+#   需要 clang/llvm（libclang）+ libbpf-dev；cargo install 从 crates.io 拉取（CI 网络可达）。
+#   不加将报：Failed to find 'bpf-linker' executable on PATH（实测第 4 轮 CI 日志）。
+RUN apk add --no-cache clang clang-dev llvm libbpf-dev \
+ && /root/.cargo/bin/cargo install --locked bpf-linker \
+ && /root/.cargo/bin/bpf-linker --version
+
 # ── reasonix（统一 Agent 框架，npm 全局）──
 RUN npm install -g reasonix@VERSION && reasonix --version
 
