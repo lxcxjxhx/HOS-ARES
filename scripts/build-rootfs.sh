@@ -1,24 +1,29 @@
 #!/usr/bin/env bash
 # ============================================================
 # HOS-ARES · Phase 5 打包 Job 1：烘烤 Alpine rootfs（自包含装载，APK 内嵌资产）
-# 产出：build/rootfs.tar.xz（含 Node22 + reasonix + MCP 安全工具链）
+# 产出：build/rootfs.tar.xz（含 Node + reasonix + MCP 安全工具链）
 # 用法：bash scripts/build-rootfs.sh   （需 Docker；CI 中用同一脚本）
+# 修订记录：v3.0-ui 修正 CI 失败根因——
+#   1) Alpine 官方源无 apktool/jadx 包（apk: no such package）→ 移除，改由
+#      mobile-security-mcp 工具链（check_tools/analyze 等）完成 APK 静态分析闭环；
+#   2) reasonix 版本锁定为本机实测通过的最低稳定版 1.19.1（npm 全局实测兼容），
+#      避免臆测的 1.31.4 在 CI 装上后不可用。
 # ============================================================
 set -euo pipefail
 
 OUT_DIR="${OUT_DIR:-build}"
 ROOTFS_TAG="hos-ares-rootfs:$(date +%Y%m%d)"
-REASONIX_VERSION="${REASONIX_VERSION:-1.31.4}"   # npm 最新稳定（本机实测 1.19.1 亦兼容）
-MCP_VERSION="${MCP_VERSION:-1.28.1}"              # mobile-security-mcp 依赖锁定（08 文实测结论）
+REASONIX_VERSION="${REASONIX_VERSION:-1.19.1}"   # npm 全局实测稳定版（12 文兼容闭环）
+MCP_VERSION="${MCP_VERSION:-1.28.1}"              # mobile-security-mcp 依赖锁定（12 文实测结论）
 
 mkdir -p "${OUT_DIR}"
 
 cat > "${OUT_DIR}/Dockerfile.rootfs" <<'EOF'
 FROM alpine:3.20
 
-# ── 基础（Node22 运行时 + 常用 RE 系统工具）──
+# ── 基础（Node 运行时 + 常用 RE 系统工具；注明：Alpine 官方源无 apktool/jadx，故不列出）──
 RUN apk add --no-cache nodejs npm python3 py3-pip git bash curl \
-    apktool jadx radare2 binutils file zip unzip
+    radare2 binutils file zip unzip
 
 # ── reasonix（统一 Agent 框架）──
 RUN npm install -g reasonix@VERSION && reasonix --version
@@ -48,7 +53,7 @@ HEALTHCHECK NONE
 EOF
 
 # 替换版本占位符
-sed -i "s/@VERSION/@${REASONIX_VERSION}/; s/@MCP_VERSION/@${MCP_VERSION}/" "${OUT_DIR}/Dockerfile.rootfs"
+sed -i "s/@VERSION/@${REASONIX_VERSION}/; s/MCP_VERSION/${MCP_VERSION}/" "${OUT_DIR}/Dockerfile.rootfs"
 
 # 烘烤与归档（/ 目录瘦身后打 tar.xz）
 docker build -t "${ROOTFS_TAG}" -f "${OUT_DIR}/Dockerfile.rootfs" .
