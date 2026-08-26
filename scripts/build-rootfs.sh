@@ -38,6 +38,7 @@ ENV PATH="/root/.cargo/bin:${PATH}" CARGO_HOME=/root/.cargo RUSTUP_HOME=/root/.r
 #   实测（第 6 轮日志）：error: toolchain 'nightly-x86_64-unknown-linux-musl' is not installed
 #   → rustup 补装 nightly（profile minimal），cargo +nightly 可调用 → CI 修复④
 RUN /root/.cargo/bin/rustup toolchain install nightly-x86_64-unknown-linux-musl --profile minimal \
+ && /root/.cargo/bin/rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-musl \
  && /root/.cargo/bin/cargo +nightly --version
 
 # ── bpf-linker：mitmproxy-linux-ebpf build.rs 硬依赖（eBPF 重定向程序链接）──
