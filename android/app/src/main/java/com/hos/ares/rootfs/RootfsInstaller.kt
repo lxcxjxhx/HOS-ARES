@@ -1,23 +1,28 @@
 package com.hos.ares.rootfs
 
 import android.content.Context
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.util.zip.GZIPInputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
+import org.tukaani.xz.XZInputStream
 
 /**
- * RootfsInstaller：首启把 APK assets 内的 rootfs.tar.xz 解压到 filesDir/rootfs。
+ * RootfsInstaller：首启把 APK assets 内的 rootfs.tar.xz 解压到 filesDir/rootfs，
+ * 并将 proot 静态二进制（assets/proot_arm64）注入 filesDir/bin/proot。
  * 设计要点：
  *  - 幂等：已存在且自检通过则跳过（退出码 0）；失败回滚重试一次。
- *  - assets 使用 XZ 压缩（.tar.xz）；Android 端用 commons-compress XZCompressorInputStream。
+ *  - assets 使用 XZ 压缩（.tar.xz，scripts/build-rootfs.sh 烘烤产物）；Android 端用
+ *    commons-compress TarArchiveInputStream + org.tukaani:xz 的 XZInputStream 解流。
  *  - 自检：node --version 与 reasonix --version 在 proot 环境内可执行（见 ReasonixServeBootstrap）。
- * 依赖（Phase 5 打包时加入 build.gradle.kts）：
- *  implementation("org.apache.commons:commons-compress:1.27.1")
- *  implementation("org.tukaani:xz:1.10")
+ *  - proot 资产缺失（CI 未注入）时降级跳过并记录日志，不影响 APK 安装（偏差见 11 文）。
  */
 class RootfsInstaller(private val context: Context) {
+
+    companion object {
+        private const val TAG = "AresRootfs"
+    }
 
     private val rootfsDir: File get() = File(context.filesDir, "rootfs")
     private val marker: File get() = File(context.filesDir, ".rootfs-installed")
@@ -31,10 +36,8 @@ class RootfsInstaller(private val context: Context) {
         rootfsDir.deleteRecursively()
         rootfsDir.mkdirs()
 
-        // TODO(Phase 5 打包时替换为 XZ 流): 当前用 GZIP 占位流以保持依赖最小——
-        // 正式构建切换至 org.tukaani:xz 的 XZCompressorInputStream（同 API 形态）。
         XZCompat.read(asset) { tar ->
-            val entry = tar.nextTarEntry
+            var entry = tar.nextTarEntry
             var i = 0
             while (entry != null) {
                 val target = File(rootfsDir, entry.name.replaceFirst("/", ""))
@@ -44,21 +47,37 @@ class RootfsInstaller(private val context: Context) {
                     target.outputStream().use { out -> tar.copyTo(out) }
                 }
                 if (++i % 2000 == 0) onProgress(i)
-                tar.nextTarEntry
+                entry = tar.nextTarEntry
             }
         }
+        installProotIfPresent()
         // 自检标记
         marker.writeText("ok")
         onProgress(-1)
         true
     }
+
+    /** assets/proot_arm64 → filesDir/bin/proot（755）；资产缺失则跳过（CI 未注入时） */
+    private fun installProotIfPresent() {
+        try {
+            val binDir = File(context.filesDir, "bin").apply { mkdirs() }
+            val target = File(binDir, "proot")
+            context.assets.open("proot_arm64").use { src ->
+                target.outputStream().use { out -> src.copyTo(out) }
+            }
+            target.setExecutable(true, false)
+            Log.i(TAG, "proot 已注入 ${target.absolutePath}")
+        } catch (e: Exception) {
+            Log.w(TAG, "proot 资产缺失，跳过注入（${e.message}）；serve 通道将不可用")
+        }
+    }
 }
 
-/** 压缩解包兼容层：正式打包切 XZ；占位实现走 GZIP。 */
+/** 压缩解包层：XZ 解流（scripts/build-rootfs.sh 产出 rootfs.tar.xz，xz -9） */
 internal object XZCompat {
     fun read(src: java.io.InputStream, block: (TarArchiveInputStream) -> Unit) {
-        GZIPInputStream(src).use { gz ->
-            TarArchiveInputStream(gz).use(block)
+        XZInputStream(src).use { xz ->
+            TarArchiveInputStream(xz).use(block)
         }
     }
 }
