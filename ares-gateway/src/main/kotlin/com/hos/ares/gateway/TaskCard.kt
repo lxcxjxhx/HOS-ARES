@@ -16,7 +16,7 @@ data class TaskCard(
     val id: String,
     val skillId: String,
     val input: String,
-    val status: TaskStatus = TaskStatus.PENDING,
+    var status: TaskStatus = TaskStatus.PENDING,
     val reasoning: StringBuilder = StringBuilder(),
     val output: StringBuilder = StringBuilder(),
     val tools: MutableList<ToolCall> = mutableListOf(),
@@ -31,8 +31,8 @@ data class TaskCard(
 data class ToolCall(
     val name: String,       // 如 mcp__hos-ares-demo__demo_add
     val arguments: String,  // JSON 参数
-    val result: String? = null,
-    val durationMs: Long? = null,
+    var result: String? = null,
+    var durationMs: Long? = null,
     val readOnly: Boolean = true,
 )
 
