@@ -12,13 +12,16 @@ android {
         applicationId = "com.hos.ares"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0-alpha"
+        versionCode = 2
+        versionName = "0.5.0"
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            // 侧载发布（自托管 APK）：CI 无正式 keystore → 复用 AGP 自动生成的 debug 签名，
+            // 保证 release 产物可直接安装。正式上架时替换为签名 keystore（偏差记录见 11 文 §11.5）。
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
@@ -33,6 +36,18 @@ android {
 
     buildFeatures {
         compose = true
+    }
+
+    // AresGateway 骨架（Phase 3，根模块 ares-gateway/）——源码集直引，单一源码真源：
+    //   · round-10 实测：include(":ares-gateway") 将独立 JVM 工程（自带 plugins 声明）拉入
+    //     android 构建 → "plugin already on classpath with unknown version"；
+    //   · round-11 移除依赖后 :app 编译失败（AresViewModel/AresHomeScreen 引用 gateway 包）；
+    //   · round-14 修复：java.srcDirs 直接挂接根模块 Kotlin 源码（纯 Kotlin + coroutines +
+    //     org.json，无 JVM-only API），既绕开工程/插件冲突，又保持 AresGateway 唯一实现。
+    sourceSets {
+        getByName("main") {
+            java.srcDirs("../../ares-gateway/src/main/kotlin")
+        }
     }
 }
 
@@ -51,14 +66,10 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp-sse:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
-    // rootfs 解压（Phase 5 全量装载；XZCompat 占位 GZIP，正式切 XZ）
+    // rootfs 解压（Phase 5 全量装载；XZ 正式切流，见 RootfsInstaller.XZCompat）
     implementation("org.apache.commons:commons-compress:1.27.1")
     implementation("org.tukaani:xz:1.10")
 
-    // AresGateway 网关模块（Phase 3 骨架）
-    // round-11 实测：implementation(project(":ares-gateway")) 使 AGP 解析其自带 build.gradle.kts 的
-    //   plugins 块（kotlin-jvm 2.0.21 等在父构建 classpath 已存在）→ "plugin already on classpath
-    //   with unknown version"，assembleRelease 失败（round-10 build-apk 步）
-    // 修复：移除该 project 依赖；网关职责由 rootfs 内 tools/mcp-compat-gw.py（mcp SDK 1.28.1
-    //   双参派发适配）承担，Android 侧仅保留 :app 独立构建。
+    // AresGateway 网关源码经 sourceSets 直引（见上方 android.sourceSets），无需 project 依赖；
+    // 网关运行职责由 rootfs 内 tools/mcp-compat-gw.py（mcp SDK 1.28.1 双参派发适配）承担。
 }
