@@ -38,7 +38,10 @@ jobs:
         with: { name: rootfs-asset }
       - run: |
           mkdir -p android/app/src/main/assets
-          cp build/rootfs.tar.xz android/app/src/main/assets/rootfs.tar.xz
+          # upload-artifact v4 对单文件 path（build/rootfs.tar.xz）归档为顶层 rootfs.tar.xz，
+          # 下载后无 build/ 前缀 → find 兜底定位（round-8 实测 cp 失败）
+          f=$(find . -maxdepth 3 -name rootfs.tar.xz | head -n1)
+          [ -n "$f" ] && cp "$f" android/app/src/main/assets/rootfs.tar.xz
           cp tools/proot_arm64 android/app/src/main/assets/proot_arm64 2>/dev/null || true
       - name: assembleRelease
         working-directory: android
