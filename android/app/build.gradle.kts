@@ -38,6 +38,14 @@ android {
         compose = true
     }
 
+    // round-16：rootfs 资产（rootfs.tar.xz，实测烘烤产物 697.7MB）经 AAPT2 的
+    // compressReleaseAssets 二次 deflate 时 ZipFlinger 堆爆炸（round-14/15 实测
+    // "Java heap space"，-Xmx4g 仍不足）。rootfs.tar.xz 本身已是 xz 压缩（不可再压），
+    // 按 STORED 直接入包：既能免去重复压缩（体积不变）又把内存占用降为流式常数。
+    androidResources {
+        noCompress += "xz"
+    }
+
     // AresGateway 骨架（Phase 3，根模块 ares-gateway/）——源码集直引，单一源码真源：
     //   · round-10 实测：include(":ares-gateway") 将独立 JVM 工程（自带 plugins 声明）拉入
     //     android 构建 → "plugin already on classpath with unknown version"；
