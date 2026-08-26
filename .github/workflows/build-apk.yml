@@ -1,5 +1,7 @@
 # HOS-ARES Phase 5：全量 APK 打包与端到端验收（三 Job 流水线）
 # 依据：方案/09-Phase3-AresGateway验收.md、10-Phase4-端到端链路接通.md、11-Phase5-APK全量打包方案.md
+# 修订 v7：仓库无 gradle wrapper（无 gradlew/wrapper jar）→ assembleRelease 改用
+#          gradle/actions/setup-gradle 提供 gradle CLI（gradle-version 8.13 兼容 AGP 8.7.2）
 name: build-apk
 
 on:
@@ -28,6 +30,9 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
       - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.13
       - name: 下载 rootfs 并注入 assets
         uses: actions/download-artifact@v4
         with: { name: rootfs-asset }
@@ -37,7 +42,7 @@ jobs:
           cp tools/proot_arm64 android/app/src/main/assets/proot_arm64 2>/dev/null || true
       - name: assembleRelease
         working-directory: android
-        run: ./gradlew :app:assembleRelease --no-daemon
+        run: gradle :app:assembleRelease --no-daemon
       - name: 上传 APK
         uses: actions/upload-artifact@v4
         with:
