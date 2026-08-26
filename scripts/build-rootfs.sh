@@ -90,7 +90,10 @@ sed -i "s/@VERSION/@${REASONIX_VERSION}/; s/MCP_VERSION/${MCP_VERSION}/; s/MSEC_
 
 # 烘烤与归档（/ 目录瘦身后打 tar.xz）
 docker build -t "${ROOTFS_TAG}" -f "${OUT_DIR}/Dockerfile.rootfs" .
-docker run --rm "${ROOTFS_TAG}" sh -c "rm -rf /var/cache/apk/* /root/.cargo/registry /root/.rustup/toolchains/*/share/doc /tmp/*"
+# round-16：裁剪构建期工具链（运行时不需要编译工具）——.rustup/.cargo 共 ~4-5GB，
+#   实测烘焙产物 rootfs.tar.xz 达 697.7MB（round-15 工件）→ 压缩阶段 OOM 的根因之一。
+#   同时清理 npm/apk/doc 缓存，控制 APK 内嵌资产体积（11 文 §11.3 预算 Tier-A）。
+docker run --rm "${ROOTFS_TAG}" sh -c "rm -rf /var/cache/apk/* /root/.cargo /root/.rustup /root/.npm /usr/share/doc /usr/share/man /tmp/*"
 docker export "$(docker create "${ROOTFS_TAG}")" | xz -9 -T0 > "${OUT_DIR}/rootfs.tar.xz"
 
 echo "==> 产物：${OUT_DIR}/rootfs.tar.xz（$(du -h "${OUT_DIR}/rootfs.tar.xz" | cut -f1)）"
