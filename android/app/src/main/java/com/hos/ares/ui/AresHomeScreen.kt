@@ -130,9 +130,9 @@ private fun BrandDot(busy: Boolean) {
     }
 }
 
-/** 扫描线容器：任务列表之上循环扫过一条电光青细线 */
+/** 扫描线容器：任务列表之上循环扫过一条电光青细线（weight 需 ColumnScope 接收者） */
 @Composable
-private fun ScanlineOverlay(content: @Composable () -> Unit) {
+private fun ColumnScope.ScanlineOverlay(content: @Composable () -> Unit) {
     Box(Modifier.fillMaxWidth().weight(1f)) {
         content()
         val transition = rememberInfiniteTransition(label = "scan")
@@ -332,7 +332,7 @@ private fun InputBar(input: String, busy: Boolean, onChange: (String) -> Unit, o
             Modifier
                 .clip(CircleShape)
                 .background(
-                    if (busy) NeonPurple.copy(alpha = 0.35f)
+                    if (busy) Brush.linearGradient(listOf(NeonPurple.copy(alpha = 0.35f)))
                     else Brush.linearGradient(listOf(NeonPurple, NeonMagenta, NeonCyan))
                 )
                 .alpha(if (runEnabled) 1f else 0.55f)
