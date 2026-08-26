@@ -26,13 +26,19 @@ FROM alpine:3.20
 # 注：Alpine 官方源无 apktool/jadx（故不列出，APK 静态分析由 mobile-security-mcp 工具链闭环）。
 RUN apk add --no-cache nodejs npm python3 py3-pip git bash curl \
     radare2 binutils file zip unzip \
-    gcc musl-dev python3-dev libffi-dev openssl-dev zlib-dev make
+    gcc g++ musl-dev python3-dev libffi-dev openssl-dev zlib-dev make
 
 # ── Rust 工具链：Alpine 3.20 自带 cargo 1.78 不支持 edition2024（mitmproxy-rs）
 #    → rustup stable（≥1.85）保证源码轮可编译 ──
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal --default-toolchain stable \
  && /root/.cargo/bin/cargo --version
 ENV PATH="/root/.cargo/bin:${PATH}" CARGO_HOME=/root/.cargo RUSTUP_HOME=/root/.rustup
+
+# ── nightly musl 工具链：mitmproxy-linux-ebpf 的 aya-build 编译 eBPF 程序需要 ──
+#   实测（第 6 轮日志）：error: toolchain 'nightly-x86_64-unknown-linux-musl' is not installed
+#   → rustup 补装 nightly（profile minimal），cargo +nightly 可调用 → CI 修复④
+RUN /root/.cargo/bin/rustup toolchain install nightly-x86_64-unknown-linux-musl --profile minimal \
+ && /root/.cargo/bin/cargo +nightly --version
 
 # ── bpf-linker：mitmproxy-linux-ebpf build.rs 硬依赖（eBPF 重定向程序链接）──
 #   实测：Apache build.rs 需 PATH 中可执行 bpf-linker（第 4 轮日志）；
