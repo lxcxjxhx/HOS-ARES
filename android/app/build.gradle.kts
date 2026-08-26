@@ -56,7 +56,9 @@ dependencies {
     implementation("org.tukaani:xz:1.10")
 
     // AresGateway 网关模块（Phase 3 骨架）
-    // TODO(Phase 5): 当前为 JVM 模块，AGP 不可直接消费——打包时转为 android-library
-    // 或将 ares-gateway 以 jar 依赖注入（settings.gradle.kts 已登记 :ares-gateway）
-    implementation(project(":ares-gateway"))
+    // round-11 实测：implementation(project(":ares-gateway")) 使 AGP 解析其自带 build.gradle.kts 的
+    //   plugins 块（kotlin-jvm 2.0.21 等在父构建 classpath 已存在）→ "plugin already on classpath
+    //   with unknown version"，assembleRelease 失败（round-10 build-apk 步）
+    // 修复：移除该 project 依赖；网关职责由 rootfs 内 tools/mcp-compat-gw.py（mcp SDK 1.28.1
+    //   双参派发适配）承担，Android 侧仅保留 :app 独立构建。
 }
