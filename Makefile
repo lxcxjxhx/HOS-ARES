@@ -6,7 +6,7 @@ export PYTHONPATH := $(CURDIR)
 
 .DEFAULT_GOAL := help
 
-.PHONY: help test test-fast test-unit test-e2e \
+.PHONY: help test test-fast test-unit test-e2e test-slow worker \
         lint-noleak lint-nodata-stub lint lint-report \
         up init db-shell migrate \
         batch-record batch-status \
@@ -24,8 +24,14 @@ test-fast: test-unit ## 只跑单测
 test-unit: ## 单元测试（不需要靶场）
 	$(PY) -m pytest tests/unit -q
 
-test-e2e: ## 端到端（需要 docker compose up）
+test-e2e: ## 端到端（含真实 kill -9 接管，约 32s）
 	$(PY) -m pytest tests/e2e -q
+
+test-slow: ## 只跑墙钟慢测试
+	$(PY) -m pytest -m slow -q
+
+worker: ## 起一个 worker：make worker [DB=var/veripen.db]
+	$(PY) -m worker.main --db $(or $(DB),var/veripen.db)
 
 # ---------- lint ----------
 
