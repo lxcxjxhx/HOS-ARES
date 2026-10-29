@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local runtime state
+.veripen/local/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+out/
+reports/*.sarif
+reports/*.json
+
+# Secrets — never in Git
+.env
+.env.*
+!.env.example
+vault/
+*.pem
+*.key
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# REA evidence (local, large)
+.rea*/
+
+# 原始规划包（已分流进 docs/spec/，避免两份权威打架）
+plan-veripen/

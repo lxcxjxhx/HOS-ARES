@@ -1,0 +1,92 @@
+# demo-a · 通用企业 SaaS 客户档（A1 断言的第一半）
+# 唯一允许出现客户差异的地方（`01 §1` 铁律 #2）。
+apiVersion: veripen.profile/v1
+
+meta:
+  name: demo-a
+  customer_id: DEMO-A-001
+  industry: saas
+  env: lab
+  version: 1.0.0
+  owner: secops@demo-a.invalid
+  data_class: internal
+
+scope:
+  engagement_id: ENG-2026-001
+  window:
+    start: "2026-11-01T09:00:00+08:00"
+    end: "2026-11-01T18:00:00+08:00"
+  timezone: Asia/Shanghai
+  assets:
+    - id: web-01
+      kind: url
+      value: http://dvwa.local
+      criticality: medium
+      tags: [web, php]
+    - id: web-02
+      kind: url
+      value: http://juice.local
+      criticality: high
+      tags: [web, node]
+  deny:
+    - 169.254.169.254/32
+    - 10.0.0.0/8
+  dns_policy: strict
+  max_redirects: 0
+
+auth:
+  providers:
+    - id: primary
+      type: basic
+      username: alice
+      secret_ref: vault://demo-a/primary
+    - id: secondary
+      type: basic
+      username: bob
+      secret_ref: vault://demo-a/secondary
+
+oracles:
+  enabled: [sqli_bool_diff, idor_cross_account, ssrf_oob, jwt_replay]
+  params:
+    sqli_bool_diff:
+      max_variants: 4
+      repeat: 2
+      compare_mode: content_len+token
+    idor_cross_account:
+      resource_paths: ["/api/users/{id}/profile", "/api/orders/{id}"]
+      id_range: [1, 50]
+    ssrf_oob:
+      callback_timeout_s: 10
+      markers: [url_param, json_body]
+    jwt_replay:
+      tamper_claims: [sub, role]
+
+policy:
+  qps_global: 20
+  burst_global: 40
+  per_asset_concurrency: 2
+  max_throttle_wait_s: 5
+  approval_gates:
+    - action_class: reversible_write
+      when: always
+      approver_role: secops_lead
+    - action_class: scope_expand
+      when: always
+      approver_role: secops_lead
+  egress_allowlist: []
+  data_egress: deny
+  max_impact_class: read_only
+  stop_on_scope_violation: true
+
+budget:
+  max_steps: 120
+  max_tokens: 400000
+  max_wall_clock_s: 1800
+  max_cost_usd: 5.0
+
+report:
+  frameworks: [owasp_wstg, cwe]
+  lang: zh-CN
+  watermark: true
+  distribution: internal
+  include_unverified: false
