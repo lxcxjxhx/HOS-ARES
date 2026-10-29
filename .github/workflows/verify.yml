@@ -64,5 +64,10 @@ jobs:
           if [ -d tests/e2e ]; then
             python -m pytest tests/e2e -q
           else
-            echo "tests/e2e absent on this branch — skipping (B2 introduces it)"
+            echo "tests/e2e absent on this branch — skipping"
           fi
+
+      # 全量跑一遍：任何"本机 pip install 过但没登记进 pyproject"的依赖都会在这里暴露，
+      # 而不是等到部署才炸（B4 的 typer 就是活例：本地绿、CI 红）。
+      - name: Full suite under declared dependencies only
+        run: python -m pytest tests -q
