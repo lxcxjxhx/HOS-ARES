@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veripen.local/schemas/finding-v1.json",
+  "title": "VeriPen Finding v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "task_id", "asset_id", "oracle_id", "oracle_version", "title",
+               "severity", "confidence", "cwe", "state", "created_at"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "task_id": { "type": "string", "minLength": 1 },
+    "asset_id": { "type": "string", "minLength": 1 },
+    "oracle_id": { "type": "string", "minLength": 1 },
+    "oracle_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "title": { "type": "string", "minLength": 4, "maxLength": 120 },
+    "severity": { "enum": ["info", "low", "medium", "high", "critical"] },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "cwe": { "type": "string", "pattern": "^CWE-\\d+$" },
+    "state": { "enum": ["CANDIDATE", "VERIFIED", "REFUTED", "UNVERIFIABLE", "BLOCKED"] },
+    "capsule_id": { "type": ["string", "null"], "pattern": "^sha256:[a-f0-9]{64}$" },
+    "param_signature": { "type": "string" },
+    "replay_status": { "enum": ["NEVER", "REPLAYED_OK", "REPLAYED_PARTIAL", "ASSERTION_NOT_REPRODUCED", "REPLAY_BLOCKED"] },
+    "created_at": { "type": "string", "format": "date-time" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "state": { "const": "VERIFIED" } }, "required": ["state"] },
+      "then": { "required": ["capsule_id"], "properties": { "capsule_id": { "type": "string" } } }
+    },
+    {
+      "if": { "properties": { "state": { "const": "BLOCKED" } }, "required": ["state"] },
+      "then": { "properties": { "capsule_id": { "type": ["string", "null"] } } }
+    }
+  ]
+}

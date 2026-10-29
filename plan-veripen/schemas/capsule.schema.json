@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veripen.local/schemas/capsule-v1.json",
+  "title": "VeriPen Proof Capsule v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["capsule_version", "capsule_id", "finding_id", "created_at", "oracle",
+               "target", "env", "steps", "assertion", "verdict", "confidence",
+               "confidence_rule", "redaction", "chain"],
+  "properties": {
+    "capsule_version": { "const": "1.0" },
+    "capsule_id": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "finding_id": { "type": "string", "minLength": 1 },
+    "created_at": { "type": "string", "format": "date-time" },
+
+    "oracle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "cwe", "params_hash"],
+      "properties": {
+        "id": { "type": "string" },
+        "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+        "cwe": { "type": "string", "pattern": "^CWE-\\d+$" },
+        "params_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+      }
+    },
+
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["asset_id", "url", "method", "resolved_ip"],
+      "properties": {
+        "asset_id": { "type": "string" },
+        "url": { "type": "string" },
+        "method": { "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"] },
+        "resolved_ip": { "type": "string" },
+        "userinfo_rejected": { "type": "boolean" }
+      }
+    },
+
+    "env": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile_name", "profile_hash", "image_digest", "runner_id", "clock"],
+      "properties": {
+        "profile_name": { "type": "string" },
+        "profile_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "image_digest": { "type": "string" },
+        "runner_id": { "type": "string" },
+        "clock": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["t0", "t1", "timezone"],
+          "properties": {
+            "t0": { "type": "integer" },
+            "t1": { "type": "integer" },
+            "timezone": { "const": "UTC" }
+          }
+        },
+        "egress": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mode": { "enum": ["whitelist", "open"] },
+            "proxy": { "type": ["string", "null"] }
+          }
+        }
+      }
+    },
+
+    "steps": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["n", "role", "request", "response", "peer_ip", "elapsed_ms"],
+        "properties": {
+          "n": { "type": "integer", "minimum": 1 },
+          "role": { "enum": ["baseline", "probe", "control", "readback"] },
+          "account": { "type": ["string", "null"] },
+          "note": { "type": "string" },
+          "request": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["url", "method"],
+            "properties": {
+              "url": { "type": "string" },
+              "method": { "type": "string" },
+              "headers": { "type": "object", "additionalProperties": { "type": "string" } },
+              "body": { "type": ["string", "null"] },
+              "body_sha256": { "type": ["string", "null"] }
+            }
+          },
+          "response": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["status"],
+            "properties": {
+              "status": { "type": "integer" },
+              "length": { "type": "integer" },
+              "content_type": { "type": "string" },
+              "body_sha256": { "type": "string" },
+              "body_excerpt_b64": { "type": "string" },
+              "excerpt_truncated": { "type": "boolean" },
+              "location": { "type": ["string", "null"] }
+            }
+          },
+          "peer_ip": { "type": "string" },
+          "elapsed_ms": { "type": "integer", "minimum": 0 },
+          "err": { "type": ["string", "null"] }
+        }
+      }
+    },
+
+    "assertion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "statement", "expected", "observed", "fingerprint"],
+      "properties": {
+        "kind": { "enum": ["differential", "cross_account", "oob", "replay", "structural"] },
+        "statement": { "type": "string", "minLength": 8 },
+        "expected": { "type": "object" },
+        "observed": { "type": "object" },
+        "fingerprint": { "type": "object" }
+      }
+    },
+
+    "verdict": { "enum": ["VERIFIED", "REFUTED", "INCONCLUSIVE", "BLOCKED"] },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "confidence_rule": { "type": "string", "minLength": 3 },
+
+    "redaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy", "fields", "secrets_in_vault"],
+      "properties": {
+        "policy": { "const": "pii-min" },
+        "fields": { "type": "array", "items": { "type": "string" } },
+        "secrets_in_vault": { "type": "array", "items": { "type": "string", "pattern": "^vault://" } }
+      }
+    },
+
+    "chain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["prev_sha256", "self_sha256"],
+      "properties": {
+        "prev_sha256": { "type": ["string", "null"], "pattern": "^sha256:[a-f0-9]{64}$" },
+        "self_sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+      }
+    }
+  }
+}

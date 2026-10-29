@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veripen.local/schemas/profile-v1.json",
+  "title": "VeriPen Profile v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "meta", "scope", "auth", "oracles", "policy", "budget", "report"],
+  "properties": {
+    "apiVersion": { "const": "veripen.profile/v1" },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "customer_id", "industry", "env", "version", "owner", "data_class"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,31}$" },
+        "customer_id": { "type": "string", "minLength": 1 },
+        "industry": { "enum": ["saas", "auto", "finance", "gov", "energy", "other"] },
+        "env": { "enum": ["lab", "staging", "prod"] },
+        "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+        "owner": { "type": "string", "minLength": 3 },
+        "data_class": { "enum": ["public", "internal", "confidential", "restricted"] }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["engagement_id", "window", "timezone", "assets", "deny", "dns_policy", "max_redirects"],
+      "properties": {
+        "engagement_id": { "type": "string", "minLength": 3 },
+        "window": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["start", "end"],
+          "properties": {
+            "start": { "type": "string", "format": "date-time" },
+            "end": { "type": "string", "format": "date-time" }
+          }
+        },
+        "timezone": { "type": "string", "minLength": 3 },
+        "assets": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "kind", "value", "criticality"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$" },
+              "kind": { "enum": ["domain", "ip", "cidr", "url", "repo"] },
+              "value": { "type": "string", "minLength": 1 },
+              "criticality": { "enum": ["low", "medium", "high", "critical"] },
+              "tags": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "deny": { "type": "array", "items": { "type": "string" } },
+        "dns_policy": { "enum": ["strict", "allow_listed"] },
+        "max_redirects": { "type": "integer", "minimum": 0, "maximum": 2 }
+      }
+    },
+    "auth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["providers"],
+      "properties": {
+        "providers": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "type", "secret_ref"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "type": { "enum": ["basic", "bearer", "jwt", "oauth2", "mtls", "session_cookie"] },
+              "username": { "type": "string" },
+              "secret_ref": { "type": "string", "pattern": "^vault://" },
+              "cert_ref": { "type": "string", "pattern": "^vault://" },
+              "key_ref": { "type": "string", "pattern": "^vault://" },
+              "scopes": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "oidc": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "issuer": { "type": "string" },
+            "redirect_uri": { "type": "string" }
+          }
+        }
+      }
+    },
+    "oracles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled"],
+      "properties": {
+        "enabled": { "type": "array", "minItems": 1, "items": { "type": "string" }, "uniqueItems": true },
+        "params": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["qps_global", "burst_global", "per_asset_concurrency", "max_throttle_wait_s",
+                   "approval_gates", "egress_allowlist", "data_egress", "max_impact_class",
+                   "stop_on_scope_violation"],
+      "properties": {
+        "qps_global": { "type": "number", "exclusiveMinimum": 0, "maximum": 200 },
+        "burst_global": { "type": "integer", "minimum": 1, "maximum": 500 },
+        "per_asset_concurrency": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "max_throttle_wait_s": { "type": "number", "minimum": 0, "maximum": 60 },
+        "approval_gates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["action_class", "when", "approver_role"],
+            "properties": {
+              "action_class": { "enum": ["reversible_write", "scope_expand"] },
+              "when": { "enum": ["always", "first_time"] },
+              "approver_role": { "type": "string" }
+            }
+          }
+        },
+        "egress_allowlist": { "type": "array", "items": { "type": "string" } },
+        "data_egress": { "enum": ["deny", "approval"] },
+        "max_impact_class": { "enum": ["read_only", "reversible_write"] },
+        "stop_on_scope_violation": { "const": true }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_steps", "max_tokens", "max_wall_clock_s", "max_cost_usd"],
+      "properties": {
+        "max_steps": { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "max_tokens": { "type": "integer", "minimum": 1000 },
+        "max_wall_clock_s": { "type": "integer", "minimum": 30 },
+        "max_cost_usd": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["frameworks", "lang", "watermark", "distribution", "include_unverified"],
+      "properties": {
+        "frameworks": { "type": "array", "items": { "enum": ["owasp_wstg", "cwe", "iso21434", "un_r155", "un_r156", "gb_44495", "gb_44496", "mlps"] } },
+        "lang": { "enum": ["zh-CN", "en-US"] },
+        "watermark": { "type": "boolean" },
+        "distribution": { "enum": ["internal", "partner", "customer"] },
+        "include_unverified": { "type": "boolean" }
+      }
+    }
+  }
+}

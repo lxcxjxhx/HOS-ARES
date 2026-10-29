@@ -1,0 +1,25 @@
+# 本地运行产物
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+
+# 证据与输出
+out/
+reports/*.sarif
+reports/*.json
+
+# Secrets
+.env
+.env.*
+!.env.example
+vault/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
