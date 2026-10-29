@@ -36,6 +36,7 @@ addopts = "-q"
 markers = [
     "oracle: needs a live range",
     "e2e: end-to-end",
+    "slow: real wall-clock wait (30s++)",
 ]
 
 [tool.ruff]
