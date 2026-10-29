@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -50,6 +51,10 @@ class Store:
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
+        # 单连接跨线程：`transition`/`lease_next` 的"条件更新 + 检查 rowcount"
+        # 必须原子，否则两个线程会看到彼此未提交的中间态。
+        # ponytail: 全库一把锁；多进程交付档换 PG 后由数据库行锁承担，届时删除。
+        self._write_lock = threading.Lock()
         self.migrate()
 
     # ---------- 生命周期 ----------
@@ -173,11 +178,14 @@ class Store:
             sets.append("error_code=?")
             vals.append(error_code)
 
-        cur = self._conn.execute(
-            f"UPDATE tasks SET {', '.join(sets)} WHERE id=? AND state=?",
-            (*vals, task_id, frm.value),
-        )
-        return cur.rowcount == 1
+        # 条件更新必须与 rowcount 检查原子：否则两个线程可能都看到 state='QUEUED'
+        # 然后都认为自己是赢家（WAL 下单连接可见未提交中间态）。
+        with self._write_lock:
+            cur = self._conn.execute(
+                f"UPDATE tasks SET {', '.join(sets)} WHERE id=? AND state=?",
+                (*vals, task_id, frm.value),
+            )
+            return cur.rowcount == 1
 
     def lease_next(self, worker_id: str, *, now: int | None = None, ttl_s: int = 30) -> Task | None:
         """原子领取一个 QUEUED 任务（`04 §1`）。
@@ -185,17 +193,18 @@ class Store:
         单条 UPDATE ... RETURNING 保证两个 worker 不会领到同一条。
         """
         ts = utc_now() if now is None else now
-        row = self._conn.execute(
-            """
-            UPDATE tasks
-               SET state='LEASED', lease_owner=?, lease_until=?, heartbeat_at=?, updated_at=?
-             WHERE id = (
+        with self._write_lock:
+            row = self._conn.execute(
+                """
+                UPDATE tasks
+                   SET state='LEASED', lease_owner=?, lease_until=?, heartbeat_at=?, updated_at=?
+                 WHERE id = (
                    SELECT id FROM tasks WHERE state='QUEUED' ORDER BY created_at, id LIMIT 1
-             ) AND state='QUEUED'
-            RETURNING *
-            """,
-            (worker_id, ts + ttl_s, ts, ts),
-        ).fetchone()
+                 ) AND state='QUEUED'
+                RETURNING *
+                """,
+                (worker_id, ts + ttl_s, ts, ts),
+            ).fetchone()
         return _row_to_task(row) if row else None
 
     def expired_leases(self, *, now: int | None = None) -> list[Task]:
