@@ -40,12 +40,28 @@ def load_customer_tokens() -> set[str]:
     return {t for t in tokens if len(t) >= 3}
 
 
-#: 与客户无关、但属于"环境特征"的硬编码形态
+#: 与客户无关、但属于"环境特征"的硬编码形态。
+#:
+#: 注意 CIDR 的判据：**私网/保留段是安全要求，不是泄漏**。
+#: `05 §1.1` 明确要求 deny 列表默认含 169.254.169.254/32、10/8、172.16/12、192.168/16、::1、fd00::/8——
+#: 把这些当泄漏会让 lint 与规格直接冲突。所以只有**可路由的**CIDR 才算硬编码目标泄漏。
 ENV_PATTERNS = [
     (re.compile(r"https?://(?!localhost|127\.0\.0\.1|example\.invalid|example\.com|\{)[a-z0-9.-]+\.(?:com|cn|net|io|local)"),
      "hardcoded external host"),
-    (re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}/\d{1,2}\b"), "hardcoded CIDR"),
 ]
+
+CIDR_RE = re.compile(r"\b((?:\d{1,3}\.){3}\d{1,3}/\d{1,2})\b")
+
+
+def _is_reserved_cidr(text: str) -> bool:
+    """私网 / 环回 / 链路本地 / 保留段 → 属于 deny 安全清单，不算泄漏。"""
+    import ipaddress
+
+    try:
+        net = ipaddress.ip_network(text, strict=False)
+    except ValueError:
+        return False
+    return net.is_private or net.is_loopback or net.is_link_local or net.is_reserved or net.is_unspecified
 
 
 def main() -> int:
@@ -70,6 +86,10 @@ def main() -> int:
                     if pattern.search(stripped):
                         # 允许文档字符串里描述性提到 example.invalid（已在正则里排除）
                         hits.append(f"{rel}:{lineno}: {label} -> {stripped[:90]}")
+                # 可路由 CIDR 才是"硬编码客户目标"；保留段属 deny 安全清单
+                for cidr in CIDR_RE.findall(stripped):
+                    if not _is_reserved_cidr(cidr):
+                        hits.append(f"{rel}:{lineno}: hardcoded routable CIDR {cidr} -> {stripped[:90]}")
 
     if hits:
         print(f"lint-noleak: {len(hits)} violation(s)  (customer tokens: {sorted(tokens)})")
