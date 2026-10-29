@@ -40,3 +40,6 @@ Thumbs.db
 
 # 原始规划包（已分流进 docs/spec/，避免两份权威打架）
 plan-veripen/
+
+# 证据产物（本地演示用，不进 Git）
+out/

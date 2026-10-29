@@ -5,44 +5,88 @@
 
 ## 当前状态
 
-**批次**：`B3 · guard`
-**波次**：W1 内核骨架（B1–B4）
-**完成度**：2/17 批有 DoD 证据
+**批次**：`B5 · TierA 前 4 类 oracle`
+**波次**：W1 内核骨架 **已完成** → 进入 W2 能力扩容
+**完成度**：4/17 批有 DoD 证据
 
-## 最近证据（B1）
+```
+W1 ▣B1 ▣B2 ▣B3 ▣B4   ← 冷启动门已过
+W2 ▢B5 ▢B6 ▢B7 ▢B8 ▢B9
+W3 ▢B10 ▢B11 ▢B12 ▢B13
+W4 ▢B14 ▢B15 ▢B16 ▢B17
+```
 
-| DoD 项 | 命令 | 结果 |
+## W1 冷启动门：四条证据全部实测
+
+| 门 | 要求 | 实测结果 |
 |---|---|---|
-| 契约测试 3 绿 | `pytest tests/unit/test_contracts.py` | **4 passed**（含 3 条契约 + 1 条不可变性） |
-| `POST /tasks` 返回 id | 真实 HTTP 到 `127.0.0.1:8099` | `task_id=01M63BDM4D8A4TP9EN9Z7NV8F9`（26 位 ULID） |
-| 两次同 idem_key 同 id | 同上 | `同 id: True`、`reused: True`、库里只有 1 行 |
-| `make lint-nodata-stub` 0 命中 | `python scripts/lint_nodata_stub.py` | `0 violations` |
-| 附带：`lint-noleak` | `python scripts/lint_noleak.py` | `0 violations`（扫到 token `DEMO-A-001` / `demo-a` 均未泄漏） |
-| 附带：全量单测 | `pytest tests/unit` | **19 passed** |
+| 1 | 至少 1 条 `VERIFIED` 发现 | ✅ 3 条 capsule（F001/F002/F003）均 `VERIFIED` |
+| 2 | 该发现带 capsule | ✅ `self_check()["verified_without_capsule"] == []` |
+| 3 | `make replay` 四态之一 | ✅ `REPLAYED_OK`（dry-run 与 offline-fixture 均过） |
+| 4 | 缩 scope 后拒绝且**零请求** | ✅ guard 抛出后发送函数 0 次调用；replay 出 `REPLAY_BLOCKED` |
 
-证据 JSON：真实 HTTP 往返响应已在 B1 批次记录中。
+## 各批 DoD 证据（全部实测）
 
-## 下一道门：W1 冷启动门（B4 结束时）
+### B1 · 骨架与契约
+| DoD | 命令 | 结果 |
+|---|---|---|
+| 契约测试 | `pytest tests/unit/test_contracts.py` | **4 passed** |
+| `POST /tasks` 返回 id | 真实 HTTP → `127.0.0.1:8099` | `task_id=01M63BDM4D8A4TP9EN9Z7NV8F9`（26 位 ULID） |
+| 两次同 idem_key 同 id | 同上 | `同 id: True`、`reused: True`、库内仅 1 行 |
+| `lint-nodata-stub` | `python scripts/lint_nodata_stub.py` | `0 violations` |
 
-必须同时在一次运行中看到：
-1. 至少 1 条 `VERIFIED` 发现
-2. 该发现带 capsule（`state=VERIFIED AND capsule_id IS NULL` 应查为 0）
-3. `make replay ID=<n>` 返回 `OK`（四态之一）
-4. 缩小 scope 后 agent **拒绝退出**并返回 `BLOCKED`（不是"尽力而为"）
+### B2 · 调度
+| DoD | 结果 |
+|---|---|
+| `kill -9` worker 后 35s 内任务被接管 | **32.10s**（真起子进程再真杀；先断言"未过期时抢不到"，再断言"过期后接得到"） |
+| `transition` 并发 2 线程只 1 成功 | **恰好 1 True / 1 False** |
+| `pytest tests/unit/test_scheduler.py` | **18 passed** |
 
-## B2 开工要点
+### B3 · guard
+| DoD | 结果 |
+|---|---|
+| 缩 scope 后拒绝且零请求 | **发送函数 0 次调用**（计数器证明） |
+| 令牌桶 100 并发 ≈ 20/s | **实测 3.00s**（理论 3.0s：40 burst 立即 + 60÷20） |
+| 越界记 `scope ok=0` | 落库验证 + `scope_violations == 1` |
+| `pytest tests/unit/test_guard.py` | **29 passed** |
 
-- 只读：`04 §1–§4`、`03 §2`
-- 允许改：`veripen_core/{lease,scheduler}.py`、`worker/`
-- 常量已定：心跳 5s / TTL 30s / 扫描 5s / max_attempts 3 / 退避 1s,4s,16s(±20%)
-- DoD：`kill -9` worker 后 35s 内任务被接管；`transition` 并发 2 线程只 1 成功
-- **环境阻塞**：Redis 未装、Docker 未装。租约需 Redis 原子操作 → 先做本地 SQLite 租约实现并注明"交付档切 Redis"，或先装 Redis。
+### B4 · 证据
+| DoD | 结果 |
+|---|---|
+| 同输入两次 seal 同哈希 | ✅ 字节完全一致 |
+| 改一字节报 TAMPERED | ✅ `exit=2`、`VP-5001` |
+| `--offline-fixture` 断网可跑 | ✅ `REPLAYED_OK` + `VERIFIED` |
+| `--dry-run` 只校验不发包 | ✅ `steps_resent=0` |
+| scope 改小 → `REPLAY_BLOCKED` | ✅ 安全行为，非失败 |
+| 单测 + CLI e2e | **18 + 7 passed** |
+
+## 本阶段修掉的三个真缺陷（不是测试写错）
+
+| # | 缺陷 | 为什么危险 | 修法 |
+|---|---|---|---|
+| 1 | `verify_integrity()` 拿"现算值"和"现算值"比 | **防篡改形同虚设**——任何篡改都通不过检测才怪 | 保留文件自称的 `chain.self_sha256`，与现算值比对 |
+| 2 | `capsule_from_dict` 丢弃 `created_at` | 合法 capsule round-trip 后自我报篡改（序列化把它写成"现在"） | `_parse_rfc3339()` 还原 |
+| 3 | `to_payload()` 直接返回 `assertion` 引用 | 调用方能透过返回值改 capsule 内部状态，不可变性被穿透 | `copy.deepcopy()` |
+
+另修两处工程问题：`store.transition/lease_next` 并发缺原子锁（全量跑偶发双赢）；`lint_noleak` 把 `05 §1.1` 要求的私网 deny CIDR 误判为泄漏。
+
+## 下一道门：W2 A6 覆盖（B9 结束时）
+
+14 类里 11 类可跑；40 op → 200 用例；覆盖矩阵无空格（有空格必须写明原因）。
+
+## B5 开工要点
+
+- 只读：`18 §1`、`07 §0`、`25 §3.3`
+- 允许改：`veripen_oracles/{sqli_bool_diff,idor_cross_account,ssrf_oob,jwt_replay}/`、`oob/`
+- DoD：靶场 4 类各 ≥1 VERIFIED；负样本全 REFUTED；单测 ≥4 正 + 2 负/类（夹具来自 `make record`，**不许手写**）
+- 硬约束：`git diff --stat veripen_core/` 必须为空
+- **环境阻塞**：Docker 未装 → 靶场（DVWA/juice-shop/crAPI/vAmPI/WebGoat）起不来。B5 的策略：先做 oracle 的纯函数 judge + 确定性夹具（来自真实录制的 JSON），靶场联调留到 Docker 就位；夹具必须带 `provenance` 块（`26 §2`）。
 
 ## 遗留
 
 | # | 项 | 处理 |
 |---|---|---|
-| 1 | Docker 未安装 | B13 离线包前必须解决；B1–B12 可仅用进程内实现 |
-| 2 | Redis 未安装 | B2 决策：SQLite 原子租约先行，Redis 作为交付档 |
-| 3 | JADX 未配 | APK 分析才需要；HOS-ARES 不打 APK，暂不装 |
-| 4 | `profile_loader` 未接 | B1 用 `None` 走"不校验 scope"路径；B3 guard 接入 |
+| 1 | Docker 未安装 | B13 离线包前必须解决；B5 用真实录制夹具替代现场靶场 |
+| 2 | Redis 未安装 | 当前用 SQLite 原子租约 + LocalTokenBucket（已标注仅单 worker）；交付档切 Redis |
+| 3 | JADX 未配 | HOS-ARES 不打 APK，暂不装 |
+| 4 | `profile_loader` 未接 | B1 用 `None` 走"不校验 scope"路径；待 B5 或 B13 接入 |
