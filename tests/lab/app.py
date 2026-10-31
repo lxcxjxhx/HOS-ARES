@@ -47,8 +47,18 @@ SEARCH_ROWS = {
 
 FILES = {"manual.txt": "install guide v1", "readme.txt": "hello"}
 
+#: "系统文件"内容：命中指纹表即证明真的读到了系统文件（不是 200 就算）
+SYSTEM_FILES = {
+    "etc/passwd": "root:x:0:0:root:/root:/bin/sh\ndaemon:x:1:1:daemon:/usr/sbin:/bin/false\n",
+    "windows/win.ini": "[fonts]\n[extensions]\nfor 16-bit app support\n",
+}
+
+#: 站内跳转目标（相对路径）：基线用它证明"跳转功能本身是好的"
+SAFE_REDIRECT_TARGET = "account/settings"
+
 JWT_SECRET = b"lab-hs256-secret"
 ADMIN_OWNER = "admin"
+REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
 #: 靶场的两个"域"符号：允许取数的文档域，与用于外带证明的 OOB 前缀
 ALLOWED_FETCH_PREFIX = "doc-SAMPLE"
 OOB_PREFIX = "oob-SAMPLE"
@@ -122,8 +132,13 @@ class App:
             status, ctype, body = 200, "application/json", {"ok": True}
         else:
             status, ctype, body = self._route(method, path, query, token)
-        payload = body if isinstance(body, bytes) else json.dumps(body).encode()
-        start_response(f"{status} X", [("Content-Type", ctype), ("Content-Length", str(len(payload)))])
+        payload = body if isinstance(body, bytes) else (
+            body.encode() if isinstance(body, str) else json.dumps(body).encode()
+        )
+        headers = [("Content-Type", ctype), ("Content-Length", str(len(payload)))]
+        if status in REDIRECT_STATUSES:
+            headers.append(("Location", query.get("to", [""])[0]))
+        start_response(f"{status} X", headers)
         return [payload]
 
     # ── 路由 ────────────────────────────────────────────────────
@@ -142,6 +157,8 @@ class App:
             return self._login(query.get("account", [""])[0])
         if path == "/api/me":
             return self._me(token)
+        if path == "/api/redirect":
+            return self._redirect(query.get("to", [""])[0])
         return 404, "application/json", {"error": "not_found"}
 
     def _item(self, item_id: int, token: str | None) -> tuple[int, str, Any]:
@@ -185,7 +202,23 @@ class App:
             return 400, "application/json", {"error": "bad_name"}
         if name in FILES:
             return 200, "text/plain", FILES[name]
+        # 脆弱态：拼接后直接读 —— 越界即读到系统文件；越界到不存在的文件仍是 404
+        for suffix, content in SYSTEM_FILES.items():
+            if name.endswith(suffix):
+                return 200, "text/plain", content
         return 404, "text/plain", "not found"
+
+    def _redirect(self, target: str) -> tuple[int, str, Any]:
+        """跳转端点。安全态：只接受相对路径；脆弱态：原样写进 Location。"""
+        if not target:
+            return 400, "application/json", {"error": "missing_target"}
+        if target.startswith("javascript:") or target.startswith("data:"):
+            return 400, "application/json", {"error": "scheme_not_allowed"}
+        if self.secure and "://" in target:
+            return 400, "application/json", {"error": "external_target_not_allowed"}
+        if self.secure and target.startswith("//"):
+            return 400, "application/json", {"error": "external_target_not_allowed"}
+        return 302, "text/plain", ""
 
     def _login(self, account: str) -> tuple[int, str, Any]:
         if account not in ("primary", "secondary"):
@@ -226,6 +259,8 @@ def assets_json() -> dict[str, Any]:
              "params": [{"name": "url", "kind": "url"}]},
             {"method": "GET", "template": "/api/read", "tags": ["file_read"],
              "params": [{"name": "name", "kind": "str"}]},
+            {"method": "GET", "template": "/api/redirect", "tags": ["redirect_entry"],
+             "params": [{"name": "to", "kind": "url"}]},
             {"method": "POST", "template": "/api/login", "tags": ["token_issue"],
              "params": [{"name": "account", "kind": "str"}]},
             {"method": "GET", "template": "/api/me", "tags": ["protected_read"],

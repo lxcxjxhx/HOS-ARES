@@ -22,6 +22,14 @@ from .common.harness import (
     three_way_holds,
 )
 
+#: 全部已注册 oracle（B5 的 4 类 + B6 的 2 类）；B7 起继续追加
+from . import tierA, tierA_rest  # noqa: E402
+
+TIER_A: tuple[type[BaseOracle], ...] = tierA.REGISTRY + (
+    tierA_rest.OpenRedirect,
+    tierA_rest.PathTraversal,
+)
+
 __all__ = [
     "BaseOracle",
     "Nonce",
@@ -35,4 +43,7 @@ __all__ = [
     "pair_up",
     "run",
     "three_way_holds",
+    "TIER_A",
+    "tierA",
+    "tierA_rest",
 ]

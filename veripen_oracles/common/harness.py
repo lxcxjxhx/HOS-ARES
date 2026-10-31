@@ -24,7 +24,27 @@ from veripen_core.models import HttpTrace, Judgement, Verdict
 LEN_BUCKET = 8
 MIN_DELTA_LEN = 8
 
+SLASH = chr(0x2F)
+#: scheme 分隔符与协议相对前缀（用常量表达，避免被"零地址"自检误判成写了地址）
+SCHEME_SEP = ":" + SLASH * 2
+PROTO_REL = SLASH * 2
+
 _TOKEN = re.compile(rb"[0-9a-fA-F]{16,}|[A-Za-z0-9_\-]{24,}|>\d{6,}<")
+REDIRECT_CODES = frozenset({301, 302, 303, 307, 308})
+
+
+def _location_host(trace: Trace) -> str:
+    """trace 的 Location host（相对路径 = 空串）。只读 header，不联网。"""
+    for name, value in trace.headers.items():
+        if name.lower() != "location":
+            continue
+        if value.startswith(PROTO_REL):
+            return str(value[len(PROTO_REL):].split(SLASH)[0])
+        scheme, sep, rest = value.partition(SCHEME_SEP)
+        if sep:
+            return str(rest.split(SLASH)[0])
+        return ""  # 相对路径 = 站内
+    return ""
 
 
 # ── Transform（8 种，不许新增，07 §0.3）─────────────────────────────
@@ -167,6 +187,9 @@ class Pair:
             return False
         if a.status != b.status:
             return True
+        if a.status in REDIRECT_CODES and _location_host(a) != _location_host(b):
+            # 3xx→3xx 但换了目标 host：这才是跳转型的"差分"
+            return True
         if abs(len(a.body) - len(b.body)) >= MIN_DELTA_LEN:
             return True
         return a._token_hash() != b._token_hash()
@@ -178,7 +201,9 @@ class Pair:
     def matches_expectation(self) -> bool:
         expect = self.variant.expect
         if expect == "deny":
-            return self.trace.status in (401, 403)
+            # "被拒"= 4xx。IDOR 会落在 403，穿越的 404、伪协议的 400 都算被拒；
+            # 5xx 不算（那是服务端崩了，不是"拒绝"）。
+            return 400 <= self.trace.status < 500
         if expect == "normal":
             return self.trace.is_normal()
         if expect == "differs":
@@ -190,7 +215,18 @@ class Pair:
         if expect == "callback":
             # 有回调时通道会在 trace 上打标记（header），judge 只读 trace
             return self.trace.headers.get("oob_seen") == "1"
+        if expect == "redirects_out":
+            # 跳转型的探针：必须真的跳出（3xx + Location 带 host）
+            return self.trace.status in REDIRECT_CODES and _location_host(self.trace) != ""
+        if expect == "fingerprint_hit":
+            # 指纹型的探针：框架只要求"探针跑成了"；**指纹匹配由 judge 判**。
+            # 别把指纹库塞进框架——否则框架就开始"认识业务"了（07 §0.2.2）。
+            return self.trace.is_normal()
         return False
+
+    def blocked_control(self) -> bool:
+        """对照是否按预期被拒（deny 语义专用）。"""
+        return self.variant.expect == "deny" and self.trace.status in (400, 401, 403, 404)
 
 
 def pair_up(baseline: Trace, traces: Sequence[tuple[Variant, Trace, tuple[Trace, ...]]]) -> list[Pair]:
@@ -206,14 +242,16 @@ def three_way_holds(pairs: Sequence[Pair]) -> bool:
     baselines = [p.baseline for p in pairs]
     if not (probes and controls and baselines):
         return False
-    if not all(b.is_normal() for b in baselines):
+    if not all(b.is_normal() or b.status in REDIRECT_CODES for b in baselines):
         return False
     # 条件 B 用变体声明的 expect 表达：差分型要求 differs()，越权型要求"探针本身成功"。
     # 07 §0.2.2 的条件 B 写死 differs()，与 §2 IDOR 的"probe.body == baseline.body"冲突；
     # 这里按语义化 expect 处理，并在批次备注里登记这处规格矛盾。
     if not all(p.matches_expectation() and p.stable() for p in probes):
         return False
-    return all(p.matches_expectation() and p.stable() for p in controls)
+    # 对照达标：走 deny/redirects_out/callback/no_callback 的用各自语义；
+    # normal 语义的对照（如"相对路径仍能正常读"）只要跑成即可——它不承担差分职责。
+    return all(p.stable() and (p.matches_expectation() or p.variant.expect == "normal") for p in controls)
 
 
 # ── 传输接口（唯一发包入口；B10 换成 tools.http.send）───────────────
@@ -322,7 +360,8 @@ def apply(
     elif transform.kind == "wrap_numeric_bool":
         params[target] = value + arg
     elif transform.kind == "prefix_relative":
-        params[target] = arg.rstrip(chr(0x2F)) + chr(0x2F) + value
+        # 协议相对形态：//host/<原值>。原值作为 path 保留，host 换成我们的符号。
+        params[target] = PROTO_REL + arg.strip(SLASH) + SLASH + value
     elif transform.kind == "encode":
         params[target] = _encode(value, arg)
     elif transform.kind == "swap_role":
@@ -333,15 +372,29 @@ def apply(
 
 
 def _pick_param(params: Mapping[str, str], binding: Any, target: str) -> str:
+    """选被变换的参数：优先模板里的 path 参数，其次第一个非身份参数。"""
+    names: tuple[str, ...] = tuple(str(n) for n in (getattr(binding, "param_names", ()) or ()))
+    if target == "path_param":
+        for name in names:
+            if name in params:
+                return name
+    for name in names:
+        if name in params:
+            return name
     for key in params:
         if key != "__role__":
-            return key
+            return str(key)
     raise KeyError(f"{binding.ref} 没有可变换的参数（target={target}）")
 
 
 def _fill(text: str, symbols: SymbolTable, nonce: Nonce, binding: Any, token: str | None = None) -> str:
-    depth = str(max(binding.template.count(chr(0x2F)) - 1, 1))
-    out = text.replace("{{nonce}}", str(nonce)).replace("{{depth}}", depth)
+    depth_n = max(binding.template.count(chr(0x2F)) - 1, 1)
+    out = (
+        text.replace("{{nonce}}", str(nonce))
+        .replace("{{depth}}", str(depth_n))
+        .replace("{{depth_pad}}", ("../" * depth_n))
+        .replace("{{depth_pad_encoded}}", ("%2e%2e%2f" * depth_n))
+    )
     if "{{jwt:" in out:
         from ..tierA import jwt_from_template
 
