@@ -187,6 +187,9 @@ class RouteError(RuntimeError):
 class RouteStale(RouteError):
     """绑定过期（TTL 到）；必须重发现，不许重放旧绑定（27 §3.9）。"""
 
+    code = "VP-2006"
+    retryable = True
+
 
 class RouteUnresolved(RouteError):
     """所有来源都无结果。"""
@@ -195,9 +198,13 @@ class RouteUnresolved(RouteError):
 class RouteTooWeak(RouteError):
     """置信度低于门槛。"""
 
+    code = "VP-2006"
+
 
 class UnboundRoute(RouteError):
     """请求了一个不在当前 RouteSet 里的 ref（程序 bug）。"""
+
+    code = "VP-2007"
 
 
 class ContractHostError(RouteError):
