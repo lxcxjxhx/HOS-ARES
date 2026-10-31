@@ -313,5 +313,215 @@
         "why": "整站同页，无系统文件指纹"
       }
     ]
+  },
+  "sqli_error_based": {
+    "positive": [
+      {
+        "case": "quote_paren",
+        "params": {
+          "nonce": "e1"
+        },
+        "expect": "VERIFIED",
+        "why": "括号+引号闭合触发数据库错误指纹"
+      },
+      {
+        "case": "quote_single",
+        "params": {
+          "nonce": "e2"
+        },
+        "expect": "VERIFIED",
+        "why": "单引号闭合同样触发"
+      },
+      {
+        "case": "repeat3",
+        "params": {
+          "nonce": "e3",
+          "repeat": 3
+        },
+        "expect": "VERIFIED",
+        "why": "重复一致"
+      },
+      {
+        "case": "quote_double",
+        "params": {
+          "nonce": "e4"
+        },
+        "expect": "VERIFIED",
+        "why": "双引号闭合"
+      }
+    ],
+    "negative": [
+      {
+        "case": "hardened_parameterized",
+        "lab": "hardened",
+        "expect": "REFUTED",
+        "why": "参数化后不平衡引号不触发错误"
+      },
+      {
+        "case": "degenerate_all_200",
+        "lab": "degenerate",
+        "expect": "REFUTED",
+        "why": "整站同页，无错误指纹"
+      }
+    ]
+  },
+  "bola_functional": {
+    "positive": [
+      {
+        "case": "low_priv_admin",
+        "params": {
+          "nonce": "b1"
+        },
+        "expect": "VERIFIED",
+        "why": "低权拿到管理数据"
+      },
+      {
+        "case": "repeat3",
+        "params": {
+          "nonce": "b2",
+          "repeat": 3
+        },
+        "expect": "VERIFIED",
+        "why": "重复一致"
+      },
+      {
+        "case": "repeat1",
+        "params": {
+          "nonce": "b3",
+          "repeat": 1
+        },
+        "expect": "VERIFIED",
+        "why": "单次也已足够（有对照）"
+      },
+      {
+        "case": "baseline_again",
+        "params": {
+          "nonce": "b4"
+        },
+        "expect": "VERIFIED",
+        "why": "同绑定多次成立"
+      }
+    ],
+    "negative": [
+      {
+        "case": "hardened_role_check",
+        "lab": "hardened",
+        "expect": "REFUTED",
+        "why": "角色校验让管理面 403"
+      },
+      {
+        "case": "degenerate_all_200",
+        "lab": "degenerate",
+        "expect": "REFUTED",
+        "why": "基线没有管理标记，判不了"
+      }
+    ]
+  },
+  "xss_reflected_ctx": {
+    "positive": [
+      {
+        "case": "three_contexts",
+        "params": {
+          "nonce": "x1"
+        },
+        "expect": "VERIFIED",
+        "why": "三上下文都原样回显"
+      },
+      {
+        "case": "repeat3",
+        "params": {
+          "nonce": "x2",
+          "repeat": 3
+        },
+        "expect": "VERIFIED",
+        "why": "重复一致"
+      },
+      {
+        "case": "repeat1",
+        "params": {
+          "nonce": "x3",
+          "repeat": 1
+        },
+        "expect": "VERIFIED",
+        "why": "单次成立"
+      },
+      {
+        "case": "again",
+        "params": {
+          "nonce": "x4"
+        },
+        "expect": "VERIFIED",
+        "why": "独立 nonce 成立"
+      }
+    ],
+    "negative": [
+      {
+        "case": "hardened_escaped",
+        "lab": "hardened",
+        "expect": "REFUTED",
+        "why": "实体化转义，字节级匹配失败"
+      },
+      {
+        "case": "degenerate_all_200",
+        "lab": "degenerate",
+        "expect": "REFUTED",
+        "why": "不回显参数"
+      }
+    ]
+  },
+  "mass_assignment": {
+    "positive": [
+      {
+        "case": "inject_role",
+        "params": {
+          "nonce": "m1",
+          "readonly_field": "role",
+          "readonly_value": "admin"
+        },
+        "expect": "VERIFIED",
+        "why": "只读字段被接受并回读为 admin"
+      },
+      {
+        "case": "inject_is_admin",
+        "params": {
+          "nonce": "m2",
+          "readonly_field": "is_admin",
+          "readonly_value": "true"
+        },
+        "expect": "VERIFIED",
+        "why": "换一个只读字段同样成立"
+      },
+      {
+        "case": "again_role",
+        "params": {
+          "nonce": "m3"
+        },
+        "expect": "VERIFIED",
+        "why": "重复成立"
+      },
+      {
+        "case": "field_variant",
+        "params": {
+          "nonce": "m4",
+          "readonly_field": "role"
+        },
+        "expect": "VERIFIED",
+        "why": "默认字段成立"
+      }
+    ],
+    "negative": [
+      {
+        "case": "hardened_whitelist",
+        "lab": "hardened",
+        "expect": "REFUTED",
+        "why": "只接受白名单字段，回读仍是 user"
+      },
+      {
+        "case": "degenerate_ignores",
+        "lab": "degenerate",
+        "expect": "REFUTED",
+        "why": "整站同页，回读无法区分"
+      }
+    ]
   }
 }
