@@ -45,3 +45,12 @@ types-check:
 	$(PY) -m mypy --strict veripen_core/
 
 b1.5: routes-l0 routes-contract lint-netimports types-check lint
+
+# B2 调度
+schedule-test:
+	$(PY) -m pytest tests/unit/test_scheduler.py -q
+
+takeover-test:
+	$(PY) -m pytest tests/integration/test_worker_takeover.py -q
+
+b2: schedule-test takeover-test types-check lint
