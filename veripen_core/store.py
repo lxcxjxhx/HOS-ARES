@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -91,12 +92,14 @@ class Store:
         if self.db_path != ":memory:":
             Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         self._conn: sqlite3.Connection | None = None
+        # 跨线程访问：调度器与心跳线程共用一个连接，写操作串行化（B2）
+        self.lock = threading.RLock()
 
     # ── 连接 ────────────────────────────────────────────────────
     @property
     def conn(self) -> sqlite3.Connection:
         if self._conn is None:
-            self._conn = sqlite3.connect(self.db_path)
+            self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
             self._conn.row_factory = sqlite3.Row
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.execute("PRAGMA foreign_keys=ON")
@@ -122,6 +125,7 @@ class Store:
         asset_id: str,
         oracle_ids: list[str],
         params: dict[str, Any] | None = None,
+        max_attempts: int = 3,
     ) -> tuple[str, bool]:
         """建任务（幂等）。返回 ``(task_id, reused)``。"""
         key = idem_key(engagement_id, asset_id, "|".join(sorted(oracle_ids)), params)
@@ -131,11 +135,28 @@ class Store:
 
         tid = new_ulid()
         ts = now()
+        with self.lock:
+            return self._insert_task(
+                tid, key, engagement_id, profile_name, profile_hash, asset_id, oracle_ids, ts, max_attempts
+            )
+
+    def _insert_task(
+        self,
+        tid: str,
+        key: str,
+        engagement_id: str,
+        profile_name: str,
+        profile_hash: str,
+        asset_id: str,
+        oracle_ids: list[str],
+        ts: int,
+        max_attempts: int = 3,
+    ) -> tuple[str, bool]:
         try:
             self.conn.execute(
                 "INSERT INTO tasks (id, engagement_id, idem_key, profile_name, profile_hash,"
-                " asset_id, oracle_ids, state, created_at, updated_at)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?)",
+                " asset_id, oracle_ids, state, created_at, updated_at, max_attempts)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     tid,
                     engagement_id,
@@ -147,6 +168,7 @@ class Store:
                     TaskState.QUEUED.value,
                     ts,
                     ts,
+                    max_attempts,
                 ),
             )
             self.conn.commit()
@@ -175,10 +197,11 @@ class Store:
             sets += f", {k}=?"
             values.append(v)
         values.extend([task_id, frm.value])
-        cur = self.conn.execute(
-            f"UPDATE tasks SET {sets} WHERE id=? AND state=?", values
-        )
-        self.conn.commit()
+        with self.lock:
+            cur = self.conn.execute(
+                f"UPDATE tasks SET {sets} WHERE id=? AND state=?", values
+            )
+            self.conn.commit()
         return cur.rowcount == 1
 
     def count_by_state(self, state: TaskState) -> int:
