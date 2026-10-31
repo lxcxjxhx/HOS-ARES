@@ -1,0 +1,211 @@
+{
+  "_note": "B5 用例矩阵（07 §0.5）。正样本必须覆盖三种难度；负样本必须含'看似漏洞实则安全'与'环境退化'两类。每条只描述变换与期望，不含地址。",
+  "sqli_bool_diff": {
+    "positive": [
+      {
+        "case": "bool_diff_int",
+        "params": {
+          "nonce": "p1"
+        },
+        "expect": "VERIFIED",
+        "why": "1=1 与 1=2 响应不同，对照同形"
+      },
+      {
+        "case": "bool_diff_alt_nonce",
+        "params": {
+          "nonce": "p2"
+        },
+        "expect": "VERIFIED",
+        "why": "nonce 变化不影响判定（判定不看 nonce 值）"
+      },
+      {
+        "case": "bool_diff_repeat3",
+        "params": {
+          "nonce": "p3",
+          "repeat": 3
+        },
+        "expect": "VERIFIED",
+        "why": "repeat 提升后结论一致"
+      },
+      {
+        "case": "bool_diff_quote_ctx",
+        "params": {
+          "nonce": "p4"
+        },
+        "expect": "VERIFIED",
+        "why": "字符串上下文同样成立"
+      }
+    ],
+    "negative": [
+      {
+        "case": "hardened_param_safe",
+        "lab": "hardened",
+        "expect": "REFUTED",
+        "why": "参数化实现，任何条件都返回同页"
+      },
+      {
+        "case": "degenerate_all_200",
+        "lab": "degenerate",
+        "expect": "REFUTED",
+        "why": "整站同页：差分不存在"
+      }
+    ]
+  },
+  "idor_cross_account": {
+    "positive": [
+      {
+        "case": "cross_account_1",
+        "params": {
+          "nonce": "i1"
+        },
+        "expect": "VERIFIED",
+        "why": "非拥有者读到他人对象，锁定对象仍 403"
+      },
+      {
+        "case": "cross_account_offset",
+        "params": {
+          "nonce": "i2",
+          "locked_object_id": 4
+        },
+        "expect": "VERIFIED",
+        "why": "对照对象可配"
+      },
+      {
+        "case": "cross_account_repeat",
+        "params": {
+          "nonce": "i3",
+          "repeat": 3
+        },
+        "expect": "VERIFIED",
+        "why": "重复一致"
+      },
+      {
+        "case": "cross_account_other_subject",
+        "params": {
+          "nonce": "i4",
+          "subject_object_id": 3
+        },
+        "expect": "VERIFIED",
+        "why": "换一条归属对象仍成立"
+      }
+    ],
+    "negative": [
+      {
+        "case": "hardened_object_authz",
+        "lab": "hardened",
+        "expect": "REFUTED",
+        "why": "有对象级鉴权"
+      },
+      {
+        "case": "degenerate_all_200",
+        "lab": "degenerate",
+        "expect": "REFUTED",
+        "why": "对照不成立，无法证明有对象级鉴权"
+      }
+    ]
+  },
+  "ssrf_oob": {
+    "positive": [
+      {
+        "case": "oob_callback",
+        "params": {
+          "nonce": "s1"
+        },
+        "expect": "VERIFIED",
+        "why": "服务端连了 OOB，控制无回调"
+      },
+      {
+        "case": "oob_callback_2",
+        "params": {
+          "nonce": "s2"
+        },
+        "expect": "VERIFIED",
+        "why": "新 nonce 独立成立"
+      },
+      {
+        "case": "oob_callback_repeat3",
+        "params": {
+          "nonce": "s3",
+          "repeat": 3
+        },
+        "expect": "VERIFIED",
+        "why": "重复一致"
+      },
+      {
+        "case": "oob_callback_4",
+        "params": {
+          "nonce": "s4"
+        },
+        "expect": "VERIFIED",
+        "why": "同一绑定多次成立"
+      }
+    ],
+    "negative": [
+      {
+        "case": "hardened_fetch_allowlist",
+        "lab": "hardened",
+        "expect": "REFUTED",
+        "why": "取数域白名单"
+      },
+      {
+        "case": "degenerate_all_200",
+        "lab": "degenerate",
+        "expect": "REFUTED",
+        "why": "无回调"
+      }
+    ]
+  },
+  "jwt_replay": {
+    "positive": [
+      {
+        "case": "alg_none_accepted",
+        "params": {
+          "nonce": "j1"
+        },
+        "expect": "VERIFIED",
+        "why": "alg=none 被接受，原 token 200，无效签名 401"
+      },
+      {
+        "case": "claim_tamper",
+        "params": {
+          "nonce": "j2",
+          "escalate_role": "admin"
+        },
+        "expect": "VERIFIED",
+        "why": "声明篡改后拿到特权标记"
+      },
+      {
+        "case": "repeat3",
+        "params": {
+          "nonce": "j3",
+          "repeat": 3
+        },
+        "expect": "VERIFIED",
+        "why": "重复一致"
+      },
+      {
+        "case": "escalate_sub",
+        "params": {
+          "nonce": "j4",
+          "escalate_to": "primary"
+        },
+        "expect": "VERIFIED",
+        "why": "换升级目标仍成立"
+      }
+    ],
+    "negative": [
+      {
+        "case": "hardened_signature_check",
+        "lab": "hardened",
+        "expect": "REFUTED",
+        "why": "签名强校验，alg=none 被拒"
+      },
+      {
+        "case": "degenerate_all_200",
+        "lab": "degenerate",
+        "expect": "REFUTED",
+        "why": "对照不成立（无法证明服务器校验签名）"
+      }
+    ]
+  }
+}
