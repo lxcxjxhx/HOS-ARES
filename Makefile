@@ -5,7 +5,7 @@
 PY ?= python
 PKG_DIRS := veripen_core veripen_oracles veripen_contract api worker web tests
 
-.PHONY: help test bindings-check lint-noroute lint-nodata-stub lint b1
+.PHONY: help test bindings-check lint-noroute lint-nodata-stub lint b1 b4
 
 help:
 	@echo "make test             运行 B1 契约测试"
@@ -60,3 +60,32 @@ guard-test:
 	$(PY) -m pytest tests/unit/test_guard.py -q
 
 b3: guard-test types-check lint
+
+# B4 证据（capsule 1.1 / 链 / 六态 replay）
+CAPSULE ?= out/b4/capsules
+evidence-test:
+	$(PY) -m pytest tests/unit/test_evidence.py -q
+
+replay-order-test:
+	$(PY) -m pytest tests/unit/test_replay_order.py -q
+
+replay-partial-test:
+	$(PY) -m pytest tests/unit/test_replay_partial.py -q
+
+evidence-acceptance:
+	$(PY) -m pytest tests/integration/test_evidence_acceptance.py -q
+
+# 本地演示链：三个 capsule + verify-chain + 离线 replay（不联网）
+evidence-demo:
+	$(PY) scripts/b4/demo_chain.py --out $(CAPSULE)
+
+verify-chain:
+	$(PY) -m veripen_core.evidence --verify-chain $(CAPSULE)/*.json
+
+verify-capsule:
+	$(PY) -m veripen_core.evidence --verify-capsule $(CAPSULE)/*.json
+
+replay-offline:
+	$(PY) -m veripen_core.evidence --offline-fixture $(CAPSULE)/*.json
+
+b4: evidence-test replay-order-test replay-partial-test evidence-acceptance evidence-demo verify-chain verify-capsule types-check lint
