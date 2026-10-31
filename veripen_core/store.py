@@ -17,6 +17,7 @@ from .models import (
     Capsule,
     Finding,
     FindingState,
+    ReplayStatus,
     TaskState,
     idem_key,
     new_ulid,
@@ -271,3 +272,16 @@ class Store:
         )
         self.conn.commit()
         return cap.self_sha256
+
+    def record_replay(self, capsule_id: str, status: ReplayStatus, at: int | None = None) -> None:
+        """回写 replay 结果（06 §5 步骤 7）。不改 capsule 文件——证据只增不改。"""
+        with self.lock:
+            self.conn.execute(
+                "UPDATE capsules SET replay_status=?, replay_at=? WHERE id=?",
+                (status.value if isinstance(status, ReplayStatus) else str(status), at or now(), capsule_id),
+            )
+            self.conn.commit()
+
+    def get_capsule(self, capsule_id: str) -> dict[str, Any] | None:
+        row = self.conn.execute("SELECT * FROM capsules WHERE id=?", (capsule_id,)).fetchone()
+        return dict(row) if row is not None else None
