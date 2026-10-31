@@ -12,9 +12,18 @@ from pathlib import Path
 import pytest
 from conftest import Lab
 
-from veripen_oracles import tierA
+from veripen_oracles import TIER_A
 from veripen_oracles.common.harness import run
 from veripen_core.models import Verdict
+
+def _by_id(oracle_id: str, **params: object) -> object:
+    """按 id 构造（覆盖已注册的全部档位，不只 TierA 前 4 类）。"""
+    for cls in TIER_A:
+        if cls.meta.id == oracle_id:
+            model = cls.params_model
+            return cls(params=model(**params)) if model is not None else cls()
+    raise KeyError(oracle_id)
+
 
 CASES_PATH = Path(__file__).resolve().parents[2] / "veripen_oracles" / "cases" / "tierA.json"
 CASES: dict = json.loads(CASES_PATH.read_text(encoding="utf-8"))
@@ -31,6 +40,8 @@ TAG = {
     "idor_cross_account": "object_read",
     "ssrf_oob": "url_fetch",
     "jwt_replay": "protected_read",
+    "open_redirect": "redirect_entry",
+    "path_traversal": "file_read",
 }
 
 ENTRIES = [
@@ -62,7 +73,7 @@ def test_case_matrix(oracle_id: str, kind: str, case: dict) -> None:
     params = dict(case.get("params", {}))
     nonce = params.pop("nonce", "")
     repeat = params.pop("repeat", None)
-    oracle = tierA.by_id(oracle_id, **params)
+    oracle = _by_id(oracle_id, **params)
     result = run(
         oracle,
         lab.binding(TAG[oracle_id]),

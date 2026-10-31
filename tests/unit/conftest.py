@@ -30,9 +30,15 @@ class Lab:
         self.symbols = SymbolTable(
             {
                 "OOB": "oob-SAMPLE",
+                # 含 scheme 的形态：scheme 由部署决定，写进符号值而不是代码
+                "OOB_URL": "https" + "://" + "oob-SAMPLE",
                 "DEAD_HOST": "none-SAMPLE",
                 "STRANGER": "secondary",
                 "OWNER": "primary",
+                "SAFE_TARGET": "account/settings",
+                "SAFE_FILE": "manual.txt",
+                "SYSTEM_FILE": "etc/passwd",
+                "SITE_HOST": "lab",
             }
         )
         self.token = make_token("secondary")

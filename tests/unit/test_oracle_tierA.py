@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from conftest import Lab
-from veripen_oracles import tierA
+from veripen_oracles import TIER_A, tierA
 from veripen_oracles.common.harness import run, three_way_holds
 from veripen_core.models import Verdict
 
@@ -20,13 +20,22 @@ CASES: tuple[tuple[str, str], ...] = (
     ("idor_cross_account", "object_read"),
     ("ssrf_oob", "url_fetch"),
     ("jwt_replay", "protected_read"),
+    ("open_redirect", "redirect_entry"),   # B6
+    ("path_traversal", "file_read"),        # B6
 )
+
+
+def _by_id(oracle_id: str):
+    for cls in TIER_A:
+        if cls.meta.id == oracle_id:
+            return cls()
+    raise KeyError(oracle_id)
 
 
 def _run(lab: Lab, oracle_id: str, tag: str):
     binding = lab.binding(tag)
     return run(
-        tierA.by_id(oracle_id),
+        _by_id(oracle_id),
         binding,
         lab.transport,
         symbols=lab.symbols,
@@ -65,17 +74,17 @@ def test_verified_carries_assertion(vulnerable: Lab, oracle_id: str, tag: str) -
 # ── oracle 身份与标签（27 §3.1：只能要标签，不能要地址）─────────────
 @pytest.mark.parametrize(("oracle_id", "tag"), CASES)
 def test_oracle_declares_tags_not_addresses(oracle_id: str, tag: str) -> None:
-    oracle = tierA.by_id(oracle_id)
+    oracle = _by_id(oracle_id)
     assert tag in oracle.selector_tags
     for declared in oracle.selector_tags:
         assert chr(0x2F) not in declared, "标签里不许出现路径片段"
         assert "://" not in declared, "标签里不许出现 scheme"
 
 
-def test_all_four_registered() -> None:
-    ids = {cls.meta.id for cls in tierA.REGISTRY}
-    assert ids == {c[0] for c in CASES}
-    for cls in tierA.REGISTRY:
+def test_all_registered() -> None:
+    ids = {cls.meta.id for cls in TIER_A}
+    assert ids == {c[0] for c in CASES}, "注册表与测试矩阵必须一一对应"
+    for cls in TIER_A:
         assert cls.meta.cwe.startswith("CWE-")
 
 

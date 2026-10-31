@@ -13,17 +13,19 @@ from pathlib import Path
 import pytest
 from conftest import Lab
 
-from veripen_oracles import tierA
+from veripen_oracles import TIER_A, tierA
 from veripen_oracles.common import base, harness
 from veripen_core.models import Verdict
 
 ROOT = Path(__file__).resolve().parents[2]
 SLASH = chr(0x2F)  # 路径分隔符：用常量而不是字面量（noroute 的 R-PATH 只抓地址）
+#: 纯分隔符不是地址；带 scheme 的串只有在**不含 {{ref:}} 符号**时才算"写了地址"
+SEPARATORS = {":" + SLASH * 2, SLASH * 2}
 ORACLES_DIR = ROOT / "veripen_oracles"
 
 
 def _oracles():  # noqa: ANN202
-    for cls in tierA.REGISTRY:
+    for cls in TIER_A:
         yield cls()
 
 
@@ -58,6 +60,7 @@ def test_plan_reads_no_environment(oracle) -> None:  # noqa: ANN001
 
 # ── 3 零地址：oracle 代码里没有路径 / URL / 端口 ───────────────────
 def test_oracles_have_no_address_literals() -> None:
+    """硬写主机名/路径才算违规；`scheme + {{ref:XXX}}` 是符号驱动的载荷模板，允许。"""
     offenders: list[str] = []
     for path in sorted(ORACLES_DIR.rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -66,7 +69,8 @@ def test_oracles_have_no_address_literals() -> None:
                 value = node.value
                 if value.startswith(SLASH) and len(value) > 1:
                     offenders.append(f"{path.name}:{node.lineno}: {value}")
-                if "://" in value:
+                has_scheme = (":" + SLASH * 2) in value
+                if has_scheme and value not in SEPARATORS and "{{ref:" not in value:
                     offenders.append(f"{path.name}:{node.lineno}: {value}")
     assert not offenders, f"oracle 里出现地址字面量：{offenders}"
 

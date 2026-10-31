@@ -1,5 +1,5 @@
 {
-  "_note": "B5 用例矩阵（07 §0.5）。正样本必须覆盖三种难度；负样本必须含'看似漏洞实则安全'与'环境退化'两类。每条只描述变换与期望，不含地址。",
+  "_note": "B5/B6 用例矩阵（07 §0.5）。正样本必须覆盖三种难度；负样本必须含'看似漏洞实则安全'与'环境退化'两类。每条只描述变换与期望，不含地址。",
   "sqli_bool_diff": {
     "positive": [
       {
@@ -205,6 +205,112 @@
         "lab": "degenerate",
         "expect": "REFUTED",
         "why": "对照不成立（无法证明服务器校验签名）"
+      }
+    ]
+  },
+  "open_redirect": {
+    "positive": [
+      {
+        "case": "abs_external",
+        "params": {
+          "nonce": "r1"
+        },
+        "expect": "VERIFIED",
+        "why": "绝对外域目标被原样写进 Location"
+      },
+      {
+        "case": "proto_relative",
+        "params": {
+          "nonce": "r2",
+          "check_protocol_relative": true
+        },
+        "expect": "VERIFIED",
+        "why": "协议相对 //host 形态同样跳出"
+      },
+      {
+        "case": "repeat3",
+        "params": {
+          "nonce": "r3",
+          "repeat": 3
+        },
+        "expect": "VERIFIED",
+        "why": "重复一致"
+      },
+      {
+        "case": "no_proto_relative_check",
+        "params": {
+          "nonce": "r4",
+          "check_protocol_relative": false
+        },
+        "expect": "VERIFIED",
+        "why": "关掉协议相对探针仍能靠绝对形态成立"
+      }
+    ],
+    "negative": [
+      {
+        "case": "hardened_same_site_only",
+        "lab": "hardened",
+        "expect": "REFUTED",
+        "why": "只接受相对路径，外域目标被拒"
+      },
+      {
+        "case": "degenerate_all_200",
+        "lab": "degenerate",
+        "expect": "REFUTED",
+        "why": "没有 Location 头，根本谈不上跳转"
+      }
+    ]
+  },
+  "path_traversal": {
+    "positive": [
+      {
+        "case": "plain_dotdot",
+        "params": {
+          "nonce": "t1"
+        },
+        "expect": "VERIFIED",
+        "why": "纯 ../ 读到系统文件特征内容"
+      },
+      {
+        "case": "percent_encoded",
+        "params": {
+          "nonce": "t2",
+          "max_encoded_variants": 3
+        },
+        "expect": "VERIFIED",
+        "why": "百分号编码变体同样成立"
+      },
+      {
+        "case": "repeat3",
+        "params": {
+          "nonce": "t3",
+          "repeat": 3
+        },
+        "expect": "VERIFIED",
+        "why": "重复一致"
+      },
+      {
+        "case": "no_encoded_variants",
+        "params": {
+          "nonce": "t4",
+          "max_encoded_variants": 0
+        },
+        "expect": "VERIFIED",
+        "why": "只靠基础变体即成立"
+      }
+    ],
+    "negative": [
+      {
+        "case": "hardened_basename_check",
+        "lab": "hardened",
+        "expect": "REFUTED",
+        "why": "含 .. 一律拒绝；基线仍可读"
+      },
+      {
+        "case": "degenerate_all_200",
+        "lab": "degenerate",
+        "expect": "REFUTED",
+        "why": "整站同页，无系统文件指纹"
       }
     ]
   }
