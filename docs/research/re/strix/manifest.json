@@ -1,0 +1,21 @@
+{
+  "product": "usestrix/strix",
+  "slug": "strix",
+  "local_source": "vendor/strix",
+  "commit": "6b7ae2ebe4d47037a927aade23265ff4e4f27e84",
+  "branch": "main",
+  "tarball_sha256": "20ee52988f6950408f0168140204b2d9058c8a004a47d286f30d16c4eaf1f749",
+  "license": "Apache-2.0",
+  "language": "Python",
+  "role": "pentest-agent-reference",
+  "analyzed_faces": [
+    "F1",
+    "F3",
+    "F6"
+  ],
+  "why": "最直接对标的开源自主渗透 Agent。抽 F1 工具注册/审批门控、F3 planner/executor 分层、F6 PoC 验证与对照缺失。借鉴 output_store head+tail、BudgetPolicy pause。",
+  "analysis_date": "2026-10-30",
+  "status": "source-pinned",
+  "confidence": "observed(identity)",
+  "isolation": "plan-veripen/28 Q1-Q4"
+}

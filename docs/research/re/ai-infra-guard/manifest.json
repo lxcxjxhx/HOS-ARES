@@ -1,0 +1,20 @@
+{
+  "product": "Tencent/AI-Infra-Guard",
+  "slug": "ai-infra-guard",
+  "local_source": "vendor/ai-infra-guard",
+  "commit": "851e3f295031fbec30f893085eb99ac6b0945ed1",
+  "branch": "main",
+  "tarball_sha256": "e8b3799b0db1afc64964d0b9e5403bf8bb9ebd82e8f3036a5f68a1ef1f6843c6",
+  "license": "Apache-2.0",
+  "language": "Python",
+  "role": "agent-mcp-skills-scanner",
+  "analyzed_faces": [
+    "F1",
+    "F2"
+  ],
+  "why": "Agent/Skills/MCP/基础设施 CVE 扫描。参照其 MCP 暴露面扫描与 jailbreak 评估结构，对应 24 服务 API 与 05 智能体自身安全。",
+  "analysis_date": "2026-10-30",
+  "status": "source-pinned",
+  "confidence": "observed(identity)",
+  "isolation": "plan-veripen/28 Q1-Q4"
+}

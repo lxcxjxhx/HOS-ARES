@@ -1,0 +1,20 @@
+{
+  "product": "chainreactors/cyber-harness",
+  "slug": "cyber-harness",
+  "local_source": "vendor/cyber-harness",
+  "commit": "89f8af5ea2f478bf96eedc8f1b6ba8401ce28853",
+  "branch": "master",
+  "tarball_sha256": "623ff647083da4b1ebe0acc336c4fe71b82776ffa7c7df0bd23cb451d4955a41",
+  "license": "AGPL-3.0",
+  "language": "Go",
+  "role": "cyber-agent-harness",
+  "analyzed_faces": [
+    "F1",
+    "F3"
+  ],
+  "why": "同为 cyber 场景通用 Agent Harness，扩展式架构（aiscan/cyber-audit），可能比 Strix 更贴我们。读其扩展点/工具总线设计，重点 F1/F3。AGPL: 只读结构，不复制代码。",
+  "analysis_date": "2026-10-30",
+  "status": "source-pinned",
+  "confidence": "observed(identity)",
+  "isolation": "plan-veripen/28 Q1-Q4"
+}

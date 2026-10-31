@@ -1,0 +1,3 @@
+# noroute 行级例外：<正则><TAB><理由>，上限 6 行
+# 加白等于把违规合法化：先修代码，再谈加白（27 §7）
+^\s*"(fallback_path|default_route|retry_with_literal|DEFAULT_ENDPOINT|DEFAULT_PATH)",	契约测试必须列出被禁符号名，才能断言它们不存在（规则自指例外）

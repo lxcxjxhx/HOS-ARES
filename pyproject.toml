@@ -1,0 +1,31 @@
+# VeriPen —— 可验证渗透内核
+#
+# B1 只装"能跑契约测试 + 能起服务"的最小依赖；后续批次按需增加，不预装。
+# 不写任何 URL（lint-noroute 全仓生效）。
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "veripen"
+version = "0.1.0"
+description = "可验证渗透验证内核：判定纯函数、地址零常量、证据六态可 replay"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7",
+    "PyYAML>=6.0",
+    "fastapi>=0.111",
+    "uvicorn>=0.30",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.setuptools]
+packages = ["veripen_core", "api"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"

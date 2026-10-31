@@ -1,154 +1,560 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veripen.local/schemas/capsule-v1.json",
-  "title": "VeriPen Proof Capsule v1",
+  "$id": "https://veripen.invalid/schemas/capsule-v1.json",
+  "title": "VeriPen Proof Capsule v1.1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["capsule_version", "capsule_id", "finding_id", "created_at", "oracle",
-               "target", "env", "steps", "assertion", "verdict", "confidence",
-               "confidence_rule", "redaction", "chain"],
+  "required": [
+    "capsule_version",
+    "capsule_id",
+    "finding_id",
+    "created_at",
+    "oracle",
+    "route",
+    "target",
+    "env",
+    "steps",
+    "assertion",
+    "verdict",
+    "confidence",
+    "confidence_rule",
+    "route_strength",
+    "redaction",
+    "chain"
+  ],
   "properties": {
-    "capsule_version": { "const": "1.0" },
-    "capsule_id": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
-    "finding_id": { "type": "string", "minLength": 1 },
-    "created_at": { "type": "string", "format": "date-time" },
-
+    "capsule_version": {
+      "enum": [
+        "1.0",
+        "1.1"
+      ]
+    },
+    "capsule_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "finding_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
     "oracle": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "version", "cwe", "params_hash"],
+      "required": [
+        "id",
+        "version",
+        "cwe",
+        "params_hash"
+      ],
       "properties": {
-        "id": { "type": "string" },
-        "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
-        "cwe": { "type": "string", "pattern": "^CWE-\\d+$" },
-        "params_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        },
+        "cwe": {
+          "type": "string",
+          "pattern": "^CWE-\\d+$"
+        },
+        "params_hash": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
       }
     },
-
     "target": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["asset_id", "url", "method", "resolved_ip"],
+      "required": [
+        "asset_id",
+        "frame_method",
+        "resolved_ip"
+      ],
       "properties": {
-        "asset_id": { "type": "string" },
-        "url": { "type": "string" },
-        "method": { "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"] },
-        "resolved_ip": { "type": "string" },
-        "userinfo_rejected": { "type": "boolean" }
+        "asset_id": {
+          "type": "string"
+        },
+        "frame_method": {
+          "enum": [
+            "GET",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE",
+            "HEAD",
+            "OPTIONS"
+          ]
+        },
+        "host_key": {
+          "type": "string",
+          "description": "不透明键，指向 assets 解析集合中的一项；不存域名"
+        },
+        "resolved_ip": {
+          "type": "string"
+        },
+        "template_sha256": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "userinfo_rejected": {
+          "type": "boolean"
+        }
       }
     },
-
     "env": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["profile_name", "profile_hash", "image_digest", "runner_id", "clock"],
+      "required": [
+        "profile_name",
+        "profile_hash",
+        "image_digest",
+        "runner_id",
+        "clock"
+      ],
       "properties": {
-        "profile_name": { "type": "string" },
-        "profile_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
-        "image_digest": { "type": "string" },
-        "runner_id": { "type": "string" },
+        "profile_name": {
+          "type": "string"
+        },
+        "profile_hash": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "image_digest": {
+          "type": "string"
+        },
+        "runner_id": {
+          "type": "string"
+        },
         "clock": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["t0", "t1", "timezone"],
+          "required": [
+            "t0",
+            "t1",
+            "timezone"
+          ],
           "properties": {
-            "t0": { "type": "integer" },
-            "t1": { "type": "integer" },
-            "timezone": { "const": "UTC" }
+            "t0": {
+              "type": "integer"
+            },
+            "t1": {
+              "type": "integer"
+            },
+            "timezone": {
+              "const": "UTC"
+            }
           }
         },
         "egress": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "mode": { "enum": ["whitelist", "open"] },
-            "proxy": { "type": ["string", "null"] }
+            "mode": {
+              "enum": [
+                "whitelist",
+                "open"
+              ]
+            },
+            "proxy": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           }
+        },
+        "sandbox_overridden": {
+          "type": "boolean",
+          "description": "本批次是否有动作在隔离外裸跑（29 零件 C）"
         }
       }
     },
-
     "steps": {
       "type": "array",
       "minItems": 2,
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["n", "role", "request", "response", "peer_ip", "elapsed_ms"],
+        "required": [
+          "n",
+          "role",
+          "request",
+          "response",
+          "peer_ip",
+          "elapsed_ms"
+        ],
         "properties": {
-          "n": { "type": "integer", "minimum": 1 },
-          "role": { "enum": ["baseline", "probe", "control", "readback"] },
-          "account": { "type": ["string", "null"] },
-          "note": { "type": "string" },
+          "n": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "role": {
+            "enum": [
+              "baseline",
+              "probe",
+              "control",
+              "readback"
+            ]
+          },
+          "account": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "note": {
+            "type": "string"
+          },
           "request": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["url", "method"],
+            "required": [
+              "method"
+            ],
             "properties": {
-              "url": { "type": "string" },
-              "method": { "type": "string" },
-              "headers": { "type": "object", "additionalProperties": { "type": "string" } },
-              "body": { "type": ["string", "null"] },
-              "body_sha256": { "type": ["string", "null"] }
+              "method": {
+                "type": "string"
+              },
+              "path_rendered": {
+                "type": "string",
+                "description": "本地留档；导出时整字段删除；不参与 self_sha256（06 §3）"
+              },
+              "path_rendered_sha256": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "headers": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "body": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "body_sha256": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
             }
           },
           "response": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["status"],
+            "required": [
+              "status"
+            ],
             "properties": {
-              "status": { "type": "integer" },
-              "length": { "type": "integer" },
-              "content_type": { "type": "string" },
-              "body_sha256": { "type": "string" },
-              "body_excerpt_b64": { "type": "string" },
-              "excerpt_truncated": { "type": "boolean" },
-              "location": { "type": ["string", "null"] }
+              "status": {
+                "type": "integer"
+              },
+              "length": {
+                "type": "integer"
+              },
+              "content_type": {
+                "type": "string"
+              },
+              "body_sha256": {
+                "type": "string"
+              },
+              "body_excerpt_b64": {
+                "type": "string"
+              },
+              "excerpt_truncated": {
+                "type": "boolean"
+              },
+              "location": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "persisted_ref": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "截断后完整内容的落盘引用（不是绝对路径）"
+              },
+              "persisted_size": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "return_code_semantics": {
+                "enum": [
+                  "ok",
+                  "no_match",
+                  "partial",
+                  "denied",
+                  null
+                ],
+                "description": "非错误退出码的语义"
+              }
             }
           },
-          "peer_ip": { "type": "string" },
-          "elapsed_ms": { "type": "integer", "minimum": 0 },
-          "err": { "type": ["string", "null"] }
+          "peer_ip": {
+            "type": "string"
+          },
+          "elapsed_ms": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "err": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "route_ref": {
+            "type": "string",
+            "pattern": "^route://(contract|observed|crawl|probe|operator)/[a-f0-9]{16}$"
+          }
         }
       }
     },
-
     "assertion": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "statement", "expected", "observed", "fingerprint"],
+      "required": [
+        "kind",
+        "statement",
+        "expected",
+        "observed",
+        "fingerprint"
+      ],
       "properties": {
-        "kind": { "enum": ["differential", "cross_account", "oob", "replay", "structural"] },
-        "statement": { "type": "string", "minLength": 8 },
-        "expected": { "type": "object" },
-        "observed": { "type": "object" },
-        "fingerprint": { "type": "object" }
+        "kind": {
+          "enum": [
+            "differential",
+            "cross_account",
+            "oob",
+            "replay",
+            "structural"
+          ]
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 8
+        },
+        "expected": {
+          "type": "object"
+        },
+        "observed": {
+          "type": "object"
+        },
+        "fingerprint": {
+          "type": "object"
+        }
       }
     },
-
-    "verdict": { "enum": ["VERIFIED", "REFUTED", "INCONCLUSIVE", "BLOCKED"] },
-    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
-    "confidence_rule": { "type": "string", "minLength": 3 },
-
+    "verdict": {
+      "enum": [
+        "VERIFIED",
+        "REFUTED",
+        "INCONCLUSIVE",
+        "BLOCKED"
+      ]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "confidence_rule": {
+      "type": "string",
+      "minLength": 3
+    },
     "redaction": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["policy", "fields", "secrets_in_vault"],
+      "required": [
+        "policy",
+        "fields",
+        "secrets_in_vault"
+      ],
       "properties": {
-        "policy": { "const": "pii-min" },
-        "fields": { "type": "array", "items": { "type": "string" } },
-        "secrets_in_vault": { "type": "array", "items": { "type": "string", "pattern": "^vault://" } }
+        "policy": {
+          "const": "pii-min"
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "secrets_in_vault": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^vault://"
+          }
+        }
       }
     },
-
     "chain": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["prev_sha256", "self_sha256"],
+      "required": [
+        "prev_sha256",
+        "self_sha256"
+      ],
       "properties": {
-        "prev_sha256": { "type": ["string", "null"], "pattern": "^sha256:[a-f0-9]{64}$" },
-        "self_sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+        "prev_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "self_sha256": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+      }
+    },
+    "route": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "routeset_sha256",
+        "ref",
+        "source",
+        "confidence",
+        "template_sha256",
+        "resolver_version",
+        "resolved_at"
+      ],
+      "properties": {
+        "routeset_sha256": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "ref": {
+          "type": "string",
+          "pattern": "^route://(contract|observed|crawl|probe|operator)/[a-f0-9]{16}$"
+        },
+        "source": {
+          "enum": [
+            "contract",
+            "observed",
+            "crawl",
+            "probe",
+            "operator"
+          ]
+        },
+        "sources_all": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "contract",
+              "observed",
+              "crawl",
+              "probe",
+              "operator"
+            ]
+          }
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "template_sha256": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "resolver_version": {
+          "type": "string",
+          "pattern": "^d+.d+.d+$"
+        },
+        "resolved_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "ttl_s": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "discovery_evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "route_strength": {
+      "enum": [
+        "observed",
+        "operator",
+        "contract",
+        "crawl",
+        "probe"
+      ],
+      "description": "判定依赖的最弱绑定档；crawl/probe 不得配 high/critical（09 §3.1）"
+    }
+  },
+  "description": "v1.1 新增 route 块（地址从哪解析来）与 route_strength（判定所依赖的最弱绑定档）。path_rendered 不参与哈希，导出时整字段删除（06 §2.2/§3）。",
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "capsule_version": {
+            "const": "1.1"
+          }
+        },
+        "required": [
+          "capsule_version"
+        ]
+      },
+      "then": {
+        "required": [
+          "route",
+          "route_strength"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "route_strength": {
+            "enum": [
+              "crawl",
+              "probe"
+            ]
+          }
+        },
+        "required": [
+          "route_strength"
+        ]
+      },
+      "then": {
+        "not": {
+          "properties": {
+            "confidence": {
+              "minimum": 0.9
+            }
+          },
+          "required": [
+            "confidence"
+          ]
+        },
+        "description": "弱绑定不得给高置信度（防止弱证据说大话）"
       }
     }
-  }
+  ]
 }

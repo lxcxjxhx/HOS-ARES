@@ -1,0 +1,33 @@
+# 本地/内网编排（B1 最小面；redis/postgres 在 B2/B3 引入）
+#
+# 纪律：本文件不含地址。监听地址与端口由 .env 注入（见 .env.example），
+# 服务间用 compose 服务名互访，不写回环或公网 literal。
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      VERIPEN_DB: ${VERIPEN_DB:-out/veripen.db}
+      VERIPEN_BIND_HOST: ${VERIPEN_BIND_HOST:?需要在 .env 提供 VERIPEN_BIND_HOST}
+      VERIPEN_BIND_PORT: ${VERIPEN_BIND_PORT:?需要在 .env 提供 VERIPEN_BIND_PORT}
+      OPS_TASK_SUBMIT: ${OPS_TASK_SUBMIT:?缺 OPS_TASK_SUBMIT}
+      OPS_TASK_GET: ${OPS_TASK_GET:?缺 OPS_TASK_GET}
+      OPS_HEALTHZ: ${OPS_HEALTHZ:?缺 OPS_HEALTHZ}
+      OPS_READYZ: ${OPS_READYZ:?缺 OPS_READYZ}
+    command:
+      - sh
+      - -c
+      - exec python -m uvicorn api.app:build_default_app --factory --host "$$VERIPEN_BIND_HOST" --port "$$VERIPEN_BIND_PORT"
+    ports:
+      - "${VERIPEN_PUBLISH_PORT:?需要在 .env 提供 VERIPEN_PUBLISH_PORT}:${VERIPEN_BIND_PORT}"
+    volumes:
+      - ./out:/srv/out
+    restart: unless-stopped
+
+  # 占位：B2 调度需要租约与授时，届时解除注释并补健康检查
+  # redis:
+  #   image: redis:7-alpine
+  #   command: ["redis-server", "--appendonly", "yes"]
+  #   volumes: ["./out/redis:/data"]

@@ -1,0 +1,20 @@
+{
+  "product": "morluto/rea",
+  "slug": "rea",
+  "local_source": "vendor/rea",
+  "commit": "250dc81cd6b887f41a4078b65ca7a78628d1c541",
+  "branch": "main",
+  "tarball_sha256": "7dee3a8e50cd3ba92fbbf5d9b56be5f95ed51abf54466883812855a7cb4d8a10",
+  "license": "MIT",
+  "language": "TypeScript",
+  "role": "reverse-engineering-workbench",
+  "analyzed_faces": [
+    "F1",
+    "F6"
+  ],
+  "why": "REA 本身是逆向工作台（MCP server 形态），既是待移植的取证/逆向能力，也是做其它目标逆向时的分析工具。抽取面 F1(工具/权限门控) F6(证据与可复现)，并作为本项目 REA 工作台运行的底座。",
+  "analysis_date": "2026-10-30",
+  "status": "source-pinned",
+  "confidence": "observed(identity)",
+  "isolation": "plan-veripen/28 Q1-Q4"
+}

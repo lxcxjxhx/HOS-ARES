@@ -23,3 +23,6 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# 生态源码（体积大，按 vendor.lock.json 用 scripts/vendor-fetch.sh 复现）
+/vendor/
