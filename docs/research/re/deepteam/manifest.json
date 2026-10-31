@@ -1,0 +1,19 @@
+{
+  "product": "confident-ai/deepteam",
+  "slug": "deepteam",
+  "local_source": "vendor/deepteam",
+  "commit": "6306f0ff319a932955399405af82f78ee91e9370",
+  "branch": "main",
+  "tarball_sha256": "729c00464036f03234bcac6cbdbc21e866e21d527b88eda5a62a38a892af2802",
+  "license": "Apache-2.0",
+  "language": "Python",
+  "role": "vuln-type-library",
+  "analyzed_faces": [
+    "F5"
+  ],
+  "why": "50+ 漏洞类型库 + 评分器。参考漏洞分类法，补充 18 目录的分类维度，不引入依赖。",
+  "analysis_date": "2026-10-30",
+  "status": "source-pinned",
+  "confidence": "observed(identity)",
+  "isolation": "plan-veripen/28 Q1-Q4"
+}

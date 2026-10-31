@@ -1,0 +1,43 @@
+# 传输层绑定（24 §3）
+#
+# 本文件**不含地址**：只有 op_id → (method, path_key)。
+# path_key 指向部署环境变量名，真正的路径值由部署注入（.env，不进 git）。
+# 因此本文件可以进 git、可以给客户看、可以通过 lint-noroute。
+#
+# 校验：make bindings-check
+version: 1
+api_version: v1
+
+ops:
+  # 2.1 任务
+  task.submit:       {transport: http, method: POST, path_key: OPS_TASK_SUBMIT}
+  task.get:          {transport: http, method: GET,  path_key: OPS_TASK_GET}
+  task.list:         {transport: http, method: GET,  path_key: OPS_TASK_LIST}
+  task.cancel:       {transport: http, method: POST, path_key: OPS_TASK_CANCEL}
+  task.requeue:      {transport: http, method: POST, path_key: OPS_TASK_REQUEUE}
+
+  # 2.2 发现与证据
+  finding.list:      {transport: http, method: GET,  path_key: OPS_FINDING_LIST}
+  finding.get:       {transport: http, method: GET,  path_key: OPS_FINDING_GET}
+  finding.feedback:  {transport: http, method: POST, path_key: OPS_FINDING_FEEDBACK}
+  capsule.get:       {transport: http, method: GET,  path_key: OPS_CAPSULE_GET}
+  capsule.download:  {transport: http, method: GET,  path_key: OPS_CAPSULE_DOWNLOAD}
+  capsule.replay:    {transport: http, method: POST, path_key: OPS_CAPSULE_REPLAY}
+
+  # 2.3 路由
+  route.discover:    {transport: http, method: POST, path_key: OPS_ROUTE_DISCOVER}
+  route.list:        {transport: http, method: GET,  path_key: OPS_ROUTE_LIST}
+  route.explain:     {transport: http, method: GET,  path_key: OPS_ROUTE_EXPLAIN}
+  route.diff:        {transport: http, method: GET,  path_key: OPS_ROUTE_DIFF}
+
+  # 2.4 审批
+  approval.list:     {transport: http, method: GET,  path_key: OPS_APPROVAL_LIST}
+  approval.decide:   {transport: http, method: POST, path_key: OPS_APPROVAL_DECIDE}
+
+  # 2.5 观测与运维
+  stats.task:        {transport: http, method: GET,  path_key: OPS_STATS_TASK}
+  stats.engagement:  {transport: http, method: GET,  path_key: OPS_STATS_ENGAGEMENT}
+  coverage:          {transport: http, method: GET,  path_key: OPS_COVERAGE}
+  bounds:            {transport: http, method: GET,  path_key: OPS_BOUNDS}
+  healthz:           {transport: http, method: GET,  path_key: OPS_HEALTHZ}
+  readyz:            {transport: http, method: GET,  path_key: OPS_READYZ}

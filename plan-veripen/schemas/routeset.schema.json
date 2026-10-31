@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veripen.invalid/schemas/routeset-v1.json",
+  "title": "VeriPen RouteSet v1",
+  "description": "一次 route_discovery 的不可变结果集（27 §3）。内容寻址；template 只在 out/routes/<sha>.json 里，导出时剥离。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["routeset_sha256", "resolver_version", "asset_id", "query_hash", "created_at", "bindings"],
+  "properties": {
+    "routeset_sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "resolver_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "asset_id": { "type": "string", "minLength": 1 },
+    "query_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "description": "sha256(canonical_json(RouteQuery))；同一查询两次必须相同（N6）"
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "expires_at": { "type": "string", "format": "date-time" },
+    "sources_used": {
+      "type": "array",
+      "items": { "enum": ["contract", "observed", "crawl", "probe", "operator"] }
+    },
+    "unresolved": {
+      "type": "array",
+      "description": "解析失败的选择器；存在即为『未覆盖』，不得静默忽略",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["selector", "reason"],
+        "properties": {
+          "selector": { "type": "string" },
+          "reason": {
+            "enum": ["no_source", "no_candidate", "below_threshold", "contract_unreachable"]
+          }
+        }
+      }
+    },
+    "bindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ref", "source", "confidence", "template_sha256", "semantic_tags", "ttl_s"
+        ],
+        "properties": {
+          "ref": {
+            "type": "string",
+            "pattern": "^route://(contract|observed|crawl|probe|operator)/[a-f0-9]{16}$"
+          },
+          "source": { "enum": ["contract", "observed", "crawl", "probe", "operator"] },
+          "sources_all": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "enum": ["contract", "observed", "crawl", "probe", "operator"] }
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "由来源等级 + 佐证数算出，不允许硬编码（27 §3.3）"
+          },
+          "template_sha256": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$",
+            "description": "模板正文不在此；只以哈希参与排序与漂移检测"
+          },
+          "method": { "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"] },
+          "semantic_tags": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "enum": [
+                "object_read", "object_list", "admin_function", "normal_function",
+                "param_injectable", "url_fetch", "file_read", "redirect_entry",
+                "echo_param", "token_issue", "protected_read",
+                "profile_write", "profile_read", "rate_sensitive",
+                "content_write", "content_read", "api_read", "graphql_endpoint"
+              ]
+            }
+          },
+          "auth_requirement": {
+            "enum": ["none", "primary", "secondary", "mtls", "oauth2", "session_cookie"]
+          },
+          "ttl_s": { "type": "integer", "minimum": 1, "maximum": 86400 },
+          "discovery_evidence_ids": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^ev_[a-f0-9]{64}$" }
+          }
+        }
+      }
+    }
+  }
+}

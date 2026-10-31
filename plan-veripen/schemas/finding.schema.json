@@ -1,11 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veripen.local/schemas/finding-v1.json",
-  "title": "VeriPen Finding v1",
+  "$id": "https://veripen.invalid/schemas/finding-v2.json",
+  "title": "VeriPen Finding v2",
+  "description": "v2：新增 route_ref / route_strength / route_source，并把『弱绑定不得标高危』做成 schema 约束（09 §3.1）。",
   "type": "object",
   "additionalProperties": false,
   "required": ["id", "task_id", "asset_id", "oracle_id", "oracle_version", "title",
-               "severity", "confidence", "cwe", "state", "created_at"],
+               "severity", "confidence", "cwe", "state", "route_strength", "created_at"],
   "properties": {
     "id": { "type": "string", "minLength": 1 },
     "task_id": { "type": "string", "minLength": 1 },
@@ -17,19 +18,60 @@
     "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
     "cwe": { "type": "string", "pattern": "^CWE-\\d+$" },
     "state": { "enum": ["CANDIDATE", "VERIFIED", "REFUTED", "UNVERIFIABLE", "BLOCKED"] },
+
+    "route_ref": {
+      "type": ["string", "null"],
+      "pattern": "^route://(contract|observed|crawl|probe|operator)/[a-f0-9]{16}$",
+      "description": "报告只显示前 8 位；不存模板正文"
+    },
+    "route_source": {
+      "enum": ["contract", "observed", "crawl", "probe", "operator", null]
+    },
+    "route_strength": {
+      "enum": ["observed", "operator", "contract", "crawl", "probe"],
+      "description": "判定依赖的最弱绑定档"
+    },
+
     "capsule_id": { "type": ["string", "null"], "pattern": "^sha256:[a-f0-9]{64}$" },
     "param_signature": { "type": "string" },
-    "replay_status": { "enum": ["NEVER", "REPLAYED_OK", "REPLAYED_PARTIAL", "ASSERTION_NOT_REPRODUCED", "REPLAY_BLOCKED"] },
+    "replay_status": {
+      "enum": ["NEVER", "REPLAYED_OK", "REPLAYED_PARTIAL", "ASSERTION_NOT_REPRODUCED",
+               "REPLAY_BLOCKED", "REPLAY_ROUTE_UNRESOLVED", "REPLAY_ROUTE_DRIFT"]
+    },
     "created_at": { "type": "string", "format": "date-time" }
   },
   "allOf": [
     {
       "if": { "properties": { "state": { "const": "VERIFIED" } }, "required": ["state"] },
-      "then": { "required": ["capsule_id"], "properties": { "capsule_id": { "type": "string" } } }
+      "then": {
+        "required": ["capsule_id"],
+        "properties": { "capsule_id": { "type": "string" } }
+      }
     },
     {
-      "if": { "properties": { "state": { "const": "BLOCKED" } }, "required": ["state"] },
-      "then": { "properties": { "capsule_id": { "type": ["string", "null"] } } }
+      "comment": "弱绑定不得标高危：把措辞纪律变成 schema 约束（09 §3.1）",
+      "if": {
+        "properties": { "route_strength": { "enum": ["crawl", "probe"] } },
+        "required": ["route_strength"]
+      },
+      "then": {
+        "properties": { "severity": { "enum": ["info", "low", "medium"] } }
+      }
+    },
+    {
+      "comment": "VERIFIED 的发现必须能说清地址来源",
+      "if": { "properties": { "state": { "const": "VERIFIED" } }, "required": ["state"] },
+      "then": { "required": ["route_ref", "route_source"] }
+    },
+    {
+      "comment": "两个路由态只允许出现在 replay_status，不得伪装成 FAILED",
+      "if": {
+        "properties": { "replay_status": { "enum": ["REPLAY_ROUTE_UNRESOLVED", "REPLAY_ROUTE_DRIFT"] } },
+        "required": ["replay_status"]
+      },
+      "then": {
+        "properties": { "state": { "enum": ["VERIFIED", "CANDIDATE"] } }
+      }
     }
   ]
 }

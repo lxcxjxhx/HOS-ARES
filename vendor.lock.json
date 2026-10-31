@@ -1,0 +1,97 @@
+{
+  "schema": "hos-ares.vendor-lock/v1",
+  "generated": "2026-10-30",
+  "note": "生态源码只用于结构研究与移植参考（plan-veripen/28 隔离铁律 Q1-Q4）。源码不入 git，按本文件用 scripts/vendor-fetch.sh 复现。",
+  "targets": [
+    {
+      "slug": "rea",
+      "repo": "morluto/rea",
+      "branch": "main",
+      "commit": "250dc81cd6b887f41a4078b65ca7a78628d1c541",
+      "license": "MIT",
+      "lang": "TypeScript",
+      "role": "reverse-engineering-workbench",
+      "why": "REA 本身是逆向工作台（MCP server 形态），既是待移植的取证/逆向能力，也是做其它目标逆向时的分析工具。抽取面 F1(工具/权限门控) F6(证据与可复现)，并作为本项目 REA 工作台运行的底座。"
+    },
+    {
+      "slug": "strix",
+      "repo": "usestrix/strix",
+      "branch": "main",
+      "commit": "6b7ae2ebe4d47037a927aade23265ff4e4f27e84",
+      "license": "Apache-2.0",
+      "lang": "Python",
+      "role": "pentest-agent-reference",
+      "why": "最直接对标的开源自主渗透 Agent。抽 F1 工具注册/审批门控、F3 planner/executor 分层、F6 PoC 验证与对照缺失。借鉴 output_store head+tail、BudgetPolicy pause。"
+    },
+    {
+      "slug": "promptfoo",
+      "repo": "promptfoo/promptfoo",
+      "branch": "main",
+      "commit": "70296a6801754528bbbcffc859f206e5051588d7",
+      "license": "MIT",
+      "lang": "TypeScript",
+      "role": "eval-harness",
+      "why": "配置即用例（YAML）+ OWASP/MITRE 映射 + 多模型对比。借鉴 cases.yaml 组织与 redteam provider/grading 结构，作 B12 bench 与 10 评测协议的结构参考。"
+    },
+    {
+      "slug": "garak",
+      "repo": "NVIDIA/garak",
+      "branch": "main",
+      "commit": "4b7761c2108446043012549cbe8f7c942cabb26d",
+      "license": "Apache-2.0",
+      "lang": "Python",
+      "role": "llm-probe-catalog",
+      "why": "100+ 探针目录。作为 18 标签字典/用例集的补充来源（探针→标签映射），不引入运行时依赖。"
+    },
+    {
+      "slug": "ai-infra-guard",
+      "repo": "Tencent/AI-Infra-Guard",
+      "branch": "main",
+      "commit": "851e3f295031fbec30f893085eb99ac6b0945ed1",
+      "license": "Apache-2.0",
+      "lang": "Python",
+      "role": "agent-mcp-skills-scanner",
+      "why": "Agent/Skills/MCP/基础设施 CVE 扫描。参照其 MCP 暴露面扫描与 jailbreak 评估结构，对应 24 服务 API 与 05 智能体自身安全。"
+    },
+    {
+      "slug": "pyrit",
+      "repo": "microsoft/PyRIT",
+      "branch": "main",
+      "commit": "6d225660885680659d9838f073d382a2334c8300",
+      "license": "MIT",
+      "lang": "Python",
+      "role": "multi-turn-attack-orchestration",
+      "why": "Crescendo/TAP 多轮攻击编排 + converter/scorer 抽象。借鉴 orchestrator 的 converter/scorer 分离，作 08 agent 循环多轮策略参考（打模型，不直接打业务）。"
+    },
+    {
+      "slug": "deepteam",
+      "repo": "confident-ai/deepteam",
+      "branch": "main",
+      "commit": "6306f0ff319a932955399405af82f78ee91e9370",
+      "license": "Apache-2.0",
+      "lang": "Python",
+      "role": "vuln-type-library",
+      "why": "50+ 漏洞类型库 + 评分器。参考漏洞分类法，补充 18 目录的分类维度，不引入依赖。"
+    },
+    {
+      "slug": "cyber-harness",
+      "repo": "chainreactors/cyber-harness",
+      "branch": "master",
+      "commit": "89f8af5ea2f478bf96eedc8f1b6ba8401ce28853",
+      "license": "AGPL-3.0",
+      "lang": "Go",
+      "role": "cyber-agent-harness",
+      "why": "同为 cyber 场景通用 Agent Harness，扩展式架构（aiscan/cyber-audit），可能比 Strix 更贴我们。读其扩展点/工具总线设计，重点 F1/F3。AGPL: 只读结构，不复制代码。"
+    },
+    {
+      "slug": "wshobson-agents",
+      "repo": "wshobson/agents",
+      "branch": "main",
+      "commit": "0874a27b17a22e2b7c2e2bcd725768e0803cad06",
+      "license": "MIT",
+      "lang": "Markdown",
+      "role": "skill-library",
+      "why": "技能库：为开发过程提供 code-review/debugging/security/testing/agent-orchestration 等可复用 skill，降低常见开发与规划问题。经 scripts/sync-skills.sh 挑选同步到 .dsh/skills。"
+    }
+  ]
+}

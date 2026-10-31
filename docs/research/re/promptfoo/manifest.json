@@ -1,0 +1,19 @@
+{
+  "product": "promptfoo/promptfoo",
+  "slug": "promptfoo",
+  "local_source": "vendor/promptfoo",
+  "commit": "70296a6801754528bbbcffc859f206e5051588d7",
+  "branch": "main",
+  "tarball_sha256": "b0eba5346def2ddd6ce75e4a7544534588eedfe3c8fa6fa18ea0eee2de62c86e",
+  "license": "MIT",
+  "language": "TypeScript",
+  "role": "eval-harness",
+  "analyzed_faces": [
+    "F5"
+  ],
+  "why": "配置即用例（YAML）+ OWASP/MITRE 映射 + 多模型对比。借鉴 cases.yaml 组织与 redteam provider/grading 结构，作 B12 bench 与 10 评测协议的结构参考。",
+  "analysis_date": "2026-10-30",
+  "status": "source-pinned",
+  "confidence": "observed(identity)",
+  "isolation": "plan-veripen/28 Q1-Q4"
+}

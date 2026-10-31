@@ -1,0 +1,19 @@
+{
+  "product": "microsoft/PyRIT",
+  "slug": "pyrit",
+  "local_source": "vendor/pyrit",
+  "commit": "6d225660885680659d9838f073d382a2334c8300",
+  "branch": "main",
+  "tarball_sha256": "8b6f6d157d4361c486c978aae632a3ebce4b2bd68790499125c98a9dbaf9ab3b",
+  "license": "MIT",
+  "language": "Python",
+  "role": "multi-turn-attack-orchestration",
+  "analyzed_faces": [
+    "F3"
+  ],
+  "why": "Crescendo/TAP 多轮攻击编排 + converter/scorer 抽象。借鉴 orchestrator 的 converter/scorer 分离，作 08 agent 循环多轮策略参考（打模型，不直接打业务）。",
+  "analysis_date": "2026-10-30",
+  "status": "source-pinned",
+  "confidence": "observed(identity)",
+  "isolation": "plan-veripen/28 Q1-Q4"
+}

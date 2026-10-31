@@ -1,0 +1,24 @@
+{
+  "now": 100,
+  "candidates": [
+    {
+      "method": "GET",
+      "template_key": "user_by_id",
+      "param_names": [
+        "id"
+      ],
+      "source": "contract",
+      "verifications": 0
+    },
+    {
+      "method": "GET",
+      "template_key": "user_by_id",
+      "param_names": [
+        "id"
+      ],
+      "source": "observed",
+      "verifications": 1
+    }
+  ],
+  "recorded_routeset_sha256": "612ca31fdbb964a28bf436befc0f3613bf2b496c97cf9f7b92fcc6b4d5c87406"
+}

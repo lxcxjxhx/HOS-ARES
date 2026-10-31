@@ -1,0 +1,19 @@
+{
+  "product": "NVIDIA/garak",
+  "slug": "garak",
+  "local_source": "vendor/garak",
+  "commit": "4b7761c2108446043012549cbe8f7c942cabb26d",
+  "branch": "main",
+  "tarball_sha256": "b4f92169eae5af3f229502916e1f9ebedd9ee8a33fd4f5246d361ab857813d0a",
+  "license": "Apache-2.0",
+  "language": "Python",
+  "role": "llm-probe-catalog",
+  "analyzed_faces": [
+    "F5"
+  ],
+  "why": "100+ 探针目录。作为 18 标签字典/用例集的补充来源（探针→标签映射），不引入运行时依赖。",
+  "analysis_date": "2026-10-30",
+  "status": "source-pinned",
+  "confidence": "observed(identity)",
+  "isolation": "plan-veripen/28 Q1-Q4"
+}
