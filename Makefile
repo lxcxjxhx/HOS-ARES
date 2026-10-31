@@ -54,3 +54,9 @@ takeover-test:
 	$(PY) -m pytest tests/integration/test_worker_takeover.py -q
 
 b2: schedule-test takeover-test types-check lint
+
+# B3 guard
+guard-test:
+	$(PY) -m pytest tests/unit/test_guard.py -q
+
+b3: guard-test types-check lint
