@@ -42,7 +42,13 @@ CODE_EXT = {
 MAX_ALLOWLIST = 6
 
 #: 录制夹具整目录豁免：夹具存的就是“录下来的真实模板”，不是可复制进代码的路由
-EXEMPT_PREFIXES = ("tests/fixtures", "tests/routes/fixtures")
+EXEMPT_PREFIXES = (
+    "tests/fixtures",
+    "tests/routes/fixtures",
+    # 靶场：B5 起的本地被测应用必须写出它自己的端点表（这是"被测对象"，不是"我们的路由"）。
+    # 产品代码仍然零模板；此处豁免仅在 tests/lab 内生效。
+    "tests/lab",
+)
 
 RE_PATH = re.compile(r"""(?P<q>['"])(?P<v>/[^'"\n]*)(?P=q)""")
 RE_URL = re.compile(r"""[a-zA-Z][a-zA-Z0-9+.\-]*://""")

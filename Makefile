@@ -5,7 +5,7 @@
 PY ?= python
 PKG_DIRS := veripen_core veripen_oracles veripen_contract api worker web tests
 
-.PHONY: help test bindings-check lint-noroute lint-nodata-stub lint b1 b4
+.PHONY: help test bindings-check lint-noroute lint-nodata-stub lint b1 b4 b5
 
 help:
 	@echo "make test             运行 B1 契约测试"
@@ -42,7 +42,7 @@ lint-netimports:
 	$(PY) scripts/lint/netimports.py
 
 types-check:
-	$(PY) -m mypy --strict veripen_core/
+	$(PY) -m mypy --strict veripen_core/ worker/ veripen_oracles/
 
 b1.5: routes-l0 routes-contract lint-netimports types-check lint
 
@@ -89,3 +89,19 @@ replay-offline:
 	$(PY) -m veripen_core.evidence --offline-fixture $(CAPSULE)/*.json
 
 b4: evidence-test replay-order-test replay-partial-test evidence-acceptance evidence-demo verify-chain verify-capsule types-check lint
+
+# B5 TierA×4 + OOB（本地靶场，零 socket）
+oracle-test:
+	$(PY) -m pytest tests/unit/test_oracle_tierA.py tests/unit/test_oracle_framework.py -q
+
+oob-test:
+	$(PY) -m pytest tests/unit/test_oob.py tests/lab/test_listener.py -q
+
+oracle-cases:
+	$(PY) -m pytest tests/unit/test_oracle_cases.py -q
+
+# 不碰内核：B5 的硬门（21 §2 B5）
+core-untouched:
+	@test -z "$$(git diff --stat -- veripen_core/)" || (echo "veripen_core/ 被改动：B5 不许碰内核"; git diff --stat -- veripen_core/; exit 1)
+
+b5: oracle-test oob-test oracle-cases core-untouched types-check lint
