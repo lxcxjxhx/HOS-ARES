@@ -23,12 +23,24 @@ from .common.harness import (
 )
 
 #: 全部已注册 oracle（B5 的 4 类 + B6 的 2 类）；B7 起继续追加
-from . import tierA, tierA_rest  # noqa: E402
+from . import tierA, tierA_rest, tierB  # noqa: E402
 
 TIER_A: tuple[type[BaseOracle], ...] = tierA.REGISTRY + (
     tierA_rest.OpenRedirect,
     tierA_rest.PathTraversal,
 )
+
+#: B 档 5 类（需要多步骤/多角色；写操作与并发类默认关闭）
+TIER_B: tuple[type[BaseOracle], ...] = (
+    tierB.SqliErrorBased,
+    tierB.BolaFunctional,
+    tierB.XssReflectedCtx,
+    tierB.MassAssignment,
+    tierB.RateLimitAbsent,
+)
+
+#: 全部已注册 oracle
+ALL_ORACLES: tuple[type[BaseOracle], ...] = TIER_A + TIER_B
 
 __all__ = [
     "BaseOracle",
@@ -43,7 +55,10 @@ __all__ = [
     "pair_up",
     "run",
     "three_way_holds",
+    "ALL_ORACLES",
     "TIER_A",
+    "TIER_B",
     "tierA",
     "tierA_rest",
+    "tierB",
 ]

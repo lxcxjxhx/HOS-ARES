@@ -12,13 +12,13 @@ from pathlib import Path
 import pytest
 from conftest import Lab
 
-from veripen_oracles import TIER_A
+from veripen_oracles import ALL_ORACLES
 from veripen_oracles.common.harness import run
 from veripen_core.models import Verdict
 
 def _by_id(oracle_id: str, **params: object) -> object:
     """按 id 构造（覆盖已注册的全部档位，不只 TierA 前 4 类）。"""
-    for cls in TIER_A:
+    for cls in ALL_ORACLES:
         if cls.meta.id == oracle_id:
             model = cls.params_model
             return cls(params=model(**params)) if model is not None else cls()
@@ -28,12 +28,13 @@ def _by_id(oracle_id: str, **params: object) -> object:
 CASES_PATH = Path(__file__).resolve().parents[2] / "veripen_oracles" / "cases" / "tierA.json"
 CASES: dict = json.loads(CASES_PATH.read_text(encoding="utf-8"))
 
-LABS = {
-    "vulnerable": Lab(secure=False),
-    "hardened": Lab(secure=True),
-    "degenerate": Lab(secure=False),
-}
-LABS["degenerate"].app.degenerate = True
+def _lab(kind: str) -> Lab:
+    """每次现造：写操作类（mass_assignment）会改 app.state，靶场实例不能跨用例共享。"""
+    if kind == "degenerate":
+        lab = Lab(secure=False)
+        lab.app.degenerate = True
+        return lab
+    return Lab(secure=(kind == "hardened"))
 
 TAG = {
     "sqli_bool_diff": "param_injectable",
@@ -42,6 +43,17 @@ TAG = {
     "jwt_replay": "protected_read",
     "open_redirect": "redirect_entry",
     "path_traversal": "file_read",
+    # B7
+    "sqli_error_based": "param_injectable",
+    "bola_functional": "admin_function",
+    "xss_reflected_ctx": "echo_param",
+    "mass_assignment": "profile_write",
+}
+
+#: 需要第二条绑定的 oracle（写+回读 / 管理面+普通面）
+EXTRA_TAGS = {
+    "bola_functional": ("normal_function",),
+    "mass_assignment": ("profile_read",),
 }
 
 ENTRIES = [
@@ -69,19 +81,22 @@ def test_matrix_shape() -> None:
     ids=[f"{o}-{k}-{c['case']}" for o, k, c in ENTRIES],
 )
 def test_case_matrix(oracle_id: str, kind: str, case: dict) -> None:
-    lab = LABS[case.get("lab", "vulnerable" if kind == "positive" else "hardened")]
+    lab = _lab(case.get("lab", "vulnerable" if kind == "positive" else "hardened"))
     params = dict(case.get("params", {}))
     nonce = params.pop("nonce", "")
     repeat = params.pop("repeat", None)
     oracle = _by_id(oracle_id, **params)
+    tags = (TAG[oracle_id], *EXTRA_TAGS.get(oracle_id, ()))
+    bmap = {t: lab.binding(t) for t in tags}
     result = run(
         oracle,
-        lab.binding(TAG[oracle_id]),
+        bmap[tags[0]],
         lab.transport,
         symbols=lab.symbols,
         nonce=nonce,
         repeat=repeat,
         token=lab.token,
+        bindings=bmap,
     )
     expected = case["expect"]
     if expected == "VERIFIED":

@@ -49,6 +49,7 @@ class Lab:
 
 @pytest.fixture()
 def vulnerable() -> Lab:
+    # 每个用例一份全新的靶场：写操作类会改 app.state，夹具不能共用实例
     return Lab(secure=False)
 
 

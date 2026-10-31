@@ -79,6 +79,12 @@ class Variant:
     headers: Mapping[str, str] = field(default_factory=dict)
     #: 用哪个账号身份发（符号名，如 OWNER/STRANGER）；空 = 由角色默认
     account: str = ""
+    #: 追加的字段（批量赋值/原型污染那类"新增"而不是"改值"）。
+    #: Transform 只改已有参数的值，表达不了"多塞一个字段"——这是 B7 暴露的规格缺口。
+    extra_params: Mapping[str, str] = field(default_factory=dict)
+    #: 打哪个绑定（selector 标签）；空 = 主绑定。
+    #: B7 起必须：BOLA 要 admin_function/normal_function 两条，mass_assignment 要 write+read 两条。
+    binding_tag: str = ""
 
 
 # ── nonce 与符号表（07 §0.4）────────────────────────────────────────
@@ -176,6 +182,8 @@ class Pair:
     baseline: Trace
     trace: Trace
     repeats: tuple[Trace, ...] = ()
+    #: 实际发出去的参数（nonce 已求值）——judge 必须按真值判，不能从模板反推
+    sent: Mapping[str, str] = field(default_factory=dict)
 
     @property
     def role(self) -> str:
@@ -218,6 +226,9 @@ class Pair:
         if expect == "redirects_out":
             # 跳转型的探针：必须真的跳出（3xx + Location 带 host）
             return self.trace.status in REDIRECT_CODES and _location_host(self.trace) != ""
+        if expect == "any_response":
+            # 报错型：探针"跑成了"包括 5xx —— 错误页本身就是证据
+            return self.trace.error is None and self.trace.status != 0
         if expect == "fingerprint_hit":
             # 指纹型的探针：框架只要求"探针跑成了"；**指纹匹配由 judge 判**。
             # 别把指纹库塞进框架——否则框架就开始"认识业务"了（07 §0.2.2）。
@@ -229,8 +240,16 @@ class Pair:
         return self.variant.expect == "deny" and self.trace.status in (400, 401, 403, 404)
 
 
-def pair_up(baseline: Trace, traces: Sequence[tuple[Variant, Trace, tuple[Trace, ...]]]) -> list[Pair]:
-    return [Pair(variant=v, baseline=baseline, trace=t, repeats=rs) for v, t, rs in traces]
+def pair_up(
+    baseline: Trace,
+    traces: Sequence[tuple[Variant, Trace, tuple[Trace, ...]]],
+    sent: Sequence[Mapping[str, str]] | None = None,
+) -> list[Pair]:
+    return [
+        Pair(variant=v, baseline=baseline, trace=t, repeats=rs,
+             sent=(sent[i] if sent is not None and i < len(sent) else {}))
+        for i, (v, t, rs) in enumerate(traces)
+    ]
 
 
 # ── 三条件独立复算（框架级，不复用 oracle 的 judge，07 §0.2.2）─────
@@ -287,10 +306,22 @@ def run(
     nonce: str | None = None,
     repeat: int | None = None,
     token: str | None = None,
+    bindings: Mapping[str, Any] | None = None,
 ) -> RunResult:
     """14 类共用的流程。五处由框架做，oracle 不许绕过。"""
     symbols = symbols or SymbolTable()
     nonce_obj = Nonce(nonce)
+    # tag → binding；主绑定是 oracle 第一个 selector 标签
+    table: dict[str, Any] = dict(bindings or {})
+    primary_tag = oracle.selector_tags[0] if oracle.selector_tags else ""
+    table.setdefault(primary_tag, binding)
+
+    def pick(tag: str) -> Any:
+        if not tag:
+            return binding
+        if tag not in table:
+            raise SymbolMissing(f"缺少 {tag} 绑定的注入（BOLA/mass_assignment 必须有两条面）")
+        return table[tag]
     repeats = repeat if repeat is not None else int(getattr(oracle.params, "repeat", 2))
 
     base_params = {
@@ -306,16 +337,23 @@ def run(
     if not any(v.role == "control" for v in variants):
         return RunResult(Verdict.INCONCLUSIVE, "no_control", None, ())
 
+    # 顺序纪律：control 变体**先发**（它是"改动之前的快照"），probe 后发。
+    # 否则读回型 oracle（mass_assignment）会把改动后的状态当成基线。
+    ordered = [v for v in variants if v.role == "control"] + [v for v in variants if v.role != "control"]
+
     collected: list[tuple[Variant, Trace, tuple[Trace, ...]]] = []
-    for variant in variants:
-        params = apply(variant, base_params, binding, symbols, nonce_obj, token)
+    sent_params: list[dict[str, str]] = []
+    for variant in ordered:
+        target_binding = pick(variant.binding_tag)
+        params = apply(variant, base_params, target_binding, symbols, nonce_obj, token)
         headers = {k: _fill(v, symbols, nonce_obj, binding, token) for k, v in variant.headers.items()}
         runs: list[Trace] = []
         for _ in range(max(repeats, 1)):
-            runs.append(transport.send(binding, params, variant.role, headers))
+            runs.append(transport.send(target_binding, params, variant.role, headers))
         collected.append((variant, runs[0], tuple(runs)))
+        sent_params.append(dict(params))
 
-    pairs = pair_up(baseline, collected)
+    pairs = pair_up(baseline, collected, sent_params)
     if any(not p.stable() for p in pairs):
         return RunResult(Verdict.INCONCLUSIVE, "unstable", None, tuple(pairs))
 
@@ -339,6 +377,8 @@ def apply(
     if variant.account:
         # 身份由变体显式声明（符号），不靠角色猜——越权类必须能指定"用谁的号"
         params["__role__"] = symbols.resolved(variant.account)
+    for key, raw in variant.extra_params.items():
+        params[str(key)] = _fill(str(raw), symbols, nonce, binding, token)
     transform = variant.transform
     if transform is None:
         return params
@@ -408,6 +448,61 @@ def _encode(value: str, charset: str) -> str:
     if charset == "double":
         return "".join(f"%25{ord(c):02X}" for c in value)
     return value
+
+
+# ── burst 采样（限流类专用；18 §2.5）───────────────────────────────
+@dataclass(frozen=True)
+class BurstSamples:
+    """串行/并发的成功与限流计数。**只装数字**，判定由 judge 做。"""
+
+    serial_ok: int
+    concurrent_ok: int
+    concurrent_throttled: int
+    samples: int
+
+    def as_dict(self) -> dict[str, int]:
+        return {
+            "serial_ok": self.serial_ok,
+            "concurrent_ok": self.concurrent_ok,
+            "concurrent_throttled": self.concurrent_throttled,
+            "samples": self.samples,
+        }
+
+
+def _count(runs: Iterable[Trace]) -> tuple[int, int]:
+    ok = sum(1 for t in runs if t.is_normal())
+    throttled = sum(1 for t in runs if t.status in (429, 403))
+    return ok, throttled
+
+
+def sample_burst(
+    binding: Any,
+    transport: Transport,
+    params: Mapping[str, str],
+    *,
+    samples: int = 10,
+    role: str = "probe",
+    parallel: bool = True,
+) -> BurstSamples:
+    """先串行 ``samples`` 次，再并发 ``samples`` 次；返回计数。
+
+    并发用线程触发"同时到"，不依赖时钟：oracle 只读计数（判定仍是纯函数）。
+    """
+    serial = [transport.send(binding, dict(params), role) for _ in range(samples)]
+    serial_ok, _ = _count(serial)
+
+    if not parallel:
+        return BurstSamples(serial_ok=serial_ok, concurrent_ok=0, concurrent_throttled=0, samples=samples)
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=max(samples, 2)) as pool:
+        futures = [pool.submit(transport.send, binding, dict(params), role) for _ in range(samples)]
+        concurrent = [f.result() for f in futures]
+    conc_ok, throttled = _count(concurrent)
+    return BurstSamples(
+        serial_ok=serial_ok, concurrent_ok=conc_ok, concurrent_throttled=throttled, samples=samples
+    )
 
 
 # ── judge 纯净性自检用（07 §6 专项检查）─────────────────────────────

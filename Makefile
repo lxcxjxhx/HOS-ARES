@@ -5,7 +5,7 @@
 PY ?= python
 PKG_DIRS := veripen_core veripen_oracles veripen_contract api worker web tests
 
-.PHONY: help test bindings-check lint-noroute lint-nodata-stub lint b1 b4 b5
+.PHONY: help test bindings-check lint-noroute lint-nodata-stub lint b1 b4 b5 b6 b7
 
 help:
 	@echo "make test             运行 B1 契约测试"
@@ -105,3 +105,16 @@ core-untouched:
 	@test -z "$$(git diff --stat -- veripen_core/)" || (echo "veripen_core/ 被改动：B5 不许碰内核"; git diff --stat -- veripen_core/; exit 1)
 
 b5: oracle-test oob-test oracle-cases core-untouched types-check lint
+
+# B6 TierA 余 2 类
+b6: oracle-test oob-test oracle-cases core-untouched types-check lint
+
+# B7 TierB 5 类（写操作/并发类默认关闭，启动校验必过）
+tierb-test:
+	$(PY) -m pytest tests/unit/test_oracle_tierB.py -q
+
+# 默认关闭是"启动期抛错"，不是文档里的一句话：这里实际跑一次校验
+lint-policy:
+	$(PY) scripts/lint/policy_check.py
+
+b7: tierb-test oracle-cases lint-policy core-untouched types-check lint

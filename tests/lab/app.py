@@ -59,6 +59,9 @@ SAFE_REDIRECT_TARGET = "account/settings"
 JWT_SECRET = b"lab-hs256-secret"
 ADMIN_OWNER = "admin"
 REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
+ADMIN_ROLE = "admin"
+#: 安全态的限流阈值：超过就 429（脆弱态不计数）
+RATE_LIMIT_HITS = 5
 #: 靶场的两个"域"符号：允许取数的文档域，与用于外带证明的 OOB 前缀
 ALLOWED_FETCH_PREFIX = "doc-SAMPLE"
 OOB_PREFIX = "oob-SAMPLE"
@@ -119,6 +122,14 @@ class App:
     #: OOB 回调登记处：靶场的 fetch 端点在"愿意发请求"时把 nonce 写进来
     callbacks: list[dict[str, str]] = field(default_factory=list)
     log: list[dict[str, Any]] = field(default_factory=list)
+    #: 账号可写状态（display_name / role / is_admin）+ 限流计数
+    state: dict[str, Any] = field(
+        default_factory=lambda: {
+            "primary": {"sub": "primary", "display_name": "p", "role": "user"},
+            "secondary": {"sub": "secondary", "display_name": "s", "role": "user"},
+            "rate_hits": 0,
+        }
+    )
 
     # ── WSGI ────────────────────────────────────────────────────
     def __call__(self, environ: Mapping[str, Any], start_response: Callable[..., Any]) -> list[bytes]:
@@ -148,6 +159,9 @@ class App:
         if m := re.fullmatch(r"/api/items/(\d+)", path):
             return self._item(int(m.group(1)), token)
         if path == "/api/search":
+            maybe = self._maybe_sql_error(query.get("q", [""])[0])
+            if maybe is not None:
+                return maybe
             return self._search(query.get("q", [""])[0])
         if path == "/api/fetch":
             return self._fetch(query.get("url", [""])[0])
@@ -159,6 +173,18 @@ class App:
             return self._me(token)
         if path == "/api/redirect":
             return self._redirect(query.get("to", [""])[0])
+        if path == "/api/admin/audit":
+            return self._admin(token)
+        if path == "/api/profile/normal":
+            return self._normal(token)
+        if path == "/api/echo":
+            return self._echo(query.get("q", [""])[0])
+        if path == "/api/profile":
+            return self._profile_write(query, token)
+        if path == "/api/profile/me":
+            return self._profile_read(token)
+        if path == "/api/ping":
+            return self._ping()
         return 404, "application/json", {"error": "not_found"}
 
     def _item(self, item_id: int, token: str | None) -> tuple[int, str, Any]:
@@ -176,6 +202,14 @@ class App:
         if self.secure and item["owner"] != claims["sub"]:
             return 403, "application/json", {"error": "forbidden"}
         return 200, "application/json", item
+
+    def _maybe_sql_error(self, q: str) -> tuple[int, str, Any] | None:
+        """脆弱态：不平衡引号 → 数据库错误页。安全态永远不进这里。"""
+        if self.secure:
+            return None
+        if q.count("'") % 2 == 1 or q.count('"') % 2 == 1:
+            return 500, "text/html", "<h1>500</h1><pre>SQL syntax error near " + q[:20] + "</pre>"
+        return None
 
     def _search(self, q: str) -> tuple[int, str, Any]:
         # 脆弱态：q 直接拼进"查询"；安全态：参数化，永远返回同样的 3 行
@@ -207,6 +241,58 @@ class App:
             if name.endswith(suffix):
                 return 200, "text/plain", content
         return 404, "text/plain", "not found"
+
+    def _admin(self, token: str | None) -> tuple[int, str, Any]:
+        claims = self._claims(token)
+        if claims is None:
+            return 401, "application/json", {"error": "unauthenticated"}
+        # 脆弱态：只校验"登录了"，不校验角色 —— 功能级越权
+        if self.secure and claims.get("role") != ADMIN_ROLE:
+            return 403, "application/json", {"error": "forbidden"}
+        return 200, "application/json", {"admin": True, "rows": [{"audit": "login"}]}
+
+    def _normal(self, token: str | None) -> tuple[int, str, Any]:
+        claims = self._claims(token)
+        if claims is None:
+            return 401, "application/json", {"error": "unauthenticated"}
+        return 200, "application/json", {"ok": True, "sub": claims["sub"]}
+
+    def _echo(self, q: str) -> tuple[int, str, Any]:
+        """回显端点：安全态转义尖引号与引号，脆弱态原样拼进 HTML。"""
+        if self.secure:
+            safe = (
+                q.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                .replace('"', "&quot;").replace("'", "&#39;")
+            )
+            return 200, "text/html", f"<div class=\"q\">{safe}</div>"
+        return 200, "text/html", f"<div class=\"q\">{q}</div>"
+
+    def _profile_write(self, query: Mapping[str, list[str]], token: str | None) -> tuple[int, str, Any]:
+        claims = self._claims(token)
+        if claims is None:
+            return 401, "application/json", {"error": "unauthenticated"}
+        raw = query.get("display_name", [""])[0]
+        # 脆弱态：把整行 query 当成"对象更新"直接合并（含只读字段）
+        if not self.secure:
+            for key, values in query.items():
+                if key in ("role", "is_admin") and values:
+                    self.state[claims["sub"]][key] = values[0]
+        if raw:
+            self.state[claims["sub"]]["display_name"] = raw
+        return 200, "application/json", {"ok": True}
+
+    def _profile_read(self, token: str | None) -> tuple[int, str, Any]:
+        claims = self._claims(token)
+        if claims is None:
+            return 401, "application/json", {"error": "unauthenticated"}
+        return 200, "application/json", dict(self.state[claims["sub"]])
+
+    def _ping(self) -> tuple[int, str, Any]:
+        if self.secure:
+            self.state["rate_hits"] += 1
+            if self.state["rate_hits"] > RATE_LIMIT_HITS:
+                return 429, "application/json", {"error": "rate_limited"}
+        return 200, "application/json", {"ok": True}
 
     def _redirect(self, target: str) -> tuple[int, str, Any]:
         """跳转端点。安全态：只接受相对路径；脆弱态：原样写进 Location。"""
@@ -261,6 +347,18 @@ def assets_json() -> dict[str, Any]:
              "params": [{"name": "name", "kind": "str"}]},
             {"method": "GET", "template": "/api/redirect", "tags": ["redirect_entry"],
              "params": [{"name": "to", "kind": "url"}]},
+            {"method": "GET", "template": "/api/admin/audit", "tags": ["admin_function"],
+             "params": []},
+            {"method": "GET", "template": "/api/profile/normal", "tags": ["normal_function"],
+             "params": []},
+            {"method": "GET", "template": "/api/echo", "tags": ["echo_param"],
+             "params": [{"name": "q", "kind": "str"}]},
+            {"method": "POST", "template": "/api/profile", "tags": ["profile_write"],
+             "params": [{"name": "display_name", "kind": "str"}]},
+            {"method": "GET", "template": "/api/profile/me", "tags": ["profile_read"],
+             "params": []},
+            {"method": "GET", "template": "/api/ping", "tags": ["rate_sensitive"],
+             "params": []},
             {"method": "POST", "template": "/api/login", "tags": ["token_issue"],
              "params": [{"name": "account", "kind": "str"}]},
             {"method": "GET", "template": "/api/me", "tags": ["protected_read"],

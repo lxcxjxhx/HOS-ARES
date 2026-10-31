@@ -128,7 +128,16 @@ def variant(
     tf: Transform | None = None,
     headers: dict[str, str] | None = None,
     account: str = "",
+    binding_tag: str = "",
+    extra_params: dict[str, str] | None = None,
 ) -> Variant:
     return Variant(
-        name=name, role=role, transform=tf, expect=expect, headers=headers or {}, account=account
+        name=name,
+        role=role,
+        transform=tf,
+        expect=expect,
+        headers=headers or {},
+        account=account,
+        binding_tag=binding_tag,
+        extra_params=extra_params or {},
     )
