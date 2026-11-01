@@ -80,6 +80,149 @@ CREATE TABLE IF NOT EXISTS capsules (
 );
 """
 
+#: B12.1 追加的表（03 §1 除 tasks/findings/capsules 外的全部）+ leads（35 §2）
+#: 只增不改：事实类表不 UPDATE，错了写新行并 supersedes（I10）
+DDL_EXT = """
+-- ★ 状态黑板：只存事实，不存判断/地址/凭据（08 §4.0）
+CREATE TABLE IF NOT EXISTS blackboard_facts (
+  id            TEXT PRIMARY KEY,
+  task_id       TEXT NOT NULL,
+  subject       TEXT NOT NULL,
+  predicate     TEXT NOT NULL,
+  value         TEXT NOT NULL,
+  origin        TEXT NOT NULL,
+  from_target   INTEGER NOT NULL DEFAULT 0,
+  evidence_id   TEXT,
+  supersedes    TEXT,
+  ttl_s         INTEGER,
+  created_at    INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_facts_task ON blackboard_facts(task_id, created_at);
+CREATE INDEX IF NOT EXISTS ix_facts_sp   ON blackboard_facts(task_id, subject, predicate);
+
+-- ★ 资产级事实：跨任务记忆（I11：只能来自 SEALED capsule）
+CREATE TABLE IF NOT EXISTS asset_facts (
+  id            TEXT PRIMARY KEY,
+  asset_id      TEXT NOT NULL,
+  subject       TEXT NOT NULL,
+  predicate     TEXT NOT NULL,
+  value         TEXT NOT NULL,
+  origin        TEXT NOT NULL,
+  from_target   INTEGER NOT NULL DEFAULT 0,
+  evidence_id   TEXT NOT NULL,
+  capsule_id    TEXT NOT NULL,
+  supersedes    TEXT,
+  ttl_s         INTEGER NOT NULL DEFAULT 604800,
+  created_at    INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_assetfacts    ON asset_facts(asset_id, subject, predicate);
+CREATE INDEX IF NOT EXISTS ix_assetfacts_ev ON asset_facts(capsule_id);
+
+-- ★ 绑定集：内容寻址，一次 discovery 一行
+CREATE TABLE IF NOT EXISTS routesets (
+  sha256           TEXT PRIMARY KEY,
+  asset_id         TEXT NOT NULL,
+  profile_hash     TEXT NOT NULL,
+  resolver_version TEXT NOT NULL,
+  query_hash       TEXT NOT NULL,
+  sources_used     TEXT NOT NULL,
+  binding_count    INTEGER NOT NULL,
+  path             TEXT NOT NULL,
+  created_at       INTEGER NOT NULL,
+  expires_at       INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_routeset_asset ON routesets(asset_id, created_at);
+
+-- ★ 绑定明细（不含模板正文）
+CREATE TABLE IF NOT EXISTS route_bindings (
+  routeset_sha256  TEXT NOT NULL,
+  ref              TEXT NOT NULL,
+  source           TEXT NOT NULL,
+  sources_all      TEXT NOT NULL,
+  confidence       REAL NOT NULL,
+  template_sha256  TEXT NOT NULL,
+  semantic_tags    TEXT NOT NULL,
+  auth_requirement TEXT,
+  ttl_s            INTEGER NOT NULL,
+  PRIMARY KEY (routeset_sha256, ref)
+);
+CREATE INDEX IF NOT EXISTS ix_binding_ref ON route_bindings(ref);
+
+-- 事件流：step.jsonl 的库内镜像（可观测性主表）
+CREATE TABLE IF NOT EXISTS task_events (
+  seq        INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id    TEXT NOT NULL,
+  ts         INTEGER NOT NULL,
+  kind       TEXT NOT NULL,
+  oracle_id  TEXT,
+  tool       TEXT,
+  route_ref  TEXT,
+  elapsed_ms INTEGER,
+  tokens     INTEGER DEFAULT 0,
+  ok         INTEGER NOT NULL,
+  err_class  TEXT,
+  detail_json TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_events_task  ON task_events(task_id, seq);
+CREATE INDEX IF NOT EXISTS ix_events_route ON task_events(route_ref);
+
+-- 审批门
+CREATE TABLE IF NOT EXISTS approvals (
+  id           TEXT PRIMARY KEY,
+  task_id      TEXT NOT NULL,
+  action_class TEXT NOT NULL,
+  impact_json  TEXT NOT NULL,
+  state        TEXT NOT NULL DEFAULT 'PENDING',
+  requested_at INTEGER NOT NULL,
+  decided_at   INTEGER,
+  decided_by   TEXT,
+  reason       TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_approvals_task ON approvals(task_id, state);
+
+-- 跑分
+CREATE TABLE IF NOT EXISTS bench_runs (
+  id            TEXT PRIMARY KEY,
+  profile_name  TEXT NOT NULL,
+  started_at    INTEGER NOT NULL,
+  cases_total   INTEGER NOT NULL,
+  tp INTEGER, fp INTEGER, fn INTEGER, tn INTEGER,
+  precision     REAL, recall REAL, f1 REAL,
+  replay_pass   INTEGER,
+  first_finding_steps INTEGER,
+  routeset_sha256 TEXT,
+  tokens        INTEGER,
+  cost_usd      REAL,
+  wall_s        REAL,
+  voided        INTEGER DEFAULT 0,
+  notes         TEXT
+);
+
+-- ★ 线索账本（35 §2）：探索产物有合法归宿，不必塞进 findings（I12）
+CREATE TABLE IF NOT EXISTS leads (
+  id              TEXT PRIMARY KEY,
+  task_id         TEXT NOT NULL,
+  asset_id        TEXT NOT NULL,
+  source_action   TEXT NOT NULL,
+  raw_ref         TEXT NOT NULL,
+  summary         TEXT NOT NULL,
+  verifiable_by   TEXT NOT NULL,
+  selector_hint   TEXT,
+  confidence_hint REAL NOT NULL DEFAULT 0,
+  state           TEXT NOT NULL DEFAULT 'pending',
+  supersedes      TEXT,
+  created_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_leads_task  ON leads(task_id, state);
+CREATE INDEX IF NOT EXISTS ix_leads_asset ON leads(asset_id, created_at);
+"""
+
+#: 补列：SQLite 不支持 ADD COLUMN IF NOT EXISTS，由 init() 探测后再加（03 §1 v3.1）
+MIGRATIONS: tuple[tuple[str, str, str], ...] = (
+    ("findings", "outcome", "TEXT NOT NULL DEFAULT 'reported'"),
+    ("findings", "coverage_src", "TEXT NOT NULL DEFAULT 'machine_observed'"),
+)
+
 
 def now() -> int:
     return int(time.time())
@@ -108,8 +251,23 @@ class Store:
 
     def init(self) -> "Store":
         self.conn.executescript(DDL)
+        self.conn.executescript(DDL_EXT)
+        self._migrate()
         self.conn.commit()
         return self
+
+    def _migrate(self) -> None:
+        """补列迁移：SQLite 没有 ADD COLUMN IF NOT EXISTS，先探 PRAGMA 再加（03 §1）。"""
+        for table, column, spec in MIGRATIONS:
+            cols = {str(r["name"]) for r in self.conn.execute(f"PRAGMA table_info({table})")}
+            if column not in cols:
+                self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {spec}")
+
+    def table_names(self) -> set[str]:
+        rows = self.conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        ).fetchall()
+        return {str(r["name"]) for r in rows}
 
     def close(self) -> None:
         if self._conn is not None:

@@ -5,7 +5,7 @@
 PY ?= python
 PKG_DIRS := veripen_core veripen_oracles veripen_contract api worker web tests
 
-.PHONY: help test bindings-check lint-noroute lint-nodata-stub lint b1 b4 b5 b6 b7 b8 b9 b10 b11 b12 b13 b14 b15 b16 b17
+.PHONY: help test bindings-check lint-noroute lint-nodata-stub lint b1 b4 b5 b6 b7 b8 b9 b10 b11 b12 b12.1 b13 b14 b15 b16 b17
 
 help:
 	@echo "make test             运行 B1 契约测试"
@@ -199,3 +199,24 @@ delivery-test:
 	$(PY) -m pytest tests/unit/test_delivery_docs.py -q
 
 b17: delivery-test demo demo-alt types-check lint
+
+# ══════════════════════════════════════════════════════════════════
+# B12.x 新口径（v3.2–v3.4）：13 个节点，顺序见 21 §W3.6
+# ══════════════════════════════════════════════════════════════════
+
+# spec-drift：规划与代码的差异闸门。missing 必须为 0 才能继续下一批
+spec-drift:
+	$(PY) scripts/lint/spec_drift.py
+
+spec-drift-baseline:
+	@mkdir -p out/b12-completion
+	$(PY) scripts/lint/spec_drift.py --baseline out/b12-completion/baseline.txt --only-missing
+
+# 17 条一致性自检（03 §7）
+selfcheck-test:
+	$(PY) -m pytest tests/unit/test_blackboard.py -q
+
+ledger-check:
+	$(PY) scripts/lint/ledger_check.py
+
+b12.1: selfcheck-test spec-drift types-check lint
