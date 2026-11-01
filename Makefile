@@ -5,7 +5,7 @@
 PY ?= python
 PKG_DIRS := veripen_core veripen_oracles veripen_contract api worker web tests
 
-.PHONY: help test bindings-check lint-noroute lint-nodata-stub lint b1 b4 b5 b6 b7 b8 b9 b10 b11
+.PHONY: help test bindings-check lint-noroute lint-nodata-stub lint b1 b4 b5 b6 b7 b8 b9 b10 b11 b12
 
 help:
 	@echo "make test             运行 B1 契约测试"
@@ -156,3 +156,12 @@ verify-report:
 	$(PY) scripts/b11/verify_manifest.py out/b11/report
 
 b11: report-test report-demo verify-report types-check lint
+
+# B12 bench（44 例 × 3 轮；硬门槛 FP=0 / 越界=0 / routeset 三轮一致 / 渲染可由 RouteSet 推出）
+bench-test:
+	$(PY) -m pytest tests/unit/test_bench.py -q
+
+bench:
+	$(PY) scripts/b12/run_bench.py --rounds 3 --out out/b12
+
+b12: bench-test bench types-check lint
