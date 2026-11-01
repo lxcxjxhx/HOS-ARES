@@ -5,7 +5,7 @@
 PY ?= python
 PKG_DIRS := veripen_core veripen_oracles veripen_contract api worker web tests
 
-.PHONY: help test bindings-check lint-noroute lint-nodata-stub lint b1 b4 b5 b6 b7 b8 b9 b10
+.PHONY: help test bindings-check lint-noroute lint-nodata-stub lint b1 b4 b5 b6 b7 b8 b9 b10 b11
 
 help:
 	@echo "make test             运行 B1 契约测试"
@@ -143,3 +143,16 @@ agent-test:
 	$(PY) -m pytest tests/unit/test_agent_loop.py -q
 
 b10: agent-test types-check lint
+
+# B11 报告三视图（MD / SARIF / JSON + manifest 防手改）
+report-test:
+	$(PY) -m pytest tests/unit/test_report.py -q
+
+report-demo:
+	$(PY) scripts/b11/build_demo_report.py out/b11/report
+
+# 手工改报告 → manifest 校验必须失败（这里验证"没改"的那一半）
+verify-report:
+	$(PY) scripts/b11/verify_manifest.py out/b11/report
+
+b11: report-test report-demo verify-report types-check lint
