@@ -5,7 +5,7 @@
 PY ?= python
 PKG_DIRS := veripen_core veripen_oracles veripen_contract api worker web tests
 
-.PHONY: help test bindings-check lint-noroute lint-nodata-stub lint b1 b4 b5 b6 b7 b8 b9 b10 b11 b12
+.PHONY: help test bindings-check lint-noroute lint-nodata-stub lint b1 b4 b5 b6 b7 b8 b9 b10 b11 b12 b13 b14 b15
 
 help:
 	@echo "make test             运行 B1 契约测试"
@@ -165,3 +165,9 @@ bench:
 	$(PY) scripts/b12/run_bench.py --rounds 3 --out out/b12
 
 b12: bench-test bench types-check lint
+
+# B15 只读控制台（ui.* 写请求 405；绑定页只给摘要）
+console-test:
+	$(PY) -m pytest tests/unit/test_console.py -q
+
+b15: console-test types-check lint

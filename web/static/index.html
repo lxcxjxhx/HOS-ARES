@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>VeriPen 控制台（只读）</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 14px/1.5 system-ui, sans-serif; margin: 0; }
+  header { padding: 12px 16px; border-bottom: 1px solid #8884; display: flex; gap: 12px; align-items: center; }
+  header .badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #8882; }
+  nav { display: flex; gap: 4px; padding: 8px 16px; border-bottom: 1px solid #8884; flex-wrap: wrap; }
+  nav button { border: 1px solid transparent; background: none; padding: 4px 10px; border-radius: 6px; cursor: pointer; }
+  nav button[aria-current="page"] { background: #8882; border-color: #8884; }
+  main { padding: 16px; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #8883; }
+  th[data-sort] { cursor: pointer; user-select: none; }
+  .sev-critical { color: #b00; font-weight: 600; }
+  .sev-high { color: #d33; }
+  .sev-low, .sev-info { color: #666; }
+  .weak { color: #a60; }
+  .alert-red { background: #fdd; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; font-weight: 600; }
+  .muted { color: #888; font-size: 12px; }
+  pre { background: #8881; padding: 12px; border-radius: 6px; overflow: auto; }
+</style>
+</head>
+<body>
+<header>
+  <strong>VeriPen</strong>
+  <span class="badge">只读</span>
+  <span class="muted">控制台是「看和审」，不是「改」</span>
+</header>
+<nav id="nav"></nav>
+<main id="main"><p class="muted">加载中…</p></main>
+<script>
+// 页面清单由后端 op 表给出——前端不写死任何页面路径（27 §6）
+const OPS = ["overview","engagement","findings","finding","unverified","coverage","routes","audit","bounds"];
+let current = "findings";
+
+function el(tag, attrs = {}, ...kids) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") node.className = v; else node.setAttribute(k, v);
+  }
+  for (const kid of kids) {
+    node.append(typeof kid === "string" ? document.createTextNode(kid) : kid);
+  }
+  return node;
+}
+
+async function fetchOp(name) {
+  const res = await fetch("../../ui/" + name, { headers: { accept: "application/json" } });
+  if (!res.ok) return { error: res.status };
+  const body = await res.json();
+  return body.data;
+}
+
+function renderFindings(data) {
+  if (!data.rows) return el("p", {}, "无数据");
+  const wrap = el("div");
+  wrap.append(el("p", { class: "muted" },
+    `共 ${data.total} 条，默认显示 ${data.shown} 条，折叠 ${data.collapsed_low} 条低优先`));
+  const table = el("table");
+  const head = el("tr",
+    ...["严重度","oracle","资产","置信度","证据强度","面","replay","优先级","命中"]
+      .map((h) => el("th", {}, h)));
+  table.append(head);
+  for (const row of data.rows) {
+    const tr = el("tr");
+    tr.append(el("td", { class: "sev-" + row.severity }, row.severity));
+    tr.append(el("td", {}, row.oracle));
+    tr.append(el("td", {}, row.asset));
+    tr.append(el("td", {}, row.confidence.toFixed(2)));
+    tr.append(el("td", { class: row.evidenceStrength === "probe" || row.evidenceStrength === "crawl" ? "weak" : "" },
+      row.evidenceStrength));
+    tr.append(el("td", {}, row.route));
+    tr.append(el("td", {}, row.replay));
+    tr.append(el("td", {}, row.priority.toFixed(1)));
+    tr.append(el("td", {}, row.hits > 1 ? `合并 ${row.hits} 处` : ""));
+    table.append(tr);
+  }
+  wrap.append(table);
+  return wrap;
+}
+
+function renderRoutes(data) {
+  const wrap = el("div");
+  wrap.append(el("p", { class: "muted" },
+    `绑定 ${data.count} 条 · 模板可见：${data.template_visible ? "是" : "否（只给摘要）"}`));
+  const table = el("table",
+    el("tr", ...["ref(前24)","标签","来源","置信档","TTL"].map((h) => el("th", {}, h))));
+  for (const b of data.bindings) {
+    table.append(el("tr",
+      el("td", {}, b.ref), el("td", {}, (b.tags || []).join(", ")),
+      el("td", {}, String(b.source)), el("td", {}, String(b.confidence)),
+      el("td", {}, String(b.ttl_s))));
+  }
+  wrap.append(table);
+  return wrap;
+}
+
+function renderBounds(data) {
+  const wrap = el("div");
+  if (data.alert === "red") {
+    wrap.append(el("div", { class: "alert-red" }, `越界事件 ${data.count} 次 —— 这是事故，不是统计`));
+  } else {
+    wrap.append(el("p", { class: "muted" }, "越界事件：0（正常）"));
+  }
+  if (data.events && data.events.length) {
+    wrap.append(el("pre", {}, JSON.stringify(data.events, null, 2)));
+  }
+  return wrap;
+}
+
+function renderGeneric(data) {
+  return el("pre", {}, JSON.stringify(data, null, 2));
+}
+
+async function show(op) {
+  current = op;
+  for (const btn of document.querySelectorAll("#nav button")) {
+    btn.setAttribute("aria-current", btn.dataset.op === op ? "page" : "false");
+  }
+  const main = document.getElementById("main");
+  main.replaceChildren(el("p", { class: "muted" }, "加载中…"));
+  const data = await fetchOp(op);
+  let view;
+  if (op === "findings") view = renderFindings(data);
+  else if (op === "routes") view = renderRoutes(data);
+  else if (op === "bounds") view = renderBounds(data);
+  else view = renderGeneric(data);
+  main.replaceChildren(view);
+}
+
+const nav = document.getElementById("nav");
+for (const op of OPS) {
+  const btn = el("button", { "data-op": op }, op);
+  btn.addEventListener("click", () => show(op));
+  nav.append(btn);
+}
+document.querySelector(`#nav button[data-op="${current}"]`)?.click();
+</script>
+</body>
+</html>
