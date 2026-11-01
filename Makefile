@@ -5,7 +5,7 @@
 PY ?= python
 PKG_DIRS := veripen_core veripen_oracles veripen_contract api worker web tests
 
-.PHONY: help test bindings-check lint-noroute lint-nodata-stub lint b1 b4 b5 b6 b7 b8
+.PHONY: help test bindings-check lint-noroute lint-nodata-stub lint b1 b4 b5 b6 b7 b8 b9
 
 help:
 	@echo "make test             运行 B1 契约测试"
@@ -128,3 +128,12 @@ contract-demo:
 	$(PY) scripts/b8/contract_demo.py
 
 b8: contract-test contract-demo core-untouched types-check lint
+
+# B9 认证清单（J1–J10 + O/M/S 检查单 + 覆盖矩阵）
+auth-test:
+	$(PY) -m pytest tests/unit/test_auth_suite.py -q
+
+auth-matrix:
+	$(PY) scripts/b9/auth_matrix.py
+
+b9: auth-test auth-matrix core-untouched types-check lint

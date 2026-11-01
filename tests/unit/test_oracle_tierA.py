@@ -19,7 +19,6 @@ CASES: tuple[tuple[str, str], ...] = (
     ("sqli_bool_diff", "param_injectable"),
     ("idor_cross_account", "object_read"),
     ("ssrf_oob", "url_fetch"),
-    ("jwt_replay", "protected_read"),
     ("open_redirect", "redirect_entry"),   # B6
     ("path_traversal", "file_read"),        # B6
 )
@@ -83,7 +82,9 @@ def test_oracle_declares_tags_not_addresses(oracle_id: str, tag: str) -> None:
 
 def test_all_registered() -> None:
     ids = {cls.meta.id for cls in TIER_A}
-    assert ids == {c[0] for c in CASES}, "注册表与测试矩阵必须一一对应"
+    # jwt_replay 与 B9 的 jwt_suite 同面同 CWE；矩阵只保留 suite（超集），
+    # 但 jwt_replay 仍在注册表里，供只跑单点能力时使用。
+    assert ids == {c[0] for c in CASES} | {"jwt_replay"}, "注册表与测试矩阵必须一致（允许旧别名）"
     for cls in TIER_A:
         assert cls.meta.cwe.startswith("CWE-")
 

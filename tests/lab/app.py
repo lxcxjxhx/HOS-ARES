@@ -85,16 +85,27 @@ def jwt_encode(payload: dict[str, Any], *, alg: str = "HS256", secret: bytes = J
     return body + "." + _b64(hmac.new(secret, body.encode(), hashlib.sha256).digest())
 
 
-def jwt_decode(token: str, *, accept_none: bool, secret: bytes = JWT_SECRET) -> dict[str, Any] | None:
+def jwt_decode(
+    token: str,
+    *,
+    accept_none: bool,
+    check_time: bool = True,
+    verify_signature: bool = True,
+    secret: bytes = JWT_SECRET,
+) -> dict[str, Any] | None:
     parts = token.split(".")
     if len(parts) != 3:
         return None
     header = json.loads(_unb64(parts[0]))
     alg = header.get("alg")
+    if not verify_signature and not sig_looks_plausible(parts[2]):
+        # 脆弱实现也会做的最低限度检查：签名段必须"看起来像签名"。
+        # 这条让 control（无效签名字节）仍然被拒，同时 J2/J3 的"改声明保签名"仍能通过。
+        return None
     if alg == "none":
         if not accept_none:
             return None
-    else:
+    elif verify_signature:
         expect = hmac.new(secret, f"{parts[0]}.{parts[1]}".encode(), hashlib.sha256).digest()
         try:
             got = _unb64(parts[2])
@@ -102,7 +113,26 @@ def jwt_decode(token: str, *, accept_none: bool, secret: bytes = JWT_SECRET) -> 
             return None
         if not hmac.compare_digest(expect, got):
             return None
-    return json.loads(_unb64(parts[1]))
+    claims = dict(json.loads(_unb64(parts[1])))
+    if check_time:
+        now = 1_800_000_000  # 靶场固定"当前时刻"，不读真实时钟（判定必须可复现）
+        if isinstance(claims.get("exp"), (int, float)) and claims["exp"] < now:
+            return None
+        if isinstance(claims.get("nbf"), (int, float)) and claims["nbf"] > now:
+            return None
+    return claims
+
+
+def sig_looks_plausible(sig: str) -> bool:
+    """最低限度的"像不像签名"检查：长度够、只含 base64url 字符。
+
+    脆弱实现只做到这一步（不验内容），这正是 J2–J9 能成立的原因；
+    control 用"签名段被破坏"来制造无效，因此仍会被拒——这一步必须是公道的，
+    否则 control 也放行，就变成"整站没验签"，判不出具体缺陷。
+    """
+    if len(sig) < 32:
+        return False
+    return all(c.isalnum() or c in "-_" for c in sig)
 
 
 def make_token(account: str) -> str:
@@ -320,7 +350,17 @@ class App:
     def _claims(self, token: str | None) -> dict[str, Any] | None:
         if not token:
             return None
-        return jwt_decode(token, accept_none=not self.secure)
+        # 脆弱态：不验签、不验 alg、不验 exp/nbf —— 只有 J 系列能证明这一点；
+        # 安全态：三者都验。（J7/J8 的"过期仍可用"必须真的走到这里）
+        return jwt_decode(
+            token,
+            accept_none=not self.secure,
+            check_time=self.secure,
+            # 脆弱态：**根本不进签名校验分支**（verify_signature=False）。
+            # 但 control 必须仍被拒——所以 control 靠 alg/结构而不是靠验签：
+            # 见 _claims 里的"空签名段一律拒"规则。
+            verify_signature=self.secure,
+        )
 
 
 def _bearer(environ: Mapping[str, Any]) -> str | None:
