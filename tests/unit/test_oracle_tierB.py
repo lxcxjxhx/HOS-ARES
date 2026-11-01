@@ -83,7 +83,8 @@ def test_rate_limit_has_no_control_variant(vulnerable: Lab) -> None:
 
 # ── 3 默认关闭 + 启动校验 ──────────────────────────────────────────
 def test_default_off_registry_matches_spec() -> None:
-    assert policy.DEFAULT_OFF == {"mass_assignment", "rate_limit_absent"}
+    """写操作/并发类默认关闭（18 §2.4 / §2.5 + B13 的存储型 XSS 同属写操作）。"""
+    assert policy.DEFAULT_OFF == {"mass_assignment", "rate_limit_absent", "xss_stored_probe"}
 
 
 def test_write_oracle_is_reversible_write() -> None:

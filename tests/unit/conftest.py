@@ -39,6 +39,7 @@ class Lab:
                 "SAFE_FILE": "manual.txt",
                 "SYSTEM_FILE": "etc/passwd",
                 "SITE_HOST": "lab",
+                "SITE_ORIGIN": "https" + "://" + "site.invalid",
             }
         )
         self.token = make_token("secondary")
