@@ -1,0 +1,6 @@
+# 运行期依赖锁定（B13 起）。离线包按此文件下载；新增依赖必须同时改 pyproject 与本文件。
+pydantic==2.13.0
+PyYAML==6.0.2
+fastapi==0.115.0
+uvicorn==0.30.6
+pytest==8.3.3

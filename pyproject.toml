@@ -29,3 +29,6 @@ packages = ["veripen_core", "api"]
 pythonpath = ["."]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.mypy]
+mypy_path = ["tests", "tests/unit"]
