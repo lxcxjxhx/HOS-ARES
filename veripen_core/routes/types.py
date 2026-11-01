@@ -120,6 +120,8 @@ class RouteBinding:
     ttl_s: int
     verifications: int
     usable: bool
+    #: 语义标签（来自契约/观测）；discovery 分档只看它，不猜路径
+    semantic_tags: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

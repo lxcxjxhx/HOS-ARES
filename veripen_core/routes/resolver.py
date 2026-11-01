@@ -45,6 +45,7 @@ def build_binding(
     ttl_s: int,
     verifications: int,
     usable: bool,
+    semantic_tags: tuple[str, ...] = (),
 ) -> RouteBinding:
     """★ 唯一构造点。其余模块只能接收 RouteBinding，不许自己造。"""
     return RouteBinding(
@@ -62,6 +63,7 @@ def build_binding(
         ttl_s=ttl_s,
         verifications=verifications,
         usable=usable,
+        semantic_tags=semantic_tags,
     )
 
 
@@ -106,6 +108,7 @@ def _bindings_from(cands: Sequence[RouteCandidate], q: RouteQuery) -> list[Route
                 ttl_s=q.ttl_s,
                 verifications=c.verifications,
                 usable=c.confidence >= q.min_confidence,
+                semantic_tags=tuple(c.response_shape.get("semantic_tags") or ()),
             )
         )
     out.sort(key=sort_key)
