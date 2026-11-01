@@ -327,7 +327,18 @@ def _jwt_spec(header_mut: dict[str, Any] | None, payload_mut: dict[str, Any] | N
     return "|".join([enc(header_mut or {}), enc(payload_mut or {}), str(keep_sig)])
 
 
-def jwt_from_template(token: str, spec: str) -> str:
+def jwt_from_template(token: str, spec: str) -> str:  # noqa: C901 - 两代格式共存
+    """B7 旧格式与 B9 的 JSON 补丁格式共存；求值逻辑见 auth/__init__._expand。"""
+    if spec.startswith("{"):
+        from .auth import _expand
+
+        return _expand(token, spec)
+    if "|" in spec:
+        return _jwt_legacy(token, spec)
+    return token  # 裸标记（如 "claim"）不走补丁：原样返回，绝不编造
+
+
+def _jwt_legacy(token: str, spec: str) -> str:
     """真实值在此生成：拆原始 token → 打补丁 → 按 keep_sig 决定是否保留签名。
 
     ``keep_sig="break"`` 时把签名最后两位改成非 base64url 字符，制造"无效签名"，

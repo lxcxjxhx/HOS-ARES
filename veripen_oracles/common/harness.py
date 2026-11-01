@@ -24,6 +24,8 @@ from veripen_core.models import HttpTrace, Judgement, Verdict
 LEN_BUCKET = 8
 MIN_DELTA_LEN = 8
 
+JWT_OPEN = "{{jwt:"
+JWT_CLOSE = "}}"
 SLASH = chr(0x2F)
 #: scheme 分隔符与协议相对前缀（用常量表达，避免被"零地址"自检误判成写了地址）
 SCHEME_SEP = ":" + SLASH * 2
@@ -226,6 +228,9 @@ class Pair:
         if expect == "redirects_out":
             # 跳转型的探针：必须真的跳出（3xx + Location 带 host）
             return self.trace.status in REDIRECT_CODES and _location_host(self.trace) != ""
+        if expect in {"accepted_or_rejected", "any_response"}:
+            # 逐条判的类型：变体被接受或被拒都是合法结果，由 judge 读状态码决定
+            return self.trace.error is None and self.trace.status != 0
         if expect == "any_response":
             # 报错型：探针"跑成了"包括 5xx —— 错误页本身就是证据
             return self.trace.error is None and self.trace.status != 0
@@ -427,6 +432,33 @@ def _pick_param(params: Mapping[str, str], binding: Any, target: str) -> str:
     raise KeyError(f"{binding.ref} 没有可变换的参数（target={target}）")
 
 
+def _expand_jwt_slots(text: str, token: str) -> str:
+    """求值 ``{{jwt:SPEC}}``；SPEC 内可以含花括号（JSON 补丁），所以要配平扫描。"""
+    from ..tierA import jwt_from_template
+
+    out: list[str] = []
+    i = 0
+    while True:
+        start = text.find(JWT_OPEN, i)
+        if start < 0:
+            out.append(text[i:])
+            break
+        out.append(text[i:start])
+        depth = 0
+        j = start + len(JWT_OPEN)
+        while j < len(text):
+            if text[j] == "{":
+                depth += 1
+            elif text[j] == "}":
+                if depth == 0 and text.startswith(JWT_CLOSE, j):
+                    break
+                depth -= 1
+            j += 1
+        out.append(jwt_from_template(token, text[start + len(JWT_OPEN):j]))
+        i = j + len(JWT_CLOSE)
+    return "".join(out)
+
+
 def _fill(text: str, symbols: SymbolTable, nonce: Nonce, binding: Any, token: str | None = None) -> str:
     depth_n = max(binding.template.count(chr(0x2F)) - 1, 1)
     out = (
@@ -435,10 +467,8 @@ def _fill(text: str, symbols: SymbolTable, nonce: Nonce, binding: Any, token: st
         .replace("{{depth_pad}}", ("../" * depth_n))
         .replace("{{depth_pad_encoded}}", ("%2e%2e%2f" * depth_n))
     )
-    if "{{jwt:" in out:
-        from ..tierA import jwt_from_template
-
-        out = re.sub(r"\{\{jwt:([^}]+)\}\}", lambda m: jwt_from_template(token or "", m.group(1)), out)
+    if JWT_OPEN in out:
+        out = _expand_jwt_slots(out, token or "")
     return symbols.resolve(out)
 
 

@@ -155,59 +155,6 @@
       }
     ]
   },
-  "jwt_replay": {
-    "positive": [
-      {
-        "case": "alg_none_accepted",
-        "params": {
-          "nonce": "j1"
-        },
-        "expect": "VERIFIED",
-        "why": "alg=none 被接受，原 token 200，无效签名 401"
-      },
-      {
-        "case": "claim_tamper",
-        "params": {
-          "nonce": "j2",
-          "escalate_role": "admin"
-        },
-        "expect": "VERIFIED",
-        "why": "声明篡改后拿到特权标记"
-      },
-      {
-        "case": "repeat3",
-        "params": {
-          "nonce": "j3",
-          "repeat": 3
-        },
-        "expect": "VERIFIED",
-        "why": "重复一致"
-      },
-      {
-        "case": "escalate_sub",
-        "params": {
-          "nonce": "j4",
-          "escalate_to": "primary"
-        },
-        "expect": "VERIFIED",
-        "why": "换升级目标仍成立"
-      }
-    ],
-    "negative": [
-      {
-        "case": "hardened_signature_check",
-        "lab": "hardened",
-        "expect": "REFUTED",
-        "why": "签名强校验，alg=none 被拒"
-      },
-      {
-        "case": "degenerate_all_200",
-        "lab": "degenerate",
-        "expect": "REFUTED",
-        "why": "对照不成立（无法证明服务器校验签名）"
-      }
-    ]
-  },
   "open_redirect": {
     "positive": [
       {
@@ -521,6 +468,59 @@
         "lab": "degenerate",
         "expect": "REFUTED",
         "why": "整站同页，回读无法区分"
+      }
+    ]
+  },
+  "jwt_suite": {
+    "positive": [
+      {
+        "case": "alg_none_accepted",
+        "params": {
+          "nonce": "j1"
+        },
+        "expect": "VERIFIED",
+        "why": "alg=none 被接受（J1）"
+      },
+      {
+        "case": "claim_tamper",
+        "params": {
+          "nonce": "j2",
+          "escalate_role": "admin"
+        },
+        "expect": "VERIFIED",
+        "why": "声明篡改后拿到特权标记（J3/J4）"
+      },
+      {
+        "case": "repeat3",
+        "params": {
+          "nonce": "j3",
+          "repeat": 3
+        },
+        "expect": "VERIFIED",
+        "why": "重复一致"
+      },
+      {
+        "case": "escalate_sub",
+        "params": {
+          "nonce": "j4",
+          "escalate_to": "primary"
+        },
+        "expect": "VERIFIED",
+        "why": "换升级目标仍成立"
+      }
+    ],
+    "negative": [
+      {
+        "case": "hardened_signature_check",
+        "lab": "hardened",
+        "expect": "REFUTED",
+        "why": "签名强校验，alg=none 被拒"
+      },
+      {
+        "case": "degenerate_all_200",
+        "lab": "degenerate",
+        "expect": "REFUTED",
+        "why": "对照不成立（无法证明服务器校验签名）"
       }
     ]
   }

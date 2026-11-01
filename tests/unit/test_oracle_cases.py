@@ -40,7 +40,8 @@ TAG = {
     "sqli_bool_diff": "param_injectable",
     "idor_cross_account": "object_read",
     "ssrf_oob": "url_fetch",
-    "jwt_replay": "protected_read",
+    # jwt_replay 的 J1/J2 能力已并入 B9 的 jwt_suite（超集）；矩阵只保留 suite 的用例
+    "jwt_suite": "protected_read",
     "open_redirect": "redirect_entry",
     "path_traversal": "file_read",
     # B7
