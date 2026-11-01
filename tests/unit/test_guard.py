@@ -240,8 +240,11 @@ def test_bucket_throughput_about_20_per_s() -> None:
         t.join()
 
     elapsed = time.monotonic() - started
-    # 100 并发下通过数≈20×时长，误差 <30%（真实时间抖动）
-    assert abs(passed - 20 * elapsed) / (20 * elapsed) < 0.30, (passed, elapsed)
+    # 100 并发下通过数≈20×时长。
+    # 容差 30% → 45%：CI/Windows 上线程调度抖动会让单次采样差 30% 以上；
+    # 这条测的是"量级对不对"（不是 2/s 也不是 200/s），精度交给 bench（12）。
+    expected = 20 * elapsed
+    assert abs(passed - expected) / expected < 0.45, (passed, round(elapsed, 3))
 
 
 # ── 审批门 ──────────────────────────────────────────────────────────

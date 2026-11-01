@@ -5,7 +5,7 @@
 PY ?= python
 PKG_DIRS := veripen_core veripen_oracles veripen_contract api worker web tests
 
-.PHONY: help test bindings-check lint-noroute lint-nodata-stub lint b1 b4 b5 b6 b7 b8 b9
+.PHONY: help test bindings-check lint-noroute lint-nodata-stub lint b1 b4 b5 b6 b7 b8 b9 b10
 
 help:
 	@echo "make test             运行 B1 契约测试"
@@ -137,3 +137,9 @@ auth-matrix:
 	$(PY) scripts/b9/auth_matrix.py
 
 b9: auth-test auth-matrix core-untouched types-check lint
+
+# B10 agent 循环（预算硬刹车 / 窄 schema / 降级链）—— 本批起允许改 core
+agent-test:
+	$(PY) -m pytest tests/unit/test_agent_loop.py -q
+
+b10: agent-test types-check lint
