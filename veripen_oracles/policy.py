@@ -30,7 +30,7 @@ class ImpactCeilingExceeded(RuntimeError):
 
 
 #: 默认关闭的 oracle（写操作 / 并发）
-DEFAULT_OFF = frozenset({"mass_assignment", "rate_limit_absent"})
+DEFAULT_OFF = frozenset({"mass_assignment", "rate_limit_absent", "xss_stored_probe"})
 
 #: 影响级别 → 排序
 _IMPACT_RANK = {ImpactClass.READ_ONLY: 0, ImpactClass.REVERSIBLE_WRITE: 1}

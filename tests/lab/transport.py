@@ -44,6 +44,12 @@ class WsgiTransport:
         }
         token = (headers or {}).get("Authorization") or ("Bearer " + make_token(account))
         environ["HTTP_AUTHORIZATION"] = token
+        # 其余 header 一律进 environ（Origin / x-vp-gql 等），
+        # 生产侧由真实 HTTP 栈做同样的事；这里是为了让靶场与生产同构。
+        for name, value in (headers or {}).items():
+            if name.lower() == "authorization":
+                continue
+            environ["HTTP_" + name.upper().replace("-", "_")] = str(value)
 
         captured: dict[str, Any] = {}
 

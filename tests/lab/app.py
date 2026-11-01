@@ -59,6 +59,7 @@ SAFE_REDIRECT_TARGET = "account/settings"
 JWT_SECRET = b"lab-hs256-secret"
 ADMIN_OWNER = "admin"
 REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
+ALLOWED_ORIGIN = "site.invalid"
 ADMIN_ROLE = "admin"
 #: 安全态的限流阈值：超过就 429（脆弱态不计数）
 RATE_LIMIT_HITS = 5
@@ -172,11 +173,20 @@ class App:
         if self.degenerate:
             status, ctype, body = 200, "application/json", {"ok": True}
         else:
-            status, ctype, body = self._route(method, path, query, token)
+            status, ctype, body = self._route(method, path, query, token, environ)
         payload = body if isinstance(body, bytes) else (
             body.encode() if isinstance(body, str) else json.dumps(body).encode()
         )
         headers = [("Content-Type", ctype), ("Content-Length", str(len(payload)))]
+        origin = environ.get("HTTP_ORIGIN")
+        if origin:
+            # 脆弱态：任何 Origin 都回显（且带 credentials）；安全态：只允许站内
+            if not self.secure:
+                headers.append(("Access-Control-Allow-Origin", str(origin)))
+                headers.append(("Access-Control-Allow-Credentials", "true"))
+            else:
+                headers.append(("Access-Control-Allow-Origin", ALLOWED_ORIGIN))
+                headers.append(("Vary", "Origin"))
         if status in REDIRECT_STATUSES:
             headers.append(("Location", query.get("to", [""])[0]))
         start_response(f"{status} X", headers)
@@ -184,8 +194,15 @@ class App:
 
     # ── 路由 ────────────────────────────────────────────────────
     def _route(
-        self, method: str, path: str, query: Mapping[str, list[str]], token: str | None
+        self,
+        method: str,
+        path: str,
+        query: Mapping[str, list[str]],
+        token: str | None,
+        environ: Mapping[str, Any],
     ) -> tuple[int, str, Any]:
+        if path == "/api/items":
+            return 200, "application/json", {"items": list(ITEMS.values()), "total": len(ITEMS)}
         if m := re.fullmatch(r"/api/items/(\d+)", path):
             return self._item(int(m.group(1)), token)
         if path == "/api/search":
@@ -215,6 +232,12 @@ class App:
             return self._profile_read(token)
         if path == "/api/ping":
             return self._ping()
+        if path == "/api/notes":
+            return self._notes_write(query, token)
+        if path == "/api/notes/all":
+            return self._notes_read()
+        if path == "/api/graphql":
+            return self._graphql(_headers_of(environ))
         return 404, "application/json", {"error": "not_found"}
 
     def _item(self, item_id: int, token: str | None) -> tuple[int, str, Any]:
@@ -324,6 +347,41 @@ class App:
                 return 429, "application/json", {"error": "rate_limited"}
         return 200, "application/json", {"ok": True}
 
+    def _notes_write(self, query: Mapping[str, list[str]], token: str | None) -> tuple[int, str, Any]:
+        """内容写入。脆弱态：原样存储；安全态：实体化后再存。"""
+        claims = self._claims(token)
+        if claims is None:
+            return 401, "application/json", {"error": "unauthenticated"}
+        body = query.get("body", [""])[0]
+        stored = body if not self.secure else (
+            body.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            .replace('"', "&quot;").replace("'", "&#39;")
+        )
+        self.state.setdefault("notes", []).append({"author": claims["sub"], "body": stored})
+        return 201, "application/json", {"ok": True, "stored": len(stored)}
+
+    def _notes_read(self) -> tuple[int, str, Any]:
+        notes = self.state.get("notes") or [{"author": "seed", "body": "seed content"}]
+        rows = "".join(f"<li>{n['body']}</li>" for n in notes)
+        return 200, "text/html", f"<ul>{rows}</ul>"
+
+    def _graphql(self, headers: Mapping[str, str]) -> tuple[int, str, Any]:
+        raw = headers.get("x-vp-gql", "")
+        try:
+            payload = json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            payload = {}
+        query = str(payload.get("query") or "")
+        if "__schema" in query:
+            if self.secure:
+                return 200, "application/json", {"errors": [{"message": "introspection disabled"}]}
+            return 200, "application/json", {"data": {"__schema": {"types": [{"name": "User"}]}}}
+        if query.startswith("mutation"):
+            if self.secure:
+                return 200, "application/json", {"errors": [{"message": "forbidden"}]}
+            return 200, "application/json", {"data": {"ok": True}}
+        return 200, "application/json", {"data": {"__typename": "Query"}}
+
     def _redirect(self, target: str) -> tuple[int, str, Any]:
         """跳转端点。安全态：只接受相对路径；脆弱态：原样写进 Location。"""
         if not target:
@@ -363,8 +421,16 @@ class App:
         )
 
 
+def _headers_of(environ: Mapping[str, Any]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for key, value in environ.items():
+        if key.startswith("HTTP_"):
+            out[key[5:].lower().replace("_", "-")] = str(value)
+    return out
+
+
 def _bearer(environ: Mapping[str, Any]) -> str | None:
-    raw = environ.get("HTTP_AUTHORIZATION", "")
+    raw = str(environ.get("HTTP_AUTHORIZATION", "") or "")
     if raw.lower().startswith("bearer "):
         return raw[7:]
     return None
@@ -398,6 +464,14 @@ def assets_json() -> dict[str, Any]:
             {"method": "GET", "template": "/api/profile/me", "tags": ["profile_read"],
              "params": []},
             {"method": "GET", "template": "/api/ping", "tags": ["rate_sensitive"],
+             "params": []},
+            {"method": "POST", "template": "/api/notes", "tags": ["content_write"],
+             "params": [{"name": "body", "kind": "str"}]},
+            {"method": "GET", "template": "/api/notes/all", "tags": ["content_read"],
+             "params": []},
+            {"method": "POST", "template": "/api/graphql", "tags": ["graphql_endpoint"],
+             "params": []},
+            {"method": "GET", "template": "/api/items", "tags": ["api_read"],
              "params": []},
             {"method": "POST", "template": "/api/login", "tags": ["token_issue"],
              "params": [{"name": "account", "kind": "str"}]},

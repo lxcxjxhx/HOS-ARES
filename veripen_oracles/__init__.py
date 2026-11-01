@@ -25,6 +25,7 @@ from .common.harness import (
 #: 全部已注册 oracle（B5 的 4 类 + B6 的 2 类）；B7 起继续追加
 from . import tierA, tierA_rest, tierB  # noqa: E402
 from .auth import jwt_suite  # noqa: E402
+from . import tierC  # noqa: E402
 
 TIER_A: tuple[type[BaseOracle], ...] = tierA.REGISTRY + (
     tierA_rest.OpenRedirect,
@@ -43,8 +44,15 @@ TIER_B: tuple[type[BaseOracle], ...] = (
 #: 认证清单（B9）：J1–J10 全量变体（jwt_replay 的单点能力已被它覆盖）
 AUTH: tuple[type[BaseOracle], ...] = (jwt_suite.JwtSuite,)
 
+#: C 档 3 类（需跨会话/协议配合）
+TIER_C: tuple[type[BaseOracle], ...] = (
+    tierC.XssStoredProbe,
+    tierC.CorsMisconfig,
+    tierC.GraphqlIntrospection,
+)
+
 #: 全部已注册 oracle
-ALL_ORACLES: tuple[type[BaseOracle], ...] = TIER_A + TIER_B + AUTH
+ALL_ORACLES: tuple[type[BaseOracle], ...] = TIER_A + TIER_B + AUTH + TIER_C
 
 __all__ = [
     "BaseOracle",
@@ -63,6 +71,8 @@ __all__ = [
     "AUTH",
     "TIER_A",
     "TIER_B",
+    "TIER_C",
+    "tierC",
     "tierA",
     "tierA_rest",
     "tierB",
