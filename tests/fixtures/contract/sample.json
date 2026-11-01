@@ -1,0 +1,118 @@
+{
+  "openapi": "3.1.0",
+  "info": {"title": "sample-contract", "version": "1.0.0"},
+  "servers": [{"url": "http://contract-sample.invalid"}],
+  "components": {
+    "securitySchemes": {
+      "bearer": {"type": "http", "scheme": "bearer", "x-veripen-role": "primary"},
+      "bearer_low": {"type": "http", "scheme": "bearer", "x-veripen-role": "secondary"}
+    },
+    "schemas": {
+      "Item": {"type": "object", "properties": {"id": {"type": "integer"}, "owner": {"type": "string"}, "name": {"type": "string"}}},
+      "ItemList": {"type": "object", "properties": {"items": {"type": "array", "items": {"$ref": "#/components/schemas/Item"}}, "total": {"type": "integer"}}},
+      "Token": {"type": "object", "properties": {"access_token": {"type": "string"}, "expires_in": {"type": "integer"}}},
+      "Profile": {"type": "object", "properties": {"display_name": {"type": "string"}, "role": {"type": "string", "readOnly": true}}}
+    }
+  },
+  "paths": {
+    "/api/items": {
+      "get": {
+        "operationId": "list_items",
+        "parameters": [{"name": "cursor", "in": "query", "schema": {"type": "string"}}],
+        "responses": {"200": {"description": "ok", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ItemList"}}}}}
+      },
+      "post": {
+        "operationId": "create_item",
+        "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/Item"}}}},
+        "responses": {"201": {"description": "created", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Item"}}}}}
+      }
+    },
+    "/api/items/{id}": {
+      "get": {
+        "operationId": "get_item",
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "security": [{"bearer_low": []}],
+        "responses": {"200": {"description": "ok", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Item"}}}}}
+      }
+    },
+    "/api/search": {
+      "get": {
+        "operationId": "search",
+        "parameters": [{"name": "q", "in": "query", "schema": {"type": "string"}}],
+        "responses": {"200": {"description": "ok", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ItemList"}}}}}
+      }
+    },
+    "/api/fetch": {
+      "get": {
+        "operationId": "fetch_url",
+        "parameters": [{"name": "target", "in": "query", "schema": {"type": "string", "format": "uri"}}],
+        "responses": {"200": {"description": "ok", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Item"}}}}}
+      }
+    },
+    "/api/files/{name}": {
+      "get": {
+        "operationId": "read_file",
+        "parameters": [{"name": "name", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {"200": {"description": "file", "content": {"text/plain": {"schema": {"type": "string"}}}}}
+      }
+    },
+    "/api/go": {
+      "get": {
+        "operationId": "redirect_out",
+        "parameters": [{"name": "next", "in": "query", "schema": {"type": "string"}}],
+        "responses": {
+          "302": {"description": "redirect", "headers": {"Location": {"schema": {"type": "string"}}}},
+          "200": {"description": "ok", "content": {"text/html": {"schema": {"type": "string"}}}}
+        }
+      }
+    },
+    "/api/login": {
+      "post": {
+        "operationId": "login",
+        "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}},
+        "responses": {"200": {"description": "ok", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Token"}}}}}
+      }
+    },
+    "/api/me": {
+      "get": {
+        "operationId": "me",
+        "security": [{"bearer_low": []}],
+        "responses": {"200": {"description": "ok", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Profile"}}}}}
+      },
+      "patch": {
+        "operationId": "update_me",
+        "security": [{"bearer_low": []}],
+        "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/Profile"}}}},
+        "responses": {"200": {"description": "ok", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Profile"}}}}}
+      }
+    },
+    "/api/admin/users": {
+      "get": {
+        "operationId": "admin_users",
+        "security": [{"bearer": []}],
+        "responses": {"200": {"description": "ok", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ItemList"}}}}}
+      }
+    },
+    "/api/echo": {
+      "get": {
+        "operationId": "echo",
+        "parameters": [{"name": "q", "in": "query", "schema": {"type": "string"}}],
+        "responses": {"200": {"description": "ok", "content": {"text/html": {"schema": {"type": "string"}}}}}
+      }
+    },
+    "/api/health": {
+      "get": {
+        "operationId": "healthz",
+        "responses": {"200": {"description": "ok", "content": {"application/json": {"schema": {"type": "object"}}}}}
+      }
+    },
+    "/api/tagged": {
+      "get": {
+        "operationId": "tagged_op",
+        "x-veripen-tags": ["admin_function", "rate_sensitive"],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "responses": {"200": {"description": "ok", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Item"}}}}}
+      }
+    }
+  }
+}
