@@ -42,6 +42,7 @@ from veripen_oracles.common.harness import SymbolTable, run as run_oracle  # noq
 EXTRA_TAGS = {
     "bola_functional": ("normal_function",),
     "mass_assignment": ("profile_read",),
+    "xss_stored_probe": ("content_read",),
 }
 
 SYMBOLS = SymbolTable(
@@ -55,6 +56,7 @@ SYMBOLS = SymbolTable(
         "SAFE_FILE": "manual.txt",
         "SYSTEM_FILE": "etc/passwd",
         "SITE_HOST": "lab",
+        "SITE_ORIGIN": "https" + "://" + "site.invalid",
     }
 )
 
