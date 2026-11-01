@@ -5,7 +5,7 @@
 PY ?= python
 PKG_DIRS := veripen_core veripen_oracles veripen_contract api worker web tests
 
-.PHONY: help test bindings-check lint-noroute lint-nodata-stub lint b1 b4 b5 b6 b7 b8 b9 b10 b11 b12 b13 b14 b15
+.PHONY: help test bindings-check lint-noroute lint-nodata-stub lint b1 b4 b5 b6 b7 b8 b9 b10 b11 b12 b13 b14 b15 b16
 
 help:
 	@echo "make test             运行 B1 契约测试"
@@ -171,3 +171,16 @@ console-test:
 	$(PY) -m pytest tests/unit/test_console.py -q
 
 b15: console-test types-check lint
+
+# B16 双客户档（A1：差异全部在 YAML，内核零改动）
+profile-test:
+	$(PY) -m pytest tests/unit/test_profiles.py -q
+
+profile-diff:
+	$(PY) scripts/b16/profile_diff.py
+
+# 换档不改代码：本批必须让这两个目录的 diff 为空
+profiles-only:
+	@test -z "$$(git diff --stat -- veripen_core/ veripen_oracles/ | grep -v veripen_core/profile.py)" 		|| (echo "B16 动了内核（profile.py 除外）"; exit 1)
+
+b16: profile-test profile-diff core-untouched types-check lint

@@ -1,0 +1,87 @@
+apiVersion: veripen.profile/v2
+
+# demo-b：车云 API 形态（A1 断言的右列）
+# 与 demo-a 的差异全部在这一份 YAML 里：行业口径、oracles、selectors、策略、合规框架。
+# 代码侧零改动——这是 A1 断言的实质。
+
+meta:
+  name: demo-b
+  customer_id: DEMO-B-001
+  industry: auto
+  env: lab
+  version: 1.0.0
+  data_class: confidential
+
+scope:
+  engagement_id: ENG-2026-002
+  timezone: Asia/Shanghai
+  assets:
+    - id: vehicle-api
+      kind: url
+      value: ASSET_B1
+      criticality: critical
+      tags: [auto, api]
+  deny: [DENY_SET_DEFAULT]
+  dns_policy: strict
+  max_redirects: 0
+
+routes:
+  sources: [contract, observed]
+  contract_locator:
+    enabled: true
+    discovery_order: [observed, well_known, operator]
+  probe_wordlists: []
+  selectors:
+    - id: vehicle_read
+      semantic_tag: object_read
+      param_shape: { kind: uuid, name_hint: "*vin*|*vehicle*|*id*" }
+      response_shape: { ct: json, has_field: "*vin*" }
+      auth_requirement: secondary
+    - id: admin_function
+      semantic_tag: admin_function
+      auth_requirement: primary
+    - id: normal_function
+      semantic_tag: normal_function
+      auth_requirement: secondary
+    - id: url_fetch
+      semantic_tag: url_fetch
+      param_shape: { kind: url, name_hint: "*url*|*target*" }
+      auth_requirement: none
+    - id: protected_read
+      semantic_tag: protected_read
+      auth_requirement: primary
+    - id: graphql_endpoint
+      semantic_tag: graphql_endpoint
+      auth_requirement: secondary
+
+oracles:
+  enabled:
+    - idor_cross_account
+    - jwt_suite
+    - ssrf_oob
+    - bola_functional
+    - graphql_introspection
+  needs_approval:
+    - mass_assignment
+    - xss_stored_probe
+
+auth:
+  providers:
+    - id: primary
+      type: jwt
+      secret_ref: vault://demo-b/jwt-primary
+    - id: secondary
+      type: jwt
+      secret_ref: vault://demo-b/jwt-secondary
+    - id: mtls
+      type: mtls
+      cert_ref: vault://demo-b/client-cert
+
+policy:
+  qps: 10
+  concurrency: 1
+  max_impact_class: read_only
+
+report:
+  frameworks: [owasp_wstg, cwe, iso21434, un_r155]
+  distribution: customer

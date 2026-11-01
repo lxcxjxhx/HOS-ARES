@@ -1,0 +1,106 @@
+apiVersion: veripen.profile/v2
+
+# demo-a：通用企业 SaaS 形态（A1 断言的左列）
+# 所有"地址"都是符号：实际值由部署时注入环境变量，不进 git。
+
+meta:
+  name: demo-a
+  customer_id: DEMO-A-001
+  industry: saas
+  env: lab
+  version: 1.0.0
+  data_class: internal
+
+scope:
+  engagement_id: ENG-2026-001
+  timezone: Asia/Shanghai
+  assets:
+    - id: web-01
+      kind: url
+      value: ASSET_A1
+      criticality: medium
+      tags: [web]
+  deny: [DENY_SET_DEFAULT]
+  dns_policy: strict
+  max_redirects: 0
+
+routes:
+  sources: [contract, observed, crawl]
+  contract_locator:
+    enabled: true
+    discovery_order: [observed, well_known, operator]
+  probe_wordlists: []
+  selectors:
+    - id: object_read
+      semantic_tag: object_read
+      param_shape: { kind: int, name_hint: "*id*" }
+      response_shape: { ct: json, has_field: "*id*" }
+      auth_requirement: secondary
+    - id: url_fetch
+      semantic_tag: url_fetch
+      param_shape: { kind: url, name_hint: "*url*|*uri*|*target*|*webhook*|*callback*" }
+      auth_requirement: none
+    - id: file_read
+      semantic_tag: file_read
+      auth_requirement: none
+    - id: redirect_entry
+      semantic_tag: redirect_entry
+      auth_requirement: none
+    - id: param_injectable
+      semantic_tag: param_injectable
+      auth_requirement: none
+    - id: echo_param
+      semantic_tag: echo_param
+      auth_requirement: none
+    - id: admin_function
+      semantic_tag: admin_function
+      auth_requirement: primary
+    - id: normal_function
+      semantic_tag: normal_function
+      auth_requirement: secondary
+    - id: profile_write
+      semantic_tag: profile_write
+      auth_requirement: secondary
+    - id: profile_read
+      semantic_tag: profile_read
+      auth_requirement: secondary
+    - id: protected_read
+      semantic_tag: protected_read
+      auth_requirement: primary
+    - id: rate_sensitive
+      semantic_tag: rate_sensitive
+      auth_requirement: none
+
+oracles:
+  enabled:
+    - sqli_bool_diff
+    - idor_cross_account
+    - ssrf_oob
+    - jwt_suite
+    - open_redirect
+    - path_traversal
+    - sqli_error_based
+    - bola_functional
+    - xss_reflected_ctx
+  needs_approval:
+    - mass_assignment
+    - xss_stored_probe
+    - rate_limit_absent
+
+auth:
+  providers:
+    - id: primary
+      type: basic
+      username: alice
+    - id: secondary
+      type: basic
+      username: bob
+
+policy:
+  qps: 20
+  concurrency: 2
+  max_impact_class: read_only
+
+report:
+  frameworks: [owasp_wstg, cwe]
+  distribution: internal
