@@ -48,6 +48,8 @@ EXEMPT_PREFIXES = (
     # 靶场：B5 起的本地被测应用必须写出它自己的端点表（这是"被测对象"，不是"我们的路由"）。
     # 产品代码仍然零模板；此处豁免仅在 tests/lab 内生效。
     "tests/lab",
+    # 契约夹具：存的是"客户发布的契约原文"，里面的路径/服务地址正是被测对象
+    "tests/fixtures/contract",
 )
 
 RE_PATH = re.compile(r"""(?P<q>['"])(?P<v>/[^'"\n]*)(?P=q)""")

@@ -5,7 +5,7 @@
 PY ?= python
 PKG_DIRS := veripen_core veripen_oracles veripen_contract api worker web tests
 
-.PHONY: help test bindings-check lint-noroute lint-nodata-stub lint b1 b4 b5 b6 b7
+.PHONY: help test bindings-check lint-noroute lint-nodata-stub lint b1 b4 b5 b6 b7 b8
 
 help:
 	@echo "make test             运行 B1 契约测试"
@@ -118,3 +118,13 @@ lint-policy:
 	$(PY) scripts/lint/policy_check.py
 
 b7: tierb-test oracle-cases lint-policy core-untouched types-check lint
+
+# B8 契约解析（parser + planner → RouteCandidate；不产地址）
+contract-test:
+	$(PY) -m pytest tests/fixtures/contract -q
+
+# 55 op 契约 → operator 确认后的绑定数；同输入两次同 routeset_sha256
+contract-demo:
+	$(PY) scripts/b8/contract_demo.py
+
+b8: contract-test contract-demo core-untouched types-check lint
