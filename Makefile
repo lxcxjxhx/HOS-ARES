@@ -5,7 +5,7 @@
 PY ?= python
 PKG_DIRS := veripen_core veripen_oracles veripen_contract api worker web tests
 
-.PHONY: help test bindings-check lint-noroute lint-nodata-stub lint b1 b4 b5 b6 b7 b8 b9 b10 b11 b12 b13 b14 b15 b16
+.PHONY: help test bindings-check lint-noroute lint-nodata-stub lint b1 b4 b5 b6 b7 b8 b9 b10 b11 b12 b13 b14 b15 b16 b17
 
 help:
 	@echo "make test             运行 B1 契约测试"
@@ -184,3 +184,18 @@ profiles-only:
 	@test -z "$$(git diff --stat -- veripen_core/ veripen_oracles/ | grep -v veripen_core/profile.py)" 		|| (echo "B16 动了内核（profile.py 除外）"; exit 1)
 
 b16: profile-test profile-diff core-untouched types-check lint
+
+# B17 交付物料（端到端演示 + 四份文档）
+demo:
+	$(PY) scripts/demo.py --out out/demo
+
+demo-offline:
+	$(PY) scripts/demo.py --out out/demo --offline-only
+
+demo-alt:
+	$(PY) scripts/demo.py --profile demo-b --alt-profile demo-a --out out/demo-alt
+
+delivery-test:
+	$(PY) -m pytest tests/unit/test_delivery_docs.py -q
+
+b17: delivery-test demo demo-alt types-check lint
