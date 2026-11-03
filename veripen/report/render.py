@@ -108,6 +108,14 @@ class ReportInput:
     render_time: str = ""
     #: 报告头部"结论四态"计数来源
     route_sources_failed: Sequence[str] = ()
+    #: 库层四态计数（``Store.counts_by_outcome()``）。给了就以库为准（B12.2），
+    #: 没有就从 findings 现算——**两条路径都不许把 error/not_run 并进 reported**。
+    outcome_counts: Mapping[str, int] = field(default_factory=dict)
+    #: 线索账本（B12.7）：已渲染好的「线索（与 finding 分列）」章节正文。
+    #: **由调用方从 LeadLedger 生成**，这里只负责插入——报告层不连库，保持一致。
+    leads_section: str = ""
+    #: 死信章节（B13）：同上，由调用方从 deadletter.column 生成。
+    dead_section: str = ""
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -157,6 +165,9 @@ def fingerprints(f: FindingView) -> dict[str, str]:
 
 
 def counts_by_outcome(report: ReportInput) -> dict[str, int]:
+    """四态计数。库层给了就用库层（单一事实源），否则从 findings 现算。"""
+    if report.outcome_counts:
+        return {o.value: int(report.outcome_counts.get(o.value, 0)) for o in Outcome}
     out = {o.value: 0 for o in Outcome}
     for f in report.findings:
         out[f.outcome.value] += 1
@@ -239,6 +250,9 @@ def render_json(report: ReportInput) -> dict[str, Any]:
         "findings": findings,
         "compliance": dict(report.coverage.get("compliance") or {}),
         "frameworks": list(report.frameworks),
+        # 线索与死信**与 findings 平级**：它们是不同证据强度的东西，不能塞进 findings
+        "leads_section": report.leads_section,
+        "dead_section": report.dead_section,
     }
 
 
@@ -324,6 +338,8 @@ def render_sarif(report: ReportInput) -> dict[str, Any]:
                 "properties": {
                     "rootSha256": report.root_sha256,
                     "distribution": report.distribution,
+                    # 三视图四态计数同源（B12.2）：SARIF 里藏一套单独口径就是第二份事实
+                    "outcomes": counts_by_outcome(report),
                 },
             }
         ],
@@ -393,6 +409,7 @@ def render_markdown(report: ReportInput) -> str:
 
     _render_unverified(report, lines)
     _render_coverage(report, lines)
+    _render_leads_and_dead(report, lines)
 
     if report.frameworks:
         w("## 5. 合规映射")
@@ -428,6 +445,29 @@ def _render_unverified(report: ReportInput, lines: list[str]) -> None:
             reason = f.reason_code or "-"
             title = TITLE_BY_STATUS.get(reason, reason)
             w(f"- `{f.asset_id}` · {f.oracle_id} · {title}（`{reason}`）")
+        w("")
+
+
+def _render_leads_and_dead(report: ReportInput, lines: list[str]) -> None:
+    """线索与死信两段（09 §3）。
+
+    **两段都必须与 finding 分开**：
+    - 线索是"打过但还没证完的"，证据强度低于 finding；
+    - 死信是"重试用完了"的，不是"未发现"，也不是"error"。
+    混排会让读者以为它们是同一类东西。
+
+    内容由调用方生成（``LeadLedger.render_leads_section`` /
+    ``deadletter.render_section``）：报告层不连库，保持"一份数据三种投影"的单向性。
+    """
+    w = lines.append
+    for section, title in ((report.leads_section, "线索"), (report.dead_section, "死信")):
+        if not section.strip():
+            continue
+        # 章节正文自带「## xxx」标题，这里只负责分隔，不重复起标题
+        if not section.lstrip().startswith("##"):
+            w(f"## {title}")
+            w("")
+        w(section.rstrip())
         w("")
 
 

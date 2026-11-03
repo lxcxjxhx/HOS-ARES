@@ -186,6 +186,11 @@ class Pair:
     repeats: tuple[Trace, ...] = ()
     #: 实际发出去的参数（nonce 已求值）——judge 必须按真值判，不能从模板反推
     sent: Mapping[str, str] = field(default_factory=dict)
+    #: 实际发出去的 header（同上）。
+    #: 有些 oracle 把载荷放在 header 里（graphql 的 ``x-vp-gql``、JWT 的 Authorization），
+    #: 没有它，证据重放会打出一个"少了载荷的请求"，然后判定不复现——
+    #: 那不是网络问题，是证据里缺了当时真的发过的东西。
+    sent_headers: Mapping[str, str] = field(default_factory=dict)
 
     @property
     def role(self) -> str:
@@ -249,10 +254,12 @@ def pair_up(
     baseline: Trace,
     traces: Sequence[tuple[Variant, Trace, tuple[Trace, ...]]],
     sent: Sequence[Mapping[str, str]] | None = None,
+    headers: Sequence[Mapping[str, str]] | None = None,
 ) -> list[Pair]:
     return [
         Pair(variant=v, baseline=baseline, trace=t, repeats=rs,
-             sent=(sent[i] if sent is not None and i < len(sent) else {}))
+             sent=(sent[i] if sent is not None and i < len(sent) else {}),
+             sent_headers=(headers[i] if headers is not None and i < len(headers) else {}))
         for i, (v, t, rs) in enumerate(traces)
     ]
 
@@ -296,6 +303,10 @@ class RunResult:
     reason: str
     judgement: Judgement | None
     pairs: tuple[Pair, ...]
+    #: 基线那一次实际发出去的参数（nonce 已求值）。
+    #: 造 capsule 需要它：证据要能重放"当时到底发了什么"，
+    #: 而 ``pairs[*].sent`` 只有变体的参数，基线参数此前没有任何出口。
+    baseline_params: Mapping[str, str] = field(default_factory=dict)
 
     @property
     def assertion(self) -> dict[str, Any]:
@@ -335,12 +346,13 @@ def run(
     use_token = bool(getattr(oracle, "baseline_uses_token", False)) and token is not None
     baseline_headers = {"Authorization": f"Bearer {token}"} if use_token else None
     baseline = transport.send(binding, base_params, "baseline", baseline_headers)
+    base_sent = dict(base_params)
     if not oracle.baseline_ok(baseline):
-        return RunResult(Verdict.BLOCKED, "baseline_abnormal", None, ())
+        return RunResult(Verdict.BLOCKED, "baseline_abnormal", None, (), base_sent)
 
     variants = oracle.plan(binding)
     if not any(v.role == "control" for v in variants):
-        return RunResult(Verdict.INCONCLUSIVE, "no_control", None, ())
+        return RunResult(Verdict.INCONCLUSIVE, "no_control", None, (), base_sent)
 
     # 顺序纪律：control 变体**先发**（它是"改动之前的快照"），probe 后发。
     # 否则读回型 oracle（mass_assignment）会把改动后的状态当成基线。
@@ -348,6 +360,7 @@ def run(
 
     collected: list[tuple[Variant, Trace, tuple[Trace, ...]]] = []
     sent_params: list[dict[str, str]] = []
+    sent_headers: list[dict[str, str]] = []
     for variant in ordered:
         target_binding = pick(variant.binding_tag)
         params = apply(variant, base_params, target_binding, symbols, nonce_obj, token)
@@ -357,16 +370,17 @@ def run(
             runs.append(transport.send(target_binding, params, variant.role, headers))
         collected.append((variant, runs[0], tuple(runs)))
         sent_params.append(dict(params))
+        sent_headers.append(dict(headers))
 
-    pairs = pair_up(baseline, collected, sent_params)
+    pairs = pair_up(baseline, collected, sent_params, sent_headers)
     if any(not p.stable() for p in pairs):
-        return RunResult(Verdict.INCONCLUSIVE, "unstable", None, tuple(pairs))
+        return RunResult(Verdict.INCONCLUSIVE, "unstable", None, tuple(pairs), base_sent)
 
     judgement = oracle.judge(pairs)
     if judgement.verdict is Verdict.VERIFIED and not three_way_holds(pairs):
         # 最危险的一类：oracle 说自己看见了洞，但独立复算不成立
-        return RunResult(Verdict.INCONCLUSIVE, "three_way_failed", judgement, tuple(pairs))
-    return RunResult(judgement.verdict, judgement.reason, judgement, tuple(pairs))
+        return RunResult(Verdict.INCONCLUSIVE, "three_way_failed", judgement, tuple(pairs), base_sent)
+    return RunResult(judgement.verdict, judgement.reason, judgement, tuple(pairs), base_sent)
 
 
 def apply(

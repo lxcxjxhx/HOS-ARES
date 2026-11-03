@@ -22,6 +22,9 @@ from typing import Any, Iterable, Mapping, Sequence
 CASES_PER_RUN = 44
 DEFAULT_ROUNDS = 3
 ERROR_RATE_LIMIT = 0.02
+#: 线索闭环率下限（35 §7）。**是诊断指标不是硬门槛**：
+#: 写成硬门槛就会有人为了过门只挑软柿子，那正好是它要防的失败模式。
+CLOSURE_RATE_FLOOR = 0.60
 
 
 class Outcome(str, Enum):
@@ -62,6 +65,11 @@ class CaseResult:
     elapsed_s: float = 0.0
     skipped_reason: str = ""  # no_selector_match | route_unresolved
     boundaries: int = 0  # post_connect 违规
+    #: 覆盖来源（32 §3 A2）。默认机器实测；自述永远不能单独算"已覆盖"。
+    coverage_src: str = "machine_observed"
+    #: 本例产生的线索数与其已闭环数（35 §7）：闭环率的分母/分子
+    leads: int = 0
+    leads_closed: int = 0
 
     @property
     def counts_for_metrics(self) -> bool:
@@ -136,6 +144,40 @@ class RoundResult:
         return sum(1 for r in self.results if r.outcome is Outcome.NOT_RUN) / len(self.results)
 
     @property
+    def undetermined_rate(self) -> float:
+        """跑了但判不了的比例（10 §3.0：`INCONCLUSIVE` 不许藏在"已验证率"的分母里）。"""
+        if not self.results:
+            return 0.0
+        return sum(1 for r in self.results if r.outcome is Outcome.UNDETERMINED) / len(self.results)
+
+    @property
+    def agent_reported(self) -> int:
+        """自述覆盖记录数（10 §3.0 / 21 §B12）：**必须为 0**，非 0 即整轮不算。"""
+        return sum(1 for r in self.results if r.coverage_src == "agent_reported")
+
+    @property
+    def leads_total(self) -> int:
+        """本轮产生的线索总数（35 §7 闭环率的分母）。"""
+        return sum(r.leads for r in self.results)
+
+    @property
+    def leads_closed(self) -> int:
+        """已闭环（verified + refuted）的线索数。"""
+        return sum(r.leads_closed for r in self.results)
+
+    @property
+    def closure_rate(self) -> float:
+        """闭环率（35 §7）：``(verified+refuted)/total``。
+
+        **太低是瞎打，太高要怀疑只挑软柿子**——所以它记录 + 有下限，
+        但不当硬门槛：把一个诊断指标写成硬门槛，就会有人为了过门只打软柿子。
+        """
+        total = self.leads_total
+        if total == 0:
+            return 1.0
+        return self.leads_closed / total
+
+    @property
     def parse_rate(self) -> float:
         """有标签的例子里有多少解析到了绑定（10 §3.2：FP=0 证明不说错话，这个证明还愿意说话）。"""
         if not self.results:
@@ -182,6 +224,10 @@ class RoundResult:
             "wall_s": round(self.wall_s, 1),
             "error_rate": round(self.error_rate, 3),
             "not_run_rate": round(self.not_run_rate, 3),
+            "undetermined_rate": round(self.undetermined_rate, 3),
+            "agent_reported": self.agent_reported,
+            "leads": self.leads_total,
+            "closure_rate": round(self.closure_rate, 3),
         }
 
 
@@ -213,6 +259,11 @@ def check_hard_gates(rounds: Sequence[RoundResult]) -> GateResult:
             failures.append(f"round{r.round_no}: FP={r.fp}（硬门槛 FP=0）")
         if r.error_rate > ERROR_RATE_LIMIT:
             failures.append(f"round{r.round_no}: error 率 {r.error_rate:.1%} > 2%（该轮作废）")
+        if r.agent_reported > 0:
+            failures.append(
+                f"round{r.round_no}: agent_reported 覆盖记录 {r.agent_reported} 条"
+                "（自述不能冒充已覆盖，必须为 0）"
+            )
         if r.route_unresolved_count > 0:
             failures.append(
                 f"round{r.round_no}: SKIPPED(route_unresolved)={r.route_unresolved_count}（必须为 0）"
@@ -231,6 +282,44 @@ def check_hard_gates(rounds: Sequence[RoundResult]) -> GateResult:
             failures.append(f"{case_id}: verdict 三轮不一致 {shown}（judge 不纯）")
 
     return GateResult(ok=not failures, failures=tuple(failures))
+
+
+def _closure_is_placeholder(rounds: Sequence["RoundResult"]) -> bool:
+    """闭环率是不是恒等式（每例至多 1 条 lead，且每条 lead 都来自有结论的用例）。
+
+    占位口径下 leads 只是"这例有没有跑出结论"的另一种写法，
+    ``leads_closed / leads_total`` 就退化成 1.0，不携带任何信息。
+    """
+    if not rounds:
+        return True
+    for rd in rounds:
+        for r in rd.results:
+            if r.leads > 1:
+                return False          # 一例多 lead → 真线索
+            if r.leads == 1 and not r.counts_for_metrics:
+                return False          # 有 lead 但不是跑出来的 → 非恒等式
+    return True
+
+
+def outcome_counts(round_result: "RoundResult") -> dict[str, int]:
+    """四态计数（09 §3）：四键恒在，禁止只报一个"已验证率"。"""
+    out = {o.value: 0 for o in Outcome}
+    for r in round_result.results:
+        out[r.outcome.value] += 1
+    return out
+
+
+def findings_fingerprint(rounds: Sequence["RoundResult"]) -> list[str]:
+    """finding 集合快照：``case_id|outcome|verdict``，排序后逐行。
+
+    **不含 capsule_id / 哈希**：那些是证据实现细节，补齐实现本来就会变；
+    重跑要比的是"结论变没变"——同一 case 的判定结论与跑没跑成。
+    """
+    rows: set[str] = set()
+    for rd in rounds:
+        for r in rd.results:
+            rows.add(f"{r.case_id}|{r.outcome.value}|{r.verdict}")
+    return sorted(rows)
 
 
 def _case_ids(rounds: Sequence[RoundResult]) -> set[str]:
@@ -351,8 +440,52 @@ def render_bench_md(rounds: Sequence[RoundResult], *, gates: GateResult,
             f" | {row['routeset']} | {row['parse_rate']:.2f} | {row['boundaries']}"
             f" | {row['tokens']} | {row['wall_s']}s |"
         )
+    # 四态并列（09 §3）：只有 reported/undetermined 进指标，error/not_run 单列出来看
+    w("")
+    w("| 轮次 | reported | undetermined | error | not_run | agent_reported |")
+    w("|---|---|---|---|---|---|")
+    for r in rounds:
+        c = outcome_counts(r)
+        w(
+            f"| {r.round_no} | {c['reported']} | {c['undetermined']} | {c['error']}"
+            f" | {c['not_run']} | {r.agent_reported} |"
+        )
     total_boundaries = sum(r.boundaries for r in rounds)
     shas = {r.routeset_sha256 for r in rounds}
+    error_rate = rounds[0].error_rate if rounds else 0.0
+    reported_sum = sum(r.agent_reported for r in rounds)
+    leads_total = sum(r.leads_total for r in rounds)
+    leads_closed = sum(r.leads_closed for r in rounds)
+    closure = 1.0 if leads_total == 0 else leads_closed / leads_total
+    w("")
+    w(f"error 率：{error_rate:.1%} {'✅' if error_rate <= ERROR_RATE_LIMIT else '❌'}"
+      f"   agent_reported 覆盖记录：{reported_sum}"
+      f" {'✅' if reported_sum == 0 else '❌'}")
+    if _closure_is_placeholder(rounds):
+        # 占位口径下闭环率是恒等式：每例恒产 1 条 lead、有结论即闭环，
+        # 于是它等于"有结论数 / 有结论数"，永远是 1.00。
+        # 把它打成 ✅ 会误导——读者会以为"闭环能力很强"，其实什么都没测。
+        w(f"线索闭环率：{closure:.2f}（{leads_closed}/{leads_total}）"
+          f" —— ⚠ **占位口径，不构成测量**：act.* 未接，每例恒产 1 条 lead，"
+          f"此值 = 有结论数/有结论数。真接自主渗透后才有独立含义")
+    else:
+        w(f"线索闭环率：{closure:.2f}（{leads_closed}/{leads_total}）"
+          f" {'✅' if closure >= CLOSURE_RATE_FLOOR else '❌'} 门槛 ≥{CLOSURE_RATE_FLOOR:.2f}"
+          f" —— 太低是瞎打，太高要怀疑只挑软柿子")
+    # 证据可见性：没有这一行，"复现通过"看起来和"判定数"是一个东西。
+    # 它其实是"生成了 capsule 且当场重放成功"的比例，与判定是两回事。
+    sealed = [r for rd in rounds for r in rd.results if r.capsule_id]
+    ok = sum(1 for r in sealed if r.replay_status == "OK")
+    if sealed:
+        w(f"证据：capsule {len(sealed)} 份（sealed）· 重放通过 {ok}"
+          f" · 未复现 {sum(1 for r in sealed if r.replay_status not in ('OK', 'NEVER'))}"
+          f" · 未重放 {sum(1 for r in sealed if r.replay_status == 'NEVER')}"
+          f"（未重放 = INCONCLUSIVE/BLOCKED：没有结论可复现）")
+    total_tokens = sum(r.tokens for r in rounds)
+    if total_tokens == 0:
+        # 0 不等于"没测"。不写这一行，读者会以为 token 列漏了数据；
+        # 写了这一行，才知道 0 是"这一档确实没有模型调用"。
+        w("token 成本：0（本档 scripted，无 LLM 调用；不是缺数据）")
     w("")
     w(f"越界次数：{total_boundaries} {'✅' if total_boundaries == 0 else '❌'}"
       f"   硬门槛：{'通过' if gates.ok else '未通过'}"
@@ -379,6 +512,10 @@ def to_json(rounds: Sequence[RoundResult], *, gates: GateResult, case_fp: str) -
             "boundaries": sum(r.boundaries for r in rounds),
             "routeset_consistent": len({r.routeset_sha256 for r in rounds}) <= 1,
             "tokens": sum(r.tokens for r in rounds),
+            "by_outcome": {o.value: sum(outcome_counts(r)[o.value] for r in rounds) for o in Outcome},
+            "agent_reported": sum(r.agent_reported for r in rounds),
+            "leads": sum(r.leads_total for r in rounds),
+            "leads_closed": sum(r.leads_closed for r in rounds),
         },
     }
 
@@ -396,7 +533,9 @@ __all__ = [
     "case_fingerprint",
     "check_hard_gates",
     "check_route_derivable",
+    "findings_fingerprint",
     "load_cases",
+    "outcome_counts",
     "render_bench_md",
     "render_matches_routeset",
     "score",
