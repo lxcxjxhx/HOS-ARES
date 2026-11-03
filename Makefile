@@ -14,7 +14,7 @@ package-offline:
 doctor:
 	$(PY) -m veripen_cli.cmd_doctor
 
-.PHONY: help test doctor package-offline bindings-check lint-noroute lint-nodata-stub lint-noleak replay coverage-matrix cases bench-leads plugin-roundtrip workbench-smoke assertions b1 b4 b5 b6 b7 b8 b9 b10 b11 b12 b12.1 b12.2 b12.3 b12.4 b12.5 b12.6 b12.7 b12.8 b12.9 b12.10 b12.11 b12.12 b12.13 b12.14 b12.15 b12.16 bench-abi bench-rerun lint-act-cmd lint-ui b13 b14 b15 b16 b17
+.PHONY: agent-discover hunt-creds b29 b34 help test doctor package-offline bindings-check lint-noroute lint-nodata-stub lint-noleak replay coverage-matrix cases bench-leads plugin-roundtrip workbench-smoke assertions b1 b4 b5 b6 b7 b8 b9 b10 b11 b12 b12.1 b12.2 b12.3 b12.4 b12.5 b12.6 b12.7 b12.8 b12.9 b12.10 b12.11 b12.12 b12.13 b12.14 b12.15 b12.16 bench-abi bench-rerun lint-act-cmd lint-ui b13 b14 b15 b16 b17
 
 help:
 	@echo "make test             运行 B1 契约测试"
@@ -374,3 +374,24 @@ plan-test:
 	\ -m pytest tests/unit/test_plan_mode.py -q
 
 b12.16: plan-test types-check lint
+
+# ══════════════════════════════════════════════════════════════════
+# v3.7 / 40 验证批次：判定入口（与实现批次的 make 目标分开）
+# ══════════════════════════════════════════════════════════════════
+
+# B29 模型发现能力：拿掉「pending 非空就 run_oracle」，测模型会不会自己验。
+# **模型未配置时 SKIP，不算通过也不算失败**——没测过的东西不许记成测过（D3）。
+agent-discover:
+	$(PY) scripts/b26/agent_live.py --discover --no-fallback --out out/b29 		|| echo "SKIP: 模型未配置（需要 VERIPEN_MODEL_BASE_URL / VERIPEN_MODEL / VERIPEN_MODEL_API_KEY）"
+
+# 同一份用例带上 scripted 兜底：用来区分「模型验的」与「降级后验的」
+agent-discover-fallback:
+	$(PY) scripts/b26/agent_live.py --discover --out out/b29 		|| echo "SKIP: 模型未配置"
+
+# B34 凭据不出现在命令行、告警与产物里
+hunt-creds:
+	$(PY) -m pytest tests/integration/test_hunt_credentials.py -q
+
+b29: agent-discover
+b34: hunt-creds types-check lint
+
