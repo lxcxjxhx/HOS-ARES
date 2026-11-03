@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -136,6 +137,34 @@ class HuntRuntime:
                 "added": 0, "removed": 0, "changed": 0, "unresolved": [reason]}
 
 
+def _read_secret(inline: str, file_path: str, env_name: str, label: str) -> str:
+    """凭据读取：**文件 > 环境变量 > 命令行**。
+
+    命令行排最后不是顺手写的：传在 argv 里的 token 会同时进 shell 历史、
+    进程列表（`ps` 可见）与 CI 日志。文件和环境变量至少只泄漏一处。
+    命令行这条路保留只为兼容，用了就告警。
+    """
+    if file_path:
+        path = Path(file_path)
+        if not path.is_file():
+            raise SystemExit(f"{label} 文件不存在：{file_path}")
+        value = path.read_text(encoding="utf-8").strip()
+        if not value:
+            raise SystemExit(f"{label} 文件是空的：{file_path}")
+        return value
+    env_value = os.environ.get(env_name, "").strip()
+    if env_value:
+        return env_value
+    if inline.strip():
+        print(
+            f"[!] {label} 来自命令行：会进 shell 历史与进程列表，"
+            f"改用 --*-file 或 {env_name}",
+            file=sys.stderr,
+        )
+        return inline.strip()
+    return ""
+
+
 def _host_of(target: str) -> str:
     parts = urlsplit(target)
     if not parts.hostname:
@@ -170,8 +199,11 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--target", required=True, help="真实目标根地址（scheme + host[:port]）")
     ap.add_argument("--openapi", required=True, help="该目标的 OpenAPI 文档路径")
     ap.add_argument("--model", choices=("scripted", "live"), default="scripted")
-    ap.add_argument("--token", default="", help="主身份 Bearer token（受保护面必须给）")
-    ap.add_argument("--token-secondary", default="", help="第二身份 token（越权类需要两个身份）")
+    ap.add_argument("--token", default="",
+                    help="[兼容] 主身份 Bearer token。会进 shell 历史与进程列表，优先用 --token-file")
+    ap.add_argument("--token-file", default="", help="主身份 token 文件（单行，recommended）")
+    ap.add_argument("--token-secondary", default="", help="[兼容] 第二身份 token")
+    ap.add_argument("--token-secondary-file", default="", help="第二身份 token 文件")
     ap.add_argument("--oob", default="", help="OOB 域名（SSRF 类需要；不给则该类只能 INCONCLUSIVE）")
     ap.add_argument("--symbols", default="", help="符号表 JSON（SYSTEM_FILE / SAFE_TARGET 等）")
     ap.add_argument("--max-steps", type=int, default=20)
@@ -200,8 +232,15 @@ def main(argv: list[str]) -> int:
         return 1
 
     tokens = {
-        "primary": args.token.strip(),
-        "secondary": (args.token_secondary or args.token).strip(),
+        "primary": _read_secret(
+            args.token, args.token_file, "VERIPEN_TARGET_TOKEN", "主身份 token"
+        ),
+        "secondary": _read_secret(
+            args.token_secondary, args.token_secondary_file,
+            "VERIPEN_TARGET_TOKEN_SECONDARY", "第二身份 token",
+        ) or _read_secret(
+            args.token, args.token_file, "VERIPEN_TARGET_TOKEN", "主身份 token"
+        ),
     }
     symbols_map: dict[str, str] = {}
     if args.symbols:
