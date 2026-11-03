@@ -21,6 +21,11 @@
 
 ## 2. E1 · 隔离执行（B45，3 人天）
 
+> **执行记录（2026-11-03）**：`veripen_core/sandbox/` 落地（接口 / docker 后端 / 出网白名单策略 /
+> 镜像无地址扫描 / 加固 argv / BLOCKED 语义），策略与形状全部真验；**真隔离未验**——
+> 本机无 docker/podman（实测 `command not found`），A17 的宿主零副作用项记 `未验`。
+> 该批在账本中记 `scaffolded`，W2 的门因此未过。
+
 ### 2.1 接口（先定形状，再选运行时）
 
 ```python
