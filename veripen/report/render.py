@@ -349,6 +349,28 @@ def render_sarif(report: ReportInput) -> dict[str, Any]:
 # ══════════════════════════════════════════════════════════════════
 # Markdown 视图
 # ══════════════════════════════════════════════════════════════════
+def render_conflict_table(rows: Sequence[Mapping[str, Any]]) -> str:
+    """事实冲突表（B51）。只陈述谁胜出与为什么，不评价对错。
+
+    输入是 ``Blackboard.conflict_report()`` 的输出：已排序、字段固定，
+    因此同一任务两次渲染逐行相同（B51 判据 D）。
+    """
+    if not rows:
+        return "本轮没有事实冲突。" + chr(10)
+    lines = ["| 主体 | 谓词 | 采信值（来源） | 被压住（来源） | 依据 |",
+             "|---|---|---|---|---|"]
+    for row in rows:
+        winner = row.get("winner", {})
+        losers = row.get("losers", [])
+        loser_text = "；".join(str(item.get("value", "")) for item in losers) or "-"
+        loser_origin = "；".join(str(item.get("origin", "")) for item in losers) or "-"
+        lines.append(
+            f"| {row.get('subject', '')} | {row.get('predicate', '')} "
+            f"| {winner.get('value', '')}（{winner.get('origin', '')}） "
+            f"| {loser_text}（{loser_origin}） | {row.get('reason', '')} |"
+        )
+    return chr(10).join(lines) + chr(10)
+
 def render_markdown(report: ReportInput) -> str:
     assert_renderable(report)
     counts = counts_by_outcome(report)
