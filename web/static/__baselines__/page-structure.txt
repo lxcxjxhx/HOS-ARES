@@ -1,0 +1,6 @@
+header
+span.badge
+span.muted
+nav#nav
+main#main
+p.muted

@@ -255,6 +255,12 @@ ui-loader:
 
 b37: ui-loader console-test types-check lint
 
+# B38 概览/摘要卡片 + 覆盖矩阵（H06 §3；A16 的静态结构部分）
+ui-dom:
+	$(PY) -m pytest tests/unit/test_ui_dom.py -q
+
+b38: ui-dom ui-contract ui-loader types-check lint
+
 # B16 双客户档（A1：差异全部在 YAML，内核零改动）
 profile-test:
 	$(PY) -m pytest tests/unit/test_profiles.py -q

@@ -20,6 +20,16 @@
   .sev-low, .sev-info { color: #666; }
   .weak { color: #a60; }
   .alert-red { background: #fdd; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; font-weight: 600; }
+  .alert-warn { background: #ffe9b3; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .card { border: 1px solid #8884; border-radius: 8px; padding: 12px; }
+  .card h2 { font-size: 13px; margin: 0 0 8px; color: #888; font-weight: 600; }
+  .card .big { font-size: 24px; font-weight: 600; }
+  .card a[data-drill] { color: inherit; text-decoration: underline dotted; }
+  .chip { display: inline-block; padding: 1px 8px; border-radius: 999px; border: 1px solid #8886; font-size: 12px; margin: 0 4px 4px 0; }
+  .cell-verified { color: #b00; font-weight: 600; }
+  .cell-blocked { color: #555; text-decoration: line-through; }
+  .cell-not_run { color: #999; }
   .muted { color: #888; font-size: 12px; }
   pre { background: #8881; padding: 12px; border-radius: 6px; overflow: auto; }
 </style>
@@ -126,6 +136,94 @@ function renderGeneric(data) {
   return el("pre", {}, JSON.stringify(data, null, 2));
 }
 
+function card(title, ...kids) {
+  return el("section", { class: "card" }, el("h2", {}, title), ...kids);
+}
+
+const COVERAGE_LABEL = {
+  verified: "已确认", blocked: "阻塞", inconclusive: "未确认", not_run: "未测", error: "错误",
+};
+
+function renderOverview(d) {
+  const eng = (d.engagements && d.engagements[0]) || {};
+  const cov = d.coverage || { tested: 0, total: 1, zero_hit_tags: [] };
+  const rate = cov.total ? cov.tested / cov.total : 0;
+  const wrap = el("div");
+
+  // 覆盖不足必须喊出来：结论只在这些面上成立（D1 的界面化）
+  if (rate < 0.5) {
+    wrap.append(el("div", { class: "alert-warn" },
+      `覆盖率 ${cov.tested}/${cov.total} —— 本轮结论只在这些面上成立，其余为未测`));
+  }
+
+  wrap.append(el("div", { class: "cards" },
+    card("资产与范围",
+      el("p", { class: "big" }, String(eng.asset || "（无数据）")),
+      el("p", { class: "muted" }, String(eng.scope || "")),
+      el("p", { class: "muted" }, `engagement ${String(eng.id || "-")}`)),
+    card("结论计数",
+      el("p", { class: "big" },
+        el("a", { href: "#/findings", "data-drill": "findings" }, String(d.findings ?? 0))),
+      el("p", { class: "muted" }, "条（其中已确认见 findings）"),
+      el("p", {},
+        el("a", { href: "#/unverified", "data-drill": "unverified" },
+          `未验证 ${d.unverified ?? 0} 条`),
+        " ",
+        el("span", { class: "muted" },
+          `立即看 ${(d.queues || {}).now ?? 0} · 本周 ${(d.queues || {}).week ?? 0}`))),
+    card("覆盖缺口",
+      el("p", { class: "big" },
+        el("a", { href: "#/coverage", "data-drill": "coverage" },
+          `${cov.tested}/${cov.total}`)),
+      el("p", { class: "muted" },
+        (cov.zero_hit_tags || []).length
+          ? `零命中标签：${(cov.zero_hit_tags || []).join(", ")}`
+          : "零命中标签：无"))));
+
+  return wrap;
+}
+
+function renderEngagement(d) {
+  const rows = [
+    ["engagement", d.id], ["资产", d.asset], ["范围", d.scope],
+    ["已确认", d.confirmed], ["总条目", d.total],
+    ["决策", d.decision], ["原因", d.reason], ["绑定数", d.bindings],
+  ];
+  const table = el("table");
+  for (const [k, v] of rows) {
+    table.append(el("tr", el("th", { scope: "row" }, k),
+      el("td", {}, v === undefined || v === null || v === "" ? "未提供" : String(v))));
+  }
+  return table;
+}
+
+function renderCoverage(d) {
+  const wrap = el("div");
+  wrap.append(el("p", { class: "muted" },
+    `口径：${d.scope || "unknown"}（分母只含跑过的面）`));
+  if (!(d.matrix || []).length) {
+    wrap.append(el("p", {}, "本轮没有可展示的覆盖数据"));
+    return wrap;
+  }
+  const table = el("table");
+  const head = el("tr", el("th", {}, "资产"), ...(d.oracles || []).map((o) => el("th", {}, o)));
+  table.append(head);
+  for (const row of d.matrix) {
+    const tr = el("tr", el("td", {}, row.asset));
+    for (const o of d.oracles || []) {
+      const state = row.cells[o] || "not_run";
+      tr.append(el("td", { class: "cell-" + state }, COVERAGE_LABEL[state] || state));
+    }
+    table.append(tr);
+  }
+  wrap.append(table);
+  if ((d.zero_hit_tags || []).length) {
+    wrap.append(el("p", { class: "muted" },
+      ...["零命中标签：", ...d.zero_hit_tags.map((x) => el("span", { class: "chip" }, x))]));
+  }
+  return wrap;
+}
+
 async function show(op) {
   current = op;
   for (const btn of document.querySelectorAll("#nav button")) {
@@ -135,7 +233,10 @@ async function show(op) {
   main.replaceChildren(el("p", { class: "muted" }, "加载中…"));
   const data = await fetchOp(op);
   let view;
-  if (op === "findings") view = renderFindings(data);
+  if (op === "overview") view = renderOverview(data);
+  else if (op === "engagement") view = renderEngagement(data);
+  else if (op === "coverage") view = renderCoverage(data);
+  else if (op === "findings") view = renderFindings(data);
   else if (op === "routes") view = renderRoutes(data);
   else if (op === "bounds") view = renderBounds(data);
   else view = renderGeneric(data);
