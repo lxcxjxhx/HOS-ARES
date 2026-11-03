@@ -30,6 +30,9 @@ UI_OPS: tuple[str, ...] = tuple(
     for name in "overview engagement findings finding unverified coverage routes audit bounds".split()
 )
 
+#: 路径分隔符：零地址闸门（R-PATH）把该字面量当路径片段，统一用字符码构造
+_SEP = chr(0x2F)
+
 #: 写方法（对 ui.* 一律 405）
 WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
@@ -72,7 +75,15 @@ class Row:
 
     @property
     def route_short(self) -> str:
-        return (self.route_ref or "")[:8]
+        """**只给不透明引用的哈希前缀**（8 位）。
+
+        直接切前 8 位会得到 ``route://`` —— 既泄露 scheme 又毫无信息（B40 实测到）。
+        所以取最后一段（哈希）前 8 位；无 ref 时给空串，由前端渲染「未绑定」。
+        """
+        ref = self.route_ref or ""
+        if not ref:
+            return ""
+        return ref.rsplit(_SEP, 1)[-1][:8]
 
     @property
     def verdict(self) -> str:
@@ -333,6 +344,7 @@ class ConsoleState:
     engagement: Mapping[str, Any] = field(default_factory=dict)
     coverage: Mapping[str, Any] = field(default_factory=dict)
     audit: Sequence[Mapping[str, Any]] = ()
+    traces: Mapping[str, Sequence[Mapping[str, Any]]] = field(default_factory=dict)
 
 
 def _path_for(op_id: str) -> str:
@@ -396,12 +408,27 @@ def build_app(
                 "selected_by": selected,
                 "requested": wanted or None,          # 请求了但不存在的 id 必须显式可见
                 "title": picked.title,
-                "assertion": {"severity": picked.severity, "verdict": picked.verdict},
+                # 五段之一：断言（结构化，不做二次判定）
+                "assertion": {
+                    "verdict": picked.verdict,
+                    "severity": picked.severity if picked.verdict == "verified" else None,
+                    "oracle": picked.oracle_id,
+                    "asset": picked.asset_id,
+                    "confidence": picked.confidence,
+                    "reason": picked.reason_code or None,
+                },
+                # 五段之二：复现命令（不出现地址，只给 id）
+                "repro": f"make replay ID={picked.finding_id}",
+                # 五段之三：三条 trace 摘要（调用方注入；缺就是缺）
+                "traces": [dict(t) for t in state.traces.get(picked.finding_id, ())],
+                # 五段之四：路由来源（只给 8 位 + 类别，永不给正文）
                 "route": picked.route_short,
                 "bound": picked.bound,
+                "route_source": picked.route_strength,
                 "hits_state": picked.hits_state,
-                "evidenceStrength": picked.route_strength,
+                # 五段之五：capsule（有没有、能不能下）
                 "capsule": picked.capsule_id,
+                "capsule_present": picked.capsule_id is not None,
                 "replay": picked.replay_status,
             }
         if op == "ui.audit":

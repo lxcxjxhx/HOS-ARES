@@ -267,6 +267,12 @@ ui-router:
 
 b39: ui-router ui-dom ui-contract ui-loader console-test types-check lint
 
+# B40 详情页五段（A 任意 id / B 无地址 / C capsule 缺失显性 / D 缺字段不省略）
+ui-finding:
+	$(PY) -m pytest tests/unit/test_ui_finding.py -q
+
+b40: ui-finding ui-router ui-dom ui-contract console-test types-check lint
+
 # B16 双客户档（A1：差异全部在 YAML，内核零改动）
 profile-test:
 	$(PY) -m pytest tests/unit/test_profiles.py -q

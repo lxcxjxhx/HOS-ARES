@@ -5,4 +5,5 @@ renderEngagement
 renderCoverage
 renderRoutes
 renderBounds
+renderFinding
 renderGeneric

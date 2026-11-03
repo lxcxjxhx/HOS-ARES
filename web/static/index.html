@@ -300,6 +300,62 @@ function renderBounds(data) {
   return wrap;
 }
 
+const VERDICT_BADGE = {
+  verified: "已确认", inconclusive: "未确认", blocked: "阻塞", not_run: "未执行", error: "错误",
+};
+
+function section(title, ...kids) {
+  return el("section", { class: "card" }, el("h2", {}, title), ...kids);
+}
+
+function renderFinding(d) {
+  if (!d || !d.id) {
+    return el("div", {},
+      el("p", {}, "未找到该发现"),
+      el("p", {}, el("a", { href: "#/findings" }, "返回列表")));
+  }
+  const a = d.assertion || {};
+  const wrap = el("div");
+
+  if (d.selected_by === "fallback") {
+    wrap.append(el("p", { class: "alert-warn" },
+      `未找到 id=${d.requested}，显示第一条（fallback）`));
+  }
+
+  wrap.append(section("① 断言",
+    el("p", {}, el("span", { class: "chip" }, VERDICT_BADGE[a.verdict] || a.verdict)),
+    el("p", {}, `${d.id} · ${a.oracle || "-"} · ${a.asset || "-"}`),
+    el("p", { class: "muted" },
+      `severity: ${a.severity || "（未验证，无分档）"} · 置信度 ${Number(a.confidence || 0).toFixed(2)}`
+      + (a.reason ? ` · 原因 ${a.reason}` : ""))));
+
+  wrap.append(section("② 复现",
+    el("p", { class: "muted" }, "关掉 agent，只用证据包重发三条请求："),
+    el("pre", {}, d.repro || "未提供")));
+
+  const traces = d.traces || [];
+  wrap.append(section("③ 三条 trace 摘要",
+    traces.length
+      ? el("table", el("tr", el("th", {}, "角色"), el("th", {}, "状态"), el("th", {}, "字节数"),
+          ...traces.map((x) => el("tr", el("td", {}, String(x.role || "-")),
+            el("td", {}, String(x.status ?? "-")), el("td", {}, String(x.bytes ?? "-"))))))
+      : el("p", { class: "muted" }, "未提供（trace 未注入）")));
+
+  wrap.append(section("④ 路由来源",
+    el("p", {}, d.bound === false
+      ? el("span", { class: "muted" }, "未绑定（本轮没有解析出可用绑定）")
+      : el("span", {}, d.route || "-")),
+    el("p", { class: "muted" },
+      `来源类别 ${d.route_source || "-"} · 只给前 8 位，任何情况下都不显示模板正文`)));
+
+  wrap.append(section("⑤ 证据包 capsule",
+    d.capsule_present
+      ? el("p", {}, el("code", {}, d.capsule), " ", el("span", { class: "muted" }, "（下载未接线）"))
+      : el("p", { class: "alert-red" }, "无证据包 —— 该结论不可复现")));
+
+  return wrap;
+}
+
 function renderGeneric(data) {
   return el("pre", {}, JSON.stringify(data, null, 2));
 }
@@ -328,6 +384,7 @@ async function render() {
   else if (state.op === "engagement") view = renderEngagement(data);
   else if (state.op === "coverage") view = renderCoverage(data);
   else if (state.op === "findings") view = renderFindings(data, state.params);
+  else if (state.op === "finding") view = renderFinding(data);
   else if (state.op === "unverified") view = renderUnverified(data);
   else if (state.op === "routes") view = renderRoutes(data);
   else if (state.op === "bounds") view = renderBounds(data);

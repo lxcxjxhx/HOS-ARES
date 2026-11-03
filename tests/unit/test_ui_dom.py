@@ -57,11 +57,11 @@ def test_structure_no_page_falls_back_to_pre() -> None:
     """overview / engagement / coverage 必须走专属渲染器（B38）。"""
     pairs = (("overview", "renderOverview"), ("engagement", "renderEngagement"),
              ("coverage", "renderCoverage"), ("findings", "renderFindings"),
-             ("unverified", "renderUnverified"), ("routes", "renderRoutes"),
-             ("bounds", "renderBounds"))
+             ("unverified", "renderUnverified"), ("finding", "renderFinding"),
+             ("routes", "renderRoutes"), ("bounds", "renderBounds"))
     for op, fn in pairs:
         assert f'state.op === "{op}") view = {fn}(' in SRC, f"{op} 未接 {fn}"
-    # 兜底只留给了 finding / audit（B40 才做详情页）
+    # 兜底只剩 audit（B53 接事件源前没有更好形态）
     assert "else view = renderGeneric(data)" in SRC
 
 
@@ -111,12 +111,20 @@ def test_structure_keyboard_and_toolbar() -> None:
     assert 'tabindex: "0"' in SRC, "行必须可聚焦（j/k 才有落点）"
 
 
+def test_structure_finding_page_has_five_sections() -> None:
+    for marker in _SECTIONS:
+        assert marker in SRC, f"详情页缺段落 {marker}"
+    assert "无证据包 —— 该结论不可复现" in SRC, "capsule 缺失必须红色告警（B40 判据 C）"
+    assert "不显示模板正文" in SRC
+
+
 def test_structure_no_hardcoded_api_paths() -> None:
     assert (chr(0x2F) + "api") not in SRC
     assert "文本快照" not in SRC
 
 
-_RENDERED = "overview engagement coverage findings unverified".split()
+_RENDERED = "overview engagement coverage findings unverified finding".split()
+_SECTIONS = "① 断言|② 复现|③ 三条 trace 摘要|④ 路由来源|⑤ 证据包 capsule".split("|")
 
 
 @pytest.mark.parametrize("op", _RENDERED)
