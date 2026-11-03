@@ -3,9 +3,18 @@
 # 一次只跑一批；每批 DoD 全绿即停（21 §4）。
 
 PY ?= python
-PKG_DIRS := veripen_core veripen_oracles veripen_contract api worker web tests
+PKG_DIRS := veripen_core veripen_oracles veripen_contract veripen_cli api worker web tests
+VERSION ?= 1.0.0
 
-.PHONY: help test bindings-check lint-noroute lint-nodata-stub lint b1 b4 b5 b6 b7 b8 b9 b10 b11 b12 b12.1 b13 b14 b15 b16 b17
+# 离线包（A3「内网能装」）：组包 + 立刻自校验
+package-offline:
+	$(PY) scripts/package_offline.py --version $(VERSION)
+
+# 部署自检 16 项（skip 不算通过，全 ok 才叫绿）
+doctor:
+	$(PY) -m veripen_cli.cmd_doctor
+
+.PHONY: help test doctor package-offline bindings-check lint-noroute lint-nodata-stub lint-noleak replay coverage-matrix cases bench-leads plugin-roundtrip workbench-smoke assertions b1 b4 b5 b6 b7 b8 b9 b10 b11 b12 b12.1 b12.2 b12.3 b12.4 b12.5 b12.6 b12.7 b12.8 b12.9 b12.10 b12.11 b12.12 b12.13 b12.14 b12.15 b12.16 bench-abi bench-rerun lint-act-cmd lint-ui b13 b14 b15 b16 b17
 
 help:
 	@echo "make test             运行 B1 契约测试"
@@ -42,7 +51,7 @@ lint-netimports:
 	$(PY) scripts/lint/netimports.py
 
 types-check:
-	$(PY) -m mypy --strict veripen_core/ worker/ veripen_oracles/
+	$(PY) -m mypy --strict veripen_core/ worker/ veripen_oracles/ veripen/ veripen_cli/
 
 b1.5: routes-l0 routes-contract lint-netimports types-check lint
 
@@ -164,6 +173,56 @@ bench-test:
 bench:
 	$(PY) scripts/b12/run_bench.py --rounds 3 --out out/b12
 
+# ── v3.6 / B18：A2/A4/A6/A7/A10/A11/A12 的可执行断言 ────────────────
+# 每一条都必须**能红**（见 39 §3）。红不是缺陷，是缺口可见。
+
+# A2 差异没漏进代码（客户串不许出现在内核）
+lint-noleak:
+	$(PY) scripts/lint/noleak.py
+
+# A4 不是「我说有洞」：篡改 1 字节必须 TAMPERED（无靶场可跑）
+replay:
+	@test -n "$(ID)" || (echo "用法：make replay ID=<capsule.json> [MODE=dry]"; exit 2)
+	$(PY) -m veripen_cli.cmd_replay --capsule "$(ID)" --mode $(or $(MODE),dry) --out out/replay
+	$(PY) -m veripen_cli.cmd_replay --capsule "$(ID)" --selftest
+
+# A6 覆盖够宽：14 类 oracle × 用例，0 用例的一类必须可见
+coverage-matrix:
+	$(PY) -m veripen_cli.cmd_coverage --out out/coverage
+
+# A7 接口能自动覆盖：契约 → 候选，两次摘要必须一致、候选零地址
+cases:
+	@test "$(or $(CASES),x)" = "contract" || (echo "用法：make cases CASES=contract"; exit 2)
+	$(PY) -m veripen_cli.cmd_cases --contract tests/fixtures/contract/sample.json --check --out out/cases
+
+# A10 能打同时能证明（B19/B21 之前必然红：act.* 未接、闭环率算不出）
+bench-leads:
+	$(PY) -m veripen_cli.cmd_bench_leads --out out/leads
+
+# A11 能力可扩展（B20 之前必然红：远程 fetch 未接）
+plugin-roundtrip:
+	$(PY) -m veripen_cli.cmd_plugin_roundtrip --out out/plugins
+
+# A12 工作台（B19 之前必然红：无 Executor 实现）
+workbench-smoke:
+	$(PY) -m veripen_cli.cmd_workbench_smoke --out out/workbench
+
+# 断言总览：一次跑完 A2/A4/A6/A7/A10/A11/A12（允许部分红，用于看当前缺口）
+assertions:
+	@echo "== A2 lint-noleak ==";        $(PY) scripts/lint/noleak.py || true
+	@echo "== A6 coverage-matrix ==";    $(PY) -m veripen_cli.cmd_coverage --out out/coverage || true
+	@echo "== A7 cases ==";              $(PY) -m veripen_cli.cmd_cases --contract tests/fixtures/contract/sample.json --check --out out/cases || true
+	@echo "== A10 bench-leads ==";       $(PY) -m veripen_cli.cmd_bench_leads --out out/leads || true
+	@echo "== A11 plugin-roundtrip ==";  $(PY) -m veripen_cli.cmd_plugin_roundtrip --out out/plugins || true
+	@echo "== A12 workbench-smoke ==";   $(PY) -m veripen_cli.cmd_workbench_smoke --out out/workbench || true
+
+# B12.9 指标重跑：口径变了（error 率 / undetermined / agent_reported=0），
+# 且必须证明"补齐不改结论"——前后 finding 集合差为空
+bench-rerun:
+	$(PY) scripts/b12/run_bench.py --rounds 3 --out out/b12 --diff-findings out/b12/findings_pinned.txt
+
+b12.9: bench-test bench-rerun
+
 b12: bench-test bench types-check lint
 
 # B15 只读控制台（ui.* 写请求 405；绑定页只给摘要）
@@ -220,3 +279,98 @@ ledger-check:
 	$(PY) scripts/lint/ledger_check.py
 
 b12.1: selfcheck-test spec-drift types-check lint
+
+# B12.2 outcome 四态 + 覆盖来源（三条自洽规则：模型 / 落库 / 库触发器各守一次）
+outcome-test:
+	$(PY) -m pytest tests/unit/test_outcome.py -q
+
+b12.2: outcome-test types-check lint
+
+# B12.3 workflow DAG：18 §0 波次 ↔ 33 §2 九阶段，环检测 + 跳过必落 task_events
+workflow-test:
+	$(PY) -m pytest tests/unit/test_workflow.py -q
+
+b12.3: workflow-test spec-drift types-check lint
+
+# B12.4 knowledge 层：只进 L2、永不进判定（改知识全文 verdict 逐字不变）
+knowledge-test:
+	$(PY) -m pytest tests/unit/test_knowledge_redline.py -q
+
+b12.4: knowledge-test types-check lint
+
+# B12.5 多 agent：agent 之间只传任务不传结论（分工不协商）
+multi-agent-test:
+	$(PY) -m pytest tests/unit/test_multi_agent.py -q
+
+# 生死线：单/多 agent 的 findings 集合与请求数必须逐字相同
+bench-abi:
+	$(PY) scripts/b12/bench_abi.py
+
+b12.5: multi-agent-test bench-abi types-check lint
+
+# B12.6 自由动作 act.*：六动作 + 白名单二进制 + 地址零入库
+actions-test:
+	$(PY) -m pytest tests/unit/test_actions.py -q
+
+# argv 模板与动作层源码里不许出现字面地址，也不许 import 判定类型
+lint-act-cmd:
+	$(PY) scripts/lint/act_cmd.py
+
+b12.6: actions-test lint-act-cmd types-check lint
+
+# B12.7 线索闭环：pending 强制下一步 / 死线索不占预算 / pending>0 不许 DONE
+leads-test:
+	$(PY) -m pytest tests/unit/test_leads.py -q
+
+b12.7: leads-test types-check lint
+
+# B12.8 操作台 SSE：五类事件 / act 必带 sandbox_id / 控制台改不了 verdict
+stream-test:
+	$(PY) -m pytest tests/unit/test_stream.py -q
+
+lint-ui:
+	$(PY) scripts/lint/ui_zero_address.py
+
+b12.8: stream-test lint-ui types-check lint
+
+# B12.10 插件发现层：score 可复算 + 6h 内刷新 0 请求
+plugin-discovery-test:
+	$(PY) -m pytest tests/unit/test_plugin_discovery.py -q
+
+b12.10: plugin-discovery-test types-check lint
+
+# B12.11 插件注册层：lock 可回滚 / 6h 冷却 / 一次刷新 ≤2 请求 / 上游消失不自动卸载
+plugin-registry-test:
+	$(PY) -m pytest tests/unit/test_plugin_registry.py -q
+
+b12.11: plugin-registry-test types-check lint
+
+# B12.12 装配与准入：四挂载点只有 oracle 能判定 / oracle 必过 44 例 / 插件直连被拦
+plugin-admission-test:
+	$(PY) -m pytest tests/unit/test_plugin_admission.py -q
+
+b12.12: plugin-admission-test types-check lint
+
+# B12.13 插件 UI 渲染契约：四色标 + 缓存时间可见 + 版本箭头（不碰 HTML）
+plugin-view-test:
+	$(PY) -m pytest tests/unit/test_plugin_view.py -q
+
+b12.13: plugin-view-test lint-ui types-check lint
+
+# B12.14 工作台读写层：绝对路径拒 / write 不覆盖 / edit 次数不符整体失败 / 无 delete
+workbench-test:
+	$(PY) -m pytest tests/unit/test_workbench_fs.py -q
+
+b12.14: workbench-test types-check lint
+
+# B12.15 shell.run + 强制代理：五道闸 / 脚本含 URL 即拒 / 直连失败走代理成功
+shell-test:
+	\ -m pytest tests/integration/test_shell_proxy.py -q
+
+b12.15: shell-test types-check lint
+
+# B12.16 计划与任务层：plan.enter 锁写 / exit 未确认不放行 / todo 与 leads 一致
+plan-test:
+	\ -m pytest tests/unit/test_plan_mode.py -q
+
+b12.16: plan-test types-check lint

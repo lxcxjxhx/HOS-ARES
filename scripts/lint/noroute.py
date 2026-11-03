@@ -73,6 +73,15 @@ URL_OK = (
     "json-schema.org", "w3.org", "openapis.org", "sarif",
 )
 
+#: 行内豁免：``# noroute-ok: <理由>``。理由必填，全仓**总数**有上限。
+#:
+#: 为什么需要它：有些行**必须**写出地址语法本身——
+#:   * ``routes/addresses.py`` 是定义"什么是地址"的地方，不写语法就没法定义；
+#:   * 断言"这段文本会被判成地址"的测试，本身必须含一个地址。
+#: 这类豁免与"随手加白"的区别在于：理由必填、总量封顶、diff 里一眼可见。
+INLINE_MARK = "noroute-ok:"
+MAX_INLINE = 8
+
 
 def _iter_files(root: Path = ROOT) -> list[Path]:
     files: list[Path] = []
@@ -117,6 +126,7 @@ def _load_allowlist(root: Path = ROOT) -> list[tuple[re.Pattern[str], str]]:
 def _scan(root: Path = ROOT) -> list[str]:
     allow = _load_allowlist(root)
     hits: list[str] = []
+    inline_used = 0
     for path in _iter_files(root):
         try:
             text = path.read_text(encoding="utf-8")
@@ -126,6 +136,13 @@ def _scan(root: Path = ROOT) -> list[str]:
         is_code = path.suffix in CODE_EXT or path.name == "Makefile"
         for lineno, line in enumerate(text.splitlines(), 1):
             if any(rx.search(line) for rx, _ in allow):
+                continue
+            if INLINE_MARK in line:
+                reason = line.split(INLINE_MARK, 1)[1].strip()
+                if not reason:
+                    hits.append(f"{rel}:{lineno}: R-INLINE: 行内豁免缺理由")
+                else:
+                    inline_used += 1
                 continue
             rules: list[str] = []
             for m in RE_PATH.finditer(line):
@@ -145,6 +162,10 @@ def _scan(root: Path = ROOT) -> list[str]:
                     rules.append("R-DEFAULT")
             for rule in sorted(set(rules)):
                 hits.append(f"{rel}:{lineno}: {rule}: {line.strip()[:120]}")
+    if inline_used > MAX_INLINE:
+        hits.append(
+            f"R-INLINE: 行内豁免 {inline_used} 处 > 上限 {MAX_INLINE}：先修代码，别加豁免"
+        )
     return hits
 
 

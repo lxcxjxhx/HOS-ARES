@@ -1,0 +1,41 @@
+# 多 agent 角色边界（B12.5）—— 分工不协商
+#
+# 这张表的作用不是"配置"，是**审计依据**：
+# 谁 reads_verdict=false，谁就不该出现在判定路径上。
+
+recon:
+  class: Recon
+  reads_verdict: false
+  produces: [TaskSuggestion]
+  forbidden: [judge, write_finding, execute_oracle]
+  why: 只读黑板与 routeset 摘要，产"下一步测什么"；提前裁候选等于替判定做决定
+
+verifier:
+  class: Verifier
+  reads_verdict: true
+  produces: [Judgement, FindingRecord]
+  forbidden: [write_report, change_plan]
+  why: 唯一允许调用 oracle.judge 的角色；judge 由外部注入，其他角色拿不到函数本身
+
+reporter:
+  class: Reporter
+  reads_verdict: true
+  produces: [Report]
+  forbidden: [judge, rewrite_verdict]
+  why: 汇总与呈现；rewrite_verdict 显式存在但永远抛，让越界在调用点就崩
+
+# 冲突处理：不协商。两条不同的 Judgement 各自成 finding，报告并列，由人判。
+conflict_policy: no_negotiation
+
+# 并行边界（21 §3.5.3）
+parallel:
+  allowed:
+    - 不同 oracle 对不同资产
+    - 同资产不同 route_ref（受 per_asset_concurrency 约束）
+  forbidden:
+    - 同一 (task, oracle, asset) 的重复执行
+    - 写操作类 oracle（mass_assignment / xss_stored_probe，会互相污染状态）
+    - 审批门未过的动作
+  max_workers: 2
+  per_asset_concurrency: 2
+  note: 多 agent 不能用来绕限流；worker 数取二者较小值

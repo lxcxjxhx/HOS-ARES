@@ -20,7 +20,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+# cryptography 只被 tests/lab/tls.py 用来现场签发证书（https 分支的夹具）。
+# 它**不进运行期依赖**：产品代码走 stdlib ssl，不需要它；
+# 但测试里必须声明清楚，否则本地碰巧装了就能过、CI 干净环境就红。
+dev = ["pytest>=8.0", "cryptography>=42"]
 
 [tool.setuptools]
 packages = ["veripen_core", "api"]

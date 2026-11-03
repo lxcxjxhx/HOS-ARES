@@ -1,0 +1,122 @@
+# workflow DAG（B12.3）—— 33 §2 九阶段的显式化
+#
+# 三条规矩：
+# 1. 每个 phase 的 stage 必须落在 33 §2 的九个阶段里；
+# 2. 声明了 gate 就必须声明 produces（带 schema）——门在守的东西要能被校验；
+# 3. oracle-wave 节点必须标 wave，取值来自 18 §0 的波次列，四个波次缺一不可。
+#
+# 顺序由 needs 决定，不依赖文件里的书写顺序；同层按 id 排序，同输入同输出。
+
+version: 1
+
+phases:
+  - id: intake
+    stage: intake
+    produces:
+      - name: task
+        schema: veripen.task/v1
+      - name: idem_key
+        schema: veripen.idem/v1
+
+  - id: lease
+    stage: lease
+    needs: [intake]
+    produces:
+      - name: lease
+        schema: veripen.lease/v1
+    gate: 每任务只有一张未过期租约
+    event_kind: plan
+
+  - id: discovery
+    stage: discovery
+    needs: [lease]
+    produces:
+      - name: routeset
+        schema: veripen.routeset/v1
+    # 空/部分空 → 三档降级（08 §1.1）：允许跳过，但跳过必须落 task_events
+    gate: routeset_sha256 非空且可复算
+    gate_skippable: true
+    event_kind: route
+
+  - id: plan
+    stage: plan
+    needs: [discovery]
+    produces:
+      - name: next_action
+        schema: veripen.action/v1
+    event_kind: plan
+
+  - id: gate
+    stage: gate
+    needs: [plan]
+    produces:
+      - name: preflight
+        schema: veripen.preflight/v1
+    # scope / 预算 / 限流 / 审批四道都在这里，过不去不许执行
+    gate: 四道闸全过
+    event_kind: preflight
+
+  - id: exec
+    stage: exec
+    needs: [gate]
+    produces:
+      - name: pairs
+        schema: veripen.pairs/v1
+      - name: leads
+        schema: veripen.leads/v1
+    event_kind: http
+
+  - id: judge
+    stage: judge
+    needs: [exec]
+    produces:
+      - name: judgement
+        schema: veripen.judgement/v1
+    # 33 §2 阶段⑦是枢纽：act.* 走到这里只记账、不判——判不了就是没有 judgement
+    gate: act.* 不产出 judgement（只产 lead）
+    gate_skippable: true
+    event_kind: judge
+
+  - id: record
+    stage: record
+    needs: [judge]
+    produces:
+      - name: capsule
+        schema: veripen.capsule/v1
+      - name: events
+        schema: veripen.events/v1
+    event_kind: capsule
+
+  - id: converge
+    stage: converge
+    needs: [record]
+    produces:
+      - name: verdict
+        schema: veripen.verdict/v1
+    gate: pending_leads == 0 才允许 DONE（35 §3）
+    event_kind: budget
+
+  # ── 18 §0 波次：oracle 判定矩阵的四个波次（一致性测试据此对账）──
+  - id: wave-w1
+    stage: exec
+    needs: [gate]
+    wave: W1
+    event_kind: oracle
+
+  - id: wave-w2
+    stage: exec
+    needs: [gate]
+    wave: W2
+    event_kind: oracle
+
+  - id: wave-w3
+    stage: exec
+    needs: [gate]
+    wave: W3
+    event_kind: oracle
+
+  - id: wave-w4
+    stage: exec
+    needs: [gate]
+    wave: W4
+    event_kind: oracle

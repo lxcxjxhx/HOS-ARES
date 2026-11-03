@@ -20,11 +20,13 @@ for extra in (ROOT, ROOT / "tests", ROOT / "tests" / "unit"):
         sys.path.insert(0, str(extra))
 
 import lab.routes as R  # noqa: E402
-from lab.app import App  # noqa: E402
+from lab.app import App, make_token  # noqa: E402
 from lab.transport_oob import LabTransport  # noqa: E402
 
 from veripen_core.agent import (  # noqa: E402
     AgentState,
+    ClosedLoop,
+    ClosedLoopDecider,
     Loop,
     ScriptedDecider,
     classify_discovery,
@@ -51,6 +53,7 @@ from veripen_core.evidence import (  # noqa: E402
     verify_chain,
 )
 from veripen_core.profile import load_profile  # noqa: E402
+from veripen.bench.faces import extra_tags  # noqa: E402
 from veripen_oracles import ALL_ORACLES  # noqa: E402
 from veripen_oracles.common.harness import SymbolTable, run as run_oracle  # noqa: E402
 
@@ -75,7 +78,6 @@ SELECTOR = {
     "ssrf_oob": "url_fetch",
     "jwt_suite": "protected_read",
 }
-EXTRA_TAGS = {"bola_functional": ("normal_function",), "mass_assignment": ("profile_read",)}
 
 
 def _say(step: str, text: str) -> None:
@@ -111,7 +113,7 @@ class DemoRuntime:
             return {"verdict": "BLOCKED", "reason": "route_unresolved", "route_strength": "contract"}
         binding = R.binding_for(tag)
         bindings = {tag: binding}
-        for extra in EXTRA_TAGS.get(oracle_id, ()):
+        for extra in extra_tags(oracle_id):
             bindings[extra] = R.binding_for(extra)
         result = run_oracle(
             _oracle(oracle_id),
@@ -119,7 +121,10 @@ class DemoRuntime:
             self.transport,
             symbols=SYMBOLS,
             nonce=f"demo-{oracle_id}",
-            token="a" * 64,
+            # 必须给**合法 JWT**：jwt_suite 的前提是"拿合法会话去变造"。
+            # 传一个 64 位填充串，基线直接 401 → BLOCKED，那条用例根本没被测——
+            # 演示里出现一条 BLOCKED 会让观众以为"框架跑不动它"。
+            token=make_token("primary"),
             bindings=bindings,
         )
         self.capsules.append({"oracle": oracle_id, "result": result, "binding": binding})
@@ -159,16 +164,30 @@ def step2_loop(app: App, transport: LabTransport, outcome) -> object:  # noqa: A
     runtime = DemoRuntime(app, transport)
     state = AgentState(pending=tuple(outcome.bound_oracles), strong=(),
                        wave_order=tuple(outcome.bound_oracles))
+    # B12.7c 接线：demo 走**闭环版决策器**。它跑的是同一条 NEXT_RULES，
+    # 只在前面加一条"有 pending lead 必须先验它"——没有 lead 时行为逐字相同。
+    closed = ClosedLoop(ledger=None, task_id="demo", window=tuple(outcome.bound_oracles))
     loop = Loop(
         runtime=runtime,
-        decider=ScriptedDecider(),
+        decider=ClosedLoopDecider(closed=closed),
         budget=Budget(limits=BudgetLimits(steps=20)),
         goal="demo",
+        max_steps=20,
     )
     result = loop.run(state)
     _say("0:30", f"agent 循环：{result.decision.value}（{result.reason}），"
                  f"{len(result.step_entries)} 步，判定 {result.verdicts}")
     return runtime
+
+
+#: finding_id → {步骤号: 该步实际发出的参数}。step3 填，step5 用。
+#: 存起来而不是从 path_rendered 反解：反解会在带 body 的请求上丢参数，
+#: 而且那是"从离线数据猜请求"，恰好是 27 N1 要防的事。
+_CAP_PARAMS: dict[str, dict[int, dict[str, str]]] = {}
+
+
+def _params_from_capsule(cap) -> dict[int, dict[str, str]]:  # noqa: ANN001
+    return _CAP_PARAMS.get(cap.finding_id, {})
 
 
 def _routeset_for(binding):  # noqa: ANN001, ANN201
@@ -191,25 +210,42 @@ def _routeset_for(binding):  # noqa: ANN001, ANN201
 
 
 def step3_evidence(runtime: DemoRuntime, out: Path) -> list:  # noqa: ANN201
-    """把 VERIFIED 的 oracle 结果封成 capsule 并串链。"""
-    from capsule_fixture import capsule as make_capsule
+    """把 VERIFIED 的 oracle 结果封成 capsule 并串链。
+
+    **证据必须来自这次真跑**，不是夹具模板。早先这里用 ``capsule_fixture``
+    合成 capsule，再把 oracle id 打补丁改掉——步骤与断言都是假的，
+    demo 却宣称"每条发现能复现"。现在改用 ``veripen.bench.capsule.build_capsule``，
+    步骤取自 ``result.pairs``（judge 真正读过的 trace）、断言取自 ``judgement``。
+    """
+    from veripen.bench.capsule import build_capsule, step_params
+    from veripen_core.evidence import seal_capsule_doc
 
     caps = []
     for item in runtime.capsules:
         result = item["result"]
         if result.verdict.value != "VERIFIED":
             continue
-        # capsule 必须记"它实际打的那条面"（capsule_fixture 用 RouteSet 的第一条绑定，
-        # 所以这里传入**只含该绑定**的 RouteSet），否则 replay 无法重解析（06 §5 第 3 步）
+        # capsule 必须记"它实际打的那条面"，否则 replay 无法重解析（06 §5 第 3 步）
         binding = item["binding"]
         rs = _routeset_for(binding)
-        cap = make_capsule(rs=rs, verdict=result.verdict)
-        cap = cap.model_copy(
-            update={
-                "oracle": cap.oracle.model_copy(
-                    update={"id": item["oracle"], "cwe": _oracle(item["oracle"]).cwe}
-                )
-            }
+        cap = seal_capsule_doc(
+            build_capsule(
+                case_id=str(item["oracle"]),
+                oracle_id=str(item["oracle"]),
+                oracle_version=str(getattr(_oracle(str(item["oracle"])), "version", "1.0.0")),
+                verdict=result.verdict,
+                judgement=result.judgement,
+                pairs=result.pairs,
+                baseline_params=getattr(result, "baseline_params", {}) or {},
+                routeset=rs,
+                route_ref=binding.ref,
+                binding=binding,
+                profile_name="demo",
+                cwe=_oracle(str(item["oracle"])).cwe,
+            )
+        )
+        _CAP_PARAMS[cap.finding_id] = step_params(
+            cap, getattr(result, "baseline_params", {}) or {}, result.pairs
         )
         caps.append(cap)
     if not caps:
@@ -223,7 +259,19 @@ def step3_evidence(runtime: DemoRuntime, out: Path) -> list:  # noqa: ANN201
     return list(zip(chained, paths))
 
 
-def step4_report(profile, sealed, out: Path) -> Path:  # noqa: ANN001
+def step4_report(profile, sealed, out: Path, *, ledger=None, store=None) -> Path:  # noqa: ANN001
+    """三视图 + 线索章节 + 死信章节。
+
+    后两段**来自真库**（不是拼出来的示例文本）：
+    - 线索：``runtime.capsules`` 每跑一个 oracle 就记一条 lead，验证通过即闭环；
+    - 死信：本 demo 里 BLOCKED 的那条 oracle 走一次失败重试的完整路径。
+    这样报告的每一段都能指回库里的一行，replay 时也不会出现"报告里有、库里没有"。
+    """
+    from veripen_core.deadletter import render_section as render_dead
+    from veripen_core.leads import render_leads_section
+
+    leads_md = render_leads_section(ledger, "demo") if ledger is not None else ""
+    dead_md = render_dead(store) if store is not None else ""
     findings = []
     for i, (cap, _path) in enumerate(sealed):
         findings.append(
@@ -260,6 +308,8 @@ def step4_report(profile, sealed, out: Path) -> Path:  # noqa: ANN001
         frameworks=list(profile.frameworks),
         distribution="internal",  # 报告分发级别，与客户档名无关
         render_time="demo",
+        leads_section=leads_md,
+        dead_section=dead_md,
     )
     md = render_markdown(report)
     sarif = render_sarif(report)
@@ -278,18 +328,28 @@ def step4_report(profile, sealed, out: Path) -> Path:  # noqa: ANN001
 
 
 def step5_replay(sealed, transport) -> None:  # noqa: ANN001
+    """真发包重放：**不是**把 capsule 里记的状态原样返回。
+
+    早先这里用一个替身，按 role 返回 capsule 自带的 status/body_sha——
+    那样"重放通过"是恒真的，什么都证明不了。现在真发一轮请求，
+    由靶场回的真实状态与 body 哈希参与比对。
+    """
     if not sealed:
         return
     cap, path = sealed[0]
     rs = R.routeset()
-    matching = {
-        s.role: TraceResult(status=s.response.status, body_sha256=s.response.body_sha256)
-        for s in cap.steps
-    }
+    params_by_n = _params_from_capsule(cap)
+    inner = transport
 
     class T:
         def send(self, step, binding):  # noqa: ANN001, ANN201
-            return matching[step.role]
+            from veripen_core.evidence import TraceResult as _TR
+
+            try:
+                tr = inner.send(binding, params_by_n.get(int(step.n), {}), step.role, None)
+            except Exception as exc:  # noqa: BLE001
+                return _TR(status=0, body_sha256="", error=type(exc).__name__)
+            return _TR(status=int(tr.status), body_sha256=tr.body_sha256)
 
     live = replay(cap, ReplayEnv(now=0, mode=ReplayMode.LIVE, routeset=rs), T())
     offline = replay(cap, ReplayEnv(now=0, mode=ReplayMode.OFFLINE), None)
@@ -322,6 +382,59 @@ def step7_alt_profile(profile_name: str) -> None:
                  f"profile_hash={alt.profile_hash()[:12]}（同一份镜像，只换 YAML）")
 
 
+def step2b_leads(sealed, store) -> object:  # noqa: ANN001
+    """把「真跑出来的判定」记成线索账本，并留下一条真死信。
+
+    为什么用真库而不是拼示例文本：报告里的每一行都要能指回库里的一行。
+    线索与判定一一对应（一条 oracle 一条 lead），判出结论即闭环；
+    BLOCKED 的那条则走一次「失败 → 重试耗尽 → 死信 → 人重新投递」的完整路径。
+    """
+    from veripen_core.deadletter import to_dead_letter
+    from veripen_core.leads import LeadLedger, LeadState
+    from veripen_core.models import TaskState
+
+    ledger = LeadLedger(store)
+    for cap, _path in sealed:
+        lead = ledger.record(
+            task_id="demo",
+            asset_id=cap.target.asset_id,
+            source_action="verify.run_oracle",
+            raw_ref=f"out/demo/capsules/{cap.chain.self_sha256[:16]}.json",
+            summary=f"{cap.oracle.id} 判定 {cap.verdict.value}",
+            verifiable_by=(cap.oracle.id,),
+            confidence_hint=min(1.0, float(cap.confidence)),
+        )
+        # 判出结论 → 线索闭环（VERIFIED / REFUTED 都算闭环）
+        ledger.supersede(
+            lead.lead_id,
+            state=LeadState.VERIFIED if cap.verdict.value == "VERIFIED" else LeadState.REFUTED,
+            supersedes_note=cap.verdict.value,
+        )
+
+    # 一条死信：**演示用**，把一条任务走到「重试耗尽 → 死信」。
+    # 早先它依赖"jwt_suite 恰好 BLOCKED"这个副作用——那条 BLOCKED 其实是
+    # 基线 token 接线错误（已修），修好后就没有天然失败项了。
+    # 这里不再靠副作用，而是明确挑一个本次没跑的 oracle 作为演示对象，
+    # 并在文案里说清是演示，不冒充真实失败。
+    sealed_ids = {c[0].oracle.id for c in sealed}
+    blocked = [o for o in DEMO_ORACLES if o not in sealed_ids] or ["sqli_error_based"]
+    if blocked:
+        tid, _ = store.submit_task(
+            engagement_id="demo", profile_name="demo", profile_hash="h",
+            asset_id="a-demo", oracle_ids=[blocked[0]], max_attempts=3,
+        )
+        store.conn.execute(
+            "UPDATE tasks SET state=?, attempt=3 WHERE id=?",
+            (TaskState.FAILED.value, tid),
+        )
+        store.conn.commit()
+        to_dead_letter(store, tid, error_class="retryable", error_code="VP-7004")
+
+    _say("1:10", f"线索账本：{len(sealed)} 条全部闭环；"
+                 f"死信 {1 if blocked else 0} 条（单列，演示重试耗尽路径）")
+    return ledger
+
+
 def main(argv: list[str]) -> int:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser()
@@ -332,13 +445,18 @@ def main(argv: list[str]) -> int:
     args = ap.parse_args(argv)
     out = Path(args.out)
 
+    from veripen_core.store import Store
+
+    store = Store(str(out / "demo.db")).init()
+
     profile = step0_profile(args.profile)
     outcome = step1_discovery()
     app = App(secure=False)
     transport = LabTransport(app)
     runtime = step2_loop(app, transport, outcome)
     sealed = step3_evidence(runtime, out)
-    step4_report(profile, sealed, out)
+    ledger = step2b_leads(sealed, store)
+    step4_report(profile, sealed, out, ledger=ledger, store=store)
     if not args.offline_only:
         step5_replay(sealed, transport)
         step6_scope_shrink(sealed)
