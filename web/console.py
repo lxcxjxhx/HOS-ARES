@@ -263,11 +263,13 @@ def unverified_view(rows: Sequence[Row]) -> dict[str, Any]:
                  "reason": row.reason_code or "-"}
             )
     # 兼容层：三组按 outcome 分（既有契约不动），另给一份按 verdict 分的视图（B36 新增）
+    # 本页只装未验证行，所以四态即可（verified 不在这里）
     by_verdict: dict[str, list[str]] = {
-        "verified": [], "inconclusive": [], "blocked": [], "not_run": [], "error": [],
+        "inconclusive": [], "blocked": [], "not_run": [], "error": [],
     }
     for row in rows:
-        by_verdict[row.verdict].append(row.finding_id)
+        if row.verdict in by_verdict:
+            by_verdict[row.verdict].append(row.finding_id)
     return {
         "groups": groups,
         "counts": {k: len(v) for k, v in groups.items()},

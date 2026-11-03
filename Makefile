@@ -246,6 +246,15 @@ ui-contract:
 
 b36: ui-contract console-test types-check lint
 
+# B37 装载器：产物 → 状态（只读、确定性、空输入安全）
+ui-serve:
+	$(PY) -m veripen_cli.cmd_console --port 8099
+
+ui-loader:
+	$(PY) -m pytest tests/unit/test_ui_loader.py -q
+
+b37: ui-loader console-test types-check lint
+
 # B16 双客户档（A1：差异全部在 YAML，内核零改动）
 profile-test:
 	$(PY) -m pytest tests/unit/test_profiles.py -q
