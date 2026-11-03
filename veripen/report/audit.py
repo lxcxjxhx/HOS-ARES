@@ -36,6 +36,8 @@ class AuditInput:
     budget: Mapping[str, Any] = field(default_factory=dict)
     conflicts: Sequence[Mapping[str, Any]] = ()
     limits: Mapping[str, Any] = field(default_factory=dict)
+    #: 审批决定（含拒绝理由）——报告附录，合规需要
+    rejections: Sequence[Mapping[str, Any]] = ()
 
 
 def _buckets(events: Sequence[Mapping[str, Any]]) -> tuple[list[Mapping[str, Any]], list[Mapping[str, Any]]]:
@@ -117,6 +119,11 @@ def render_audit_section(audit: AuditInput) -> str:
         "",
         "### 异常账",
         _table(("seq", "kind", "错误类", "详情"), error_rows),
+        "",
+        "### 附录：审批拒绝理由",
+        _table(("审批", "动作", "决定人", "理由"),
+               [[r.get("id"), r.get("action_class"), r.get("decided_by"), r.get("reason")]
+                for r in audit.rejections]),
         "",
     ]
     return NL.join(blocks)

@@ -172,9 +172,12 @@ class Blackboard:
         绑定置信目前不在事实里（`RouteBinding.confidence` 不进黑板），
         所以排序键只用两级；这一缺口记在 `H03 §3` 的负结论里。
         """
-        # 写入序兜底：同一毫秒内的两条事实，用落库顺序判"谁更新"，
-        # 不用 ULID 字典序（同毫秒的随机后缀不可比，B51 实测撞到）。
-        insertion = {f.id: i for i, f in enumerate(self.all(task_id))}
+        # 写入序兜底：同一毫秒内的两条事实，用**落库顺序（rowid）**判"谁更新"，
+        # 不用 ULID 字典序（同毫秒的随机后缀不可比），也不用 all() 的排序（它按 id 排）。
+        order = self.store.conn.execute(
+            "SELECT id FROM blackboard_facts WHERE task_id=? ORDER BY rowid", (task_id,)
+        ).fetchall()
+        insertion = {str(row["id"]): i for i, row in enumerate(order)}
         resolutions: list[Resolution] = []
         for (subject, predicate), members in self.disputed(task_id).items():
             ordered = sorted(
