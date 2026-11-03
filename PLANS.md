@@ -19,8 +19,8 @@
 
 | id | 路径 | 版本 | 生效日 | 状态 | 权威范围 | 自检命令 | MANIFEST sha256（前 16） |
 |---|---|---|---|---|---|---|---|
-| `kernel` | `plan-veripen/` | `plan-v3.6` | 2026-11-02 | **frozen** | 判定 / 证据 / 地址治理 / 批次 B1–B34 账本 | `(cd plan-veripen && node check-plan.cjs)` | `21f2474d4cf9b165` |
-| `program` | `plan-hos-ares/` | `plan-hos-v1.0` | 2026-11-03 | active | 总规划：5 面 22 项、四波、B35–B59、A13–A20 | `node plan-hos-ares/check-plan.cjs` | `c3021dde9bbeb5af` |
+| `kernel` | `plan-veripen/` | `plan-v3.7` | 2026-11-03 | **frozen** | 判定 / 证据 / 地址治理 / 批次 B1–B34 账本 | `(cd plan-veripen && node check-plan.cjs)` | `90a4b5a32a262bfa` |
+| `program` | `plan-hos-ares/` | `plan-hos-v1.0` | 2026-11-03 | active | 总规划：5 面 22 项、四波、B35–B59、A13–A20 | `node plan-hos-ares/check-plan.cjs` | `e51d5d2b6e15fd05` |
 | `governance` | `PLANS.md` | `gov-v1.0` | 2026-11-03 | active | 本制度与注册表 | `node scripts/plan/check-plans.cjs` | —（自指不记录） |
 
 **注册新包**：填一行 + 在该包放 `README.md` 与自检脚本 + 跑 `check-plans.cjs` 绿，才算注册完成。
@@ -122,3 +122,4 @@ node scripts/plan/check-plans.cjs     # 治理：注册表 ↔ 包实际版本/�
 | 2026-11-03 | `program` 立项（5 面 22 项 / 25 批 / 44.5 人天） | `plan-hos-v1.0` | PR #50 |
 | 2026-11-03 | 本制度立项（统一注册表 + 时间节点 + 三门） | `gov-v1.0` | 本文件 |
 | 2026-11-03 | 开工 B35（展示语义层，P0） | — | 见批次账本 |
+| 2026-11-03 | `kernel` 升 v3.7：产品面断言 A13–A16 并入 `16 §4.1`（12→16），按 §5 例外条款执行 | `plan-v3.7` | B44 |

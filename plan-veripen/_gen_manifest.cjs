@@ -33,7 +33,7 @@ const md = `# MANIFEST · plan-veripen v3.6
 
 | 项 | 值 |
 |---|---|
-| 包版本 | \`plan-v3.6\` |
+| 包版本 | \`plan-v3.7\` |
 | 生成时间 | ${new Date().toISOString()} |
 | 文件数 | ${list.length} |
 | 总字节 | ${totalBytes} |

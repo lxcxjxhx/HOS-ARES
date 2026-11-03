@@ -216,7 +216,7 @@ try {
         }
       }
     }
-    if (seen.size !== 12) bad.push(`I14: 16 §4.1 应有 12 条断言，实际 ${seen.size}`);
+    if (seen.size !== 16) bad.push(`I14: 16 §4.1 应有 16 条断言，实际 ${seen.size}`);
     const missing = [...seen].filter(id => {
       const row = rows.find(r => (r.split('|').map(c => c.trim())[1].replace(/\*/g, '').trim().match(/^(A\d+)/) || [])[1] === id);
       return row && /❌/.test(row.split('|').map(c => c.trim())[3] || '');
