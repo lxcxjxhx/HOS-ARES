@@ -240,7 +240,7 @@ Recon 说"去测 X"，Verifier 说"结果是什么"，Reporter 说"怎么写"—
 
 ### 2.6.1 批次状态枚举（v3.6 扩充）
 
-> **进度：B18–B27 全部 `done`（2026-11-03）。`B20-sandbox` `blocked`（无 docker/WSL）。**
+> **进度：B18–B28b 全部 `done`，B28 为 `scaffolded`→`B28b` 接回（2026-11-03）。`B20-sandbox` `blocked`（无 docker/WSL）。**
 > 39 §4.2 的四批已收口，B22 补其最后一处口径缺口；A10/A11/A12 三条断言全部转绿，且各有反例证明能红。
 > **B22 不是新能力，是把 B21 的闭环从「同语义」收紧到「同目标」**：证据见 `tests/integration/test_bench_leads_shared_target.py`。
 
@@ -272,6 +272,8 @@ Recon 说"去测 X"，Verifier 说"结果是什么"，Reporter 说"怎么写"—
 | ⑩ | **B26** ✅ `done` | **真模型接驳 + 主要功能测试** | 接真实 LLM（`client.from_env()`）跑 agent 驱动的主要功能测试；修四处真缺陷 | B25 | `veripen_core/agent/client.py` `veripen_core/agent/loop.py` `veripen_core/tools/registry.py` `tests/unit/test_agent_loop.py` `scripts/b26/agent_live.py` | ✅ **已达成**：真模型 16 步 → 10 个 oracle 全 VERIFIED，与纯 scripted **共有判定 10 条、结论冲突 0 条**。修掉四处：① `Python-urllib` UA 被网关 WAF 403；② `json_object` 要求 prompt 含小写 `json`；③ `ALLOWED_TOOLS` 取 `OUTER_FIELDS` 而非 `SCHEMAS`，模型被承诺了执行不了的 `list_assets`；④ 模型合法打转时降级链不动、循环直接收敛（新增 idle→escalate） |
 | ⑪ | **B26b** ✅ `done` | **模型真正主导** | prompt 加 few-shot + 动作指令；修 `rediscover_routes` 恒记 facts+1 | B26 | `veripen_core/agent/client.py` `veripen_core/agent/loop.py` | ✅ **已达成**：模型**不经降级**跑完 11 步——10 次 `run_oracle` 全 VERIFIED、末尾自己 `finish`，决策 `converged(finished)`；与 scripted 冲突 **0 条**。B26 时模型前 3 步只会列清单、第 4 步就降级，本批之后不再降级 |
 | ⑫ | **B27** ✅ `done` | **模型成本量化** | 客户端记录网关回报的 usage；量一次完整审计的调用数与 token | B26b | `veripen_core/agent/client.py` `scripts/b26/agent_live.py` | ✅ **已达成**：11 次调用 / prompt 7485 + completion 753 tokens / 70.8s，10 个 oracle 全 VERIFIED、冲突 0。**同时测出一条负结论**：在 lab 固定 pending 下，模型挑的 oracle 与 scripted 完全相同——多花 8.2k tokens 换 0 增量，模型的价值必须到「pending 不由 case 预先给定」的真实资产上才成立 |
+| ⑬ | **B28** 🟡 `scaffolded` | **真实资产通道** | `veripen hunt`：契约 → RouteSet → 守卫链 → 真发包 → 判定，指向任意 TARGET | B27 | `veripen_cli/cmd_hunt.py` `veripen_oracles/live.py` `veripen_contract/planner.py` | **形状齐**：lab 当 TARGET 实测 8 条绑定、10 个 oracle、32 次真请求，每次出网过 `binding_gate`→`preflight`→`post_connect`。**修掉一处真 bug**：`plan()` 的归一占位符 `{p}` 与 `SymbolSource._render` 不兼容，「契约 → RouteSet」一直得到 0 条绑定。**空缺**：token/oob/symbols 三个注入点为空 → 受保护面验不出来，0 确认是「没带身份」 |
+| ⑭ | **B28b** ✅ `done` | **凭据注入点** | `--token` / `--token-secondary` / `--oob` / `--symbols`；未消费参数拼进 query | B28 | `veripen_cli/cmd_hunt.py` `veripen_oracles/live.py` | ✅ **已达成**：同一目标、同一份契约，带凭据后确认数 **0 → 6**（idor / open_redirect / path_traversal / sqli×2 / xss）；空 token 不发 `Authorization` 头（发了会被目标记成无效凭据，掩盖「根本没带身份」） |
 
 ### 2.6.3 注入点全表（`39 §2.3` 的落地版，谁负责接）
 
@@ -284,6 +286,16 @@ Recon 说"去测 X"，Verifier 说"结果是什么"，Reporter 说"怎么写"—
 | `plugins` 的 fetch | `veripen_core/plugins/discovery.py` | 无（只有预算计数） | **B20** |
 | `asset_facts` 写入点 | `veripen_core/blackboard.py` | 无 | **B21** |
 | `todo` 持久化 | `veripen_core/workbench/plan.py` | 无（内存） | **B21** |
+
+### 2.6.3b 后续批次（B29–B34）见 `40-验证方案与批次规划.md`
+
+> `39 §4.2` 的四批 + B22–B28b 已全部收口。后续**验证驱动**的批次不再在本篇逐条展开，
+> 统一落在 `40` 篇：B29（模型发现能力）/ B30（真实资产召回）/ B31（弱模型）/
+> B32（成本）/ B33（三档汇总）/ B34（凭据管理），每批都带能红的判据与 D1–D4 红线。
+>
+> **为什么不并回本篇**：本篇记的是"实现批次"，`40` 记的是"验证批次"。
+> 两者的完成定义不同——前者看注入点有没有接上，后者看判据达没达标。
+> 混在一起会让"接上了"冒充"验过了"。
 
 ### 2.6.4 P2 决策项（**需 driver 拍板**）
 

@@ -6,10 +6,10 @@
 | 项 | 值 |
 |---|---|
 | 包版本 | `plan-v3.6` |
-| 生成时间 | 2026-11-03T06:39:43.450Z |
-| 文件数 | 53 |
-| 总字节 | 774555 |
-| 总行数（文本） | 13365 |
+| 生成时间 | 2026-11-03T08:44:03.419Z |
+| 文件数 | 54 |
+| 总字节 | 787171 |
+| 总行数（文本） | 13595 |
 | 内容 | 41 篇规格（含 27–39）+ 37 批计划 + README + 3 个自检脚本 + allowlist + 6 份 JSON Schema |
 
 ## 校验命令
@@ -24,7 +24,7 @@ node _verify-manifest.cjs  # 逐个文件比对 sha256（★ 内容改过就必�
 
 | 文件 | 字节 | 行 | sha256（前 16） |
 |---|---:|---:|---|
-| `00-总规划.md` | 23300 | 257 | `071063ad83eefbf1` |
+| `00-总规划.md` | 23520 | 258 | `b723baec6002b007` |
 | `01-包结构与内核契约.md` | 20077 | 348 | `b030e90f6094b86e` |
 | `02-客户档Profile规格.md` | 10567 | 207 | `bf5eedd22d2b51dc` |
 | `03-数据模型与状态机.md` | 23197 | 423 | `f6ecbae511ad7a2f` |
@@ -45,7 +45,7 @@ node _verify-manifest.cjs  # 逐个文件比对 sha256（★ 内容改过就必�
 | `18-Oracle目录（14类判定矩阵）.md` | 16859 | 255 | `f9e475a3ae885603` |
 | `19-接口契约与用例生成.md` | 15219 | 266 | `0de44058b5c3655b` |
 | `20-认证体系测试点.md` | 11748 | 215 | `d0e1c4cbd7d532d1` |
-| `21-实现批次与Agent执行计划.md` | 45076 | 443 | `2d946a1529646aba` |
+| `21-实现批次与Agent执行计划.md` | 46926 | 455 | `663538a66b38023f` |
 | `22-产品与人机协同.md` | 11765 | 190 | `e5113d77af7ec200` |
 | `23-可观测性与诊断.md` | 8283 | 148 | `22dbe3887077a999` |
 | `24-服务API与错误码.md` | 15984 | 247 | `8d35375f222029df` |
@@ -64,8 +64,9 @@ node _verify-manifest.cjs  # 逐个文件比对 sha256（★ 内容改过就必�
 | `37-三样本逆向提取结果.md` | 15149 | 297 | `aaa0365f17ee0924` |
 | `38-通用工作台规格.md` | 12817 | 282 | `d5ee9cb802e5dc04` |
 | `39-交付收尾与能力接驳规格.md` | 14279 | 206 | `d138e94b51a03f9e` |
+| `40-验证方案与批次规划.md` | 10208 | 215 | `cd2b2c8327f5b20b` |
 | `99-二期池.md` | 10698 | 130 | `7a572865feedb8a3` |
-| `README.md` | 19277 | 297 | `936d3e05cc1b3066` |
+| `README.md` | 19615 | 299 | `476aa8519e2ad11f` |
 | `_gen_manifest.cjs` | 2229 | 66 | `4dcd3362e8c0afc0` |
 | `_verify-manifest.cjs` | 738 | 17 | `c018f719d48e7e94` |
 | `check-noroute.cjs` | 9235 | 234 | `2ca8872e0d14d858` |
@@ -81,7 +82,7 @@ node _verify-manifest.cjs  # 逐个文件比对 sha256（★ 内容改过就必�
 ## 完整 sha256
 
 ```
-071063ad83eefbf1d2ddd0f7c625d20d7b7bc27b7776a27d7ab365db5e9754ce  00-总规划.md
+b723baec6002b0079a583a43301c07ca5809a18dab00e486839bf6534536efe4  00-总规划.md
 b030e90f6094b86e0b086856be477aca6a0ba636901e944dbd06b7057fac06a1  01-包结构与内核契约.md
 bf5eedd22d2b51dc368b35b323a90ac85c184f5d33b753de292fb9f5ccba1150  02-客户档Profile规格.md
 f6ecbae511ad7a2f2f27b08ec428adda839c0905ed02911941bbd66dc5bb4987  03-数据模型与状态机.md
@@ -102,7 +103,7 @@ da3464b2123236c30f46c436bd575842b19f5861b1605aaba5aab3d81b879e39  17-权威链�
 f9e475a3ae885603117af26e0c2799083e6e6bdb4c9785ad37463b3b14423c82  18-Oracle目录（14类判定矩阵）.md
 0de44058b5c3655bce8909c43b2171f100069c3b4a15f0b2cb75f322b1787b32  19-接口契约与用例生成.md
 d0e1c4cbd7d532d108567a4551cf3d5671809db1a5f1fadd4aa7454d44fcb086  20-认证体系测试点.md
-2d946a1529646aba9937f20c35f7b8d4980a70e44d178e91b8f681f7de824977  21-实现批次与Agent执行计划.md
+663538a66b38023f900427c4d0e41f954211c93746bbc0175293703f9c14ff84  21-实现批次与Agent执行计划.md
 e5113d77af7ec200a808f45d6b0c5a6588bbd1cc537423a9bc93664c80852f27  22-产品与人机协同.md
 22dbe3887077a99980064988aec343d77d1c701431581119762df327f573440d  23-可观测性与诊断.md
 8d35375f222029df1eadb22a2b9ed311dfed61d5cd86f7395e479dd4385c7604  24-服务API与错误码.md
@@ -121,8 +122,9 @@ ed0eb6084ef9b18b390c293636366e24f52d6f77ca4c8dc8831fcaa712f48ea6  33-Harness架�
 aaa0365f17ee0924f17eb2ed6afcdb4ac6728426c638cc5a3e705208d2ea2dbd  37-三样本逆向提取结果.md
 d5ee9cb802e5dc04db6cd9a57cd0d60f64547a4e143b123ddee826ae1cc18063  38-通用工作台规格.md
 d138e94b51a03f9ed6107bf26d44f54327565ff31bc6e61497f7f3f5b9315e9a  39-交付收尾与能力接驳规格.md
+cd2b2c8327f5b20b5b9fd3f61895594f597b6d970e278bd170bf5e58bdeebdbf  40-验证方案与批次规划.md
 7a572865feedb8a31696028b7f7563e66af7db7ddf344ad845f4719ea22f4457  99-二期池.md
-936d3e05cc1b3066ae5b2c06cda9a4b32789c68b7202ea8d2f7216f5021aab4f  README.md
+476aa8519e2ad11f62671ce4af00a8fd0855b0efabee27693433b935b19fd089  README.md
 4dcd3362e8c0afc09641f99f90d4fbffb5a53bda55251ca2e140d4649e93c600  _gen_manifest.cjs
 c018f719d48e7e9432728394ddf5d9253a69feaf52cbf18cd24fe830fb9ae2ab  _verify-manifest.cjs
 2ca8872e0d14d8581b75c2138ad7a265e6d3fe98b5a9b88196da5923839dfec1  check-noroute.cjs
