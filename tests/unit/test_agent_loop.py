@@ -48,6 +48,14 @@ class LabRuntime:
         self.calls: list[str] = []
         self.rediscovery = 0
 
+    def list_assets(self):
+        """资产表（08 §2.1）。lab 只有一个资产，但**字段形状要是真的**：
+        id / kind / criticality 三项，模型据此决定先打谁。"""
+        from lab.app import assets_json
+
+        a = assets_json()
+        return [{"id": a["asset_id"], "kind": "web", "criticality": "high"}]
+
     def list_routes(self, selector: str | None):
         from lab.routes import routeset
 

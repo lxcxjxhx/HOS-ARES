@@ -13,10 +13,9 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Mapping, Protocol, Sequence
+from typing import Any, Mapping, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -59,6 +58,14 @@ class RunOracleCall(_Strict):
     params: dict[str, Any] = Field(default_factory=dict)
 
 
+class ListAssetsCall(_Strict):
+    """无参数：列出资产业务视图（id / kind / criticality）。
+
+    08 §2.1 一直有这张表，但 dispatch 从来没有对应分支——模型被
+    ``ALLOWED_TOOLS`` 告知"可用"，真选它却拿到 ``unknown_tool``（B26 实测）。
+    """
+
+
 class RediscoverCall(_Strict):
     reason: str
 
@@ -78,6 +85,7 @@ class FinishCall(_Strict):
 
 
 SCHEMAS: dict[str, type[_Strict]] = {
+    "list_assets": ListAssetsCall,
     "list_routes": ListRoutesCall,
     "run_oracle": RunOracleCall,
     "rediscover_routes": RediscoverCall,
@@ -221,6 +229,8 @@ class ToolResult:
 class Runtime(Protocol):
     """工具执行所依赖的世界。**由调用方注入**，工具层自己不构造。"""
 
+    def list_assets(self) -> list[dict[str, Any]]: ...
+
     def list_routes(self, selector: str | None) -> list[dict[str, Any]]: ...
 
     def run_oracle(self, oracle_id: str, route_ref: str, params: Mapping[str, Any]) -> dict[str, Any]: ...
@@ -277,6 +287,9 @@ def dispatch(
         denied = plan_gate.deny_reason(call.name)
         if denied is not None:
             return ToolResult(ok=False, error_class="approval", hint=denied)
+
+    if isinstance(checked, ListAssetsCall):
+        return ToolResult(ok=True, data={"assets": runtime.list_assets()})
 
     if isinstance(checked, ListRoutesCall):
         rows = runtime.list_routes(checked.selector)

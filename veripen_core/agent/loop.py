@@ -28,7 +28,7 @@ from ..tools.registry import (
     dispatch,
     validate_call,
 )
-from .client import ModelClientError, SchemaViolation, to_tool_call
+from .client import ModelClientError, to_tool_call
 
 # ══════════════════════════════════════════════════════════════════
 # discovery 三档（08 §1.1）
@@ -209,6 +209,19 @@ class FailoverDecider:
     def decide(self, goal: str, state: AgentState, tools: Mapping[str, Any]) -> ToolCall:
         return self.current.decide(goal, state, tools)
 
+    def escalate(self) -> bool:
+        """降到下一级决策器。返回 False 表示已经是最后一级（没有可降的）。
+
+        与 ``note_result`` 的 schema 计数**分开**：那条路走的是"输出不合法"，
+        这条路走的是"输出合法但没进展"。两者都该换人，但触发条件不同，
+        混在一个计数器里会让两种失败互相抵消。
+        """
+        if self.level + 1 >= len(self.chain):
+            return False
+        self.level += 1
+        self.consecutive_errors = 0
+        return True
+
     def note_result(self, result: ToolResult) -> None:
         if result.error_class == "schema":
             self.consecutive_errors += 1
@@ -295,6 +308,17 @@ class Loop:
                 self.budget.exhausted = BudgetKind.STEPS
                 return self._finish(Decision.BUDGET, reason="budget_exhausted:steps")
             if self._idle_streak >= 3:
+                # 连续 3 步无新信息：**先看降级链还有没有下一级**。
+                #
+                # 08 §2 只写了"schema 连续失败 3 次降级"，但真模型还会用另一种方式
+                # 空转：每一步都合法（拿得到 ToolResult）、却只调只读工具不产出事实。
+                # 那种情况下 schema 从不失败，降级链永远不动，循环直接收敛——
+                # 表面上"模型跑完了"，实际一个 oracle 都没验（B26 实测）。
+                # 打转不是任务无解，是这一级决策器不行，应该换下一级再说。
+                escalate = getattr(self.decider, "escalate", None)
+                if callable(escalate) and escalate():
+                    self._idle_streak = 0
+                    continue
                 return self._finish(Decision.CONVERGED, reason="no_new_facts_3_steps")
 
             call = self._decide(state)
@@ -378,6 +402,12 @@ class Loop:
             return 0
         if call.name in {"record_note", "finish", "list_routes", "list_assets"}:
             return 0
+        if call.name == "rediscover_routes":
+            # 重发现的价值全在**路由集变没变**。原来这里一律记 1，
+            # 于是"重发现—没变化—再重发现"永远算有进展，idle 计数到不了阈值，
+            # 收敛条件在末尾直接失效，只能靠步数预算刹车（B26 实测：连续 7 步
+            # 各记 facts+1）。没有变化的重复动作不是进展。
+            return 1 if (result.data.get("added") or result.data.get("changed")) else 0
         if call.name == "run_oracle":
             return 1 if result.data.get("verdict") else 0
         return 1
