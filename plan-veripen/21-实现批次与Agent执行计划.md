@@ -240,7 +240,7 @@ Recon 说"去测 X"，Verifier 说"结果是什么"，Reporter 说"怎么写"—
 
 ### 2.6.1 批次状态枚举（v3.6 扩充）
 
-> **进度：B18–B25 全部 `done`（2026-11-03）。`B20-sandbox` `blocked`（无 docker/WSL）。**
+> **进度：B18–B27 全部 `done`（2026-11-03）。`B20-sandbox` `blocked`（无 docker/WSL）。**
 > 39 §4.2 的四批已收口，B22 补其最后一处口径缺口；A10/A11/A12 三条断言全部转绿，且各有反例证明能红。
 > **B22 不是新能力，是把 B21 的闭环从「同语义」收紧到「同目标」**：证据见 `tests/integration/test_bench_leads_shared_target.py`。
 
@@ -269,6 +269,9 @@ Recon 说"去测 X"，Verifier 说"结果是什么"，Reporter 说"怎么写"—
 | ⑦ | **B23** ✅ `done` | **契约显式化** | lab 声明的带参端点补显式占位符（`?q={q}` 等），让 `act.*` 的模板能从声明派生；顺手统一三条渲染路径 | B22 | `tests/lab/app.py` `tests/lab/net_transport.py` `veripen_cli/cmd_bench_leads.py` `tests/integration/test_lab_network.py` | ✅ **已达成**：`http_raw`/`http_fuzz` 的模板与参数名改从 `assets_json()` 取；`findings_diff` **44 条前后一致**（TP26/FP0/FN2 不变）；新增 2 条测试在旧 `render_request` 下必红（实测 `q={q}&q=widget` → 现 `q=widget`）。**踩到并修掉一个真 bug**：真网络传输只替换 path 段的占位符，声明一旦带 query 占位符就会双写并让服务端读到字面量 `{q}`，正例集体退化成 REFUTED |
 | ⑧ | **B24** ✅ `done` | **绑定形态对齐** | 动作层 sender 接受**绝对模板**（host 来自模板），与路由层 `_host_registered` 的既有约定对齐；act.* 改吃 `_routeset` 的绑定，删掉手写 `_binding_for` | B23 | `veripen_core/actions/sender.py` `veripen_cli/cmd_bench_leads.py` `tests/integration/test_plugins_http.py` | ✅ **已达成**：绝对模板走模板自带 host、相对模板仍走 `resolve_base`；`resolve_base` 故意给死地址时绝对模板请求仍 200（证明 host 不来自 base）；新增 2 条测试在旧实现下必红。act 与 verify 现在用**同一批** `RouteBinding`，`_binding_for` 与两个派生 helper 全部删除。`findings_diff` 44 条一致、`bench-leads` 6/6 |
 | ⑨ | **B25** ✅ `done` | **传输规则同构** | Wsgi 版模板渲染改成与真网络版同一条规则（占位符在**整条模板**上替换，固定 query 保留） | B24 | `tests/lab/transport.py` `tests/integration/test_lab_network.py` | ✅ **已达成**：两套传输对同一条模板给出同一个 query；带固定 query 的构造模板下旧行为必红（实测 `mode=all&q=x` → 旧版只剩 `q=x`）；`findings_diff` 44 条一致、`pytest` 1114 passed |
+| ⑩ | **B26** ✅ `done` | **真模型接驳 + 主要功能测试** | 接真实 LLM（`client.from_env()`）跑 agent 驱动的主要功能测试；修四处真缺陷 | B25 | `veripen_core/agent/client.py` `veripen_core/agent/loop.py` `veripen_core/tools/registry.py` `tests/unit/test_agent_loop.py` `scripts/b26/agent_live.py` | ✅ **已达成**：真模型 16 步 → 10 个 oracle 全 VERIFIED，与纯 scripted **共有判定 10 条、结论冲突 0 条**。修掉四处：① `Python-urllib` UA 被网关 WAF 403；② `json_object` 要求 prompt 含小写 `json`；③ `ALLOWED_TOOLS` 取 `OUTER_FIELDS` 而非 `SCHEMAS`，模型被承诺了执行不了的 `list_assets`；④ 模型合法打转时降级链不动、循环直接收敛（新增 idle→escalate） |
+| ⑪ | **B26b** ✅ `done` | **模型真正主导** | prompt 加 few-shot + 动作指令；修 `rediscover_routes` 恒记 facts+1 | B26 | `veripen_core/agent/client.py` `veripen_core/agent/loop.py` | ✅ **已达成**：模型**不经降级**跑完 11 步——10 次 `run_oracle` 全 VERIFIED、末尾自己 `finish`，决策 `converged(finished)`；与 scripted 冲突 **0 条**。B26 时模型前 3 步只会列清单、第 4 步就降级，本批之后不再降级 |
+| ⑫ | **B27** ✅ `done` | **模型成本量化** | 客户端记录网关回报的 usage；量一次完整审计的调用数与 token | B26b | `veripen_core/agent/client.py` `scripts/b26/agent_live.py` | ✅ **已达成**：11 次调用 / prompt 7485 + completion 753 tokens / 70.8s，10 个 oracle 全 VERIFIED、冲突 0。**同时测出一条负结论**：在 lab 固定 pending 下，模型挑的 oracle 与 scripted 完全相同——多花 8.2k tokens 换 0 增量，模型的价值必须到「pending 不由 case 预先给定」的真实资产上才成立 |
 
 ### 2.6.3 注入点全表（`39 §2.3` 的落地版，谁负责接）
 
