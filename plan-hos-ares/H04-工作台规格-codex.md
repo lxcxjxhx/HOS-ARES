@@ -43,6 +43,11 @@
 
 ### 3.2 三块面板（够用即可，不做花活）
 
+> **执行记录（2026-11-04）**：`veripen_cli/tui.py` 落地——`render_panels()` 纯函数出三块面板
+> （任务区含五预算 used/limit、动作流最近 8 步、线索区 pending/已闭环），
+> `run()` 用 stdlib `curses`；无 curses（本机 Windows 即如此）自动降级 `line_mode()`，
+> `doctor` 的 deps 一行显示 `tui: line-mode`。TUI 全程只读，源码里不出现 verdict。
+
 | 面板 | 内容 | 数据源 |
 |---|---|---|
 | 任务区 | 当前任务 id / 阶段 / 步数 / 五预算余量 | `task_events` + `budget` |

@@ -99,8 +99,15 @@ def _check_deps() -> Check:
             __import__(mod)
         except ImportError:
             missing.append(mod)
-    return Check("deps", Level.OK if not missing else Level.FAIL,
-                 "pydantic + yaml 就绪" if not missing else f"缺 {missing}",
+    # TUI 能力并进 deps（B56）：curses 缺了就退化纯行模式，**降级要可见**
+    try:
+        import curses  # noqa: F401, PLC0415
+
+        tui = "tui: curses"
+    except Exception:  # noqa: BLE001
+        tui = "tui: line-mode"
+    detail = ("pydantic + yaml 就绪" if not missing else f"缺 {missing}") + " · " + tui
+    return Check("deps", Level.OK if not missing else Level.FAIL, detail,
                  fix="" if not missing else "pip install pydantic pyyaml")
 
 
