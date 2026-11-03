@@ -6,10 +6,10 @@
 | 项 | 值 |
 |---|---|
 | 包版本 | `plan-hos-v1.0` |
-| 生成时间 | 2026-11-03T15:54:36.640Z |
+| 生成时间 | 2026-11-03T16:03:34.993Z |
 | 文件数 | 13 |
-| 总字节 | 117227 |
-| 总行数（文本） | 2149 |
+| 总字节 | 117683 |
+| 总行数（文本） | 2154 |
 
 ## 校验
 
@@ -24,7 +24,7 @@ node plan-hos-ares/check-plan.cjs --write  # 内容改过之后重生成本文�
 |---|---:|---:|---|
 | `H00-总纲与四波排期.md` | 16666 | 241 | `8fe74a5f084075c6` |
 | `H01-能力矩阵与对标口径.md` | 7807 | 91 | `412dd79073007e97` |
-| `H02-执行面规格-strix.md` | 9306 | 166 | `38573981bfdc2d43` |
+| `H02-执行面规格-strix.md` | 9762 | 171 | `6cd6aa5b5eb9233c` |
 | `H03-平台面规格-驭智.md` | 8103 | 140 | `5a6e1420dbe927da` |
 | `H04-工作台规格-codex.md` | 5082 | 109 | `fc7373d58b13a398` |
 | `H05-判定内核边界-VeriPen.md` | 5037 | 86 | `becfda5d4556efcd` |
@@ -41,7 +41,7 @@ node plan-hos-ares/check-plan.cjs --write  # 内容改过之后重生成本文�
 ```
 8fe74a5f084075c68ddd32564b1743912c227a31a0daa287b09e6e29028bfeaf  H00-总纲与四波排期.md
 412dd79073007e97e37a5a17f2e4acc771510c9a5f1bde19e4cdd3829590aac6  H01-能力矩阵与对标口径.md
-38573981bfdc2d436c746e5385c6f05f557b2bf13ea95999d0ae56c992a7a1cb  H02-执行面规格-strix.md
+6cd6aa5b5eb9233c6f1b78781180fa240e44bfc1c0c7bb7597a2bed9c4d723d4  H02-执行面规格-strix.md
 5a6e1420dbe927dad937628704713346ad61ed1761af46fee0e8e639e04a8b73  H03-平台面规格-驭智.md
 fc7373d58b13a398092d02932f722efae00def0c8bf78190fead7114b6c7eb09  H04-工作台规格-codex.md
 becfda5d4556efcd3a45a2b5dcc9d3ba2714d686b486a1b114eb0193a132630d  H05-判定内核边界-VeriPen.md

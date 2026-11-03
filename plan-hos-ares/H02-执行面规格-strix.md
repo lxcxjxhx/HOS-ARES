@@ -102,7 +102,12 @@ agent 的 7 个工具           workbench 的另一套
         ↑ 两套各自有自己的校验、预算、审计 —— 同一个动作，两条路径，两份记录
 ```
 
-### 4.2 目标形状
+### 4.2 目标形状（2026-11-03 B47 已落地）
+
+> `veripen_core/tools/surface.py`：`AGENT_IMPACT`(7) + `fs.read/write/edit` + `shell.run` + `browser.render`；
+> 注册去重、catalog 带 impact、exec 需显式 `approved=True`、每次调用进 audit。
+> 模型白名单与 `tool_schemas()` 均从 surface 派生——**清单只有一个来源**。
+> `browser.render` 与 `shell.run` 的实现注入点仍空（前者 blocked，后者依赖 shell 五道闸）。
 
 ```
         ┌──────────── 单一 ToolSurface ────────────┐
