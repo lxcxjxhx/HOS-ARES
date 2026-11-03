@@ -58,8 +58,10 @@ async function fetchOp(name) {
 function renderFindings(data) {
   if (!data.rows) return el("p", {}, "无数据");
   const wrap = el("div");
+  const unv = data.unverified || 0;
   wrap.append(el("p", { class: "muted" },
-    `共 ${data.total} 条，默认显示 ${data.shown} 条，折叠 ${data.collapsed_low} 条低优先`));
+    `共 ${data.total} 条 · 已确认 ${data.shown} 条 · 折叠 ${data.collapsed_low} 条低优先`
+    + (unv ? ` · 未验证 ${unv} 条（见「unverified」页）` : "")));
   const table = el("table");
   const head = el("tr",
     ...["严重度","oracle","资产","置信度","证据强度","面","replay","优先级","命中"]
@@ -67,16 +69,24 @@ function renderFindings(data) {
   table.append(head);
   for (const row of data.rows) {
     const tr = el("tr");
-    tr.append(el("td", { class: "sev-" + row.severity }, row.severity));
+    // severity 只为已验证行输出；未验证行不得长得像漏洞（D1 / A13）
+    tr.append(row.severity
+      ? el("td", { class: "sev-" + row.severity }, row.severity)
+      : el("td", { class: "muted" }, "—"));
     tr.append(el("td", {}, row.oracle));
     tr.append(el("td", {}, row.asset));
     tr.append(el("td", {}, row.confidence.toFixed(2)));
     tr.append(el("td", { class: row.evidenceStrength === "probe" || row.evidenceStrength === "crawl" ? "weak" : "" },
       row.evidenceStrength));
-    tr.append(el("td", {}, row.route));
+    tr.append(row.bound === false
+      ? el("td", { class: "muted" }, "未绑定")
+      : el("td", {}, row.route));
     tr.append(el("td", {}, row.replay));
     tr.append(el("td", {}, row.priority.toFixed(1)));
-    tr.append(el("td", {}, row.hits > 1 ? `合并 ${row.hits} 处` : ""));
+    // 命中四态：0 / 1 / N 处 / 未执行 —— 空白是缺陷，不是简约
+    const HITS = { zero: "0", single: "1", multi: `合并 ${row.hits} 处`, not_run: "未执行" };
+    tr.append(el("td", { class: row.hits_state === "zero" || row.hits_state === "not_run" ? "muted" : "" },
+      HITS[row.hits_state] ?? ""));
     table.append(tr);
   }
   wrap.append(table);

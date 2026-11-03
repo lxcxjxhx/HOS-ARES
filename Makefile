@@ -231,6 +231,15 @@ console-test:
 
 b15: console-test types-check lint
 
+# B35 展示语义层（H06 §2 / A13 界面不说谎、A14 空值四态）
+ui-honesty:
+	$(PY) -m pytest tests/unit/test_ui_semantics.py -q -k "honesty"
+
+ui-semantics:
+	$(PY) -m pytest tests/unit/test_ui_semantics.py -q -k "semantics"
+
+b35: ui-honesty ui-semantics console-test types-check lint
+
 # B16 双客户档（A1：差异全部在 YAML，内核零改动）
 profile-test:
 	$(PY) -m pytest tests/unit/test_profiles.py -q

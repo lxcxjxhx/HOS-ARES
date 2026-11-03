@@ -35,10 +35,11 @@ WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 
 class Queue(str, Enum):
-    NOW = "now"            # 立即看
-    WEEK = "week"          # 本周
-    LOW = "low"            # 低优先（默认收起）
-    SILENCED = "silenced"  # 已静音（仍可查）
+    NOW = "now"                # 立即看
+    WEEK = "week"              # 本周
+    LOW = "low"                # 低优先（默认收起）
+    SILENCED = "silenced"      # 已静音（仍可查）
+    UNVERIFIED = "unverified"  # 未验证：不进 findings 默认视图（H02 展示语义 / D1）
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -74,6 +75,34 @@ class Row:
         return (self.route_ref or "")[:8]
 
     @property
+    def verdict(self) -> str:
+        """结论强度。**不由界面重算判定**，只做字符串映射（H06 §4 / B35）。"""
+        if self.outcome == "reported":
+            return "verified"
+        if self.outcome == "blocked":
+            return "blocked"
+        if self.outcome in ("not_run", "error"):
+            return self.outcome
+        if self.outcome == "undetermined":
+            return "blocked" if self.reason_code.upper().startswith("BLOCKED") else "inconclusive"
+        return "inconclusive"
+
+    @property
+    def hits_state(self) -> str:
+        """命中四态。``None`` = 未执行，与 0（跑过没中）严格区分。"""
+        if self.hits is None:
+            return "not_run"
+        if self.hits == 0:
+            return "zero"
+        if self.hits == 1:
+            return "single"
+        return "multi"
+
+    @property
+    def bound(self) -> bool:
+        return self.route_ref is not None
+
+    @property
     def priority(self) -> float:
         score = 3.0 * _SEVERITY.get(self.severity, 0)
         score += 2.0 * _STRENGTH.get(self.route_strength, 0.0)
@@ -87,6 +116,9 @@ class Row:
     def queue(self) -> Queue:
         if self.silenced:
             return Queue.SILENCED
+        # 未验证不进任何"看哪条"的队列：缺输入 ≠ 没漏洞（D1）
+        if self.verdict != "verified":
+            return Queue.UNVERIFIED
         if self.priority < 2.0:
             return Queue.LOW
         if self.severity in ("critical", "high"):
@@ -97,7 +129,7 @@ class Row:
 def order_rows(rows: Sequence[Row]) -> list[Row]:
     """先按队列（now → week → low → silenced），再按 priority 降序，
     同分按 ``(oracle_id, template_sha256)`` 字典序——**不用随机 ulid**。"""
-    order = {Queue.NOW: 0, Queue.WEEK: 1, Queue.LOW: 2, Queue.SILENCED: 3}
+    order = {Queue.NOW: 0, Queue.WEEK: 1, Queue.LOW: 2, Queue.SILENCED: 3, Queue.UNVERIFIED: 4}
     return sorted(
         rows,
         key=lambda r: (order[r.queue], -r.priority, r.oracle_id, r.template_sha256, r.finding_id),
@@ -148,17 +180,22 @@ def rollup(rows: Sequence[Row]) -> list[Row]:
 # ══════════════════════════════════════════════════════════════════
 def findings_view(rows: Sequence[Row], *, include_low: bool = False) -> dict[str, Any]:
     ordered = order_rows(rollup(rows))
-    visible = [r for r in ordered if include_low or r.queue is not Queue.LOW]
+    verified = [r for r in ordered if r.verdict == "verified"]
+    visible = [r for r in verified if include_low or r.queue is not Queue.LOW]
     return {
         "total": len(rows),
         "shown": len(visible),
-        "collapsed_low": sum(1 for r in ordered if r.queue is Queue.LOW and not include_low),
+        "collapsed_low": sum(1 for r in verified if r.queue is Queue.LOW and not include_low),
+        "unverified": sum(1 for r in ordered if r.verdict != "verified"),
         "queues": {q.value: sum(1 for r in ordered if r.queue is q) for q in Queue},
         "rows": [
             {
                 "id": r.finding_id,
                 "title": r.title,
-                "severity": r.severity,
+                "severity": r.severity,          # severity 只在已验证行出现
+                "verdict": r.verdict,
+                "bound": r.bound,
+                "hits_state": r.hits_state,
                 "oracle": r.oracle_id,
                 "asset": r.asset_id,
                 "confidence": r.confidence,
@@ -328,7 +365,8 @@ def build_app(
 def _make_get(op: str, payload: Any) -> Any:
     def handler() -> JSONResponse:
         body = payload(op)
-        return JSONResponse({"op": op, "data": body})
+        # v2：只增不改（H06 §4）；旧前端不认这个字段也能渲染
+        return JSONResponse({"op": op, "data": body, "payload_version": 2})
 
     handler.__name__ = f"get_{op.replace('.', '_')}"
     return handler
