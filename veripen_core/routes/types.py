@@ -97,6 +97,15 @@ class RouteCandidate:
     sources_all: tuple[str, ...] = ()
     confidence: float = 0.0
     primary_source: str = ""
+    #: **结构身份**：参与 ``structural_key``/``template_sha256`` 的模板。
+    #: 空 = 用 ``template`` 本身（静态来源的常态）。
+    #:
+    #: 为什么需要它：来源可以把「部署地址」（主机/端口）拼进 ``template``，
+    #: 好让绑定能真的发出去（见 ``SymbolSource``）。但那个地址**不是身份**——
+    #: 换一台机器同一个面还是同一个面。若结构键从含地址的模板算，
+    #: ``ref`` 就随 host/port 变，capsule 的 route 块在跨环境迁移后指向旧绑定。
+    #: 这里把两者分开：``template`` 是"打哪儿"，``identity_template`` 是"这是什么面"。
+    identity_template: str = ""
 
 
 @dataclass
@@ -122,6 +131,10 @@ class RouteBinding:
     usable: bool
     #: 语义标签（来自契约/观测）；discovery 分档只看它，不猜路径
     semantic_tags: tuple[str, ...] = ()
+    #: 结构身份模板（见 ``RouteCandidate.identity_template``）。
+    #: 空 = ``template`` 本身就是身份（静态来源的常态）。
+    #: capsule 要靠它复算 ``structural_key``——否则"这条 ref 凭什么成立"无从复核。
+    identity_template: str = ""
 
 
 @dataclass(frozen=True)
@@ -173,6 +186,10 @@ class RouteSet:
                     "ttl_s": b.ttl_s,
                     "verifications": b.verifications,
                     "usable": b.usable,
+                    # 身份模板**只在非空时写入**：静态来源不做符号替换，
+                    # 该字段恒为空，写进去只会让所有历史 routeset_sha256 失效——
+                    # 那是拿"可复核"换"旧 capsule 全部 replay 不上"，不值。
+                    **({"identity_template": b.identity_template} if b.identity_template else {}),
                 }
                 for b in self.bindings
             ],

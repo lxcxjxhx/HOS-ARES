@@ -46,6 +46,7 @@ def build_binding(
     verifications: int,
     usable: bool,
     semantic_tags: tuple[str, ...] = (),
+    identity_template: str = "",
 ) -> RouteBinding:
     """★ 唯一构造点。其余模块只能接收 RouteBinding，不许自己造。"""
     return RouteBinding(
@@ -64,6 +65,7 @@ def build_binding(
         verifications=verifications,
         usable=usable,
         semantic_tags=semantic_tags,
+        identity_template=identity_template,
     )
 
 
@@ -81,10 +83,24 @@ def _hashable(rs: RouteSet) -> dict[str, Any]:
 
     内容寻址必须与时钟无关，否则同一次解析在不同时刻会得到不同 sha，
     N6（三轮 routeset 一致）与录制回放（L0-24）都不可能成立。
+
+    **执行地址也不进哈希**：``template`` 里可能含由来源注入的主机/端口
+    （``SymbolSource`` 的常态）。那是"打哪儿"，不是"解析出了什么面"。
+    把它算进内容身份，会让换一台机器就得到另一个 ``routeset_sha256``，
+    于是缓存全部失效、capsule 的 route 块指向旧绑定——而 27 §3.4 明确要求
+    「同一条面在不同来源/不同轮次里拿到同一个 ref」。
+
+    所以哈希用 ``identity_template or template``：
+    - 符号化的部署地址被排除（同一个面 → 同一个 sha）；
+    - 契约自己写的绝对 URL 仍在（虚拟主机是两条面，必须区分）。
     """
     payload = rs.without_sha()
     payload.pop("created_at", None)
     payload.pop("expires_at", None)
+    for b in payload.get("bindings") or []:
+        # 身份模板存在时，template 只是执行坐标，不进内容身份
+        if b.get("identity_template"):
+            b.pop("template", None)
     return payload
 
 
@@ -109,6 +125,7 @@ def _bindings_from(cands: Sequence[RouteCandidate], q: RouteQuery) -> list[Route
                 verifications=c.verifications,
                 usable=c.confidence >= q.min_confidence,
                 semantic_tags=tuple(c.response_shape.get("semantic_tags") or ()),
+                identity_template=c.identity_template,
             )
         )
     out.sort(key=sort_key)

@@ -28,6 +28,7 @@ from ..tools.registry import (
     dispatch,
     validate_call,
 )
+from .client import ModelClientError, SchemaViolation, to_tool_call
 
 # ══════════════════════════════════════════════════════════════════
 # discovery 三档（08 §1.1）
@@ -160,7 +161,9 @@ class ScriptedDecider:
 class ModelDecider:
     """真模型的外壳：只把"模型返回的结构化调用"转成 ToolCall，不做任何猜测。
 
-    ``client`` 由调用方注入（B13 接具体厂商）；本轮不绑定任何 SDK。
+    ``client`` 由调用方注入（`client.from_env()` 从环境构造；测试用 `ScriptedClient`）。
+    **输出必过 `to_tool_call` 的窄 schema**：多调用/未知工具/字段越界一律
+    `SchemaViolation`，由 `Loop._decide` 转成一次 schema 失败回喂、并驱动降级链。
     """
 
     name = "model"
@@ -170,9 +173,22 @@ class ModelDecider:
 
     def decide(self, goal: str, state: AgentState, tools: Mapping[str, Any]) -> ToolCall:
         raw = self._client(goal, {"state": state.__dict__, "tools": tools})
-        name = str(raw.get("tool") or raw.get("name") or "")
-        args = raw.get("args") or {}
-        return ToolCall(name, dict(args) if isinstance(args, dict) else {})
+        return to_tool_call(raw)
+
+
+def build_decider(
+    *, client: Callable[[str, Mapping[str, Any]], Mapping[str, Any]] | None = None
+) -> Decider:
+    """组装降级链：**有模型 → 模型优先，scripted 兜底；无模型 → 纯 scripted**。
+
+    这条组装是 B18 的"接线"本体：`ModelDecider` 一直存在，
+    但从没有一处代码把它和 `ScriptedDecider` 串成链。
+    没有模型时必须**逐字等价于**今天的行为（`A8` 模型不是瓶颈）。
+    """
+    scripted = ScriptedDecider()
+    if client is None:
+        return scripted
+    return FailoverDecider([ModelDecider(client), scripted])
 
 
 class FailoverDecider:
@@ -250,16 +266,22 @@ class Loop:
         goal: str = "",
         max_steps: int | None = None,
         store_dir: str | None = None,
+        plan_gate: Any | None = None,
     ) -> None:
         self.runtime = runtime
         self.decider = decider
         self.budget = budget or Budget()
         self.goal = goal
+        #: 计划闸门（B12.7c）：给了就在每次 dispatch 前查，
+        #: 让「计划模式下不许写」有唯一执行点，而不是靠每个 decider 自觉。
+        self.plan_gate = plan_gate
         self.max_steps = max_steps if max_steps is not None else self.budget.limits.steps
         self.store_dir = store_dir
         self.entries: list[LedgerEntry] = []
         self.verdicts: dict[str, str] = {}
         self._idle_streak = 0
+        #: `_decide` 捕获的模型异常，`_dispatch` 消费一次后清空。
+        self._pending_error: ModelClientError | None = None
 
     def run(self, state: AgentState) -> LoopResult:
         if not state.pending and not state.strong and not state.wave_order:
@@ -275,7 +297,7 @@ class Loop:
             if self._idle_streak >= 3:
                 return self._finish(Decision.CONVERGED, reason="no_new_facts_3_steps")
 
-            call = self.decider.decide(self.goal, state, {})
+            call = self._decide(state)
             result = self._note(self._dispatch(call))
             self.budget.spend_step()
             self.entries.append(
@@ -300,6 +322,21 @@ class Loop:
             state = self._advance(state, call, result)
 
     # ── 内部 ────────────────────────────────────────────────────
+    def _decide(self, state: AgentState) -> ToolCall:
+        """调决策器；模型给坏输出时**不崩循环**，而是转成一次 schema 失败回喂。
+
+        `08 §2` 第 2 条：非法调用回喂 ≤3 次后降级。这里只负责把异常
+        变成"一次失败的调用"，降级计数交给 `FailoverDecider.note_result`。
+        没有这层，接上真模型后第一句不合 schema 就会把整个循环打挂。
+        """
+        try:
+            return self.decider.decide(self.goal, state, {})
+        except ModelClientError as exc:
+            # 用一条必然被 validate_call 拒的调用表示"这一步模型没给出合法调用"。
+            # 不在 loop 里判 schema——那是 tools.registry 的职责，这里只转达。
+            self._pending_error = exc
+            return ToolCall("__model_error__", {"detail": str(exc)})
+
     def _note(self, result: ToolResult) -> ToolResult:
         """把结果回告决策器（降级链据此计数）；Decider 不支持就跳过。"""
         note = getattr(self.decider, "note_result", None)
@@ -308,6 +345,16 @@ class Loop:
         return result
 
     def _dispatch(self, call: ToolCall) -> ToolResult:
+        if call.name == "__model_error__":
+            # 模型这一步没给出合法调用：记成 schema 错误（可降级），
+            # 不进 dispatch、不碰 runtime。降级链据 error_class=schema 计数。
+            err = getattr(self, "_pending_error", None)
+            self._pending_error = None
+            return ToolResult(
+                ok=False,
+                error_class="schema",
+                hint=f"模型输出不合窄 schema：{err}" if err else "模型输出不合窄 schema",
+            )
         checked = validate_call(call)
         if isinstance(checked, ToolResult):
             return checked
@@ -317,6 +364,7 @@ class Loop:
             call,
             self.runtime,
             store_dir=self.store_dir,
+            plan_gate=self.plan_gate,
         )
         if result.ok and call.name == "run_oracle":
             verdict = str(result.data.get("verdict") or "")
@@ -384,5 +432,6 @@ __all__ = [
     "ScriptedDecider",
     "TOOL_CALLS_PER_STEP",
     "classify_discovery",
+    "build_decider",
     "pick_next",
 ]

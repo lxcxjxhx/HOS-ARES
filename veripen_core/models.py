@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Protocol, runtime_checkable
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 # ── 枚举 ────────────────────────────────────────────────────────────
 
@@ -50,6 +50,21 @@ class FindingState(str, Enum):
     REFUTED = "REFUTED"
     UNVERIFIABLE = "UNVERIFIABLE"
     BLOCKED = "BLOCKED"
+
+
+class Outcome(str, Enum):
+    """正交于 state：state 说结论，outcome 说这次跑成了没有（32 §3 A1）。"""
+
+    REPORTED = "reported"
+    UNDETERMINED = "undetermined"
+    ERROR = "error"
+    NOT_RUN = "not_run"
+
+
+class CoverageSrc(str, Enum):
+    MACHINE_OBSERVED = "machine_observed"
+    AGENT_REPORTED = "agent_reported"
+    NONE = "none"
 
 
 class ReplayStatus(str, Enum):
@@ -170,7 +185,25 @@ class Finding(BaseModel):
     cwe: str | None = None
     state: FindingState = FindingState.CANDIDATE
     capsule_id: str | None = None
+    outcome: Outcome = Outcome.REPORTED
+    coverage_src: CoverageSrc = CoverageSrc.MACHINE_OBSERVED
+    not_run_reason: str | None = None
+    error_reason: str | None = None
     created_at: int = 0
+
+    @model_validator(mode="after")
+    def _outcome_consistent(self) -> "Finding":
+        """三条自洽规则在模型层先炸一次（schema / DDL 是第二、第三道）。"""
+        from .outcome import validate
+
+        validate(
+            outcome=self.outcome,
+            state=self.state,
+            coverage_src=self.coverage_src,
+            error_reason=self.error_reason,
+            not_run_reason=self.not_run_reason,
+        )
+        return self
 
 
 class Capsule(BaseModel):

@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from . import outcome
 from .models import (
     Capsule,
     Finding,
@@ -215,13 +216,78 @@ CREATE TABLE IF NOT EXISTS leads (
 );
 CREATE INDEX IF NOT EXISTS ix_leads_task  ON leads(task_id, state);
 CREATE INDEX IF NOT EXISTS ix_leads_asset ON leads(asset_id, created_at);
+
+-- ★ 计划清单（38 §5 / B21）：全量替换语义，一次写入清掉该 task 的旧行。
+-- 为什么落地成表而不是内存：进程重启后「现在做到哪」必须还在，
+-- 否则恢复运行只能靠人回忆——那正是 33 §2 九阶段里最容易断的一环。
+CREATE TABLE IF NOT EXISTS todos (
+  task_id       TEXT NOT NULL,
+  id            TEXT NOT NULL,
+  text          TEXT NOT NULL,
+  state         TEXT NOT NULL DEFAULT 'pending',
+  evidence_ref  TEXT,
+  lead_id       TEXT,
+  updated_at    INTEGER NOT NULL,
+  PRIMARY KEY (task_id, id)
+);
+CREATE INDEX IF NOT EXISTS ix_todos_task ON todos(task_id, state);
 """
 
 #: 补列：SQLite 不支持 ADD COLUMN IF NOT EXISTS，由 init() 探测后再加（03 §1 v3.1）
 MIGRATIONS: tuple[tuple[str, str, str], ...] = (
     ("findings", "outcome", "TEXT NOT NULL DEFAULT 'reported'"),
     ("findings", "coverage_src", "TEXT NOT NULL DEFAULT 'machine_observed'"),
+    ("findings", "not_run_reason", "TEXT"),
+    ("findings", "error_reason", "TEXT"),
 )
+
+#: B12.2 第三道闸：库层触发器。模型层 + schema 层之外，**裸 SQL 也绕不过去**。
+#: 不用 CHECK：ALTER 加的列没法带表级 CHECK，TRIGGER 对老库同样生效。
+DDL_OUTCOME_GUARD = """
+CREATE TRIGGER IF NOT EXISTS tr_findings_outcome_ins
+BEFORE INSERT ON findings
+BEGIN
+  SELECT RAISE(ABORT, 'VP-8002: error/not_run 必须 state=BLOCKED')
+   WHERE NEW.outcome IN ('error','not_run') AND NEW.state <> 'BLOCKED';
+  SELECT RAISE(ABORT, 'VP-8002: agent_reported 必须降级为 not_run')
+   WHERE NEW.coverage_src = 'agent_reported' AND NEW.outcome <> 'not_run';
+  SELECT RAISE(ABORT, 'VP-8002: outcome=error 需 error_reason')
+   WHERE NEW.outcome = 'error'
+     AND IFNULL(NEW.error_reason,'') NOT IN
+         ('transport','target_down','tool_crash','timeout','tls','oob_unreachable');
+  SELECT RAISE(ABORT, 'VP-8002: outcome=not_run 需 not_run_reason')
+   WHERE NEW.outcome = 'not_run'
+     AND NOT (IFNULL(NEW.not_run_reason,'') IN ('approval_pending','budget_not_allocated')
+              OR substr(IFNULL(NEW.not_run_reason,''),1,8) = 'skipped_')
+     ;
+  SELECT RAISE(ABORT, 'VP-8002: 非 error 不得带 error_reason')
+   WHERE NEW.outcome <> 'error' AND IFNULL(NEW.error_reason,'') <> '';
+  SELECT RAISE(ABORT, 'VP-8002: 非 not_run 不得带 not_run_reason')
+   WHERE NEW.outcome <> 'not_run' AND IFNULL(NEW.not_run_reason,'') <> '';
+END;
+
+CREATE TRIGGER IF NOT EXISTS tr_findings_outcome_upd
+BEFORE UPDATE OF outcome, state, coverage_src, not_run_reason, error_reason ON findings
+BEGIN
+  SELECT RAISE(ABORT, 'VP-8002: error/not_run 必须 state=BLOCKED')
+   WHERE NEW.outcome IN ('error','not_run') AND NEW.state <> 'BLOCKED';
+  SELECT RAISE(ABORT, 'VP-8002: agent_reported 必须降级为 not_run')
+   WHERE NEW.coverage_src = 'agent_reported' AND NEW.outcome <> 'not_run';
+  SELECT RAISE(ABORT, 'VP-8002: outcome=error 需 error_reason')
+   WHERE NEW.outcome = 'error'
+     AND IFNULL(NEW.error_reason,'') NOT IN
+         ('transport','target_down','tool_crash','timeout','tls','oob_unreachable');
+  SELECT RAISE(ABORT, 'VP-8002: outcome=not_run 需 not_run_reason')
+   WHERE NEW.outcome = 'not_run'
+     AND NOT (IFNULL(NEW.not_run_reason,'') IN ('approval_pending','budget_not_allocated')
+              OR substr(IFNULL(NEW.not_run_reason,''),1,8) = 'skipped_')
+     ;
+  SELECT RAISE(ABORT, 'VP-8002: 非 error 不得带 error_reason')
+   WHERE NEW.outcome <> 'error' AND IFNULL(NEW.error_reason,'') <> '';
+  SELECT RAISE(ABORT, 'VP-8002: 非 not_run 不得带 not_run_reason')
+   WHERE NEW.outcome <> 'not_run' AND IFNULL(NEW.not_run_reason,'') <> '';
+END;
+"""
 
 
 def now() -> int:
@@ -253,6 +319,7 @@ class Store:
         self.conn.executescript(DDL)
         self.conn.executescript(DDL_EXT)
         self._migrate()
+        self.conn.executescript(DDL_OUTCOME_GUARD)
         self.conn.commit()
         return self
 
@@ -371,11 +438,20 @@ class Store:
 
     # ── findings ────────────────────────────────────────────────
     def record_finding(self, finding: Finding) -> str:
+        """落库前先过 outcome 自洽校验；**库里还有触发器兜底**（B12.2）。"""
+        outcome.validate(
+            outcome=finding.outcome,
+            state=finding.state,
+            coverage_src=finding.coverage_src,
+            error_reason=finding.error_reason,
+            not_run_reason=finding.not_run_reason,
+        )
         fid = finding.id or new_ulid()
         self.conn.execute(
             "INSERT INTO findings (id, task_id, asset_id, oracle_id, oracle_version, title,"
-            " severity, confidence, route_strength, cwe, state, capsule_id, created_at)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " severity, confidence, route_strength, cwe, state, capsule_id, created_at,"
+            " outcome, coverage_src, not_run_reason, error_reason)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 fid,
                 finding.task_id,
@@ -390,10 +466,26 @@ class Store:
                 finding.state.value,
                 finding.capsule_id,
                 finding.created_at or now(),
+                finding.outcome.value,
+                finding.coverage_src.value,
+                finding.not_run_reason,
+                finding.error_reason,
             ),
         )
         self.conn.commit()
         return fid
+
+    def counts_by_outcome(self) -> dict[str, int]:
+        """报告四态计数的唯一来源（09 §3）：**从库里数，不听模型自述**。"""
+        rows = self.conn.execute("SELECT outcome FROM findings").fetchall()
+        return outcome.counts(rows)
+
+    def agent_reported_count(self) -> int:
+        """口径铁律（21 §B12）：`agent_reported` 覆盖记录数必须为 0。"""
+        row = self.conn.execute(
+            "SELECT COUNT(*) AS c FROM findings WHERE coverage_src='agent_reported'"
+        ).fetchone()
+        return int(row["c"])
 
     def get_finding(self, finding_id: str) -> dict[str, Any] | None:
         row = self.conn.execute(

@@ -65,16 +65,27 @@ def _provisional(c: RouteCandidate) -> float:
     return compute_confidence((c.source.value,), c.verifications, c.param_ambiguity)
 
 
+def _identity(c: RouteCandidate) -> str:
+    """参与结构键的模板：优先 ``identity_template``，否则就是 ``template``。
+
+    ``SymbolSource`` 这类"会拼部署地址"的来源填 ``identity_template``；
+    静态来源不填，行为与之前逐字相同（所以 L0 全绿）。
+    """
+    return c.identity_template or c.template
+
+
 def merge_by_structural_key(candidates: list[RouteCandidate]) -> list[RouteCandidate]:
     """按 structural_key 分组；组内选 winner；confidence **重算**（不取 max）。"""
     groups: dict[str, list[RouteCandidate]] = {}
     for c in candidates:
         names = c.param_names or extract_param_names(c.template)
         c.param_names = tuple(names)
+        # 身份从 identity_template 算、exec 地址留在 template：
+        # 换机器不该改变"这是什么面"，但必须改变"打哪儿"。
         c.structural_key = structural_key(
-            c.method, c.template, c.param_names, c.auth_requirement, c.body_shape_sha256
+            c.method, _identity(c), c.param_names, c.auth_requirement, c.body_shape_sha256
         )
-        c.template_sha256 = template_sha256(c.template)
+        c.template_sha256 = template_sha256(_identity(c))
         groups.setdefault(c.structural_key, []).append(c)
 
     merged: list[RouteCandidate] = []

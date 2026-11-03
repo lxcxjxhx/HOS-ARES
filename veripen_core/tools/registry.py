@@ -260,11 +260,23 @@ def dispatch(
     *,
     budget_tokens_left: int | None = None,
     store_dir: str | Path | None = None,
+    plan_gate: Any | None = None,
 ) -> ToolResult:
-    """第二段校验 + 执行 + 输出归一化。**工具层不做判定、不猜语义。**"""
+    """第二段校验 + 执行 + 输出归一化。**工具层不做判定、不猜语义。**
+
+    ``plan_gate`` 是可选注入的计划闸门（B12.7c）：给了就在执行前查一次，
+    拒了就返回 ``error_class="approval"``。放在这里而不是各 decider 里，
+    是因为「计划模式下不许写」必须只有一个执行点——写在 decider 里，
+    换一个 decider 就漏一次。
+    """
     checked = validate_call(call)
     if isinstance(checked, ToolResult):
         return checked
+
+    if plan_gate is not None:
+        denied = plan_gate.deny_reason(call.name)
+        if denied is not None:
+            return ToolResult(ok=False, error_class="approval", hint=denied)
 
     if isinstance(checked, ListRoutesCall):
         rows = runtime.list_routes(checked.selector)

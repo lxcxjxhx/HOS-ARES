@@ -629,10 +629,28 @@ def _details_equal(cap: CapsuleDoc, traces: Sequence[TraceResult]) -> bool:
 
 
 def _classify(cap: CapsuleDoc, traces: Sequence[TraceResult], *, stale: bool) -> ReplayResult:
-    """3 重判 + 4 细节比对（顺序不可交换，06 §5.1.1）。"""
-    if cap.verdict is not Verdict.VERIFIED:
-        # 只有 VERIFIED 的结论才谈"复现"；其它 verdict 的重放属于新判定，不在此处
-        return ReplayResult(ReplayStatus.FAILED, "verdict_not_verified", tuple(traces), {}, stale)
+    """3 重判 + 4 细节比对（顺序不可交换，06 §5.1.1）。
+
+    **已知边界：结论只按状态类谓词判，判不了指纹类。**
+
+    oracle 的 judge 通常靠 body 里的指纹（SQL 报错文本、``<script>`` 回显、
+    OOB nonce）下结论，而 capsule **只存 body 哈希不存正文**（06 §7）。
+    所以重放能验的是"状态形状 + 字节是否完全相同"，验不了"载荷是否仍然生效"。
+
+    后果要说清：把一个 sqli 证据回放到**已修复**的目标上，若状态码仍落在
+    ``expected`` 区间，重放会返回 ``PARTIAL``（body 变了但结论算成立），
+    而不是 ``FAILED``。``OK`` 仍然是可信的强证据（要求逐字节相同）；
+    ``PARTIAL`` 则**不能**解读成"漏洞还在"。
+
+    要根治得让 capsule 存正文或让 replay 能调 oracle 的指纹逻辑——两者都会
+    推翻 06 §7 的存储红线或引入 core→oracles 的依赖，属设计改动，未做。
+    """
+    if cap.verdict not in (Verdict.VERIFIED, Verdict.REFUTED):
+        # INCONCLUSIVE / BLOCKED 没有结论可复现：重放它们属于重新判定，不在此处。
+        # **REFUTED 要放行**：「查过、确实没有这个洞」同样是一条结论，
+        # 而且它是交付里占多数的那一半（bench 44 例里 14 条）。
+        # 不放行的话，"我们验证过你的接口是安全的"这句话永远无法被审计。
+        return ReplayResult(ReplayStatus.FAILED, "verdict_not_reproducible", tuple(traces), {}, stale)
     live = _live_fingerprint(cap, traces)
     holds = _fingerprint_holds(cap, live)
 
