@@ -173,7 +173,15 @@ def check_post_connect(
 ) -> None:
     """实际对端必须 ∈ 解析集合且 ∉ deny；否则断连 + 越界事件（P0）。"""
     ip = _normalize(peer_ip)
-    allowed = {_normalize(x) for x in (set(asset.resolved_ips) | set(explicit_ips))}
+    # explicit_ips 里可能混进**主机名**（tools/http.send 传的是 render 出来的 host）。
+    # 主机名不是 IP，硬塞进 ip_address() 会抛 ValueError，于是任何域名目标
+    # 连第一个请求都发不出去——真实资产几乎全是域名，这条等于生产路径不可用
+    # （B30 实测）。这里只对能解析成 IP 的项做集合比对；域名的可达性由
+    # asset.resolved_ips（operator 建 scope 时给）负责，不由字符串本身负责。
+    allowed = {
+        addr for addr in (_normalize_opt(x) for x in (set(asset.resolved_ips) | set(explicit_ips)))
+        if addr is not None
+    }
     denied = [ipaddress.ip_network(n, strict=False) for n in deny_nets]
 
     if any(ip in net for net in denied):
@@ -182,6 +190,14 @@ def check_post_connect(
         raise ScopeViolation(str(ip), asset.id)
 
     del stop_on_violation  # 语义：违反即抛，停不停任务由调用方按 policy 决定
+
+
+def _normalize_opt(text: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
+    """能解析就归一，不能就返回 None。**只用于"可能混进非 IP"的入口**。"""
+    try:
+        return _normalize(text)
+    except ValueError:
+        return None
 
 
 def _normalize(text: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address:

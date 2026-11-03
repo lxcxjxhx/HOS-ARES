@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import socket
 import sys
 import time
 from pathlib import Path
@@ -46,7 +47,7 @@ from veripen_core.agent import AgentState, Loop, build_decider  # noqa: E402
 from veripen_core.agent.client import from_env  # noqa: E402
 from veripen_core.guard.budget import Budget  # noqa: E402
 from veripen_core.guard.context import GuardContext  # noqa: E402
-from veripen_core.guard.ratelimit import TokenBucket  # noqa: E402
+from veripen_core.guard.ratelimit import ThrottleConfig, TokenBucket  # noqa: E402
 from veripen_core.guard.scope import AssetScope, PlanDecision, ScopeGuard  # noqa: E402
 from veripen_core.routes import (  # noqa: E402
     AssetRef,
@@ -82,6 +83,7 @@ class HuntRuntime:
         self.transport = transport
         self.symbols = symbols
         self.calls: list[str] = []
+        self.reasons: dict[str, str] = {}
 
     def list_assets(self) -> list[dict[str, Any]]:
         return [{"id": self.routeset.asset_id, "kind": "web", "criticality": "unknown"}]
@@ -102,6 +104,7 @@ class HuntRuntime:
         self.calls.append(oracle_id)
         cls = next((c for c in ALL_ORACLES if c.meta.id == oracle_id), None)
         if cls is None:
+            self.reasons[oracle_id] = "unknown_oracle"
             return {"verdict": "BLOCKED", "reason": "unknown_oracle", "route_strength": "contract"}
         oracle = cls()
         tags = [str(t) for t in getattr(oracle.meta, "selector_tags", ())]
@@ -112,6 +115,7 @@ class HuntRuntime:
                     bindings[tag] = b
                     break
         if not tags or tags[0] not in bindings:
+            self.reasons[oracle_id] = "route_unresolved"
             return {"verdict": "BLOCKED", "reason": "route_unresolved", "route_strength": "contract"}
         self.transport.oracle_id = oracle_id
         try:
@@ -120,11 +124,10 @@ class HuntRuntime:
                 symbols=self.symbols, nonce=f"hunt-{oracle_id}", token=None, bindings=bindings,
             )
         except Exception as exc:  # noqa: BLE001 - 真实目标上什么都可能发生，如实报
-            return {
-                "verdict": "BLOCKED",
-                "reason": f"{type(exc).__name__}: {exc}"[:160],
-                "route_strength": "contract",
-            }
+            detail = f"{type(exc).__name__}: {exc}"[:160]
+            self.reasons[oracle_id] = detail
+            return {"verdict": "BLOCKED", "reason": detail, "route_strength": "contract"}
+        self.reasons[oracle_id] = result.reason
         return {
             "verdict": result.verdict.value,
             "reason": result.reason,
@@ -163,6 +166,21 @@ def _read_secret(inline: str, file_path: str, env_name: str, label: str) -> str:
         )
         return inline.strip()
     return ""
+
+
+def _resolve_ips(host: str) -> frozenset[str]:
+    """把目标域名解析成 IP 集合，填进 ``AssetScope.resolved_ips``。
+
+    **必须填**：``check_post_connect`` 校验的是真实对端 IP，而域名本身不是 IP。
+    scope 里给空集时，任何 peer 都会被判 ``ScopeViolation``——那看起来像"目标乱解析"，
+    实际是我没告诉守卫"这个域名对应哪些 IP"。
+    """
+    try:
+        infos = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
+    except OSError as exc:
+        print(f"[!] 域名解析失败：{host}（{exc}）—— 出网会被守卫拒", file=sys.stderr)
+        return frozenset()
+    return frozenset(str(info[4][0]) for info in infos)
 
 
 def _host_of(target: str) -> str:
@@ -207,6 +225,17 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--oob", default="", help="OOB 域名（SSRF 类需要；不给则该类只能 INCONCLUSIVE）")
     ap.add_argument("--symbols", default="", help="符号表 JSON（SYSTEM_FILE / SAFE_TARGET 等）")
     ap.add_argument("--max-steps", type=int, default=20)
+    #: 真实站点上的默认速率比靶场低一个量级。20 req/s 对着别人的业务就是压力测试，
+    #: 而这条命令的定位是"验证"，不是"压测"。
+    ap.add_argument("--rate", type=float, default=1.0, help="每秒请求上限（默认 1）")
+    ap.add_argument("--burst", type=float, default=2.0, help="突发桶容量（默认 2）")
+    #: 默认排掉三类：写操作、压力类。它们对真实目标有副作用或构成压测，
+    #: 要开必须显式给 --exclude "" 并在报告里写清为什么。
+    ap.add_argument(
+        "--exclude",
+        default="rate_limit_absent,mass_assignment,xss_stored_probe",
+        help="逗号分隔的 oracle 黑名单；默认排除写类与压力类",
+    )
     ap.add_argument("--out", default=str(ROOT / "out" / "hunt"))
     args = ap.parse_args(argv)
     setup_stdout()
@@ -219,14 +248,20 @@ def main(argv: list[str]) -> int:
         print(f"契约拒绝：{exc}", file=sys.stderr)
         return 2
 
+    excluded = {x.strip() for x in args.exclude.split(",") if x.strip()}
+
     planned = plan(opset, source=RouteProvenance.CONTRACT)
     routeset = _build_routeset(args.target, list(planned.candidates), host)
-    oracles = _oracles_for(routeset)
+    oracles = tuple(o for o in _oracles_for(routeset) if o not in excluded)
+    dropped = tuple(o for o in _oracles_for(routeset) if o in excluded)
 
     print(f"目标：{host}")
     print(f"契约：{len(planned.candidates)} 条候选 / 跳过 {len(planned.skipped)}")
     print(f"路由：{len(routeset.bindings)} 条绑定")
     print(f"可跑 oracle：{len(oracles)} 个 —— {', '.join(oracles) or '（无）'}")
+    if dropped:
+        print(f"已排除：{', '.join(dropped)}（写类/压力类，默认不动）")
+    print(f"速率：{args.rate} req/s，突发 {args.burst}，上限 {args.max_steps} 步")
     if not oracles:
         print("契约里没有带语义标签的 operation，无法挑 oracle。")
         return 1
@@ -259,8 +294,11 @@ def main(argv: list[str]) -> int:
     )
     runtime = HuntRuntime(routeset, transport, SymbolTable(symbols_map))
 
+    resolved = _resolve_ips(host)
+    if resolved:
+        print(f"解析：{len(resolved)} 个 IP —— {', '.join(sorted(resolved))}")
     scope = ScopeGuard(
-        asset=AssetScope(id=host, host_keys=frozenset({host}), resolved_ips=frozenset()),
+        asset=AssetScope(id=host, host_keys=frozenset({host}), resolved_ips=resolved),
         scope_in=frozenset({host}),
         deny=frozenset(),
         min_confidence=0.0,
@@ -270,7 +308,7 @@ def main(argv: list[str]) -> int:
         scope=scope,
         routeset=routeset,
         plan=PlanDecision(allowed_oracles=oracles),
-        bucket=TokenBucket(),
+        bucket=TokenBucket(ThrottleConfig(rate_per_s=args.rate, burst=args.burst)),
         budget=Budget(),
         now=int(time.time()),
     )
@@ -295,10 +333,16 @@ def main(argv: list[str]) -> int:
     print(f"决策：{result.decision.value}（{result.reason}）")
 
     findings = {k: v for k, v in result.verdicts.items() if v == "VERIFIED"}
-    blocked = {k: v for k, v in result.verdicts.items() if v != "VERIFIED"}
+    # 未确认的必须带 reason：只写 BLOCKED 等于说"没验出来"却不说为什么，
+    # 复核者无法区分「目标没错」与「我发错了」（D1）。
+    blocked = {
+        k: {"verdict": v, "reason": runtime.reasons.get(k, "")}
+        for k, v in result.verdicts.items() if v != "VERIFIED"
+    }
     print(f"确认：{len(findings)} 条 —— {json.dumps(findings, ensure_ascii=False)}")
     if blocked:
-        print(f"未确认：{json.dumps(blocked, ensure_ascii=False)}")
+        for k, v in blocked.items():
+            print(f"未确认：{k} = {v['verdict']}（{v['reason']}）")
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
