@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from veripen_core.routes.types import RouteCandidate, RouteProvenance
@@ -16,6 +17,26 @@ from veripen_core.routes.types import RouteCandidate, RouteProvenance
 from typing import Iterable
 
 from .parser import Operation, OperationSet
+
+
+#: ``normalize_template`` 把每个路径参数压成 ``{p}``（防参数名进结构身份）。
+#: 但下游的 ``SymbolSource`` 要求模板占位符与 ``param_names`` 对得上——
+#: ``{p}`` 不在里面，于是「契约 → RouteSet」这条路在 ``SymbolSource._render``
+#: 直接抛 SourceError（B28 实测：8 条候选、0 条绑定）。这里按出现顺序还原真实名：
+#: 结构身份仍用归一模板（``structural_key`` 已算好），只是把可执行的模板补回来。
+_PATH_SLOT = re.compile(r"\{p\}")
+
+
+def _restore_path_params(template: str, operation: "Operation") -> str:
+    path_names = [p.name for p in operation.params if p.location == "path"]
+    if not path_names:
+        return template
+    it = iter(path_names)
+
+    def sub(_m: "re.Match[str]") -> str:
+        return "{" + next(it, "p") + "}"
+
+    return _PATH_SLOT.sub(sub, template)
 
 
 @dataclass(frozen=True)
@@ -64,7 +85,7 @@ def _candidate(operation: Operation, source: RouteProvenance, resolver_version: 
     body_shape = "|".join(sorted(operation.success_shape.get("fields") or ())) or "nobody"
     return RouteCandidate(
         method=operation.method,
-        template=operation.template,
+        template=_restore_path_params(operation.template, operation),
         param_names=tuple(p.name for p in operation.params),
         auth_requirement=operation.auth_requirement,
         body_shape_sha256=body_shape,
