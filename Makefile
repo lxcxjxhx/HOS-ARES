@@ -273,6 +273,13 @@ ui-finding:
 
 b40: ui-finding ui-router ui-dom ui-contract console-test types-check lint
 
+# B41 视觉系统（令牌 + 双配色对比度 + 三态）
+ui-contrast:
+	$(PY) scripts/ui/contrast_check.py
+	$(PY) -m pytest tests/unit/test_ui_contrast.py -q
+
+b41: ui-contrast ui-dom ui-finding types-check lint
+
 # B16 双客户档（A1：差异全部在 YAML，内核零改动）
 profile-test:
 	$(PY) -m pytest tests/unit/test_profiles.py -q

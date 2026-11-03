@@ -6,10 +6,10 @@
 | 项 | 值 |
 |---|---|
 | 包版本 | `plan-hos-v1.0` |
-| 生成时间 | 2026-11-03T14:57:40.936Z |
+| 生成时间 | 2026-11-03T15:06:58.787Z |
 | 文件数 | 13 |
-| 总字节 | 115004 |
-| 总行数（文本） | 2132 |
+| 总字节 | 115305 |
+| 总行数（文本） | 2136 |
 
 ## 校验
 
@@ -28,7 +28,7 @@ node plan-hos-ares/check-plan.cjs --write  # 内容改过之后重生成本文�
 | `H03-平台面规格-驭智.md` | 8103 | 140 | `5a6e1420dbe927da` |
 | `H04-工作台规格-codex.md` | 5082 | 109 | `fc7373d58b13a398` |
 | `H05-判定内核边界-VeriPen.md` | 5037 | 86 | `becfda5d4556efcd` |
-| `H06-产品面与控制台.md` | 8535 | 186 | `358eb48f2e72edbb` |
+| `H06-产品面与控制台.md` | 8836 | 190 | `bddd3475ba5453b6` |
 | `H07-批次总表与排期.md` | 17405 | 319 | `bd5e3b9b5495375f` |
 | `H08-验收与断言.md` | 6769 | 130 | `0cbbb2ea4e7336b2` |
 | `H09-风险与决策项.md` | 6305 | 91 | `e4ce2957469fa8a3` |
@@ -45,7 +45,7 @@ node plan-hos-ares/check-plan.cjs --write  # 内容改过之后重生成本文�
 5a6e1420dbe927dad937628704713346ad61ed1761af46fee0e8e639e04a8b73  H03-平台面规格-驭智.md
 fc7373d58b13a398092d02932f722efae00def0c8bf78190fead7114b6c7eb09  H04-工作台规格-codex.md
 becfda5d4556efcd3a45a2b5dcc9d3ba2714d686b486a1b114eb0193a132630d  H05-判定内核边界-VeriPen.md
-358eb48f2e72edbbccdc4b9bea3fae3688c40c5b05c84d6ba3975a47fdeed4ba  H06-产品面与控制台.md
+bddd3475ba5453b6b968e2df244ab45904545bc666d66c972228136f9c24df10  H06-产品面与控制台.md
 bd5e3b9b5495375f09890f96af26f0f885c3e4ebc2910b1d61c091222897cf42  H07-批次总表与排期.md
 0cbbb2ea4e7336b2bb26e749f17b163b77308e8007d70e564b03a124ae35f26b  H08-验收与断言.md
 e4ce2957469fa8a3e5fef214f86f919af1f902da204d89a333043d7b2279c7e0  H09-风险与决策项.md

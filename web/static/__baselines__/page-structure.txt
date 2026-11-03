@@ -1,6 +1,7 @@
 header
 span.badge
 span.muted
+button#density
 nav#nav
 main#main
 p.muted

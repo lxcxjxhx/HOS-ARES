@@ -6,4 +6,5 @@ renderCoverage
 renderRoutes
 renderBounds
 renderFinding
+renderError
 renderGeneric
