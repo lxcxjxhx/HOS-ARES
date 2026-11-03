@@ -22,7 +22,9 @@ from veripen.bench.core import (
     case_fingerprint,
     check_hard_gates,
     check_route_derivable,
+    findings_fingerprint,
     load_cases,
+    outcome_counts,
     render_bench_md,
     render_matches_routeset,
     score,
@@ -103,6 +105,66 @@ def test_error_and_not_run_never_count_into_metrics() -> None:
 def test_inconclusive_negative_counts_as_tn() -> None:
     r = _round([_ok("N-01", "negative", "INCONCLUSIVE", outcome=Outcome.UNDETERMINED)])
     assert r.tn == 1 and r.fp == 0
+
+
+# ── 2b 四态口径（B12.9）──────────────────────────────────────────
+def test_four_states_are_all_reported_and_parsed() -> None:
+    """09 §3：四态并列，禁止只报一个"已验证率"。"""
+    r = _round([
+        _ok("P-01", "positive", "VERIFIED"),
+        _ok("N-01", "negative", "INCONCLUSIVE", outcome=Outcome.UNDETERMINED),
+        _ok("N-02", "negative", "BLOCKED", outcome=Outcome.ERROR),
+        _ok("N-03", "negative", "BLOCKED", outcome=Outcome.NOT_RUN),
+    ])
+    assert outcome_counts(r) == {"reported": 1, "undetermined": 1, "error": 1, "not_run": 1}
+    assert r.undetermined_rate == 0.25
+    assert r.agent_reported == 0
+
+
+def test_agent_reported_blocks_the_round() -> None:
+    """21 §B12：`agent_reported` 覆盖记录数必须为 0，非 0 整轮不算。"""
+    r = _round([_ok("P-01", "positive", "VERIFIED", coverage_src="agent_reported")])
+    assert r.agent_reported == 1
+    gate = check_hard_gates([r, r, r])
+    assert not gate.ok
+    assert any("agent_reported" in f for f in gate.failures)
+
+
+def test_findings_fingerprint_ignores_evidence_details() -> None:
+    """重跑前后比的是"结论变没变"，不是 capsule 哈希变没变。"""
+    a = _round([_ok("P-01", "positive", "VERIFIED")])
+    b = _round([_ok("P-01", "positive", "VERIFIED", capsule_id="d" * 64, steps=99)])
+    assert findings_fingerprint([a]) == findings_fingerprint([b])
+    c = _round([_ok("P-01", "positive", "REFUTED", outcome=Outcome.UNDETERMINED)])
+    assert findings_fingerprint([a]) != findings_fingerprint([c])
+
+
+# ── 2c 线索闭环率（35 §7，B12.7）─────────────────────────────────
+def test_closure_rate_is_recorded_not_gated() -> None:
+    """闭环率是**诊断指标**：写进 bench.md，但不进硬门槛。
+
+    理由是 35 §7 自己说的：闭环率太高反而要怀疑只挑软柿子。
+    把它变成硬门槛，就等于奖励"只打肯定能验的"，那正是它要防的。
+    """
+    r = _round([_ok("P-01", "positive", "VERIFIED", leads=4, leads_closed=1)])
+    assert r.leads_total == 4
+    assert r.leads_closed == 1
+    assert r.closure_rate == 0.25
+    # 门槛不因它红
+    assert check_hard_gates([r, r, r]).ok is True
+
+
+def test_closure_rate_with_no_leads_is_one() -> None:
+    assert _round([_ok("N-01", "negative", "REFUTED")]).closure_rate == 1.0
+
+
+def test_bench_md_prints_closure_rate() -> None:
+    from veripen.bench import render_bench_md
+
+    r = _round([_ok("P-01", "positive", "VERIFIED", leads=5, leads_closed=4)])
+    md = render_bench_md([r], gates=check_hard_gates([r]), case_fp="f" * 64)
+    assert "线索闭环率" in md
+    assert "0.80" in md
 
 
 # ── 3 硬门槛 ──────────────────────────────────────────────────────
@@ -223,3 +285,28 @@ def test_gate_raise_helper() -> None:
     with pytest.raises(BenchFailed):
         GateResult(ok=False, failures=("x",)).raise_if_failed()
     GateResult(ok=True, failures=()).raise_if_failed()
+
+
+# ── 2d 闭环率的占位口径必须显式标注（B12-time 之后的诚实性修正）──────
+def test_placeholder_closure_is_not_marked_ok() -> None:
+    """每例恒产 1 条 lead 时，闭环率是**恒等式**，报告不许打 ✅。
+
+    ``leads_closed / leads_total`` 在占位口径下退化成"有结论数 / 有结论数"，
+    永远 1.00。给它一个绿色对勾，读者会以为"闭环能力很强"，
+    实际上这一列什么都没测——与 tokens=800 是同一类问题。
+    """
+    r = _round([
+        _ok("P-01", "positive", "VERIFIED", leads=1, leads_closed=1),
+        _ok("N-01", "negative", "REFUTED", leads=1, leads_closed=1),
+    ])
+    md = render_bench_md([r], gates=check_hard_gates([r]), case_fp="f" * 64)
+    assert "占位口径" in md
+    assert "不构成测量" in md
+
+
+def test_real_leads_are_measured_normally() -> None:
+    """一例多 lead 时不是恒等式，按真实比例评并给出门槛判定。"""
+    r = _round([_ok("P-01", "positive", "VERIFIED", leads=5, leads_closed=4)])
+    md = render_bench_md([r], gates=check_hard_gates([r]), case_fp="f" * 64)
+    assert "占位口径" not in md
+    assert "0.80" in md

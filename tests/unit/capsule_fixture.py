@@ -122,8 +122,15 @@ def capsule(
     probe_body: str = "pair-body",
     baseline_body: str | None = None,
     with_control: bool = True,
+    item_id: str = "41",
+    control_id: str = "42",
 ) -> CapsuleDoc:
-    """合法的 capsule 1.1：baseline/probe/control 三条件齐备。"""
+    """合法的 capsule 1.1：baseline/probe/control 三条件齐备。
+
+    ``item_id`` / ``control_id`` 可覆盖：多数测试只关心"判定复现"，
+    用不到真实靶场对象；但**真 socket 回放**必须指向靶场里确实存在的 id
+    （靶场只定义了 1–4），否则拿到的是 404 而不是被测语义。
+    """
     baseline_body = probe_body if baseline_body is None else baseline_body
     rs = rs or routeset()
     ref = first_ref(rs)
@@ -137,7 +144,7 @@ def capsule(
             route_ref=ref,
             request=build_request(
                 method="GET",
-                path_rendered=binding.template.replace("{id}", "41"),
+                path_rendered=binding.template.replace("{id}", item_id),
                 headers={"Cookie": "session=super-secret", "Accept": "application/json"},
             ),
             response=build_response(status=200, body=baseline_body),
@@ -151,7 +158,7 @@ def capsule(
             route_ref=ref,
             request=build_request(
                 method="GET",
-                path_rendered=binding.template.replace("{id}", "41"),
+                path_rendered=binding.template.replace("{id}", item_id),
                 headers={"Cookie": "session=other-secret"},
             ),
             response=build_response(status=200, body=probe_body),
@@ -168,7 +175,7 @@ def capsule(
                 route_ref=ref,
                 request=build_request(
                     method="GET",
-                    path_rendered=binding.template.replace("{id}", "42"),
+                    path_rendered=binding.template.replace("{id}", control_id),
                     headers={"Cookie": "session=other-secret"},
                 ),
                 response=build_response(status=control_status, body="denied" if control_status >= 400 else "leak"),

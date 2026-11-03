@@ -38,6 +38,7 @@ from veripen_core.routes import (
 )
 from veripen_core.routes.types import RouteCandidate
 from veripen_core.tools import http
+from veripen_core.tools.transport import TransportError
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATES = __import__("json").loads(
@@ -329,9 +330,15 @@ def test_send_without_guard_is_refused() -> None:
 
 
 def test_send_runs_binding_gate_then_transport(installed) -> None:
+    """闸门顺序：② binding → ③ preflight → 传输。
+
+    B10 之前这里断言 ``TransportUnavailable``（传输没接线）；现在传输已接线，
+    所以断言改为**传输层的确定性错误**：夹具绑定带着未替换的占位符，
+    render 会拒绝——这说明 preflight 已经跑完、请求走到了传输层。
+    """
     ctx, rs = installed
     before = len(ctx.scope.events)
-    with pytest.raises(http.TransportUnavailable):
+    with pytest.raises(http.TransportError, match="仍有未替换参数"):
         http.send(rs.bindings[0], {})
     assert len(ctx.scope.events) >= before
     assert ctx.budget.requests.used == 1  # preflight 真的跑了

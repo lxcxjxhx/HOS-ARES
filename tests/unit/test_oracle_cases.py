@@ -15,6 +15,7 @@ from conftest import Lab
 from veripen_oracles import ALL_ORACLES
 from veripen_oracles.common.harness import run
 from veripen_core.models import Verdict
+from veripen.bench.faces import extra_tags, primary_tag
 
 def _by_id(oracle_id: str, **params: object) -> object:
     """按 id 构造（覆盖已注册的全部档位，不只 TierA 前 4 类）。"""
@@ -36,27 +37,6 @@ def _lab(kind: str) -> Lab:
         return lab
     return Lab(secure=(kind == "hardened"))
 
-TAG = {
-    "sqli_bool_diff": "param_injectable",
-    "idor_cross_account": "object_read",
-    "ssrf_oob": "url_fetch",
-    # jwt_replay 的 J1/J2 能力已并入 B9 的 jwt_suite（超集）；矩阵只保留 suite 的用例
-    "jwt_suite": "protected_read",
-    "open_redirect": "redirect_entry",
-    "path_traversal": "file_read",
-    # B7
-    "sqli_error_based": "param_injectable",
-    "bola_functional": "admin_function",
-    "xss_reflected_ctx": "echo_param",
-    "mass_assignment": "profile_write",
-}
-
-#: 需要第二条绑定的 oracle（写+回读 / 管理面+普通面）
-EXTRA_TAGS = {
-    "bola_functional": ("normal_function",),
-    "mass_assignment": ("profile_read",),
-}
-
 ENTRIES = [
     (oracle_id, kind, case)
     for oracle_id, block in CASES.items()
@@ -76,6 +56,72 @@ def test_matrix_shape() -> None:
         assert "degenerate" in labs, f"{oracle_id} 缺'环境退化'类负样本"
 
 
+def test_faces_have_no_handwritten_copies() -> None:
+    """``EXTRA_TAGS`` / ``TAG`` 只许从 ``selector_tags`` 派生，不许有本地副本。
+
+    这条防的是一次真实发生过的分叉：四处各有一份 ``EXTRA_TAGS``，
+    ``scripts/demo.py`` 那份缺 ``xss_stored_probe``。分叉不会红——
+    它只会静默改变某条用例的结论（多面 oracle 少一条面 → SymbolMissing → BLOCKED）。
+
+    做法：扫产品与脚本目录，出现「给这些 oracle 手工列 tag」的字典就失败。
+    """
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    banned = ("EXTRA_TAGS = {", "TAG = {")
+    offenders: list[str] = []
+    for path in list(root.glob("scripts/**/*.py")) + list(root.glob("tests/**/*.py")):
+        if "__pycache__" in str(path) or path.name == "test_oracle_cases.py":
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for marker in banned:
+            if marker in text:
+                offenders.append(f"{path.relative_to(root)}: {marker}")
+    assert offenders == [], f"出现手工面字典副本（应改用 veripen.bench.faces）：{offenders}"
+
+
+def test_derived_faces_match_oracle_metadata() -> None:
+    """派生结果必须与 oracle 类自己的 ``selector_tags`` 逐项一致。"""
+    from veripen.bench.faces import TAGS_BY_ORACLE
+
+    for cls in ALL_ORACLES:
+        tags = tuple(cls.meta.selector_tags)
+        if tags:
+            assert TAGS_BY_ORACLE[cls.meta.id] == tags, cls.meta.id
+
+
+def test_every_multi_face_oracle_is_covered_somewhere() -> None:
+    """凡是有多个 selector 的 oracle，**总要有一处端到端跑过它的第二个面**。
+
+    为什么不能只看 tierA.json 矩阵：矩阵只收 10 类，TierC 的三类由
+    ``test_tier_c.py`` 单独覆盖（它自己传 ``extra=(...)``）。把断言写成
+    "必须在矩阵里"会误报——`xss_stored_probe` 就被误报过一次，
+    而它其实在 ``test_stored_xss_vulnerable`` 里跑得很完整。
+
+    所以判据是「第二面在**任何**端到端测试里出现过」，不是「在哪一个文件里」。
+    这条防的是真的缺失：多面 oracle 若第二面从没被传入，那个面等于没验证过。
+    """
+    from pathlib import Path
+
+    from veripen.bench.faces import extra_tags
+
+    root = Path(__file__).resolve().parents[2]
+    corpus = "\n".join(
+        p.read_text(encoding="utf-8", errors="replace")
+        for p in list(root.glob("tests/**/*.py")) + list(root.glob("veripen_oracles/cases/*.json"))
+        if "__pycache__" not in str(p) and p.name != "test_oracle_cases.py"
+    )
+    uncovered: list[str] = []
+    for cls in ALL_ORACLES:
+        extras = extra_tags(cls.meta.id)
+        if not extras:
+            continue
+        # 第二面必须作为 tag 字面量出现在某处（run 的 bindings/extra 参数里）
+        if not any(f'"{t}"' in corpus for t in extras):
+            uncovered.append(f"{cls.meta.id}: {extras}")
+    assert uncovered == [], f"多面 oracle 的第二面从未被传入：{uncovered}"
+
+
 @pytest.mark.parametrize(
     ("oracle_id", "kind", "case"),
     ENTRIES,
@@ -87,7 +133,7 @@ def test_case_matrix(oracle_id: str, kind: str, case: dict) -> None:
     nonce = params.pop("nonce", "")
     repeat = params.pop("repeat", None)
     oracle = _by_id(oracle_id, **params)
-    tags = (TAG[oracle_id], *EXTRA_TAGS.get(oracle_id, ()))
+    tags = (primary_tag(oracle_id), *extra_tags(oracle_id))
     bmap = {t: lab.binding(t) for t in tags}
     result = run(
         oracle,

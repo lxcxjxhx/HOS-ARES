@@ -45,12 +45,18 @@ def test_migration_is_idempotent() -> None:
     s = Store(":memory:").init()
     s.init()  # 再跑一次不应报错
     cols = {str(r["name"]) for r in s.conn.execute("PRAGMA table_info(findings)")}
-    assert {"outcome", "coverage_src"} <= cols
+    assert {"outcome", "coverage_src", "not_run_reason", "error_reason"} <= cols
     s.close()
 
 
 def test_migrations_cover_documented_columns() -> None:
-    documented = {("findings", "outcome"), ("findings", "coverage_src")}
+    # B12.2 补 not_run_reason / error_reason：四态要能说出原因码（09 §3）
+    documented = {
+        ("findings", "outcome"),
+        ("findings", "coverage_src"),
+        ("findings", "not_run_reason"),
+        ("findings", "error_reason"),
+    }
     assert {(t, c) for t, c, _ in MIGRATIONS} == documented
 
 

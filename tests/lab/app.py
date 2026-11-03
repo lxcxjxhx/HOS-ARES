@@ -285,7 +285,7 @@ class App:
         return 200, "application/json", {"fetched": True, "bytes": 128, "scheme": host}
 
     def _read(self, name: str) -> tuple[int, str, Any]:
-        if self.secure and (".." in name or name.startswith(chr(0x2F))):
+        if self.secure and _looks_like_escaping(name):
             return 400, "application/json", {"error": "bad_name"}
         if name in FILES:
             return 200, "text/plain", FILES[name]
@@ -429,6 +429,29 @@ def _headers_of(environ: Mapping[str, Any]) -> dict[str, str]:
     return out
 
 
+def _looks_like_escaping(name: str) -> bool:
+    """名字里有没有"逃出目录"的意图。**解码一次不够，要看到本层仍是转义就继续解。**
+
+    为什么不能只查 ``".." in name``：真实 HTTP 栈会把编码载荷原样送到应用，
+    ``parse_qs`` 只解一层。于是 ``%2e%2e%2f`` → ``../``（拦得住），
+    而 ``%252e%252e%252f`` → ``%2e%2e%2f``（拦不住，但它**语义上仍是穿越**）。
+
+    进程内 WSGI 没有这一层，所以这个洞一直存在于"安全态"靶场里，
+    直到换真网络才暴露（N-08 从 REFUTED 退成 INCONCLUSIVE）。
+    """
+    from urllib.parse import unquote
+
+    current = name
+    for _ in range(4):  # 有限层：无限解码会把正常名字也绕进去
+        if ".." in current or current.startswith(chr(0x2F)) or "\\" in current:
+            return True
+        nxt = unquote(current)
+        if nxt == current:
+            return False
+        current = nxt
+    return False
+
+
 def _bearer(environ: Mapping[str, Any]) -> str | None:
     raw = str(environ.get("HTTP_AUTHORIZATION", "") or "")
     if raw.lower().startswith("bearer "):
@@ -445,27 +468,27 @@ def assets_json() -> dict[str, Any]:
         "operations": [
             {"method": "GET", "template": "/api/items/{id}", "tags": ["object_read"],
              "params": [{"name": "id", "kind": "int"}]},
-            {"method": "GET", "template": "/api/search", "tags": ["param_injectable"],
+            {"method": "GET", "template": "/api/search?q={q}", "tags": ["param_injectable"],
              "params": [{"name": "q", "kind": "str"}]},
-            {"method": "GET", "template": "/api/fetch", "tags": ["url_fetch"],
+            {"method": "GET", "template": "/api/fetch?url={url}", "tags": ["url_fetch"],
              "params": [{"name": "url", "kind": "url"}]},
-            {"method": "GET", "template": "/api/read", "tags": ["file_read"],
+            {"method": "GET", "template": "/api/read?name={name}", "tags": ["file_read"],
              "params": [{"name": "name", "kind": "str"}]},
-            {"method": "GET", "template": "/api/redirect", "tags": ["redirect_entry"],
+            {"method": "GET", "template": "/api/redirect?to={to}", "tags": ["redirect_entry"],
              "params": [{"name": "to", "kind": "url"}]},
             {"method": "GET", "template": "/api/admin/audit", "tags": ["admin_function"],
              "params": []},
             {"method": "GET", "template": "/api/profile/normal", "tags": ["normal_function"],
              "params": []},
-            {"method": "GET", "template": "/api/echo", "tags": ["echo_param"],
+            {"method": "GET", "template": "/api/echo?q={q}", "tags": ["echo_param"],
              "params": [{"name": "q", "kind": "str"}]},
-            {"method": "POST", "template": "/api/profile", "tags": ["profile_write"],
+            {"method": "POST", "template": "/api/profile?display_name={display_name}", "tags": ["profile_write"],
              "params": [{"name": "display_name", "kind": "str"}]},
             {"method": "GET", "template": "/api/profile/me", "tags": ["profile_read"],
              "params": []},
             {"method": "GET", "template": "/api/ping", "tags": ["rate_sensitive"],
              "params": []},
-            {"method": "POST", "template": "/api/notes", "tags": ["content_write"],
+            {"method": "POST", "template": "/api/notes?body={body}", "tags": ["content_write"],
              "params": [{"name": "body", "kind": "str"}]},
             {"method": "GET", "template": "/api/notes/all", "tags": ["content_read"],
              "params": []},
@@ -473,7 +496,7 @@ def assets_json() -> dict[str, Any]:
              "params": []},
             {"method": "GET", "template": "/api/items", "tags": ["api_read"],
              "params": []},
-            {"method": "POST", "template": "/api/login", "tags": ["token_issue"],
+            {"method": "POST", "template": "/api/login?account={account}", "tags": ["token_issue"],
              "params": [{"name": "account", "kind": "str"}]},
             {"method": "GET", "template": "/api/me", "tags": ["protected_read"],
              "params": []},
