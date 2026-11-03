@@ -454,14 +454,17 @@ def build_app(
         static_dir = Path(__file__).resolve().parent / "static"
         page = static_dir / "index.html"
         if page.exists():
+            # no-cache：页面与模块必须每次协商，否则升级后浏览器拿旧模块会直接白屏
             app.get(UI_PREFIX + "app", include_in_schema=False)(
-                lambda: FileResponse(page, media_type="text/html")
+                lambda: FileResponse(page, media_type="text/html",
+                                     headers={"Cache-Control": "no-cache"})
             )
         # 只暴露这一个纯函数模块：不做目录挂载（任何"顺手多挂一层"都会变成新的面）
         router_js = static_dir / "router.js"
         if router_js.exists():
             app.get(UI_PREFIX + "router.js", include_in_schema=False)(
-                lambda: FileResponse(router_js, media_type="text/javascript")
+                lambda: FileResponse(router_js, media_type="text/javascript",
+                                     headers={"Cache-Control": "no-cache"})
             )
 
     return app

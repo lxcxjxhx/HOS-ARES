@@ -21,6 +21,12 @@ export function normalizeOp(op) {
   return OPS.includes(op) ? op : "overview";
 }
 
+/** 页内锚点（`#main`）不是路由：跳过它，别把"跳到主内容"当成换页 */
+export function isRouteHash(hash) {
+  const value = String(hash || "");
+  return value === "" || value.startsWith("#/");
+}
+
 /** `#/findings?q=xss&sev=high` → { op, params } */
 export function parseHash(hash) {
   const raw = String(hash || "").replace(/^#\/?/, "");

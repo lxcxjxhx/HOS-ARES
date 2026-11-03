@@ -26,6 +26,7 @@ PAIRS = (
     ("weak", "bg", 4.5),
     ("danger", "danger-bg", 4.5),
     ("accent", "bg", 4.5),
+    ("focus", "bg", 4.5),
 )
 
 _HEX = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")

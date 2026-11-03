@@ -280,6 +280,13 @@ ui-contrast:
 
 b41: ui-contrast ui-dom ui-finding types-check lint
 
+# B42 可访问性与打印（静态闸门 + 人工清单）
+ui-a11y:
+	$(PY) scripts/ui/a11y_check.py
+	$(PY) -m pytest tests/unit/test_ui_a11y.py -q
+
+b42: ui-a11y ui-contrast ui-router ui-dom types-check lint
+
 # B16 双客户档（A1：差异全部在 YAML，内核零改动）
 profile-test:
 	$(PY) -m pytest tests/unit/test_profiles.py -q

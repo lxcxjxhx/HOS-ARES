@@ -1,3 +1,4 @@
+a.skip
 header
 span.badge
 span.muted
