@@ -81,6 +81,11 @@ render(binding: RouteBinding, *, wait: "networkidle|domcontentloaded", timeout_s
 | 证据 | `dom_outline` + 脱敏 `net_log` 进 capsule；截图只作附件（digest 入 capsule） |
 | 失败语义 | 渲染超时/崩溃 → `BLOCKED(render_timeout)`，**不得**退化成"没发现" |
 
+> **执行记录（2026-11-04，B58）**：离线包已支持双形态 `--profile light|browser`；
+> light 不含浏览器载荷，browser 只放 `browser/README.txt`（**不塞占位二进制**）。
+> `doctor` 的 deps 一行同时报 `tui:` / `sandbox:` / `browser:` 三项，缺哪项一眼可见。
+> **A3 仍未闭合**：本机无 docker，`images/` 为空，`verify` 会如实报出，不静默通过。
+
 **离线包代价（要写进对外材料）**：Playwright + Chromium ≈ 300MB，离线包体积从 ~40MB 涨到 ~340MB；
 `make package-offline` 必须能不带浏览器产出"轻量包"，由 profile 决定装不装（`D-H-02`）。
 
