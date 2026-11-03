@@ -57,7 +57,7 @@ def _row(oracle: str, verdict: str, *, reason: str, seq: int, asset: str) -> Row
     outcome = _OUTCOME.get(verdict.upper(), "undetermined")
     reason_code = f"{verdict.upper()}: {reason}" if reason else verdict.upper()
     return Row(
-        finding_id=f"F-{seq:03d}",
+        finding_id="F-" + str(seq).zfill(3),
         title=f"{oracle} {'在 ' + asset + ' 上成立' if outcome == 'reported' else '未确认'}",
         severity=SEVERITY.get(oracle, "medium") if outcome == "reported" else "",  # type: ignore[arg-type]
         oracle_id=oracle,
