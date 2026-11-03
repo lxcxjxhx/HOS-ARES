@@ -240,7 +240,7 @@ Recon 说"去测 X"，Verifier 说"结果是什么"，Reporter 说"怎么写"—
 
 ### 2.6.1 批次状态枚举（v3.6 扩充）
 
-> **进度：B18–B28b 全部 `done`，B28 为 `scaffolded`→`B28b` 接回（2026-11-03）。`B20-sandbox` `blocked`（无 docker/WSL）。**
+> **进度：B18–B29 全部 `done`（2026-11-03）。B29 为验证批次，结论是负的（见行内）。`B20-sandbox` `blocked`（无 docker/WSL）。**
 > 39 §4.2 的四批已收口，B22 补其最后一处口径缺口；A10/A11/A12 三条断言全部转绿，且各有反例证明能红。
 > **B22 不是新能力，是把 B21 的闭环从「同语义」收紧到「同目标」**：证据见 `tests/integration/test_bench_leads_shared_target.py`。
 
@@ -274,6 +274,7 @@ Recon 说"去测 X"，Verifier 说"结果是什么"，Reporter 说"怎么写"—
 | ⑫ | **B27** ✅ `done` | **模型成本量化** | 客户端记录网关回报的 usage；量一次完整审计的调用数与 token | B26b | `veripen_core/agent/client.py` `scripts/b26/agent_live.py` | ✅ **已达成**：11 次调用 / prompt 7485 + completion 753 tokens / 70.8s，10 个 oracle 全 VERIFIED、冲突 0。**同时测出一条负结论**：在 lab 固定 pending 下，模型挑的 oracle 与 scripted 完全相同——多花 8.2k tokens 换 0 增量，模型的价值必须到「pending 不由 case 预先给定」的真实资产上才成立 |
 | ⑬ | **B28** 🟡 `scaffolded` | **真实资产通道** | `veripen hunt`：契约 → RouteSet → 守卫链 → 真发包 → 判定，指向任意 TARGET | B27 | `veripen_cli/cmd_hunt.py` `veripen_oracles/live.py` `veripen_contract/planner.py` | **形状齐**：lab 当 TARGET 实测 8 条绑定、10 个 oracle、32 次真请求，每次出网过 `binding_gate`→`preflight`→`post_connect`。**修掉一处真 bug**：`plan()` 的归一占位符 `{p}` 与 `SymbolSource._render` 不兼容，「契约 → RouteSet」一直得到 0 条绑定。**空缺**：token/oob/symbols 三个注入点为空 → 受保护面验不出来，0 确认是「没带身份」 |
 | ⑭ | **B28b** ✅ `done` | **凭据注入点** | `--token` / `--token-secondary` / `--oob` / `--symbols`；未消费参数拼进 query | B28 | `veripen_cli/cmd_hunt.py` `veripen_oracles/live.py` | ✅ **已达成**：同一目标、同一份契约，带凭据后确认数 **0 → 6**（idor / open_redirect / path_traversal / sqli×2 / xss）；空 token 不发 `Authorization` 头（发了会被目标记成无效凭据，掩盖「根本没带身份」） |
+| ⑮ | **B29** ✅ `done` | **模型发现能力** | `--discover` 探索模式（拿掉「pending 非空就 run_oracle」这句指令）+ `--no-fallback` 纯模型对照 | B28b | `veripen_core/agent/client.py` `scripts/b26/agent_live.py` | **负结论**：纯模型 3 步全探路（list_assets / list_routes）后 idle 收敛，`started_verifying=False`、`coverage=0.0`——**不会自己进入验证**。带降级时 `coverage=1.0` 但模型只跑了 3 步，验证全部由 scripted 完成。**B27 的负结论由此升级为普遍结论**：模型在窄 schema + 探索指令下只做只读探索，「能打」靠 scripted + oracle 库 |
 
 ### 2.6.3 注入点全表（`39 §2.3` 的落地版，谁负责接）
 

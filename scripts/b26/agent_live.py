@@ -133,19 +133,28 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--max-steps", type=int, default=20,
                     help="两边给同样的步数；模型前几步常花在探索上")
     ap.add_argument("--goal", default=DEFAULT_GOAL)
+    ap.add_argument("--no-fallback", action="store_true",
+                    help="只用模型、不挂 scripted 兜底：这样 idle 3 步就是收敛，测得出模型自己能走多远")
+    ap.add_argument("--discover", action="store_true",
+                    help="B29 探索模式：不告诉模型 pending 是待验清单，只说是候选池")
     ap.add_argument("--compare-scripted", action="store_true",
                     help="同一条用例再用纯 scripted 跑一次，比对共有 oracle 的 verdict")
     ap.add_argument("--out", default=str(ROOT / "out" / "b26"))
     args = ap.parse_args(argv)
     setup_stdout()
 
-    client = from_env()
+    client = from_env(discover=args.discover)
     if client is None:
         print("模型未配置：需要 VERIPEN_MODEL_BASE_URL / VERIPEN_MODEL / VERIPEN_MODEL_API_KEY",
               file=sys.stderr)
         return 2
 
-    live_decider = build_decider(client=client)
+    if args.no_fallback:
+        from veripen_core.agent import ModelDecider
+
+        live_decider: Any = ModelDecider(client)
+    else:
+        live_decider = build_decider(client=client)
     state = _state()
     print(f"模型：{client.model} @ {client.base_url}")
     print(f"决策器：{live_decider.name}")
@@ -174,6 +183,55 @@ def main(argv: list[str]) -> int:
         "live_usage": live_usage,
     }
     problems: list[str] = []
+
+    # ── B29 判据：模型有没有"找"的行为 ────────────────────────────
+    #
+    # 只在 --discover 下算。判据写死在这里而不是报告里，是为了让结论
+    # 跟着数据走：召回不到 0.8 就是不到，不许事后解释成"差不多"。
+    if args.discover:
+        steps = live["steps"]
+        tool_seq = [str(s["tool"]) for s in steps]
+        first_oracle = next((i for i, t in enumerate(tool_seq) if t == "run_oracle"), None)
+        recon_tools = {"list_routes", "list_assets", "rediscover_routes"}
+        recon_before = (
+            sum(1 for t in tool_seq[:first_oracle] if t in recon_tools)
+            if first_oracle is not None else 0
+        )
+        coverage = len(live["verdicts"]) / max(len(state.pending), 1)
+        checks = {
+            # A：**有没有进入验证**。这是探索模式最核心的一条——
+            # 只探路不验证，等于没有发现能力；探路次数再多也不顶用。
+            "started_verifying": {
+                "value": first_oracle is not None,
+                "pass": first_oracle is not None,
+            },
+            # B：候选池里的面验到了多少
+            "coverage": {"value": round(coverage, 3), "pass": coverage >= 0.8},
+            # C：**在动 oracle 之前**有没有先看目标有什么。没进入验证时这条不适用，
+            # 记 None 而不是 False——"没机会探路"与"探了路再乱打"是两件事。
+            "recon_before_first_oracle": {
+                "value": recon_before if first_oracle is not None else None,
+                "pass": None if first_oracle is None else recon_before >= 1,
+            },
+            # D：有没有把步数花在失败调用上
+            "no_failed_calls": {
+                "value": sum(1 for s in steps if not s["ok"]),
+                "pass": all(s["ok"] for s in steps),
+            },
+        }
+        record["discover"] = {
+            "tool_sequence": tool_seq,
+            "verdict_coverage": round(coverage, 3),
+            "checks": checks,
+        }
+        print()
+        print("B29 判据（探索模式）：")
+        for name, c in checks.items():
+            mark = "n/a " if c["pass"] is None else ("PASS" if c["pass"] else "FAIL")
+            print(f"  {mark} {name} = {c['value']}")
+        if not all(c["pass"] is not False for c in checks.values()):
+            problems.append("B29 判据未全部通过（见 discover.checks）")
+
 
     if args.compare_scripted:
         scripted = _run(Lab(secure=False), build_decider(client=None), state, args.goal, args.max_steps)
