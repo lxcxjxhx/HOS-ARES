@@ -240,6 +240,12 @@ ui-semantics:
 
 b35: ui-honesty ui-semantics console-test types-check lint
 
+# B36 页面契约对齐（H06 §4 / A15：payload ⊇ view 键集，缺一即红）
+ui-contract:
+	$(PY) -m pytest tests/unit/test_ui_contract.py -q
+
+b36: ui-contract console-test types-check lint
+
 # B16 双客户档（A1：差异全部在 YAML，内核零改动）
 profile-test:
 	$(PY) -m pytest tests/unit/test_profiles.py -q
