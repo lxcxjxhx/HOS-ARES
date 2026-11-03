@@ -66,7 +66,13 @@ class SandboxRunner(Protocol):
 | 截图作为证据附件（不进 verdict） | 用截图"看起来像 XSS"当结论 |
 | 与 oracle 配对（baseline/probe/control 各一次渲染） | 在页面里执行任意脚本（`page.evaluate` 只允许取样模板） |
 
-### 3.2 契约
+### 3.2 契约（2026-11-04 B46 落地）
+
+> `veripen_core/render/`：`dom.outline()` 归一化（丢易变属性、排属性序、折叠空白、跳过 script/style 正文）、
+> `dom_sha256()` 指纹、`redact_url()` 只留 `ref:<8位>` 与查询参数名；
+> `BrowserRenderer.render()` 每次 **new_context**（不共享 cookie）、超时归一为 `blocked/render_timeout`、
+> 截图哈希入结果。**`isolation=host` 显式写在结果里**：本机无容器，容器内渲染未验。
+> `make browser-render` 真跑 Chromium：同输入同哈希、两次渲染两个 context。
 
 ```python
 render(binding: RouteBinding, *, wait: "networkidle|domcontentloaded", timeout_s: int) -> RenderResult

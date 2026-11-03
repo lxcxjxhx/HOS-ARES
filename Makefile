@@ -544,3 +544,9 @@ b56: tui-check
 b57: memory-check
 b58: offline-profiles
 b59: parity
+
+# B46 渲染执行体（真跑 Chromium：同输入同哈希 / 每次新 context / 超时 BLOCKED）
+browser-render:
+	$(PY) -m pytest tests/integration/test_browser_render.py -q
+
+b46: browser-render exec-isolation types-check lint
