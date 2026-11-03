@@ -16,7 +16,8 @@ const path = require('path');
 
 const MAX_ALLOWLIST = 6;
 const DEFAULT_ROOT = '.';
-const DEFAULT_ALLOWLIST = 'config/noroute.allowlist';
+// 规划包内 allowlist 就在根目录；项目内通常在 config/ 下。两种都试，取先存在的。
+const DEFAULT_ALLOWLIST = 'noroute.allowlist';
 
 // 整目录豁免：只有逆向证据目录（28 §0 Q1）
 const EXEMPT_DIRS = [['docs', 'research', 're'].join(path.sep)];
@@ -156,7 +157,13 @@ function arg(name, def) {
   return i >= 0 && argv[i + 1] ? argv[i + 1] : def;
 }
 const root = path.resolve(arg('--root', DEFAULT_ROOT));
-const allowFile = path.resolve(root, arg('--allowlist', DEFAULT_ALLOWLIST));
+const explicitAllowlist = arg('--allowlist', null);
+const allowCandidates = explicitAllowlist
+  ? [explicitAllowlist]
+  : [DEFAULT_ALLOWLIST, 'config/noroute.allowlist'];
+const allowFile = allowCandidates
+  .map(c => path.resolve(root, c))
+  .find(f => fs.existsSync(f)) ?? path.resolve(root, allowCandidates[0]);
 const asJson = argv.includes('--json');
 
 if (!fs.existsSync(root)) {

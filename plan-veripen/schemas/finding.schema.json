@@ -2,11 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://veripen.invalid/schemas/finding-v2.json",
   "title": "VeriPen Finding v2",
-  "description": "v2：新增 route_ref / route_strength / route_source，并把『弱绑定不得标高危』做成 schema 约束（09 §3.1）。",
+  "description": "v2：新增 route_ref / route_strength / route_source，并把『弱绑定不得标高危』做成 schema 约束（09 §3.1）。v3.1：新增 outcome（与 state 正交）与 coverage_src（32 §3 A1/A2）。",
   "type": "object",
   "additionalProperties": false,
   "required": ["id", "task_id", "asset_id", "oracle_id", "oracle_version", "title",
-               "severity", "confidence", "cwe", "state", "route_strength", "created_at"],
+               "severity", "confidence", "cwe", "state", "outcome", "coverage_src",
+               "route_strength", "created_at"],
   "properties": {
     "id": { "type": "string", "minLength": 1 },
     "task_id": { "type": "string", "minLength": 1 },
@@ -18,6 +19,25 @@
     "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
     "cwe": { "type": "string", "pattern": "^CWE-\\d+$" },
     "state": { "enum": ["CANDIDATE", "VERIFIED", "REFUTED", "UNVERIFIABLE", "BLOCKED"] },
+
+    "outcome": {
+      "enum": ["reported", "undetermined", "error", "not_run"],
+      "description": "与 state 正交：state 说结论是什么，outcome 说这次跑成了没有。error/not_run 绝不计入 TN 或『未发现』（32 §3 A1）。"
+    },
+    "not_run_reason": {
+      "type": "string",
+      "pattern": "^(skipped_[a-z0-9_]+|approval_pending|budget_not_allocated)$",
+      "description": "outcome=not_run 时必填，进报告『未执行』章节。"
+    },
+    "error_reason": {
+      "type": "string",
+      "pattern": "^(transport|target_down|tool_crash|timeout|tls|oob_unreachable)$",
+      "description": "outcome=error 时必填，进报告『执行失败』章节。"
+    },
+    "coverage_src": {
+      "enum": ["machine_observed", "agent_reported", "none"],
+      "description": "覆盖记录的来源分档。agent_reported 永远不能单独作为『已覆盖』，必须降级为 not_run（32 §3 A2）。"
+    },
 
     "route_ref": {
       "type": ["string", "null"],
@@ -72,6 +92,32 @@
       "then": {
         "properties": { "state": { "enum": ["VERIFIED", "CANDIDATE"] } }
       }
+    },
+    {
+      "comment": "§3 A1：outcome 与 state 必须自洽。跑挂了就不许宣称有结论，判不了就不许记成 reported",
+      "allOf": [
+        {
+          "if": { "properties": { "outcome": { "enum": ["error", "not_run"] } }, "required": ["outcome"] },
+          "then": { "properties": { "state": { "const": "BLOCKED" } } }
+        },
+        {
+          "if": {
+            "properties": { "state": { "enum": ["UNVERIFIABLE", "BLOCKED"] } },
+            "required": ["state"]
+          },
+          "then": { "properties": { "outcome": { "enum": ["undetermined", "error", "not_run"] } } }
+        }
+      ]
+    },
+    {
+      "comment": "§3 A1：error / not_run 必须带原因码，否则报告无法分组",
+      "if": { "properties": { "outcome": { "const": "error" } }, "required": ["outcome"] },
+      "then": { "required": ["error_reason"] }
+    },
+    {
+      "comment": "§3 A2：自述冒充已覆盖在 schema 层就不可表达",
+      "if": { "properties": { "coverage_src": { "const": "agent_reported" } }, "required": ["coverage_src"] },
+      "then": { "properties": { "outcome": { "const": "not_run" } } }
     }
   ]
 }

@@ -1,119 +1,137 @@
-# MANIFEST · plan-veripen v3.0
+# MANIFEST · plan-veripen v3.6
 
 > 复制后校验完整性：文件数、字节数、sha256 三项都对得上，才算拷对。
 > **本文件不含自身哈希**（自指不可校验），除此之外全部文件都在表里。
 
 | 项 | 值 |
 |---|---|
-| 包版本 | `plan-v3.0` |
-| 生成时间 | 2026-10-30T15:51:39.576Z |
-| 文件数 | 44 |
-| 总字节 | 574285 |
-| 总行数（文本） | 10382 |
-| 内容 | 28 篇规格（含 27/28）+ README + 3 个自检脚本 + allowlist + 5 份 JSON Schema |
+| 包版本 | `plan-v3.6` |
+| 生成时间 | 2026-11-03T00:23:55.435Z |
+| 文件数 | 53 |
+| 总字节 | 772739 |
+| 总行数（文本） | 13362 |
+| 内容 | 41 篇规格（含 27–39）+ 37 批计划 + README + 3 个自检脚本 + allowlist + 6 份 JSON Schema |
 
 ## 校验命令
 
 ```bash
-node check-plan.cjs        # 结构 + 交叉引用 + schema 可解析 + 零地址闸门 + 版本一致
+node check-plan.cjs        # 结构 + 交叉引用 + schema 可解析 + 零地址闸门 + 标签一致 + 版本一致
 node check-noroute.cjs     # 单独跑零地址闸门（最后一行应为 OK: 0 命中）
-node _verify-manifest.cjs  # 逐个文件比对 sha256
+node _verify-manifest.cjs  # 逐个文件比对 sha256（★ 内容改过就必须重跑本脚本生成）
 ```
 
 ## 文件清单
 
 | 文件 | 字节 | 行 | sha256（前 16） |
 |---|---:|---:|---|
-| `00-总规划.md` | 15246 | 197 | `bc59a1e934658524` |
-| `01-包结构与内核契约.md` | 18505 | 321 | `6adbd4834190c91b` |
-| `02-客户档Profile规格.md` | 10773 | 207 | `ab71196cfbb509ab` |
-| `03-数据模型与状态机.md` | 16679 | 322 | `bfd3b41266378c50` |
-| `04-调度规格.md` | 11575 | 208 | `4bb023e615f6bf9f` |
-| `05-安全边界规格.md` | 18290 | 291 | `b485a615829db65e` |
-| `06-证据与replay规格.md` | 19852 | 381 | `201d6a2b8c2990f0` |
-| `07-Oracle规格.md` | 27002 | 429 | `e9a9d0dcc57804fc` |
-| `08-Agent循环规格.md` | 20450 | 324 | `cc89a4cd464d07bd` |
-| `09-报告与交付格式.md` | 11644 | 212 | `bc54e7a711a93688` |
-| `10-评测协议.md` | 10274 | 173 | `dbbc6514c205a2d9` |
-| `11-测试策略与靶场用例.md` | 20315 | 297 | `c93181437cc7af6d` |
-| `12-工程与交付.md` | 12271 | 204 | `d0f4bee0c5d0bb97` |
-| `13-风险登记册.md` | 10519 | 99 | `8828a634ea494f0e` |
-| `14-二期路线.md` | 9734 | 169 | `19447eec8e6b6f27` |
-| `15-开工提示词.md` | 12435 | 228 | `068383699a9d61ae` |
-| `16-完整范围与交付地图.md` | 10276 | 149 | `d509cd300ce22995` |
-| `17-权威链与证据门.md` | 15291 | 207 | `3e1edb0924cc28b2` |
-| `18-Oracle目录（14类判定矩阵）.md` | 17113 | 255 | `18491dbef9ecd592` |
-| `19-接口契约与用例生成.md` | 15484 | 266 | `709eabbffff94ce6` |
-| `20-认证体系测试点.md` | 11962 | 215 | `75f0075b1270da36` |
-| `21-实现批次与Agent执行计划.md` | 16563 | 215 | `8235f26f4a5ca4c8` |
-| `22-产品与人机协同.md` | 11954 | 190 | `871027e0080292ff` |
+| `00-总规划.md` | 23300 | 257 | `071063ad83eefbf1` |
+| `01-包结构与内核契约.md` | 20077 | 348 | `b030e90f6094b86e` |
+| `02-客户档Profile规格.md` | 10567 | 207 | `bf5eedd22d2b51dc` |
+| `03-数据模型与状态机.md` | 23197 | 423 | `f6ecbae511ad7a2f` |
+| `04-调度规格.md` | 14431 | 239 | `b075110cbedd6ddd` |
+| `05-安全边界规格.md` | 19927 | 319 | `9727cbb2d416c486` |
+| `06-证据与replay规格.md` | 19472 | 381 | `35b671b9fd9d4c7e` |
+| `07-Oracle规格.md` | 26574 | 429 | `17c1e80ac6f6795b` |
+| `08-Agent循环规格.md` | 23751 | 363 | `b093f7011dd0da7e` |
+| `09-报告与交付格式.md` | 14706 | 251 | `ea47497785171358` |
+| `10-评测协议.md` | 12129 | 196 | `4ea04e002a809d9a` |
+| `11-测试策略与靶场用例.md` | 20019 | 297 | `244b27710dcb0c6e` |
+| `12-工程与交付.md` | 12068 | 204 | `9308ad7a2c76edb3` |
+| `13-风险登记册.md` | 14233 | 108 | `d382ef96464c0d0c` |
+| `14-二期路线.md` | 10779 | 173 | `4cb8529ec1e9c1ed` |
+| `15-开工提示词.md` | 12435 | 228 | `7415369f8780ef7e` |
+| `16-完整范围与交付地图.md` | 15040 | 186 | `e3c28f1571985572` |
+| `17-权威链与证据门.md` | 17495 | 213 | `da3464b2123236c3` |
+| `18-Oracle目录（14类判定矩阵）.md` | 16859 | 255 | `f9e475a3ae885603` |
+| `19-接口契约与用例生成.md` | 15219 | 266 | `0de44058b5c3655b` |
+| `20-认证体系测试点.md` | 11748 | 215 | `d0e1c4cbd7d532d1` |
+| `21-实现批次与Agent执行计划.md` | 43260 | 440 | `d01c895d4c09e9a2` |
+| `22-产品与人机协同.md` | 11765 | 190 | `e5113d77af7ec200` |
 | `23-可观测性与诊断.md` | 8283 | 148 | `22dbe3887077a999` |
-| `24-服务API与错误码.md` | 16230 | 247 | `e3418ad14398b94f` |
-| `25-靶场与真实数据规格.md` | 14603 | 232 | `55b236dc8295a90b` |
+| `24-服务API与错误码.md` | 15984 | 247 | `8d35375f222029df` |
+| `25-靶场与真实数据规格.md` | 14372 | 232 | `fad3e5a4fade2827` |
 | `26-数据真实性与来源政策.md` | 9491 | 201 | `3812b8615a133081` |
-| `27-无硬路由架构.md` | 33149 | 574 | `b114ed6105072534` |
-| `28-逆向对标与借鉴规格.md` | 26220 | 385 | `f91dab0eb2b99ae9` |
-| `29-逆向提取结果.md` | 15630 | 261 | `a4bc84f06884fd2c` |
-| `30-对标绿盟HARNESS与开源生态.md` | 18915 | 311 | `aa8d26bd53d2447a` |
+| `27-无硬路由架构.md` | 32576 | 574 | `994957860f637c39` |
+| `28-逆向对标与借鉴规格.md` | 26286 | 385 | `1e9a71b710b7020d` |
+| `29-逆向提取结果.md` | 15370 | 261 | `0c1d61f9f05baeec` |
+| `30-对标绿盟HARNESS与开源生态.md` | 20560 | 322 | `b01329f67c60e2f4` |
 | `31-Playbook规格.md` | 9393 | 195 | `fc7b0d25603364c2` |
-| `99-二期池.md` | 8270 | 123 | `52b3227892b5ec75` |
-| `README.md` | 15417 | 259 | `350697b2ff739636` |
-| `_gen_manifest.cjs` | 2123 | 66 | `4cbc8c2966c54e80` |
+| `32-竞品复检与开源映射.md` | 21085 | 255 | `483928e4324bef4f` |
+| `33-Harness架构总图与装配规格.md` | 10644 | 169 | `ed0eb6084ef9b18b` |
+| `34-Harness操作台规格.md` | 9084 | 154 | `8699a9fcfa889f25` |
+| `35-自主渗透与证据闭环规格.md` | 10624 | 212 | `01c278a0754d541c` |
+| `36-插件市场与能力发现规格.md` | 18875 | 389 | `8014e0a930501569` |
+| `37-三样本逆向提取结果.md` | 15149 | 297 | `aaa0365f17ee0924` |
+| `38-通用工作台规格.md` | 12817 | 282 | `d5ee9cb802e5dc04` |
+| `39-交付收尾与能力接驳规格.md` | 14279 | 206 | `d138e94b51a03f9e` |
+| `99-二期池.md` | 10698 | 130 | `7a572865feedb8a3` |
+| `README.md` | 19277 | 297 | `936d3e05cc1b3066` |
+| `_gen_manifest.cjs` | 2229 | 66 | `4dcd3362e8c0afc0` |
 | `_verify-manifest.cjs` | 738 | 17 | `c018f719d48e7e94` |
-| `check-noroute.cjs` | 8661 | 227 | `e3d619d401ab70f4` |
-| `check-plan.cjs` | 5435 | 129 | `5152008c44eb82de` |
-| `noroute.allowlist` | 471 | - | `87b76fdd98e832f6` |
-| `schemas/capsule.schema.json` | 13223 | 561 | `d2acab9eed27cf79` |
+| `check-noroute.cjs` | 9235 | 234 | `2ca8872e0d14d858` |
+| `check-plan.cjs` | 11013 | 237 | `4fe8f2da77e60d60` |
+| `noroute.allowlist` | 651 | - | `d12fde747f6a1720` |
+| `schemas/capsule.schema.json` | 12663 | 561 | `a36899146f43f91e` |
 | `schemas/dataset-manifest.schema.json` | 3037 | 139 | `ac90d5b9d54b4b4b` |
-| `schemas/finding.schema.json` | 3262 | 78 | `57515f2decd4bae8` |
+| `schemas/finding.schema.json` | 5485 | 124 | `6fd62e7981d0b096` |
+| `schemas/playbook.schema.json` | 6263 | 170 | `3fef0db628c9173d` |
 | `schemas/profile.schema.json` | 13722 | 574 | `60cb09f88a8407d0` |
 | `schemas/routeset.schema.json` | 3805 | 96 | `cf94747e7962eda1` |
 
 ## 完整 sha256
 
 ```
-bc59a1e9346585244df036241d2435da2e093fe7c2af905e757549521bdb8fca  00-总规划.md
-6adbd4834190c91b8dab18092b2a485030f14033fa9cfbf265b47757c03975ec  01-包结构与内核契约.md
-ab71196cfbb509ab1d05e40c2e2dd67446c9cfaa5761cb7547727e629262d1be  02-客户档Profile规格.md
-bfd3b41266378c507b33d4433c72647ba613e658374dd3c2ba1278f8b8bb119f  03-数据模型与状态机.md
-4bb023e615f6bf9f6e8f6cf251a4c74c5a0a5bf7146e3fb31d823a9a050a3bc0  04-调度规格.md
-b485a615829db65ecfd94a3f1bbd1a7ab5891bb6b914021ad496985acd908934  05-安全边界规格.md
-201d6a2b8c2990f01946e06da531d9cc3ddfb6cd92d037e30c5156a14d531d3f  06-证据与replay规格.md
-e9a9d0dcc57804fcc0892d9cc53940778d8d7e6a5bd5803a07429c9caba3879e  07-Oracle规格.md
-cc89a4cd464d07bd21595f5736201bed5691568f0776ac795088e60eb7244cee  08-Agent循环规格.md
-bc54e7a711a93688ef3e0e9d71a898aba5c0140ebbf1fd5ffcf49bfc9ffb182a  09-报告与交付格式.md
-dbbc6514c205a2d968039b5af16b0b5c1ba7ab1171c6396279aed4ab3b79ff7a  10-评测协议.md
-c93181437cc7af6d74da691813fd8b8c1b14ba4264c99370f652dda798a191cc  11-测试策略与靶场用例.md
-d0f4bee0c5d0bb97ba588ae0266cdc81694fb46270b1f9488cbe4486ba1a983c  12-工程与交付.md
-8828a634ea494f0e49c5379d41065b8b5efe9d38da91f9387bf923f8a0032437  13-风险登记册.md
-19447eec8e6b6f2742153ab6dd6001b1f08ec5e585d48b4b8ccaf985f7ece771  14-二期路线.md
-068383699a9d61ae98392165ee2dcb0aa5fa74955ba8400bef7e311e7c7657da  15-开工提示词.md
-d509cd300ce22995a2227142da9985dce59c91884de3bbce20a03869628ea3f3  16-完整范围与交付地图.md
-3e1edb0924cc28b2d3a01957a71ef3752bf87ff686ee3e1599fc4e0bf8cca1d2  17-权威链与证据门.md
-18491dbef9ecd5929387105ed596632d8a2457ebb8b48cd43da8e170deea79b6  18-Oracle目录（14类判定矩阵）.md
-709eabbffff94ce6f18d5c390579e2344add4ba4127953c188d6b80df00444f1  19-接口契约与用例生成.md
-75f0075b1270da362ed4c06c3c0f218179e39a65d1330aafb14095c4621e4103  20-认证体系测试点.md
-8235f26f4a5ca4c8b0d22a5bbebde05217a6afef3fc78868ab46c0d5c1d7bd80  21-实现批次与Agent执行计划.md
-871027e0080292ffdf5f5b8b2b3132db63327c461ca07502d64836e2968fd494  22-产品与人机协同.md
+071063ad83eefbf1d2ddd0f7c625d20d7b7bc27b7776a27d7ab365db5e9754ce  00-总规划.md
+b030e90f6094b86e0b086856be477aca6a0ba636901e944dbd06b7057fac06a1  01-包结构与内核契约.md
+bf5eedd22d2b51dc368b35b323a90ac85c184f5d33b753de292fb9f5ccba1150  02-客户档Profile规格.md
+f6ecbae511ad7a2f2f27b08ec428adda839c0905ed02911941bbd66dc5bb4987  03-数据模型与状态机.md
+b075110cbedd6ddd55476ee1a2ee012ced2122313a710cec0552f91559bf771e  04-调度规格.md
+9727cbb2d416c486717a7ae89651afe6a5e6bb549ad624721db905dd147e2e6e  05-安全边界规格.md
+35b671b9fd9d4c7e8393382400925b5226e8d625b82cc494ddd0bb3a11e7715d  06-证据与replay规格.md
+17c1e80ac6f6795bb991740215e1bab217c08acdb3d7e1085f318a19ada23106  07-Oracle规格.md
+b093f7011dd0da7e3bbc500845c53e08c71344cd78218eb6d371f88a09b8150e  08-Agent循环规格.md
+ea474977851713587de8dd05a7a5d82579362f9178c631f401e034b0ee0d7b65  09-报告与交付格式.md
+4ea04e002a809d9acafbec059a1f87fe2ed20ec22c94ab6ab8048293cf2cb93d  10-评测协议.md
+244b27710dcb0c6e772436b17ccda94a938531255d54298fd4d9402172a3a616  11-测试策略与靶场用例.md
+9308ad7a2c76edb334249648831aed51ba725d39497632b4b6d2c71fe637a0f4  12-工程与交付.md
+d382ef96464c0d0c991af6d2a6f648c046df4a1ee9162c3e5ce52d308bd04175  13-风险登记册.md
+4cb8529ec1e9c1edb6ada7ec37a872bf077c44aec532eb9eec79fbaf39329dd5  14-二期路线.md
+7415369f8780ef7eadb6de88d089a90d24ac74ae4f967a77cee30f25f13e34ce  15-开工提示词.md
+e3c28f15719855725ce2b3b634202b247b302b3578c7b3e90b2bdba7b2a77241  16-完整范围与交付地图.md
+da3464b2123236c30f46c436bd575842b19f5861b1605aaba5aab3d81b879e39  17-权威链与证据门.md
+f9e475a3ae885603117af26e0c2799083e6e6bdb4c9785ad37463b3b14423c82  18-Oracle目录（14类判定矩阵）.md
+0de44058b5c3655bce8909c43b2171f100069c3b4a15f0b2cb75f322b1787b32  19-接口契约与用例生成.md
+d0e1c4cbd7d532d108567a4551cf3d5671809db1a5f1fadd4aa7454d44fcb086  20-认证体系测试点.md
+d01c895d4c09e9a295aa39e915fa7522335041ce14657a1c6c18d8544bdf79b5  21-实现批次与Agent执行计划.md
+e5113d77af7ec200a808f45d6b0c5a6588bbd1cc537423a9bc93664c80852f27  22-产品与人机协同.md
 22dbe3887077a99980064988aec343d77d1c701431581119762df327f573440d  23-可观测性与诊断.md
-e3418ad14398b94f5081adf8f1d20eb713a5530b5fcf68cc88d5fc0e28fb26cc  24-服务API与错误码.md
-55b236dc8295a90ba77002227723276e1aaa95940f4c080e6933915af5676377  25-靶场与真实数据规格.md
+8d35375f222029df1eadb22a2b9ed311dfed61d5cd86f7395e479dd4385c7604  24-服务API与错误码.md
+fad3e5a4fade2827def2b960b31cbf647c1376aca6504c25aaf176d6cc4f3c67  25-靶场与真实数据规格.md
 3812b8615a133081dd1c48d0dd6dce011659e4ad11210c898fe24477ed532cd5  26-数据真实性与来源政策.md
-b114ed61050725349c9c89c09ca6547c2e67ed7bbe6ebb4bf397a180cf31d3a0  27-无硬路由架构.md
-f91dab0eb2b99ae9b7eb0f2e0d183fb43314f75491bb7a31b829c7b9307c825c  28-逆向对标与借鉴规格.md
-a4bc84f06884fd2c7f159c76c9337a355025d51918d7442de0d15cf02416b6ee  29-逆向提取结果.md
-aa8d26bd53d2447abb36dee69d0e5e654b6a64929ecfb7944ec08e6f9c6c9e54  30-对标绿盟HARNESS与开源生态.md
+994957860f637c39f6b8a82bbefe70c84c868050d21d74bacecdf65c789861e3  27-无硬路由架构.md
+1e9a71b710b7020d570165d87212bb1630af5273bc53a4b1d6811c3500e28d2a  28-逆向对标与借鉴规格.md
+0c1d61f9f05baeec5d7d9fa0f07ee0c4e2179aa9a9410ad656597c9cebcd57d1  29-逆向提取结果.md
+b01329f67c60e2f47475e35389e0b81bbf921abff4a0e492e6794bbb1bd3b7c6  30-对标绿盟HARNESS与开源生态.md
 fc7b0d25603364c21b531ca9b074d643c9fff11670c811ec81087972b5c61be6  31-Playbook规格.md
-52b3227892b5ec756e94e9a5a3aaacd13e004eba04a78f04c0aef08925fba73d  99-二期池.md
-350697b2ff7396366275db83af855f2303e6d1ec0656b8408cee69cc926a2c91  README.md
-4cbc8c2966c54e80e747bba620b27c7da89cbe24865371829ec2b6125468e8fd  _gen_manifest.cjs
+483928e4324bef4f1a298a4161f541ce57499b1d3d3d6b723206c587d7f91bf3  32-竞品复检与开源映射.md
+ed0eb6084ef9b18b390c293636366e24f52d6f77ca4c8dc8831fcaa712f48ea6  33-Harness架构总图与装配规格.md
+8699a9fcfa889f2590983f8c9ab1ad8eb4e33d29b5cb4ec67c64231815b8afbf  34-Harness操作台规格.md
+01c278a0754d541c52a7cfa19513fc81be51a595d185d99468992ddfe8f4aad4  35-自主渗透与证据闭环规格.md
+8014e0a930501569dcb8f315c9860f0f9586258256030b4cd7d42c1d41c9bb25  36-插件市场与能力发现规格.md
+aaa0365f17ee0924f17eb2ed6afcdb4ac6728426c638cc5a3e705208d2ea2dbd  37-三样本逆向提取结果.md
+d5ee9cb802e5dc04db6cd9a57cd0d60f64547a4e143b123ddee826ae1cc18063  38-通用工作台规格.md
+d138e94b51a03f9ed6107bf26d44f54327565ff31bc6e61497f7f3f5b9315e9a  39-交付收尾与能力接驳规格.md
+7a572865feedb8a31696028b7f7563e66af7db7ddf344ad845f4719ea22f4457  99-二期池.md
+936d3e05cc1b3066ae5b2c06cda9a4b32789c68b7202ea8d2f7216f5021aab4f  README.md
+4dcd3362e8c0afc09641f99f90d4fbffb5a53bda55251ca2e140d4649e93c600  _gen_manifest.cjs
 c018f719d48e7e9432728394ddf5d9253a69feaf52cbf18cd24fe830fb9ae2ab  _verify-manifest.cjs
-e3d619d401ab70f47136de9dd2d22057060e8de2a7642b88db9355b75bc0c5f4  check-noroute.cjs
-5152008c44eb82debd5e23bbaa7794f3f903449c13758435b83b41b60f6d37fd  check-plan.cjs
-87b76fdd98e832f63d46bfa727c1cf6fa8cb6cc7706697257bb75769cb3f7091  noroute.allowlist
-d2acab9eed27cf79af211a2065dd26b6e54175673384d19101779c2f97aba11a  schemas/capsule.schema.json
+2ca8872e0d14d8581b75c2138ad7a265e6d3fe98b5a9b88196da5923839dfec1  check-noroute.cjs
+4fe8f2da77e60d605e4af2dce9bc9aea9b510c77f4454021b62c9eb50e7cc578  check-plan.cjs
+d12fde747f6a17209fa0190936fcd98ed8bb8e1fdd2453fa5f6b119819a899d5  noroute.allowlist
+a36899146f43f91ee1f55e80ed8e7e349c638954cbecd0ea08a4f1af46fcd8c7  schemas/capsule.schema.json
 ac90d5b9d54b4b4b02aacf2261fb40e85505cd8b90949003f68da61113d33f39  schemas/dataset-manifest.schema.json
-57515f2decd4bae8fefa2ce3b9e5bd6be2f9ee84c9fee62f20c3e204d85d2591  schemas/finding.schema.json
+6fd62e7981d0b09699fc2dce241ff216bc2ba26c4b985e76ce75f7db777a3c89  schemas/finding.schema.json
+3fef0db628c9173d17837caa1542322714f1dde7d402e9a279fe8f93675a798a  schemas/playbook.schema.json
 60cb09f88a8407d000bdae47d117aee04c6e9508df678c0e7bedb04c06178cab  schemas/profile.schema.json
 cf94747e7962eda1e6ca9d7cb239c175eb3974eb00bfa9e90517e06153d07bd0  schemas/routeset.schema.json
 ```

@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "veripen.playbook/v1",
+  "title": "VeriPen Playbook (打法资产)",
+  "description": "一个 playbook = 一个 YAML 文件。只能调 oracle，不能改判定（31 P1）；不含地址（27 N3）；不写自由文本指令（31 P3）。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "id", "version", "title", "oracle", "impact", "applies_when", "steps", "pitfalls", "rollback", "success_rate"],
+  "properties": {
+    "apiVersion": { "const": "veripen.playbook/v1" },
+    "id": {
+      "type": "string",
+      "pattern": "^pb-[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "description": "稳定 id，进 bench 结果；格式 pb-<slug>"
+    },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "title": { "type": "string", "minLength": 2, "maxLength": 120 },
+    "oracle": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "服务哪个判定器（适用关系，非绑定）。必须存在于 18 目录（31 §6 检查 3）。"
+    },
+    "impact": {
+      "enum": ["read_only", "reversible_write"],
+      "description": "必须与被调 oracle 的 impact 一致，否则启动失败（31 §6 检查 3）。"
+    },
+    "applies_when": {
+      "type": "array",
+      "minItems": 1,
+      "description": "全部满足才选中；任一不满足 → SKIPPED(not_applicable)，不进 FN 分母（31 §4）。",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "minProperties": 1,
+        "properties": {
+          "selector_available": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "需要的语义标签（18 §6 的 18 个之一）。"
+          },
+          "auth_available": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "enum": ["primary", "secondary", "admin", "anonymous"] }
+          },
+          "min_route_confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "requires_oob": { "type": "boolean" }
+        }
+      }
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "action"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^s\\d+$" },
+          "action": {
+            "enum": [
+              "verify_accounts",
+              "sample_object_ids",
+              "discover_token",
+              "run_oracle",
+              "recheck_with_control",
+              "probe_shape",
+              "record_inconclusive",
+              "abort"
+            ],
+            "description": "封闭集合（31 §3）。新增 action 需现有 8 个表达不了且 ≥2 个 playbook 复用。"
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "内层参数，由各 action 语义校验；不得含地址、不得含自由文本指令。"
+          },
+          "produces": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^(fact:[a-z0-9_.]+|verdict)$"
+            },
+            "description": "每步必须产出可检查的东西（31 §1 可验证标准）。"
+          },
+          "on_empty": { "$ref": "#/$defs/transition" },
+          "on_fail": { "$ref": "#/$defs/transition" },
+          "on_verdict": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "VERIFIED": { "$ref": "#/$defs/transition" },
+              "REFUTED": { "$ref": "#/$defs/transition" },
+              "INCONCLUSIVE": { "$ref": "#/$defs/transition" },
+              "BLOCKED": { "$ref": "#/$defs/transition" }
+            }
+          }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "action": { "const": "abort" } }, "required": ["action"] },
+            "then": { "required": ["params"] }
+          },
+          {
+            "if": { "properties": { "action": { "const": "run_oracle" } }, "required": ["action"] },
+            "then": { "required": ["produces"] }
+          }
+        ]
+      }
+    },
+    "pitfalls": {
+      "type": "array",
+      "minItems": 2,
+      "description": "人写的失败模式，最有价值的部分；每条 guard 必须指向具体步骤的约束（31 §10 验收 3）。",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "text", "guard"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^pf\\d+$" },
+          "text": { "type": "string", "minLength": 8, "maxLength": 300 },
+          "guard": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "指向具体约束的机器可读名，不许写空话（31 P3）。"
+          },
+          "step": { "type": "string", "pattern": "^s\\d+$" }
+        }
+      }
+    },
+    "rollback": {
+      "oneOf": [
+        { "const": "none" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["action"],
+          "properties": {
+            "action": { "enum": ["restore_original", "delete_sampled", "manual"] },
+            "note": { "type": "string", "maxLength": 300 }
+          }
+        }
+      ],
+      "description": "read_only 必须为 none；reversible_write 必须给出回滚步骤。"
+    },
+    "success_rate": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1,
+      "description": "bench 实测后填；null = 未测，不许对外称资产（31 §1 / 30 §2.3）。"
+    }
+  },
+  "$defs": {
+    "transition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["next"],
+      "properties": {
+        "next": { "type": "string", "pattern": "^(s\\d+|end)$" },
+        "reason": {
+          "type": "string",
+          "pattern": "^(blocked_[a-z0-9_]+|skipped_[a-z0-9_]+|inconclusive_[a-z0-9_]+|no_[a-z0-9_]+)$",
+          "description": "abort/skip 的原因码，进报告的「未覆盖」章节。"
+        }
+      }
+    }
+  }
+}

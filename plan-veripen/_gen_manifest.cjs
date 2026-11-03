@@ -26,26 +26,26 @@ for (const f of list) {
   rows.push({ f, sha, bytes: buf.length, lines });
 }
 
-const md = `# MANIFEST · plan-veripen v3.0
+const md = `# MANIFEST · plan-veripen v3.6
 
 > 复制后校验完整性：文件数、字节数、sha256 三项都对得上，才算拷对。
 > **本文件不含自身哈希**（自指不可校验），除此之外全部文件都在表里。
 
 | 项 | 值 |
 |---|---|
-| 包版本 | \`plan-v3.0\` |
+| 包版本 | \`plan-v3.6\` |
 | 生成时间 | ${new Date().toISOString()} |
 | 文件数 | ${list.length} |
 | 总字节 | ${totalBytes} |
 | 总行数（文本） | ${totalLines} |
-| 内容 | 28 篇规格（含 27/28）+ README + 3 个自检脚本 + allowlist + 5 份 JSON Schema |
+| 内容 | 41 篇规格（含 27–39）+ 37 批计划 + README + 3 个自检脚本 + allowlist + 6 份 JSON Schema |
 
 ## 校验命令
 
 \`\`\`bash
-node check-plan.cjs        # 结构 + 交叉引用 + schema 可解析 + 零地址闸门 + 版本一致
+node check-plan.cjs        # 结构 + 交叉引用 + schema 可解析 + 零地址闸门 + 标签一致 + 版本一致
 node check-noroute.cjs     # 单独跑零地址闸门（最后一行应为 OK: 0 命中）
-node _verify-manifest.cjs  # 逐个文件比对 sha256
+node _verify-manifest.cjs  # 逐个文件比对 sha256（★ 内容改过就必须重跑本脚本生成）
 \`\`\`
 
 ## 文件清单
@@ -62,4 +62,4 @@ ${rows.map(r => `${r.sha}  ${r.f}`).join('\n')}
 `;
 
 fs.writeFileSync('MANIFEST.md', md);
-console.log('files:', list.length, 'bytes:', totalBytes, 'lines:', totalLines);
+console.log('manifest regenerated; files:', list.length, 'bytes:', totalBytes, 'lines:', totalLines);

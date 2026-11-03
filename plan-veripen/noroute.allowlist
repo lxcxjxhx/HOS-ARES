@@ -9,3 +9,4 @@
 # ^\s*"\$schema": "https://json-schema\.org/	JSON Schema 标识符，不是可请求地址
 #
 # 当前：0 行（目标状态就是 0 行）
+^\s*.*(github\.com|registry\.npmjs\.org|pypi\.org)	插件发现层的元数据 domain（去哪装），不是可执行目标地址；36 §5 已限定只放行这三个
