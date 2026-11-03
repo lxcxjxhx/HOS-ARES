@@ -24,7 +24,7 @@ EXPECTED: dict[str, set[str]] = {
     "findings": {"total", "shown", "collapsed_low", "unverified", "queues", "rows"},
     "finding": {"id", "selected_by", "requested", "title", "assertion", "route", "bound", "hits_state",
                 "evidenceStrength", "capsule", "replay"},
-    "unverified": {"groups", "counts", "by_verdict", "by_verdict_counts"},
+    "unverified": {"groups", "counts", "by_verdict", "by_verdict_counts", "entries"},
     "coverage": {"assets", "oracles", "matrix", "zero_hit_tags", "scope"},
     "routes": {"count", "by_tag", "by_source", "bindings", "template_visible", "exportable"},
     "audit": {"events", "count", "source", "exportable"},

@@ -55,11 +55,14 @@ def test_structure_renderers_match_baseline() -> None:
 
 def test_structure_no_page_falls_back_to_pre() -> None:
     """overview / engagement / coverage 必须走专属渲染器（B38）。"""
-    for op, fn in (("overview", "renderOverview"), ("engagement", "renderEngagement"),
-                   ("coverage", "renderCoverage")):
-        assert f'op === "{op}") view = {fn}(' in SRC, f"{op} 未接 {fn}"
-    tail = SRC.split('op === "bounds") view = renderBounds', 1)[1].split("}", 1)[0]
-    assert "else view = renderGeneric(data)" in tail
+    pairs = (("overview", "renderOverview"), ("engagement", "renderEngagement"),
+             ("coverage", "renderCoverage"), ("findings", "renderFindings"),
+             ("unverified", "renderUnverified"), ("routes", "renderRoutes"),
+             ("bounds", "renderBounds"))
+    for op, fn in pairs:
+        assert f'state.op === "{op}") view = {fn}(' in SRC, f"{op} 未接 {fn}"
+    # 兜底只留给了 finding / audit（B40 才做详情页）
+    assert "else view = renderGeneric(data)" in SRC
 
 
 def test_structure_overview_numbers_are_drillable() -> None:
@@ -73,9 +76,16 @@ def test_structure_coverage_labels_cover_all_states() -> None:
 
 
 # ── 只读与预算 ─────────────────────────────────────────────────
-def test_structure_stays_single_file_under_budget() -> None:
+def test_structure_stays_within_frontend_budget() -> None:
+    """H06 §6 预算：页面 ≤700 行、纯函数模块 ≤250 行、零第三方依赖、零构建链。"""
     assert len(SRC.splitlines()) <= 700
-    assert "node_modules" not in SRC and "import " not in SRC, "零依赖、零构建链"
+    router = (PAGE.parent / "router.js").read_text(encoding="utf-8")
+    assert len(router.splitlines()) <= 250
+    for text in (SRC, router):
+        assert "node_modules" not in text and "from \"http" not in text
+    # 只允许相对模块导入（无裸包名）
+    for m in re.finditer(r'from\s+"([^"]+)"', SRC + router):
+        assert m.group(1).startswith("./") or m.group(1).startswith("../"), m.group(1)
 
 
 def test_structure_no_inline_handlers() -> None:
@@ -83,11 +93,32 @@ def test_structure_no_inline_handlers() -> None:
     assert "addEventListener" in SRC
 
 
+def test_structure_url_state_is_module_imported() -> None:
+    assert '<script type="module">' in SRC
+    assert 'from "./router.js"' in SRC, "URL 状态必须来自可测试的纯函数模块"
+    assert "hashchange" in SRC, "前进/后退必须生效"
+    assert "setHash(" in SRC and "parseHash(" in SRC
+
+
+_KEYS = "j k Enter Escape".split()
+
+
+def test_structure_keyboard_and_toolbar() -> None:
+    assert "event.key === SLASH" in SRC, "斜杠键（搜索聚焦）未实现"
+    for key in _KEYS:
+        assert f'"{key}"' in SRC, f"键盘 {key} 未实现"
+    assert 'id: "q"' in SRC and 'type: "search"' in SRC
+    assert 'tabindex: "0"' in SRC, "行必须可聚焦（j/k 才有落点）"
+
+
 def test_structure_no_hardcoded_api_paths() -> None:
     assert (chr(0x2F) + "api") not in SRC
     assert "文本快照" not in SRC
 
 
-@pytest.mark.parametrize("op", ["overview", "engagement", "coverage", "findings"])
+_RENDERED = "overview engagement coverage findings unverified".split()
+
+
+@pytest.mark.parametrize("op", _RENDERED)
 def test_structure_each_page_has_renderer(op: str) -> None:
-    assert re.search(rf"function render\w+\(d\)", SRC) is not None
+    assert re.search(r"function render\w+\(", SRC) is not None

@@ -261,6 +261,12 @@ ui-dom:
 
 b38: ui-dom ui-contract ui-loader types-check lint
 
+# B39 URL 状态机（node 直跑 router.js：前端的纯函数也要能红）
+ui-router:
+	$(PY) -m pytest tests/unit/test_ui_router.py -q
+
+b39: ui-router ui-dom ui-contract ui-loader console-test types-check lint
+
 # B16 双客户档（A1：差异全部在 YAML，内核零改动）
 profile-test:
 	$(PY) -m pytest tests/unit/test_profiles.py -q

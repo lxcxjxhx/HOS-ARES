@@ -54,7 +54,7 @@ _REPLAY = {"OK": 1.0, "PARTIAL": 0.5}
 class Row:
     finding_id: str
     title: str
-    severity: str
+    severity: str | None
     oracle_id: str
     asset_id: str
     confidence: float
@@ -65,7 +65,7 @@ class Row:
     is_new: bool = False
     silenced: bool = False
     rolled_up: bool = False
-    hits: int = 1
+    hits: int | None = 1
     outcome: str = "reported"
     reason_code: str = ""
     capsule_id: str | None = None
@@ -104,7 +104,7 @@ class Row:
 
     @property
     def priority(self) -> float:
-        score = 3.0 * _SEVERITY.get(self.severity, 0)
+        score = 3.0 * _SEVERITY.get(self.severity or "", 0)
         score += 2.0 * _STRENGTH.get(self.route_strength, 0.0)
         score += 1.0 * _REPLAY.get(self.replay_status, 0.0)
         score += 1.0 if self.is_new else 0.0
@@ -270,11 +270,18 @@ def unverified_view(rows: Sequence[Row]) -> dict[str, Any]:
     for row in rows:
         if row.verdict in by_verdict:
             by_verdict[row.verdict].append(row.finding_id)
+    entries = [
+        {"id": r.finding_id, "oracle": r.oracle_id, "asset": r.asset_id,
+         "reason": r.reason_code or "-", "verdict": r.verdict}
+        for r in rows
+        if r.verdict in by_verdict
+    ]
     return {
         "groups": groups,
         "counts": {k: len(v) for k, v in groups.items()},
         "by_verdict": by_verdict,
         "by_verdict_counts": {k: len(v) for k, v in by_verdict.items()},
+        "entries": entries,   # 一行一条，前端不必再回查 groups（blocked 在旧三组里没有位置）
     }
 
 
@@ -344,7 +351,8 @@ def build_app(
 
     def _payload(op: str, query: Mapping[str, str] | None = None) -> Any:
         if op == "ui.findings":
-            return findings_view(state.findings)
+            # low=1 才把"低优先"展开（默认折叠，22 §3）；未验证行怎么都不会出现在这里
+            return findings_view(state.findings, include_low=(query or {}).get("low") == "1")
         if op == "ui.routes":
             return routes_view(state.bindings)
         if op == "ui.bounds":
@@ -356,7 +364,7 @@ def build_app(
                 return dict(state.coverage)
             return coverage_from_findings(
                 state.findings,
-                zero_hit_tags=state.coverage.get("zero_hit_tags", ()),  # type: ignore[arg-type]
+                zero_hit_tags=state.coverage.get("zero_hit_tags", ()),
             )
         if op == "ui.overview":
             cov = coverage_from_findings(state.findings)
@@ -416,10 +424,17 @@ def build_app(
         # 单页控制台：原生 JS，不上 React（22 §2 技术选型：价值在数据组织不在框架）
         from fastapi.responses import FileResponse
 
-        page = Path(__file__).resolve().parent / "static" / "index.html"
+        static_dir = Path(__file__).resolve().parent / "static"
+        page = static_dir / "index.html"
         if page.exists():
             app.get(UI_PREFIX + "app", include_in_schema=False)(
                 lambda: FileResponse(page, media_type="text/html")
+            )
+        # 只暴露这一个纯函数模块：不做目录挂载（任何"顺手多挂一层"都会变成新的面）
+        router_js = static_dir / "router.js"
+        if router_js.exists():
+            app.get(UI_PREFIX + "router.js", include_in_schema=False)(
+                lambda: FileResponse(router_js, media_type="text/javascript")
             )
 
     return app

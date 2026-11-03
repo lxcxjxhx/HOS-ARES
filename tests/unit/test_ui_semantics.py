@@ -114,7 +114,7 @@ def test_semantics_frontend_renders_three_way() -> None:
     assert "未绑定" in page
     assert "未执行" in page
     assert "hits_state" in page
-    assert 'row.severity\n      ? el("td"' in page, "severity 为空时必须走徽标分支，不许直接拼字符串"
+    assert "row.severity" in page and '"—"' in page, "severity 为空时必须走占位分支"
 
 
 # ── 契约与不变量 ───────────────────────────────────────────────

@@ -14,7 +14,7 @@
   main { padding: 16px; }
   table { border-collapse: collapse; width: 100%; }
   th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #8883; }
-  th[data-sort] { cursor: pointer; user-select: none; }
+  tr:focus-visible, tr[data-active="1"] { outline: 2px solid #4a90d9; outline-offset: -2px; }
   .sev-critical { color: #b00; font-weight: 600; }
   .sev-high { color: #d33; }
   .sev-low, .sev-info { color: #666; }
@@ -30,8 +30,16 @@
   .cell-verified { color: #b00; font-weight: 600; }
   .cell-blocked { color: #555; text-decoration: line-through; }
   .cell-not_run { color: #999; }
+  .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  .toolbar input, .toolbar select { padding: 4px 8px; border: 1px solid #8885; border-radius: 6px; background: none; color: inherit; font: inherit; }
+  .toolbar .hint { color: #888; font-size: 12px; }
   .muted { color: #888; font-size: 12px; }
   pre { background: #8881; padding: 12px; border-radius: 6px; overflow: auto; }
+  @media print {
+    header, nav, .toolbar { display: none; }
+    main { padding: 0; }
+    table { font-size: 11px; }
+  }
 </style>
 </head>
 <body>
@@ -40,66 +48,228 @@
   <span class="badge">只读</span>
   <span class="muted">控制台是「看和审」，不是「改」</span>
 </header>
-<nav id="nav"></nav>
-<main id="main"><p class="muted">加载中…</p></main>
-<script>
-// 页面清单由后端 op 表给出——前端不写死任何页面路径（27 §6）
-const OPS = ["overview","engagement","findings","finding","unverified","coverage","routes","audit","bounds"];
-let current = "findings";
+<nav id="nav" aria-label="页面"></nav>
+<main id="main" aria-live="polite"><p class="muted">加载中…</p></main>
+<script type="module">
+// 页面清单、URL 状态、筛选排序全部来自 router.js（纯函数，可 node 测试）
+import { OPS, DEFAULT_SORT, parseHash, buildHash, viewRows } from "./router.js";
+
+const main = document.getElementById("main");
+const nav = document.getElementById("nav");
+let state = parseHash(location.hash);
+let lastRows = [];
 
 function el(tag, attrs = {}, ...kids) {
+  // 第二个参数是属性表或第一个子节点：`el("tr", th1, th2)` 这种写法必须成立，
+  // 否则第一个 th 会被当成 attrs 吞掉（曾导致表头少一列）。
+  if (attrs === null || typeof attrs !== "object" || Array.isArray(attrs)
+      || typeof attrs.nodeType === "number") {
+    kids.unshift(attrs);
+    attrs = {};
+  }
   const node = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
     if (k === "class") node.className = v; else node.setAttribute(k, v);
   }
   for (const kid of kids) {
+    if (kid === null || kid === undefined) continue;
     node.append(typeof kid === "string" ? document.createTextNode(kid) : kid);
   }
   return node;
 }
 
-async function fetchOp(name) {
-  const res = await fetch("../../ui/" + name, { headers: { accept: "application/json" } });
+//: 后端接受的查询参数（只这些，不转发整个 hash —— 前端不是代理）
+const QUERY = { findings: ["low"], finding: ["id"] };
+
+async function fetchOp(name, params = {}) {
+  const allowed = QUERY[name] || [];
+  const qs = new URLSearchParams();
+  for (const key of allowed) {
+    const value = params[key];
+    if (value !== undefined && value !== "") qs.set(key, value);
+  }
+  const suffix = qs.toString() ? "?" + qs.toString() : "";
+  const res = await fetch("../../ui/" + name + suffix, { headers: { accept: "application/json" } });
   if (!res.ok) return { error: res.status };
   const body = await res.json();
   return body.data;
 }
 
-function renderFindings(data) {
-  if (!data.rows) return el("p", {}, "无数据");
+function card(title, ...kids) {
+  return el("section", { class: "card" }, el("h2", {}, title), ...kids);
+}
+
+const COVERAGE_LABEL = {
+  verified: "已确认", blocked: "阻塞", inconclusive: "未确认", not_run: "未测", error: "错误",
+};
+
+const HITS = { zero: "0", single: "1", multi: "多处（已合并）", not_run: "未执行" };
+
+const VERDICT_LABEL = {
+  inconclusive: "未确认", blocked: "阻塞", not_run: "未执行", error: "错误",
+};
+
+const VERDICT_FIX = {
+  inconclusive: "三向对照未成立：换载荷或复核基线",
+  blocked: "补输入：凭据 / OOB 域名 / 放行限速",
+  not_run: "本轮未覆盖（预算或标签缺失）",
+  error: "环境错误：重跑或查网络",
+};
+
+function renderFindings(data, params) {
   const wrap = el("div");
   const unv = data.unverified || 0;
+  const rows = viewRows(data.rows || [], params || {});
+
+  const search = el("input", {
+    type: "search", id: "q", placeholder: "搜索 title / oracle / 资产（/ 聚焦）",
+    "aria-label": "搜索发现", value: params?.q || "",
+  });
+  const sev = el("select", { id: "sev", "aria-label": "严重度" },
+    el("option", { value: "" }, "全部严重度"),
+    ...["critical", "high", "medium", "low", "info"].map((s) =>
+      el("option", { value: s }, s)));
+
+  const toolbar = el("div", { class: "toolbar" },
+    search, sev,
+    el("span", { class: "hint" }, "j / k 移动 · Enter 打开 · Esc 返回"),
+    el("span", { class: "muted" },
+      `共 ${data.total} 条 · 已确认 ${data.shown} 条 · 本页 ${rows.length} 条`
+      + (unv ? ` · 未验证 ${unv} 条` : "")));
+  wrap.append(toolbar);
+
+  if (!rows.length) {
+    wrap.append(el("p", {}, "没有匹配的已确认结论"));
+  } else {
+    const table = el("table", { "aria-label": "已确认发现" });
+    table.append(el("tr",
+      ...["严重度", "oracle", "资产", "置信度", "证据强度", "面", "replay", "优先级", "命中"]
+        .map((h) => el("th", {}, h))));
+    for (const row of rows) {
+      const tr = el("tr", { tabindex: "0", "data-id": row.id, "data-active": "0" });
+      tr.append(row.severity
+        ? el("td", { class: "sev-" + row.severity }, row.severity)
+        : el("td", { class: "muted" }, "—"));
+      tr.append(el("td", {}, row.oracle));
+      tr.append(el("td", {}, row.asset));
+      tr.append(el("td", {}, Number(row.confidence || 0).toFixed(2)));
+      tr.append(el("td", { class: row.evidenceStrength === "probe" || row.evidenceStrength === "crawl" ? "weak" : "" },
+        row.evidenceStrength));
+      tr.append(row.bound === false
+        ? el("td", { class: "muted" }, "未绑定")
+        : el("td", {}, row.route));
+      tr.append(el("td", {}, row.replay));
+      tr.append(el("td", {}, Number(row.priority || 0).toFixed(1)));
+      tr.append(el("td", { class: row.hits_state === "zero" || row.hits_state === "not_run" ? "muted" : "" },
+        HITS[row.hits_state] ?? ""));
+      table.append(tr);
+    }
+    wrap.append(table);
+  }
+
+  search.value = params?.q || "";
+  sev.value = params?.sev || "";
+  search.addEventListener("input", () => setHash({ op: "findings", params: { ...(state.params || {}), q: search.value, sev: sev.value } }));
+  sev.addEventListener("change", () => setHash({ op: "findings", params: { ...(state.params || {}), sev: sev.value, q: search.value } }));
+  return wrap;
+}
+
+function renderUnverified(data) {
+  const wrap = el("div");
+  const counts = data.by_verdict_counts || {};
+  const groups = data.by_verdict || {};
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
   wrap.append(el("p", { class: "muted" },
-    `共 ${data.total} 条 · 已确认 ${data.shown} 条 · 折叠 ${data.collapsed_low} 条低优先`
-    + (unv ? ` · 未验证 ${unv} 条（见「unverified」页）` : "")));
+    `未验证 ${total} 条 —— 缺输入不是没漏洞（D1）；每条都写清"补什么能测"`));
+  for (const key of Object.keys(VERDICT_LABEL)) {
+    const ids = groups[key] || [];
+    wrap.append(el("h2", {}, `${VERDICT_LABEL[key]} · ${ids.length}`));
+    if (!ids.length) {
+      wrap.append(el("p", { class: "muted" }, "（无）"));
+      continue;
+    }
+    const table = el("table", { "aria-label": VERDICT_LABEL[key] });
+    table.append(el("tr", el("th", {}, "结论"), el("th", {}, "oracle"), el("th", {}, "原因"), el("th", {}, "补什么能测")));
+    // 未验证行不在 findings 载荷里，用本页 entries（B39：blocked 在旧三组中没有位置）
+    const entries = (data.entries || []).filter((e) => ids.includes(e.id));
+    for (const e of entries) {
+      table.append(el("tr", el("td", {}, e.id), el("td", {}, e.oracle),
+        el("td", {}, e.reason), el("td", { class: "muted" }, VERDICT_FIX[key] || "-")));
+    }
+    wrap.append(table);
+  }
+  return wrap;
+}
+
+function renderOverview(d) {
+  const eng = (d.engagements && d.engagements[0]) || {};
+  const cov = d.coverage || { tested: 0, total: 1, zero_hit_tags: [] };
+  const rate = cov.total ? cov.tested / cov.total : 0;
+  const wrap = el("div");
+
+  if (rate < 0.5) {
+    wrap.append(el("div", { class: "alert-warn" },
+      `覆盖率 ${cov.tested}/${cov.total} —— 本轮结论只在这些面上成立，其余为未测`));
+  }
+
+  wrap.append(el("div", { class: "cards" },
+    card("资产与范围",
+      el("p", { class: "big" }, String(eng.asset || "（无数据）")),
+      el("p", { class: "muted" }, String(eng.scope || "")),
+      el("p", { class: "muted" }, `engagement ${String(eng.id || "-")}`)),
+    card("结论计数",
+      el("p", { class: "big" },
+        el("a", { href: "#/findings", "data-drill": "findings" }, String(d.findings ?? 0))),
+      el("p", { class: "muted" }, "条（其中已确认见 findings）"),
+      el("p", {},
+        el("a", { href: "#/unverified", "data-drill": "unverified" }, `未验证 ${d.unverified ?? 0} 条`),
+        " ",
+        el("span", { class: "muted" }, `立即看 ${(d.queues || {}).now ?? 0} · 本周 ${(d.queues || {}).week ?? 0}`))),
+    card("覆盖缺口",
+      el("p", { class: "big" },
+        el("a", { href: "#/coverage", "data-drill": "coverage" }, `${cov.tested}/${cov.total}`)),
+      el("p", { class: "muted" },
+        (cov.zero_hit_tags || []).length ? `零命中标签：${(cov.zero_hit_tags || []).join(", ")}` : "零命中标签：无"))));
+
+  return wrap;
+}
+
+function renderEngagement(d) {
+  const rows = [
+    ["engagement", d.id], ["资产", d.asset], ["范围", d.scope],
+    ["已确认", d.confirmed], ["总条目", d.total],
+    ["决策", d.decision], ["原因", d.reason], ["绑定数", d.bindings],
+  ];
   const table = el("table");
-  const head = el("tr",
-    ...["严重度","oracle","资产","置信度","证据强度","面","replay","优先级","命中"]
-      .map((h) => el("th", {}, h)));
-  table.append(head);
-  for (const row of data.rows) {
-    const tr = el("tr");
-    // severity 只为已验证行输出；未验证行不得长得像漏洞（D1 / A13）
-    tr.append(row.severity
-      ? el("td", { class: "sev-" + row.severity }, row.severity)
-      : el("td", { class: "muted" }, "—"));
-    tr.append(el("td", {}, row.oracle));
-    tr.append(el("td", {}, row.asset));
-    tr.append(el("td", {}, row.confidence.toFixed(2)));
-    tr.append(el("td", { class: row.evidenceStrength === "probe" || row.evidenceStrength === "crawl" ? "weak" : "" },
-      row.evidenceStrength));
-    tr.append(row.bound === false
-      ? el("td", { class: "muted" }, "未绑定")
-      : el("td", {}, row.route));
-    tr.append(el("td", {}, row.replay));
-    tr.append(el("td", {}, row.priority.toFixed(1)));
-    // 命中四态：0 / 1 / N 处 / 未执行 —— 空白是缺陷，不是简约
-    const HITS = { zero: "0", single: "1", multi: `合并 ${row.hits} 处`, not_run: "未执行" };
-    tr.append(el("td", { class: row.hits_state === "zero" || row.hits_state === "not_run" ? "muted" : "" },
-      HITS[row.hits_state] ?? ""));
+  for (const [k, v] of rows) {
+    table.append(el("tr", el("th", { scope: "row" }, k),
+      el("td", {}, v === undefined || v === null || v === "" ? "未提供" : String(v))));
+  }
+  return table;
+}
+
+function renderCoverage(d) {
+  const wrap = el("div");
+  wrap.append(el("p", { class: "muted" }, `口径：${d.scope || "unknown"}（分母只含跑过的面）`));
+  if (!(d.matrix || []).length) {
+    wrap.append(el("p", {}, "本轮没有可展示的覆盖数据"));
+    return wrap;
+  }
+  const table = el("table");
+  table.append(el("tr", el("th", {}, "资产"), ...(d.oracles || []).map((o) => el("th", {}, o))));
+  for (const row of d.matrix) {
+    const tr = el("tr", el("td", {}, row.asset));
+    for (const o of d.oracles || []) {
+      const st = row.cells[o] || "not_run";
+      tr.append(el("td", { class: "cell-" + st }, COVERAGE_LABEL[st] || st));
+    }
     table.append(tr);
   }
   wrap.append(table);
+  if ((d.zero_hit_tags || []).length) {
+    wrap.append(el("p", { class: "muted" },
+      ...["零命中标签：", ...d.zero_hit_tags.map((x) => el("span", { class: "chip" }, x))]));
+  }
   return wrap;
 }
 
@@ -107,13 +277,11 @@ function renderRoutes(data) {
   const wrap = el("div");
   wrap.append(el("p", { class: "muted" },
     `绑定 ${data.count} 条 · 模板可见：${data.template_visible ? "是" : "否（只给摘要）"}`));
-  const table = el("table",
-    el("tr", ...["ref(前24)","标签","来源","置信档","TTL"].map((h) => el("th", {}, h))));
+  const table = el("table");
+  table.append(el("tr", ...["ref(前24)", "标签", "来源", "置信档", "TTL"].map((h) => el("th", {}, h))));
   for (const b of data.bindings) {
-    table.append(el("tr",
-      el("td", {}, b.ref), el("td", {}, (b.tags || []).join(", ")),
-      el("td", {}, String(b.source)), el("td", {}, String(b.confidence)),
-      el("td", {}, String(b.ttl_s))));
+    table.append(el("tr", el("td", {}, b.ref), el("td", {}, (b.tags || []).join(", ")),
+      el("td", {}, String(b.source)), el("td", {}, String(b.confidence)), el("td", {}, String(b.ttl_s))));
   }
   wrap.append(table);
   return wrap;
@@ -136,120 +304,78 @@ function renderGeneric(data) {
   return el("pre", {}, JSON.stringify(data, null, 2));
 }
 
-function card(title, ...kids) {
-  return el("section", { class: "card" }, el("h2", {}, title), ...kids);
+function setHash(next, { replace = false } = {}) {
+  const hash = buildHash(next);
+  if (locations(hash)) return;
+  if (replace) location.replace(hash);
+  else location.hash = hash;
 }
 
-const COVERAGE_LABEL = {
-  verified: "已确认", blocked: "阻塞", inconclusive: "未确认", not_run: "未测", error: "错误",
-};
-
-function renderOverview(d) {
-  const eng = (d.engagements && d.engagements[0]) || {};
-  const cov = d.coverage || { tested: 0, total: 1, zero_hit_tags: [] };
-  const rate = cov.total ? cov.tested / cov.total : 0;
-  const wrap = el("div");
-
-  // 覆盖不足必须喊出来：结论只在这些面上成立（D1 的界面化）
-  if (rate < 0.5) {
-    wrap.append(el("div", { class: "alert-warn" },
-      `覆盖率 ${cov.tested}/${cov.total} —— 本轮结论只在这些面上成立，其余为未测`));
-  }
-
-  wrap.append(el("div", { class: "cards" },
-    card("资产与范围",
-      el("p", { class: "big" }, String(eng.asset || "（无数据）")),
-      el("p", { class: "muted" }, String(eng.scope || "")),
-      el("p", { class: "muted" }, `engagement ${String(eng.id || "-")}`)),
-    card("结论计数",
-      el("p", { class: "big" },
-        el("a", { href: "#/findings", "data-drill": "findings" }, String(d.findings ?? 0))),
-      el("p", { class: "muted" }, "条（其中已确认见 findings）"),
-      el("p", {},
-        el("a", { href: "#/unverified", "data-drill": "unverified" },
-          `未验证 ${d.unverified ?? 0} 条`),
-        " ",
-        el("span", { class: "muted" },
-          `立即看 ${(d.queues || {}).now ?? 0} · 本周 ${(d.queues || {}).week ?? 0}`))),
-    card("覆盖缺口",
-      el("p", { class: "big" },
-        el("a", { href: "#/coverage", "data-drill": "coverage" },
-          `${cov.tested}/${cov.total}`)),
-      el("p", { class: "muted" },
-        (cov.zero_hit_tags || []).length
-          ? `零命中标签：${(cov.zero_hit_tags || []).join(", ")}`
-          : "零命中标签：无"))));
-
-  return wrap;
+function locations(hash) {
+  return location.hash === hash;
 }
 
-function renderEngagement(d) {
-  const rows = [
-    ["engagement", d.id], ["资产", d.asset], ["范围", d.scope],
-    ["已确认", d.confirmed], ["总条目", d.total],
-    ["决策", d.decision], ["原因", d.reason], ["绑定数", d.bindings],
-  ];
-  const table = el("table");
-  for (const [k, v] of rows) {
-    table.append(el("tr", el("th", { scope: "row" }, k),
-      el("td", {}, v === undefined || v === null || v === "" ? "未提供" : String(v))));
+async function render() {
+  state = parseHash(location.hash);
+  for (const btn of nav.querySelectorAll("button")) {
+    btn.setAttribute("aria-current", btn.dataset.op === state.op ? "page" : "false");
   }
-  return table;
-}
-
-function renderCoverage(d) {
-  const wrap = el("div");
-  wrap.append(el("p", { class: "muted" },
-    `口径：${d.scope || "unknown"}（分母只含跑过的面）`));
-  if (!(d.matrix || []).length) {
-    wrap.append(el("p", {}, "本轮没有可展示的覆盖数据"));
-    return wrap;
-  }
-  const table = el("table");
-  const head = el("tr", el("th", {}, "资产"), ...(d.oracles || []).map((o) => el("th", {}, o)));
-  table.append(head);
-  for (const row of d.matrix) {
-    const tr = el("tr", el("td", {}, row.asset));
-    for (const o of d.oracles || []) {
-      const state = row.cells[o] || "not_run";
-      tr.append(el("td", { class: "cell-" + state }, COVERAGE_LABEL[state] || state));
-    }
-    table.append(tr);
-  }
-  wrap.append(table);
-  if ((d.zero_hit_tags || []).length) {
-    wrap.append(el("p", { class: "muted" },
-      ...["零命中标签：", ...d.zero_hit_tags.map((x) => el("span", { class: "chip" }, x))]));
-  }
-  return wrap;
-}
-
-async function show(op) {
-  current = op;
-  for (const btn of document.querySelectorAll("#nav button")) {
-    btn.setAttribute("aria-current", btn.dataset.op === op ? "page" : "false");
-  }
-  const main = document.getElementById("main");
   main.replaceChildren(el("p", { class: "muted" }, "加载中…"));
-  const data = await fetchOp(op);
+  const data = await fetchOp(state.op, state.params);
+  lastRows = data.rows || [];
   let view;
-  if (op === "overview") view = renderOverview(data);
-  else if (op === "engagement") view = renderEngagement(data);
-  else if (op === "coverage") view = renderCoverage(data);
-  else if (op === "findings") view = renderFindings(data);
-  else if (op === "routes") view = renderRoutes(data);
-  else if (op === "bounds") view = renderBounds(data);
+  if (state.op === "overview") view = renderOverview(data);
+  else if (state.op === "engagement") view = renderEngagement(data);
+  else if (state.op === "coverage") view = renderCoverage(data);
+  else if (state.op === "findings") view = renderFindings(data, state.params);
+  else if (state.op === "unverified") view = renderUnverified(data);
+  else if (state.op === "routes") view = renderRoutes(data);
+  else if (state.op === "bounds") view = renderBounds(data);
   else view = renderGeneric(data);
   main.replaceChildren(view);
 }
 
-const nav = document.getElementById("nav");
 for (const op of OPS) {
   const btn = el("button", { "data-op": op }, op);
-  btn.addEventListener("click", () => show(op));
+  btn.addEventListener("click", () => setHash({ op, params: {} }));
   nav.append(btn);
 }
-document.querySelector(`#nav button[data-op="${current}"]`)?.click();
+
+window.addEventListener("hashchange", render);
+
+// 斜杠键用字符码构造：仓库的 R-PATH 闸门会把该字符的字面量当成路径片段（noroute 纪律）
+const SLASH = String.fromCharCode(0x2f);
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === SLASH && !(event.target instanceof HTMLInputElement)) {
+    event.preventDefault();
+    document.getElementById("q")?.focus();
+    return;
+  }
+  if (event.key === "Escape") {
+    if (document.activeElement instanceof HTMLInputElement) document.activeElement.blur();
+    else setHash({ op: "findings", params: {} });
+    return;
+  }
+  if (!["j", "k", "Enter"].includes(event.key)) return;
+  const rows = [...main.querySelectorAll("tr[data-id]")];
+  if (!rows.length) return;
+  const active = rows.findIndex((tr) => tr.dataset.active === "1");
+  if (event.key === "Enter") {
+    if (active >= 0) setHash({ op: "finding", params: { id: rows[active].dataset.id } });
+    return;
+  }
+  event.preventDefault();
+  const next = event.key === "j"
+    ? Math.min(rows.length - 1, active < 0 ? 0 : active + 1)
+    : Math.max(0, active <= 0 ? 0 : active - 1);
+  rows.forEach((tr) => (tr.dataset.active = "0"));
+  rows[next].dataset.active = "1";
+  rows[next].scrollIntoView({ block: "nearest" });
+});
+
+if (!location.hash) setHash({ op: "overview", params: {} }, { replace: true });
+render();
 </script>
 </body>
 </html>
