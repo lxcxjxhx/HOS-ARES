@@ -34,11 +34,10 @@ def test_every_item_reports_one_of_four_states() -> None:
 def test_missing_runtime_items_are_unverified_not_green() -> None:
     """无 docker / 无并行任务 → 未验；渲染执行体已实现（宿主）→ 绿但注明容器未验。"""
     by_key = {row["key"]: row for row in run()}
-    assert by_key["E1"]["status"] == UNVERIFIED
-    assert by_key["E5"]["status"] == UNVERIFIED
+    assert by_key["E1"]["status"] == UNVERIFIED, "无 docker：真隔离只能未验"
     assert by_key["E4"]["status"] == SKIPPED, "资产发现是决策不做，不是没做"
-    assert by_key["E2"]["status"] == GREEN
-    assert "容器内未验" in by_key["E2"]["detail"]
+    assert by_key["E2"]["status"] == GREEN and "容器内未验" in by_key["E2"]["detail"]
+    assert by_key["E5"]["status"] == GREEN and "容器级并行未验" in by_key["E5"]["detail"]
 
 
 def test_no_red_on_this_machine() -> None:

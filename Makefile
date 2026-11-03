@@ -550,3 +550,9 @@ browser-render:
 	$(PY) -m pytest tests/integration/test_browser_render.py -q
 
 b46: browser-render exec-isolation types-check lint
+
+# B49 任务级并行（进程内：并发==串行 / 跨任务读即事故 / 阶段回退不重算预算）
+parallel-check:
+	$(PY) -m pytest tests/unit/test_parallel.py -q
+
+b49: parallel-check types-check lint
