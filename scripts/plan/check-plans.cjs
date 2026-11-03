@@ -34,10 +34,13 @@ for (const r of rows) {
   for (const f of ['README.md', 'MANIFEST.md']) {
     if (!fs.existsSync(path.join(REPO, r.dir, f))) bad.push(`${r.id}: 缺 ${r.dir}/${f}`);
   }
-  if (r.cmd && !r.cmd.startsWith('node')) bad.push(`${r.id}: 自检命令应为 node 脚本`);
+  if (r.cmd && !/node\s+\S+\.cjs/.test(r.cmd)) bad.push(`${r.id}: 自检命令应为 node 脚本`);
   if (r.cmd) {
-    const script = r.cmd.replace(/^node\s+/, '').trim();
-    if (!fs.existsSync(path.join(REPO, script))) bad.push(`${r.id}: 自检脚本不存在 ${script}`);
+    const m = r.cmd.match(/node\s+([^\s)]+\.cjs)/);
+    if (!m) bad.push(`${r.id}: 自检命令里找不到 .cjs`);
+    else if (![path.join(REPO, m[1]), path.join(REPO, r.dir, m[1])].some((x) => fs.existsSync(x))) {
+      bad.push(`${r.id}: 自检脚本不存在 ${m[1]}`);
+    }
   }
 
   // 版本一致：注册表 ↔ README ↔ 00/H00
