@@ -1,0 +1,38 @@
+apiVersion: veripen.playbook/v1
+id: pb-ratelimit-window
+version: 1.0.0
+title: 先取基线，再在固定窗口内加发，观察第 N+1 发
+oracle: rate_limit_absent
+impact: read_only
+applies_when:
+  - selector_available: rate_component
+  - auth_available: [anonymous]
+steps:
+  - id: s1
+    action: probe_shape
+    params: { requests: 1, observe: status_and_headers }
+    produces: [fact:rate.baseline]
+  - id: s2
+    action: run_oracle
+    params: { oracle: rate_limit_absent, basis: rate.baseline, burst: 20 }
+    produces: [verdict]
+    on_verdict:
+      VERIFIED: { next: end }
+      REFUTED: { next: s3 }
+      INCONCLUSIVE: { next: end, reason: inconclusive_window_mismatch }
+      BLOCKED: { next: end, reason: blocked_rate_budget }
+  - id: s3
+    action: recheck_with_control
+    params: { control: same_route_without_burst }
+    produces: [fact:rate.control]
+pitfalls:
+  - id: pf1
+    text: 把 CDN 默认的 429 当成源站防护——它可能和业务限流无关。
+    guard: cdn_429_vs_origin
+    step: s2
+  - id: pf2
+    text: 没对齐窗口边界（突然跨过整分），把窗口切换误读成限流生效。
+    guard: fixed_window_align
+    step: s2
+rollback: none
+success_rate: 1.0
