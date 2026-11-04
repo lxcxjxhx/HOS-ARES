@@ -6,9 +6,9 @@
 | 项 | 值 |
 |---|---|
 | 包版本 | `plan-hos-v1.0` |
-| 生成时间 | 2026-11-04T01:37:52.456Z |
+| 生成时间 | 2026-11-04T02:29:02.679Z |
 | 文件数 | 13 |
-| 总字节 | 125075 |
+| 总字节 | 123130 |
 | 总行数（文本） | 2223 |
 
 ## 校验
@@ -22,34 +22,34 @@ node plan-hos-ares/check-plan.cjs --write  # 内容改过之后重生成本文�
 
 | 文件 | 字节 | 行 | sha256（前 16） |
 |---|---:|---:|---|
-| `H00-总纲与四波排期.md` | 18912 | 255 | `6551f96eb4426311` |
+| `H00-总纲与四波排期.md` | 18658 | 255 | `51d84a857684cf3e` |
 | `H01-能力矩阵与对标口径.md` | 7807 | 91 | `412dd79073007e97` |
-| `H02-执行面规格-strix.md` | 11288 | 188 | `f713f989d04b2211` |
-| `H03-平台面规格-驭智.md` | 10686 | 168 | `613e4e916114327f` |
-| `H04-工作台规格-codex.md` | 6070 | 119 | `11ffa58eabea11eb` |
+| `H02-执行面规格-strix.md` | 11101 | 188 | `3851fb3ff77f1fa9` |
+| `H03-平台面规格-驭智.md` | 10519 | 168 | `b83aa32ea50a98a7` |
+| `H04-工作台规格-codex.md` | 5952 | 119 | `5547cf60b1b614ad` |
 | `H05-判定内核边界-VeriPen.md` | 5037 | 86 | `becfda5d4556efcd` |
-| `H06-产品面与控制台.md` | 9135 | 193 | `8a2c901d2a69f85c` |
-| `H07-批次总表与排期.md` | 17405 | 319 | `bd5e3b9b5495375f` |
-| `H08-验收与断言.md` | 6769 | 130 | `0cbbb2ea4e7336b2` |
+| `H06-产品面与控制台.md` | 8943 | 193 | `5db85ffb9b982aee` |
+| `H07-批次总表与排期.md` | 17087 | 319 | `6ef24798f3338c67` |
+| `H08-验收与断言.md` | 6640 | 130 | `935cfedbc35327ee` |
 | `H09-风险与决策项.md` | 6305 | 91 | `e4ce2957469fa8a3` |
-| `H10-PR与文件管理.md` | 7722 | 187 | `baadeeac1314cdcc` |
-| `README.md` | 5648 | 117 | `2d55c79104eff365` |
-| `check-plan.cjs` | 12291 | 279 | `2ad1532f625c1e14` |
+| `H10-PR与文件管理.md` | 7536 | 187 | `1c5ee708f38fafa6` |
+| `README.md` | 5532 | 117 | `da8281504885e3a6` |
+| `check-plan.cjs` | 12013 | 279 | `36c8d85a8c208c65` |
 
 ## 完整 sha256
 
 ```
-6551f96eb44263111d9becb3cadfa81a5a015b8aaaea0e675274d21ddcf72136  H00-总纲与四波排期.md
+51d84a857684cf3ef67ff790ab70569c33c9a81a3a2e2d3428527551bd73d3e7  H00-总纲与四波排期.md
 412dd79073007e97e37a5a17f2e4acc771510c9a5f1bde19e4cdd3829590aac6  H01-能力矩阵与对标口径.md
-f713f989d04b2211c4ff253522a572a83f12e640f53c722a6deee4685275abb1  H02-执行面规格-strix.md
-613e4e916114327f0c7a9f08a7e077f47f2cd70fa0843246d8122945c61dcb02  H03-平台面规格-驭智.md
-11ffa58eabea11eb11043b4d50b6e662423241300127a84d06a1f4d9eab6a218  H04-工作台规格-codex.md
+3851fb3ff77f1fa9840ca3bc8ee27896d71e9a72dc1f73095c5cf93883bf6df0  H02-执行面规格-strix.md
+b83aa32ea50a98a7c19e0434aa0d39e405e648071e805dc163d48310658d816d  H03-平台面规格-驭智.md
+5547cf60b1b614adeb016e23a4634468d757740c8f077b5c598484b6752738a2  H04-工作台规格-codex.md
 becfda5d4556efcd3a45a2b5dcc9d3ba2714d686b486a1b114eb0193a132630d  H05-判定内核边界-VeriPen.md
-8a2c901d2a69f85cce41d9e1d184b210966b4a6ee25a5772aa609cde0701b2c5  H06-产品面与控制台.md
-bd5e3b9b5495375f09890f96af26f0f885c3e4ebc2910b1d61c091222897cf42  H07-批次总表与排期.md
-0cbbb2ea4e7336b2bb26e749f17b163b77308e8007d70e564b03a124ae35f26b  H08-验收与断言.md
+5db85ffb9b982aeeb1bd12a78b64af286ad96c7fec49e6ae2c43ef2df9fbf820  H06-产品面与控制台.md
+6ef24798f3338c674d92d1991bf87dc9d37a355420ef297a1119fa92c6082e7a  H07-批次总表与排期.md
+935cfedbc35327ee4da2b3b140f26fd959141d92194f7c0eab49609afea15ac6  H08-验收与断言.md
 e4ce2957469fa8a3e5fef214f86f919af1f902da204d89a333043d7b2279c7e0  H09-风险与决策项.md
-baadeeac1314cdccf3fc545da2effdee90b99c4074f198671372f9f1a4d8773b  H10-PR与文件管理.md
-2d55c79104eff3659a44b7064092323300228e4be6c82e52619fc8bac6b5a7b1  README.md
-2ad1532f625c1e14f864825c2c82e11a94cd76e4495988562fb7fb089ba273a5  check-plan.cjs
+1c5ee708f38fafa6fc58896556377bf0d9b234a38f538bfc3fe9051df367efda  H10-PR与文件管理.md
+da8281504885e3a68755072c88bab3383823fefd15c3c93a6d27ae6e9a4d1207  README.md
+36c8d85a8c208c65383aa526b7de1ea2a1fa6dbaace50cc7609e18c68c0e5dbc  check-plan.cjs
 ```

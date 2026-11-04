@@ -6,9 +6,9 @@
 | 项 | 值 |
 |---|---|
 | 包版本 | `plan-v3.9` |
-| 生成时间 | 2026-11-03T17:18:22.364Z |
+| 生成时间 | 2026-11-04T02:29:02.209Z |
 | 文件数 | 54 |
-| 总字节 | 793041 |
+| 总字节 | 791869 |
 | 总行数（文本） | 13644 |
 | 内容 | 41 篇规格（含 27–39）+ 37 批计划 + README + 3 个自检脚本 + allowlist + 6 份 JSON Schema |
 
@@ -24,7 +24,7 @@ node _verify-manifest.cjs  # 逐个文件比对 sha256（★ 内容改过就必�
 
 | 文件 | 字节 | 行 | sha256（前 16） |
 |---|---:|---:|---|
-| `00-总规划.md` | 23435 | 258 | `b52ade276f8a099d` |
+| `00-总规划.md` | 23178 | 258 | `13fcd3018d550bc4` |
 | `01-包结构与内核契约.md` | 20077 | 348 | `b030e90f6094b86e` |
 | `02-客户档Profile规格.md` | 10567 | 207 | `bf5eedd22d2b51dc` |
 | `03-数据模型与状态机.md` | 23197 | 423 | `f6ecbae511ad7a2f` |
@@ -37,10 +37,10 @@ node _verify-manifest.cjs  # 逐个文件比对 sha256（★ 内容改过就必�
 | `10-评测协议.md` | 12129 | 196 | `4ea04e002a809d9a` |
 | `11-测试策略与靶场用例.md` | 20019 | 297 | `244b27710dcb0c6e` |
 | `12-工程与交付.md` | 12068 | 204 | `9308ad7a2c76edb3` |
-| `13-风险登记册.md` | 14815 | 109 | `12bc22af17932789` |
+| `13-风险登记册.md` | 14707 | 109 | `b70841f3b4e04e36` |
 | `14-二期路线.md` | 10779 | 173 | `4cb8529ec1e9c1ed` |
 | `15-开工提示词.md` | 12435 | 228 | `7415369f8780ef7e` |
-| `16-完整范围与交付地图.md` | 17368 | 206 | `0a5eefc6750c3cef` |
+| `16-完整范围与交付地图.md` | 17163 | 206 | `68b6825e10d71a19` |
 | `17-权威链与证据门.md` | 17495 | 213 | `da3464b2123236c3` |
 | `18-Oracle目录（14类判定矩阵）.md` | 16859 | 255 | `f9e475a3ae885603` |
 | `19-接口契约与用例生成.md` | 15219 | 266 | `0de44058b5c3655b` |
@@ -66,11 +66,11 @@ node _verify-manifest.cjs  # 逐个文件比对 sha256（★ 内容改过就必�
 | `39-交付收尾与能力接驳规格.md` | 14279 | 206 | `d138e94b51a03f9e` |
 | `40-验证方案与批次规划.md` | 11854 | 238 | `c15f0f728156d6fd` |
 | `99-二期池.md` | 10698 | 130 | `7a572865feedb8a3` |
-| `README.md` | 19810 | 302 | `155587a8484cfc84` |
-| `_gen_manifest.cjs` | 2229 | 66 | `42324fd3fa2f097a` |
+| `README.md` | 19509 | 302 | `7cb7143f6f26087e` |
+| `_gen_manifest.cjs` | 2164 | 66 | `75c7d277cf8015e0` |
 | `_verify-manifest.cjs` | 738 | 17 | `c018f719d48e7e94` |
 | `check-noroute.cjs` | 9235 | 234 | `2ca8872e0d14d858` |
-| `check-plan.cjs` | 11013 | 237 | `854f9c4d7e6d467c` |
+| `check-plan.cjs` | 10777 | 237 | `470ea1d45420c31c` |
 | `noroute.allowlist` | 651 | - | `d12fde747f6a1720` |
 | `schemas/capsule.schema.json` | 12663 | 561 | `a36899146f43f91e` |
 | `schemas/dataset-manifest.schema.json` | 3037 | 139 | `ac90d5b9d54b4b4b` |
@@ -82,7 +82,7 @@ node _verify-manifest.cjs  # 逐个文件比对 sha256（★ 内容改过就必�
 ## 完整 sha256
 
 ```
-b52ade276f8a099dd1f6f342c2688beeeb4f612f433a7404cd0fa166c444f8cc  00-总规划.md
+13fcd3018d550bc49e64ef0639657b31b7b199c71de338ff570c62749381e831  00-总规划.md
 b030e90f6094b86e0b086856be477aca6a0ba636901e944dbd06b7057fac06a1  01-包结构与内核契约.md
 bf5eedd22d2b51dc368b35b323a90ac85c184f5d33b753de292fb9f5ccba1150  02-客户档Profile规格.md
 f6ecbae511ad7a2f2f27b08ec428adda839c0905ed02911941bbd66dc5bb4987  03-数据模型与状态机.md
@@ -95,10 +95,10 @@ ea474977851713587de8dd05a7a5d82579362f9178c631f401e034b0ee0d7b65  09-报告与�
 4ea04e002a809d9acafbec059a1f87fe2ed20ec22c94ab6ab8048293cf2cb93d  10-评测协议.md
 244b27710dcb0c6e772436b17ccda94a938531255d54298fd4d9402172a3a616  11-测试策略与靶场用例.md
 9308ad7a2c76edb334249648831aed51ba725d39497632b4b6d2c71fe637a0f4  12-工程与交付.md
-12bc22af17932789965dc0f5bc5fab291fe5a4f7e4668590b2f803940d82e87e  13-风险登记册.md
+b70841f3b4e04e36fa38f9af169d015c45a060b3562e8d8d11d3b91cc67c8179  13-风险登记册.md
 4cb8529ec1e9c1edb6ada7ec37a872bf077c44aec532eb9eec79fbaf39329dd5  14-二期路线.md
 7415369f8780ef7eadb6de88d089a90d24ac74ae4f967a77cee30f25f13e34ce  15-开工提示词.md
-0a5eefc6750c3cef6eb5bc9f31467ec658ba4ad595c06389f30696df3127afa0  16-完整范围与交付地图.md
+68b6825e10d71a19dc582941a47c9a4fb0df3fac9cf5dfcea769f07fe378474b  16-完整范围与交付地图.md
 da3464b2123236c30f46c436bd575842b19f5861b1605aaba5aab3d81b879e39  17-权威链与证据门.md
 f9e475a3ae885603117af26e0c2799083e6e6bdb4c9785ad37463b3b14423c82  18-Oracle目录（14类判定矩阵）.md
 0de44058b5c3655bce8909c43b2171f100069c3b4a15f0b2cb75f322b1787b32  19-接口契约与用例生成.md
@@ -124,11 +124,11 @@ d5ee9cb802e5dc04db6cd9a57cd0d60f64547a4e143b123ddee826ae1cc18063  38-通用工�
 d138e94b51a03f9ed6107bf26d44f54327565ff31bc6e61497f7f3f5b9315e9a  39-交付收尾与能力接驳规格.md
 c15f0f728156d6fd88cd22a0baed60b004896be8d194b6d8856e958889c859f5  40-验证方案与批次规划.md
 7a572865feedb8a31696028b7f7563e66af7db7ddf344ad845f4719ea22f4457  99-二期池.md
-155587a8484cfc84ec90716c6148128201c70ae71b0fd87838ce88e8b7080ac2  README.md
-42324fd3fa2f097a212eb42e7e5417227b2ce8a08b9bc9bf0c384c11b2ab1512  _gen_manifest.cjs
+7cb7143f6f26087ea6f8081e08f3d5add6bb167730279cd3616155fbd5ade83a  README.md
+75c7d277cf8015e038c30bb20ddeb8f116d85c3fe9eea8c2d802c92b4cf1acff  _gen_manifest.cjs
 c018f719d48e7e9432728394ddf5d9253a69feaf52cbf18cd24fe830fb9ae2ab  _verify-manifest.cjs
 2ca8872e0d14d8581b75c2138ad7a265e6d3fe98b5a9b88196da5923839dfec1  check-noroute.cjs
-854f9c4d7e6d467c1038b63c4b54cd30dc4f18e6b3c9794bb6191520106d0a49  check-plan.cjs
+470ea1d45420c31c4ae0122299ac5f4486f31ffcd61195203041f626b5494c6e  check-plan.cjs
 d12fde747f6a17209fa0190936fcd98ed8bb8e1fdd2453fa5f6b119819a899d5  noroute.allowlist
 a36899146f43f91ee1f55e80ed8e7e349c638954cbecd0ea08a4f1af46fcd8c7  schemas/capsule.schema.json
 ac90d5b9d54b4b4b02aacf2261fb40e85505cd8b90949003f68da61113d33f39  schemas/dataset-manifest.schema.json
