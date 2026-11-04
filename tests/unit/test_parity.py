@@ -32,12 +32,12 @@ def test_every_item_reports_one_of_four_states() -> None:
 
 
 def test_missing_runtime_items_are_unverified_not_green() -> None:
-    """本机无 docker、无 render 执行体、无并行任务 —— 这三项不许写绿（D3）。"""
+    """无 docker / 无并行任务 → 未验；渲染执行体已实现（宿主）→ 绿但注明容器未验。"""
     by_key = {row["key"]: row for row in run()}
-    assert by_key["E1"]["status"] == UNVERIFIED
-    assert by_key["E2"]["status"] == UNVERIFIED
-    assert by_key["E5"]["status"] == UNVERIFIED
+    assert by_key["E1"]["status"] == UNVERIFIED, "无 docker：真隔离只能未验"
     assert by_key["E4"]["status"] == SKIPPED, "资产发现是决策不做，不是没做"
+    assert by_key["E2"]["status"] == GREEN and "容器内未验" in by_key["E2"]["detail"]
+    assert by_key["E5"]["status"] == GREEN and "容器级并行未验" in by_key["E5"]["detail"]
 
 
 def test_no_red_on_this_machine() -> None:
@@ -59,7 +59,7 @@ def test_json_evidence_is_written(tmp_path: object) -> None:
 
 
 def test_assertion_table_has_twenty_rows() -> None:
-    """A20 的落点：权威表里有 A20，且 A18 明确无命令（不粉饰）。"""
+    """A20 的落点：权威表里有 A20；A18 有命令但只标宿主已验（隔离未验）。"""
     text = (cmd_parity.ROOT / "plan-veripen" / "16-完整范围与交付地图.md").read_text(encoding="utf-8")
     assert "A20 三对标可证" in text
-    assert "A18 浏览器可证" in text and "❌ 不存在" in text
+    assert "A18 浏览器可证" in text and "容器内渲染未验" in text

@@ -67,10 +67,16 @@ def _sandbox() -> tuple[str, str]:
 
 
 def _browser() -> tuple[str, str]:
-    # 库是否存在 ≠ 执行体是否实现：B46 未做时一律"未验"，不当成熟度
-    if not (ROOT / "veripen_core" / "render").exists():
-        return UNVERIFIED, "渲染执行体未做（B46）；本机 playwright 仅是库可用"
-    return GREEN, "render 执行体存在"
+    # 库存在 ≠ 执行体实现：B46 落地后按"执行体存在 + 宿主渲染"给绿，隔离仍记未验
+    if not (ROOT / "veripen_core" / "render" / "browser.py").exists():
+        return UNVERIFIED, "渲染执行体未做（B46）"
+    try:
+        from veripen_core.render import BrowserRenderer
+
+        ok = BrowserRenderer().available()
+    except Exception:  # noqa: BLE001
+        ok = False
+    return (GREEN, "执行体存在（宿主渲染；容器内未验）") if ok else (UNVERIFIED, "playwright 不可用")
 
 
 def _tool_surface() -> tuple[str, str]:
@@ -85,7 +91,9 @@ def _discovery() -> tuple[str, str]:
 
 
 def _parallel() -> tuple[str, str]:
-    return UNVERIFIED, "并行任务（B49）未做：依赖容器隔离"
+    if not (ROOT / "veripen_core" / "parallel.py").exists():
+        return UNVERIFIED, "任务级并行未做（B49）"
+    return GREEN, "进程内 3 任务并行（并发==串行、跨任务读即事故）；容器级并行未验"
 
 
 def _control_plane() -> tuple[str, str]:
