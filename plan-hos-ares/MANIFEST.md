@@ -6,10 +6,10 @@
 | 项 | 值 |
 |---|---|
 | 包版本 | `plan-hos-v1.0` |
-| 生成时间 | 2026-11-04T03:33:46.107Z |
+| 生成时间 | 2026-11-04T03:57:14.750Z |
 | 文件数 | 14 |
-| 总字节 | 130437 |
-| 总行数（文本） | 2346 |
+| 总字节 | 132226 |
+| 总行数（文本） | 2373 |
 
 ## 校验
 
@@ -33,7 +33,7 @@ node plan-hos-ares/check-plan.cjs --write  # 内容改过之后重生成本文�
 | `H08-验收与断言.md` | 6640 | 130 | `935cfedbc35327ee` |
 | `H09-风险与决策项.md` | 6305 | 91 | `e4ce2957469fa8a3` |
 | `H10-PR与文件管理.md` | 7536 | 187 | `1c5ee708f38fafa6` |
-| `H11-二期接线与探测.md` | 7173 | 122 | `0b26acc8fa6c27ad` |
+| `H11-二期接线与探测.md` | 8962 | 149 | `ce5582a263c877f2` |
 | `README.md` | 5532 | 117 | `da8281504885e3a6` |
 | `check-plan.cjs` | 12013 | 279 | `36c8d85a8c208c65` |
 
@@ -51,7 +51,7 @@ becfda5d4556efcd3a45a2b5dcc9d3ba2714d686b486a1b114eb0193a132630d  H05-判定内�
 935cfedbc35327ee4da2b3b140f26fd959141d92194f7c0eab49609afea15ac6  H08-验收与断言.md
 e4ce2957469fa8a3e5fef214f86f919af1f902da204d89a333043d7b2279c7e0  H09-风险与决策项.md
 1c5ee708f38fafa6fc58896556377bf0d9b234a38f538bfc3fe9051df367efda  H10-PR与文件管理.md
-0b26acc8fa6c27ad56e2ebe7cf20af11b570b1171864c96e020b5255eebdfda7  H11-二期接线与探测.md
+ce5582a263c877f23f4cfb444a4485addf52d2020cb3625d91f3b508013cce19  H11-二期接线与探测.md
 da8281504885e3a68755072c88bab3383823fefd15c3c93a6d27ae6e9a4d1207  README.md
 36c8d85a8c208c65383aa526b7de1ea2a1fa6dbaace50cc7609e18c68c0e5dbc  check-plan.cjs
 ```
