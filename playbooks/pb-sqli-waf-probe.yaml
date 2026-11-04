@@ -1,0 +1,38 @@
+apiVersion: veripen.playbook/v1
+id: pb-sqli-waf-probe
+version: 1.0.0
+title: 无害载荷探 WAF，再做布尔差分
+oracle: sqli_bool_diff
+impact: read_only
+applies_when:
+  - selector_available: query_param
+  - auth_available: [anonymous]
+steps:
+  - id: s1
+    action: probe_shape
+    params: { method: get, payload_family: harmless_quote, pairs: 3 }
+    produces: [fact:waf.signature]
+  - id: s2
+    action: run_oracle
+    params: { oracle: sqli_bool_diff, basis: waf.signature }
+    produces: [verdict]
+    on_verdict:
+      VERIFIED: { next: end }
+      REFUTED: { next: s3 }
+      INCONCLUSIVE: { next: end, reason: inconclusive_three_way_failed }
+      BLOCKED: { next: end, reason: blocked_baseline_abnormal }
+  - id: s3
+    action: recheck_with_control
+    params: { control: stable_baseline }
+    produces: [fact:baseline.stable]
+pitfalls:
+  - id: pf1
+    text: 把 WAF 的 403 页当成"无注入"，于是首批载荷全被拦就收工。
+    guard: check_waf_signature
+    step: s1
+  - id: pf2
+    text: 基线自己就在抖（A/B 两个响应不同），却把差异算到注入头上。
+    guard: baseline_stability
+    step: s3
+rollback: none
+success_rate: 0.0
