@@ -20,6 +20,15 @@ from typing import Any, Mapping, Sequence
 
 from .blackboard import AssetFact, AssetFacts
 from .compression import Compressed, compress, estimate_tokens
+from .context import (
+    KNOWLEDGE_SEGMENT,
+    MAX_PER_STEP,
+    Context,
+    KnowledgeDoc,
+    assert_no_leak,
+    load_dir,
+    select,
+)
 
 #: 08 §4 硬要求：注入前缀，读的人必须知道这是"上次结论"
 L1A_PREFIX = "[上次结论，需本次复核]"
@@ -112,4 +121,35 @@ def build_l1a(
     )
 
 
-__all__ = ["L1A_MAX", "L1A_PREFIX", "L1a", "build_l1a"]
+__all__ = ["L1A_MAX", "L1A_PREFIX", "L1a", "build_knowledge", "build_l1a"]
+
+
+def build_knowledge(
+    *,
+    docs: Sequence[KnowledgeDoc] = (),
+    tags: Sequence[str] = (),
+    limit: int = MAX_PER_STEP,
+    base_segments: Mapping[str, str] | None = None,
+) -> Context:
+    """把 knowledge 装进 L2 段（`H11 B63`）。
+
+    **判定侧拿不到它**：``Context.judge_input()`` 只读 ``judge``，而这里的
+    ``Context`` 从不设置 judge——想污染判定得先改 ``knowledge_free`` 的签名，
+    那是 review 时一眼可见的改动。
+
+    选中的条目数被 ``select`` 卡在 ``MAX_PER_STEP``（2 条/步），单条超
+    ``MAX_BYTES`` 由加载端截断并标记。返回前跑一次 ``assert_no_leak``：
+    正文若出现在任何非 L2 段，这里就炸，而不是等判定阶段才发现。
+    """
+    picked = select(list(docs), tags=tags, limit=limit)
+    ctx = Context(segments=dict(base_segments or {}), judge="")
+    if not picked:
+        return ctx
+    injected = ctx.with_knowledge(picked)
+    assert_no_leak(injected, picked)
+    return injected
+
+
+def knowledge_text(ctx: Context) -> str:
+    """L2 段正文（空串表示没有注入）。调用方据此决定要不要拼进 prompt。"""
+    return ctx.segments.get(KNOWLEDGE_SEGMENT, "")

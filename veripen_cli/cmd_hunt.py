@@ -46,7 +46,8 @@ from veripen_contract.planner import plan  # noqa: E402
 from veripen_core.agent import AgentState, Loop, build_decider  # noqa: E402
 from veripen_core.agent.client import from_env  # noqa: E402
 from veripen_core.blackboard import AssetFacts  # noqa: E402
-from veripen_core.briefing import build_l1a  # noqa: E402
+from veripen_core.briefing import build_knowledge, build_l1a, knowledge_text  # noqa: E402
+from veripen_core.context import load_dir  # noqa: E402
 from veripen_core.guard.budget import Budget  # noqa: E402
 from veripen_core.guard.context import GuardContext  # noqa: E402
 from veripen_core.guard.ratelimit import ThrottleConfig, TokenBucket  # noqa: E402
@@ -256,6 +257,11 @@ def main(argv: list[str]) -> int:
         default="",
         help="跨任务记忆库（默认 <out>/hunt.db；库为空时 L1a 段为空，行为与未接线等价）",
     )
+    ap.add_argument(
+        "--knowledge-dir",
+        default="",
+        help="knowledge/*.md 目录；提供则装配 L2 段（≤2 条/步，永不进判定）",
+    )
     args = ap.parse_args(argv)
     setup_stdout()
 
@@ -337,16 +343,24 @@ def main(argv: list[str]) -> int:
         decider = build_decider(client=from_env() if args.model == "live" else None)
         state = AgentState(pending=oracles, strong=(), wave_order=oracles)
         l1a = _load_l1a(args, host)
+        kctx = build_knowledge(
+            docs=load_dir(args.knowledge_dir) if getattr(args, "knowledge_dir", "") else (),
+        )
+        ktext = knowledge_text(kctx)
         print(f"决策器：{decider.name}")
         if l1a.text:
             print(f"L1a：{len(l1a.used)} 条 / 降幅 {l1a.reduction:.0%} / "
                   f"过期 {len(l1a.stale_ids)} / 丢弃 {l1a.dropped}")
         else:
             print("L1a：空（库无可用跨任务事实）")
+        print(f"L2 知识：{'已注入' if ktext else '空'}")
         print("-" * 78)
+        goal = l1a.with_goal(f"验证 {host}")
+        if ktext:
+            goal = f"{goal}\n{ktext}"
         result = Loop(
             runtime=runtime, decider=decider,
-            goal=l1a.with_goal(f"验证 {host}"), max_steps=args.max_steps,
+            goal=goal, max_steps=args.max_steps,
         ).run(state)
     finally:
         http_tool.uninstall_guard()

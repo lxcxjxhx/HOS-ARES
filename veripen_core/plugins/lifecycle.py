@@ -12,9 +12,11 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Sequence
 
+from ..context import MAX_BYTES, KnowledgeDoc
 from ..tools.surface import Impact, ToolSpec, ToolSurface
 
 
@@ -125,6 +127,33 @@ class Lifecycle:
         if spec.tool_name is None:
             return
         self.surface.unregister(spec.tool_name)
+
+    # ── B63：knowledge → L2 ────────────────────────────────────
+    def knowledge_docs(self) -> list[KnowledgeDoc]:
+        """把已装插件的 knowledge 转成 ``KnowledgeDoc``。
+
+        约定：``PluginSpec.knowledge`` 的每一项就是**一段正文**（知识卡片），
+        id 由插件名与序号合成。卸载走 :meth:`uninstall` 的
+        ``self.knowledge.pop``，所以这里天然是"已装插件的当前视图"——
+        调整了哪个插件，L2 就少哪一段，不需要额外的失效逻辑。
+        """
+        docs: list[KnowledgeDoc] = []
+        for name in sorted(self.knowledge):
+            for i, body in enumerate(self.knowledge[name]):
+                raw = str(body)
+                encoded = raw.encode("utf-8")
+                truncated = len(encoded) > MAX_BYTES
+                text = encoded[:MAX_BYTES].decode("utf-8", errors="ignore") if truncated else raw
+                docs.append(
+                    KnowledgeDoc(
+                        id=f"{name}#{i}",
+                        path=f"plugin:{name}",
+                        body=text,
+                        sha256=hashlib.sha256(encoded).hexdigest(),
+                        truncated=truncated,
+                    )
+                )
+        return docs
 
 
 __all__ = ["Lifecycle", "PluginError", "PluginSpec"]
