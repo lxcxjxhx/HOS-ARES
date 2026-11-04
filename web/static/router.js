@@ -6,8 +6,8 @@
 // 约定：hash 是唯一状态源。视图 == f(hash, payload)。
 
 export const OPS = [
-  "overview", "engagement", "findings", "finding",
-  "unverified", "coverage", "routes", "audit", "bounds",
+  "overview", "engagement", "findings", "finding", "unverified",
+  "coverage", "routes", "audit", "bounds", "approvals",
 ];
 
 /** 允许出现在 hash 里的参数（未知键丢弃，避免 URL 长毛） */
