@@ -9,7 +9,7 @@
 
 ```
 HOS-ARES/
-├─ plan-veripen/                ★ 冻结（plan-v3.6）：判定内核规格 + B1–B34 账本
+├─ plan-veripen/                ★ 冻结（plan-v3.7）：判定内核规格 + B1–B34 账本
 │                                 只许 B44/B59 动两处：16 §4.1 断言行、check-plan.cjs 阈值
 ├─ plan-hos-ares/               ★ 本包（plan-hos-v1.0）：总规划 H00–H10 + 自检
 ├─ plan-veripen-ui/             ✗ 已撤销（内容并入 H06/H07，目录不保留）
