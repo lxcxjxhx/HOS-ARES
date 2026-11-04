@@ -91,7 +91,9 @@ def _discovery() -> tuple[str, str]:
 
 
 def _parallel() -> tuple[str, str]:
-    return UNVERIFIED, "并行任务（B49）未做：依赖容器隔离"
+    if not (ROOT / "veripen_core" / "parallel.py").exists():
+        return UNVERIFIED, "任务级并行未做（B49）"
+    return GREEN, "进程内 3 任务并行（并发==串行、跨任务读即事故）；容器级并行未验"
 
 
 def _control_plane() -> tuple[str, str]:
