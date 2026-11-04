@@ -271,6 +271,13 @@ def main(argv: list[str]) -> int:
         steps.append({"step": "remote-fetch", "ok": False, "error": f"{type(exc).__name__}: {exc}"})
         problems.append(f"远程 fetch 检查抛错：{type(exc).__name__}: {exc}")
 
+    # ── 5. 装→用→升级→卸（B55：卸载后工具面必须逐字回到装前）
+    try:
+        steps.append(_probe_lifecycle())
+    except Exception as exc:  # noqa: BLE001
+        steps.append({"step": "lifecycle", "ok": False, "error": f"{type(exc).__name__}: {exc}"})
+        problems.append(f"插件生命周期检查抛错：{type(exc).__name__}: {exc}")
+
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
     record = {"steps": steps, "problems": problems, "review_levels": [
@@ -300,6 +307,43 @@ def main(argv: list[str]) -> int:
         print(f"⚠ {p}")
     print(f"\n证据：{out_dir / 'roundtrip.json'}")
     return 0 if not problems else 1
+
+
+def _probe_lifecycle() -> dict[str, object]:
+    """装 → 用 → 升级（失败回滚）→ 卸；核心断言是 catalog 逐字相同。"""
+    from veripen_core.plugins.lifecycle import Lifecycle, PluginError, PluginSpec
+    from veripen_core.tools.surface import Impact, build_surface
+
+    surface = build_surface()
+    before = surface.catalog()
+    lc = Lifecycle(surface=surface)
+    spec = PluginSpec(name="demo", version="1.0.0", mount="act",
+                      tool_name="plugin.demo.scan", impact=Impact.EXEC)
+
+    preview = lc.preview(spec)
+    lc.install(spec, handler=lambda _args: {"ok": True})
+    used = surface.invoke(spec.tool_name or "", {}, approved=True)
+
+    def bad(_spec: PluginSpec) -> None:
+        raise PluginError("bench_failed", "新版本未通过用例")
+
+    rolled_back = False
+    try:
+        lc.upgrade(PluginSpec(name="demo", version="2.0.0", mount="act",
+                              tool_name="plugin.demo.scan", impact=Impact.EXEC), check=bad)
+    except PluginError:
+        rolled_back = lc.installed["demo"].version == "1.0.0"
+
+    lc.uninstall("demo")
+    restored = surface.catalog() == before
+    return {
+        "step": "lifecycle",
+        "ok": bool(used.get("ok")) and rolled_back and restored,
+        "preview_impact": preview["impact"],
+        "upgrade_rolled_back": rolled_back,
+        "catalog_restored": restored,
+        "note": "装→用→升级失败回滚→卸 四段；catalog 逐字比较",
+    }
 
 
 if __name__ == "__main__":

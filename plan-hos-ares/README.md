@@ -82,7 +82,7 @@ plan-hos-ares/
 
 | 包 | 版本 | 状态 | 本包动作 |
 |---|---|---|---|
-| `plan-veripen/` | `plan-v3.6` | **冻结只读** | 判定面规格与 B1–B34 账本；唯一例外是 B44/B59 改断言表与阈值 |
+| `plan-veripen/` | `plan-v3.7` | **冻结只读** | 判定面规格与 B1–B34 账本；B44 已改断言表 12→16，B59 再 16→20 |
 | `plan-hos-ares/`（本包） | `plan-hos-v1.0` | 新增 | 总规划：四波、25 批、20 断言、红线与决策 |
 | `.veripen/batches.jsonl` | append-only | 80 条 | 编号 B35 续 |
 

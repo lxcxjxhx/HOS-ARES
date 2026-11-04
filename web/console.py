@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Mapping, Sequence
@@ -27,8 +28,11 @@ UI_PREFIX = chr(0x2F) + "ui" + chr(0x2F)
 #: 只读页面（op_id）；路由由 bindings 派生，这里只是白名单
 UI_OPS: tuple[str, ...] = tuple(
     "ui." + name
-    for name in "overview engagement findings finding unverified coverage routes audit bounds".split()
+    for name in "overview engagement findings finding unverified coverage routes audit bounds approvals".split()
 )
+
+#: 路径分隔符：零地址闸门（R-PATH）把该字面量当路径片段，统一用字符码构造
+_SEP = chr(0x2F)
 
 #: 写方法（对 ui.* 一律 405）
 WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
@@ -72,7 +76,15 @@ class Row:
 
     @property
     def route_short(self) -> str:
-        return (self.route_ref or "")[:8]
+        """**只给不透明引用的哈希前缀**（8 位）。
+
+        直接切前 8 位会得到 ``route://`` —— 既泄露 scheme 又毫无信息（B40 实测到）。
+        所以取最后一段（哈希）前 8 位；无 ref 时给空串，由前端渲染「未绑定」。
+        """
+        ref = self.route_ref or ""
+        if not ref:
+            return ""
+        return ref.rsplit(_SEP, 1)[-1][:8]
 
     @property
     def verdict(self) -> str:
@@ -323,6 +335,71 @@ def coverage_from_findings(
 # ══════════════════════════════════════════════════════════════════
 # FastAPI：路由由 op 表派生，写方法一律 405
 # ══════════════════════════════════════════════════════════════════
+#: 审批有效期（H03 §6：1h 过期自动 EXPIRED）
+APPROVAL_TTL_S = 3600
+
+
+class ApprovalError(Exception):
+    """审批失败：code 供 HTTP 层映射状态码，不用字符串匹配。"""
+
+    def __init__(self, code: str, detail: str = "") -> None:
+        super().__init__(code)
+        self.code = code
+        self.detail = detail
+
+
+@dataclass(frozen=True)
+class Approval:
+    id: str
+    action_class: str                 # read / write / scan（动作性质，不是地址）
+    impact: str
+    asset: str
+    requests: int
+    reversible: bool
+    route_ref: str = ""               # 只给 8 位
+    lease_owner: str = ""
+    created_at: float = 0.0
+    requested_by: str = "agent"
+    decision: str = "pending"         # pending / approved / rejected / expired
+    decided_by: str | None = None
+    reason: str = ""
+    decided_at: float | None = None
+
+    def status(self, now: float) -> str:
+        if self.decision != "pending":
+            return self.decision
+        return "expired" if now - self.created_at >= APPROVAL_TTL_S else "pending"
+
+    def as_dict(self, now: float) -> dict[str, Any]:
+        left = max(0, int(APPROVAL_TTL_S - (now - self.created_at)))
+        return {
+            "id": self.id, "action_class": self.action_class, "impact": self.impact,
+            "asset": self.asset, "requests": self.requests, "reversible": self.reversible,
+            "route": self.route_ref[:8], "status": self.status(now), "expires_in_s": left,
+            "decided_by": self.decided_by, "reason": self.reason,
+        }
+
+
+def decide(approval: Approval, *, decision: str, by: str, reason: str,
+           now: float) -> Approval:
+    """唯一写入：批准/拒绝。**自批与过期都在这里拒**（H03 §6）。"""
+    if decision not in ("approve", "reject"):
+        raise ApprovalError("bad_decision", decision)
+    if not reason.strip():
+        raise ApprovalError("reason_required", "拒绝或批准都必须填理由")
+    if approval.status(now) == "expired":
+        raise ApprovalError("expired", "超过 1h 未批，动作自动 BLOCKED")
+    if by.strip() and by == approval.lease_owner:
+        raise ApprovalError("self_approval", "decided_by 不能等于 lease_owner")
+    if approval.status(now) != "pending":
+        raise ApprovalError("already_decided", approval.decision)
+    return Approval(
+        **{**approval.__dict__,
+           "decision": "approved" if decision == "approve" else "rejected",
+           "decided_by": by, "reason": reason.strip(), "decided_at": now}
+    )
+
+
 @dataclass
 class ConsoleState:
     """控制台读的数据全部由调用方注入——控制台自己不查库、不发包。"""
@@ -333,6 +410,8 @@ class ConsoleState:
     engagement: Mapping[str, Any] = field(default_factory=dict)
     coverage: Mapping[str, Any] = field(default_factory=dict)
     audit: Sequence[Mapping[str, Any]] = ()
+    traces: Mapping[str, Sequence[Mapping[str, Any]]] = field(default_factory=dict)
+    approvals: Sequence[Approval] = ()
 
 
 def _path_for(op_id: str) -> str:
@@ -348,6 +427,8 @@ def build_app(
 ) -> FastAPI:
     app = FastAPI(title="veripen console", docs_url=None, redoc_url=None)
     paths = {op: (op_paths or {}).get(op) or _path_for(op) for op in UI_OPS}
+    # 审批决定是本控制台**唯一**的写入：内存里记最后状态（不落库、不碰发现）
+    decided: dict[str, Approval] = {}
 
     def _payload(op: str, query: Mapping[str, str] | None = None) -> Any:
         if op == "ui.findings":
@@ -396,14 +477,35 @@ def build_app(
                 "selected_by": selected,
                 "requested": wanted or None,          # 请求了但不存在的 id 必须显式可见
                 "title": picked.title,
-                "assertion": {"severity": picked.severity, "verdict": picked.verdict},
+                # 五段之一：断言（结构化，不做二次判定）
+                "assertion": {
+                    "verdict": picked.verdict,
+                    "severity": picked.severity if picked.verdict == "verified" else None,
+                    "oracle": picked.oracle_id,
+                    "asset": picked.asset_id,
+                    "confidence": picked.confidence,
+                    "reason": picked.reason_code or None,
+                },
+                # 五段之二：复现命令（不出现地址，只给 id）
+                "repro": f"make replay ID={picked.finding_id}",
+                # 五段之三：三条 trace 摘要（调用方注入；缺就是缺）
+                "traces": [dict(t) for t in state.traces.get(picked.finding_id, ())],
+                # 五段之四：路由来源（只给 8 位 + 类别，永不给正文）
                 "route": picked.route_short,
                 "bound": picked.bound,
+                "route_source": picked.route_strength,
                 "hits_state": picked.hits_state,
-                "evidenceStrength": picked.route_strength,
+                # 五段之五：capsule（有没有、能不能下）
                 "capsule": picked.capsule_id,
+                "capsule_present": picked.capsule_id is not None,
                 "replay": picked.replay_status,
             }
+        if op == "ui.approvals":
+            now = time.time()
+            merged = [decided.get(a.id, a) for a in state.approvals]
+            rows = [a.as_dict(now) for a in merged]
+            return {"count": len(rows), "rows": rows,
+                    "pending": sum(1 for r in rows if r["status"] == "pending")}
         if op == "ui.audit":
             # 恒空的页签不允许留：有事件源就报 state，没有就显式 source=unavailable
             return {
@@ -413,6 +515,29 @@ def build_app(
                 "exportable": False,
             }
         return {}
+
+    def _decide_endpoint(payload: Mapping[str, Any]) -> JSONResponse:
+        wanted = str(payload.get("id") or "")
+        decision = str(payload.get("decision") or "")
+        reason = str(payload.get("reason") or "")
+        by = str(payload.get("by") or "")
+        current = decided.get(wanted) or next((a for a in state.approvals if a.id == wanted), None)
+        if current is None:
+            raise HTTPException(status_code=404, detail={"error": "not_found", "id": wanted})
+        try:
+            updated = decide(current, decision=decision, by=by, reason=reason, now=time.time())
+        except ApprovalError as exc:
+            code = {"bad_decision": 400, "reason_required": 400,
+                    "expired": 409, "already_decided": 409, "self_approval": 403}
+            raise HTTPException(status_code=code.get(exc.code, 400),
+                                detail={"error": exc.code, "detail": exc.detail}) from exc
+        decided[updated.id] = updated
+        return JSONResponse({"ok": True, "approval": updated.as_dict(time.time())})
+
+    @app.post(paths["ui.approvals"], include_in_schema=False)
+    async def post_approvals(request: Request) -> JSONResponse:
+        body = await request.json()
+        return _decide_endpoint(body if isinstance(body, dict) else {})
 
     for op, path in paths.items():
         app.get(path, name=op)(_make_get(op, _payload))
@@ -427,14 +552,17 @@ def build_app(
         static_dir = Path(__file__).resolve().parent / "static"
         page = static_dir / "index.html"
         if page.exists():
+            # no-cache：页面与模块必须每次协商，否则升级后浏览器拿旧模块会直接白屏
             app.get(UI_PREFIX + "app", include_in_schema=False)(
-                lambda: FileResponse(page, media_type="text/html")
+                lambda: FileResponse(page, media_type="text/html",
+                                     headers={"Cache-Control": "no-cache"})
             )
         # 只暴露这一个纯函数模块：不做目录挂载（任何"顺手多挂一层"都会变成新的面）
         router_js = static_dir / "router.js"
         if router_js.exists():
             app.get(UI_PREFIX + "router.js", include_in_schema=False)(
-                lambda: FileResponse(router_js, media_type="text/javascript")
+                lambda: FileResponse(router_js, media_type="text/javascript",
+                                     headers={"Cache-Control": "no-cache"})
             )
 
     return app
