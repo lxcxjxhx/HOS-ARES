@@ -240,7 +240,7 @@ class Runtime(Protocol):
     def request_approval(self, action_class: str, reason: str) -> dict[str, Any]: ...
 
 
-def validate_call(call: ToolCall) -> ToolResult | _Strict:
+def validate_call(call: ToolCall) -> ToolResult | BaseModel:
     """分段校验的第一段：**外层**。多余字段直接拒，不透传。"""
     if call.name in RETIRED_TOOLS:
         return ToolResult(
@@ -248,10 +248,13 @@ def validate_call(call: ToolCall) -> ToolResult | _Strict:
             error_class="unknown_tool",
             hint=f"{call.name} 已删除（08 §2.1）：会拼地址的入口不许存在，请用 list_routes/rediscover_routes",
         )
-    schema = SCHEMAS.get(call.name)
+    from .surface import EXTRA_SCHEMAS
+
+    schema = SCHEMAS.get(call.name) or EXTRA_SCHEMAS.get(call.name)
     if schema is None:
         return ToolResult(ok=False, error_class="unknown_tool", hint=f"未知工具 {call.name}")
-    extra = set(call.args) - set(OUTER_FIELDS[call.name])
+    allowed_fields = OUTER_FIELDS.get(call.name) or tuple(schema.model_fields)
+    extra = set(call.args) - set(allowed_fields)
     if extra:
         return ToolResult(
             ok=False,
@@ -271,6 +274,7 @@ def dispatch(
     budget_tokens_left: int | None = None,
     store_dir: str | Path | None = None,
     plan_gate: Any | None = None,
+    surface: Any | None = None,
 ) -> ToolResult:
     """第二段校验 + 执行 + 输出归一化。**工具层不做判定、不猜语义。**
 
@@ -316,13 +320,34 @@ def dispatch(
             ok=True, data={"ok": True, "summary": checked.summary[:500], "unresolved": checked.unresolved}
         )
 
+    # 扩展工具（fs.* / shell.run / browser.render）只有一条执行路径：ToolSurface（B47）
+    if surface is not None:
+        from .surface import EXTRA_SCHEMAS
+
+        if call.name in EXTRA_SCHEMAS:
+            try:
+                out = surface.invoke(call.name, dict(call.args))
+            except Exception as exc:  # SurfaceError 等：回喂给模型，不抛
+                code = getattr(exc, "code", "tool_error")
+                return ToolResult(ok=False, error_class=str(code), hint=str(exc)[:200])
+            if not out.get("ok"):
+                return ToolResult(ok=False, error_class=str(out.get("outcome", "error")),
+                                  hint=str(out.get("reason", ""))[:200])
+            return ToolResult(ok=True, data={k: v for k, v in out.items() if k not in ("ok", "outcome")})
+
     return ToolResult(ok=False, error_class="unknown_tool", hint="未实现的分派")
 
 
 def tool_schemas() -> dict[str, dict[str, Any]]:
-    """给模型看的窄 schema（不含任何地址相关字段）。"""
+    """给模型看的窄 schema（不含任何地址相关字段）。
+
+    B47 起与 ``surface.EXTRA_SCHEMAS`` 合并：**模型看到的清单 = 工具面清单**。
+    """
+    from .surface import EXTRA_SCHEMAS
+
+    merged: dict[str, type[Any]] = {**SCHEMAS, **EXTRA_SCHEMAS}
     return {name: {"required": list(model.model_fields), "additionalProperties": False}
-            for name, model in SCHEMAS.items()}
+            for name, model in merged.items()}
 
 
 __all__ = [
