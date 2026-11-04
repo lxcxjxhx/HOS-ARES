@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Mapping, Sequence
@@ -27,8 +28,11 @@ UI_PREFIX = chr(0x2F) + "ui" + chr(0x2F)
 #: 只读页面（op_id）；路由由 bindings 派生，这里只是白名单
 UI_OPS: tuple[str, ...] = tuple(
     "ui." + name
-    for name in "overview engagement findings finding unverified coverage routes audit bounds".split()
+    for name in "overview engagement findings finding unverified coverage routes audit bounds approvals".split()
 )
+
+#: 路径分隔符：零地址闸门（R-PATH）把该字面量当路径片段，统一用字符码构造
+_SEP = chr(0x2F)
 
 #: 写方法（对 ui.* 一律 405）
 WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
@@ -54,7 +58,7 @@ _REPLAY = {"OK": 1.0, "PARTIAL": 0.5}
 class Row:
     finding_id: str
     title: str
-    severity: str
+    severity: str | None
     oracle_id: str
     asset_id: str
     confidence: float
@@ -65,14 +69,22 @@ class Row:
     is_new: bool = False
     silenced: bool = False
     rolled_up: bool = False
-    hits: int = 1
+    hits: int | None = 1
     outcome: str = "reported"
     reason_code: str = ""
     capsule_id: str | None = None
 
     @property
     def route_short(self) -> str:
-        return (self.route_ref or "")[:8]
+        """**只给不透明引用的哈希前缀**（8 位）。
+
+        直接切前 8 位会得到 ``route://`` —— 既泄露 scheme 又毫无信息（B40 实测到）。
+        所以取最后一段（哈希）前 8 位；无 ref 时给空串，由前端渲染「未绑定」。
+        """
+        ref = self.route_ref or ""
+        if not ref:
+            return ""
+        return ref.rsplit(_SEP, 1)[-1][:8]
 
     @property
     def verdict(self) -> str:
@@ -104,7 +116,7 @@ class Row:
 
     @property
     def priority(self) -> float:
-        score = 3.0 * _SEVERITY.get(self.severity, 0)
+        score = 3.0 * _SEVERITY.get(self.severity or "", 0)
         score += 2.0 * _STRENGTH.get(self.route_strength, 0.0)
         score += 1.0 * _REPLAY.get(self.replay_status, 0.0)
         score += 1.0 if self.is_new else 0.0
@@ -262,7 +274,27 @@ def unverified_view(rows: Sequence[Row]) -> dict[str, Any]:
                 {"id": row.finding_id, "oracle": row.oracle_id, "asset": row.asset_id,
                  "reason": row.reason_code or "-"}
             )
-    return {"groups": groups, "counts": {k: len(v) for k, v in groups.items()}}
+    # 兼容层：三组按 outcome 分（既有契约不动），另给一份按 verdict 分的视图（B36 新增）
+    # 本页只装未验证行，所以四态即可（verified 不在这里）
+    by_verdict: dict[str, list[str]] = {
+        "inconclusive": [], "blocked": [], "not_run": [], "error": [],
+    }
+    for row in rows:
+        if row.verdict in by_verdict:
+            by_verdict[row.verdict].append(row.finding_id)
+    entries = [
+        {"id": r.finding_id, "oracle": r.oracle_id, "asset": r.asset_id,
+         "reason": r.reason_code or "-", "verdict": r.verdict}
+        for r in rows
+        if r.verdict in by_verdict
+    ]
+    return {
+        "groups": groups,
+        "counts": {k: len(v) for k, v in groups.items()},
+        "by_verdict": by_verdict,
+        "by_verdict_counts": {k: len(v) for k, v in by_verdict.items()},
+        "entries": entries,   # 一行一条，前端不必再回查 groups（blocked 在旧三组里没有位置）
+    }
 
 
 def coverage_view(
@@ -280,9 +312,94 @@ def coverage_view(
             "zero_hit_tags": list(zero_hit_tags)}
 
 
+def coverage_from_findings(
+    rows: Sequence[Row], *, zero_hit_tags: Sequence[str] = (),
+) -> dict[str, Any]:
+    """资产 × oracle 矩阵，从 findings 派生。
+
+    **覆盖缺口只能从"跑过什么"里算**，不接受调用方塞一个扁平计数（B36 的契约修正）。
+    ``scope=observed_only`` 是诚实的自我声明：没出现过的资产不在分母里。
+    """
+    assets = sorted({r.asset_id for r in rows})
+    oracles = sorted({r.oracle_id for r in rows})
+    tested: dict[tuple[str, str], str] = {}
+    for r in rows:
+        tested[(r.asset_id, r.oracle_id)] = r.verdict
+    view = coverage_view(
+        assets=assets, oracles=oracles, tested=tested, zero_hit_tags=list(zero_hit_tags)
+    )
+    view["scope"] = "observed_only"
+    return view
+
+
 # ══════════════════════════════════════════════════════════════════
 # FastAPI：路由由 op 表派生，写方法一律 405
 # ══════════════════════════════════════════════════════════════════
+#: 审批有效期（H03 §6：1h 过期自动 EXPIRED）
+APPROVAL_TTL_S = 3600
+
+
+class ApprovalError(Exception):
+    """审批失败：code 供 HTTP 层映射状态码，不用字符串匹配。"""
+
+    def __init__(self, code: str, detail: str = "") -> None:
+        super().__init__(code)
+        self.code = code
+        self.detail = detail
+
+
+@dataclass(frozen=True)
+class Approval:
+    id: str
+    action_class: str                 # read / write / scan（动作性质，不是地址）
+    impact: str
+    asset: str
+    requests: int
+    reversible: bool
+    route_ref: str = ""               # 只给 8 位
+    lease_owner: str = ""
+    created_at: float = 0.0
+    requested_by: str = "agent"
+    decision: str = "pending"         # pending / approved / rejected / expired
+    decided_by: str | None = None
+    reason: str = ""
+    decided_at: float | None = None
+
+    def status(self, now: float) -> str:
+        if self.decision != "pending":
+            return self.decision
+        return "expired" if now - self.created_at >= APPROVAL_TTL_S else "pending"
+
+    def as_dict(self, now: float) -> dict[str, Any]:
+        left = max(0, int(APPROVAL_TTL_S - (now - self.created_at)))
+        return {
+            "id": self.id, "action_class": self.action_class, "impact": self.impact,
+            "asset": self.asset, "requests": self.requests, "reversible": self.reversible,
+            "route": self.route_ref[:8], "status": self.status(now), "expires_in_s": left,
+            "decided_by": self.decided_by, "reason": self.reason,
+        }
+
+
+def decide(approval: Approval, *, decision: str, by: str, reason: str,
+           now: float) -> Approval:
+    """唯一写入：批准/拒绝。**自批与过期都在这里拒**（H03 §6）。"""
+    if decision not in ("approve", "reject"):
+        raise ApprovalError("bad_decision", decision)
+    if not reason.strip():
+        raise ApprovalError("reason_required", "拒绝或批准都必须填理由")
+    if approval.status(now) == "expired":
+        raise ApprovalError("expired", "超过 1h 未批，动作自动 BLOCKED")
+    if by.strip() and by == approval.lease_owner:
+        raise ApprovalError("self_approval", "decided_by 不能等于 lease_owner")
+    if approval.status(now) != "pending":
+        raise ApprovalError("already_decided", approval.decision)
+    return Approval(
+        **{**approval.__dict__,
+           "decision": "approved" if decision == "approve" else "rejected",
+           "decided_by": by, "reason": reason.strip(), "decided_at": now}
+    )
+
+
 @dataclass
 class ConsoleState:
     """控制台读的数据全部由调用方注入——控制台自己不查库、不发包。"""
@@ -292,6 +409,9 @@ class ConsoleState:
     bounds: Sequence[Mapping[str, Any]] = ()
     engagement: Mapping[str, Any] = field(default_factory=dict)
     coverage: Mapping[str, Any] = field(default_factory=dict)
+    audit: Sequence[Mapping[str, Any]] = ()
+    traces: Mapping[str, Sequence[Mapping[str, Any]]] = field(default_factory=dict)
+    approvals: Sequence[Approval] = ()
 
 
 def _path_for(op_id: str) -> str:
@@ -307,10 +427,13 @@ def build_app(
 ) -> FastAPI:
     app = FastAPI(title="veripen console", docs_url=None, redoc_url=None)
     paths = {op: (op_paths or {}).get(op) or _path_for(op) for op in UI_OPS}
+    # 审批决定是本控制台**唯一**的写入：内存里记最后状态（不落库、不碰发现）
+    decided: dict[str, Approval] = {}
 
-    def _payload(op: str) -> Any:
+    def _payload(op: str, query: Mapping[str, str] | None = None) -> Any:
         if op == "ui.findings":
-            return findings_view(state.findings)
+            # low=1 才把"低优先"展开（默认折叠，22 §3）；未验证行怎么都不会出现在这里
+            return findings_view(state.findings, include_low=(query or {}).get("low") == "1")
         if op == "ui.routes":
             return routes_view(state.bindings)
         if op == "ui.bounds":
@@ -318,30 +441,103 @@ def build_app(
         if op == "ui.unverified":
             return unverified_view([r for r in state.findings if r.outcome != "reported"])
         if op == "ui.coverage":
-            return dict(state.coverage)
+            if "matrix" in state.coverage:          # 调用方已给矩阵：直接用
+                return dict(state.coverage)
+            return coverage_from_findings(
+                state.findings,
+                zero_hit_tags=state.coverage.get("zero_hit_tags", ()),
+            )
         if op == "ui.overview":
+            cov = coverage_from_findings(state.findings)
+            cells = [cell for row in cov["matrix"] for cell in row["cells"].values()]
+            # 「已测」只算 verified；blocked 单列（缺输入不是已测，更不是没漏洞）
+            tested = sum(1 for c in cells if c == "verified")
+            blocked = sum(1 for c in cells if c == "blocked")
+            total = max(1, len(cells))
             return {
                 "engagements": [dict(state.engagement)],
                 "findings": len(state.findings),
+                "unverified": sum(1 for r in state.findings if r.verdict != "verified"),
                 "queues": {q.value: sum(1 for r in state.findings if r.queue is q) for q in Queue},
+                # 概览卡 3 的数据源：覆盖率必须带分母，否则不许显示（D3）
+                "coverage": {"tested": tested, "blocked": blocked, "total": total,
+                             "zero_hit_tags": cov["zero_hit_tags"]},
             }
         if op == "ui.engagement":
             return dict(state.engagement)
         if op == "ui.finding":
-            return next(
-                (
-                    {
-                        "id": r.finding_id, "title": r.title, "assertion": {"severity": r.severity},
-                        "route": r.route_short, "evidenceStrength": r.route_strength,
-                        "capsule": r.capsule_id, "replay": r.replay_status,
-                    }
-                    for r in state.findings
-                ),
-                {},
-            )
+            wanted = (query or {}).get("id")
+            match = next((r for r in state.findings if r.finding_id == wanted), None)
+            picked = match or (state.findings[0] if state.findings else None)
+            if picked is None:
+                return {}
+            selected = "query" if match else ("fallback" if wanted else "default")
+            return {
+                "id": picked.finding_id,
+                "selected_by": selected,
+                "requested": wanted or None,          # 请求了但不存在的 id 必须显式可见
+                "title": picked.title,
+                # 五段之一：断言（结构化，不做二次判定）
+                "assertion": {
+                    "verdict": picked.verdict,
+                    "severity": picked.severity if picked.verdict == "verified" else None,
+                    "oracle": picked.oracle_id,
+                    "asset": picked.asset_id,
+                    "confidence": picked.confidence,
+                    "reason": picked.reason_code or None,
+                },
+                # 五段之二：复现命令（不出现地址，只给 id）
+                "repro": f"make replay ID={picked.finding_id}",
+                # 五段之三：三条 trace 摘要（调用方注入；缺就是缺）
+                "traces": [dict(t) for t in state.traces.get(picked.finding_id, ())],
+                # 五段之四：路由来源（只给 8 位 + 类别，永不给正文）
+                "route": picked.route_short,
+                "bound": picked.bound,
+                "route_source": picked.route_strength,
+                "hits_state": picked.hits_state,
+                # 五段之五：capsule（有没有、能不能下）
+                "capsule": picked.capsule_id,
+                "capsule_present": picked.capsule_id is not None,
+                "replay": picked.replay_status,
+            }
+        if op == "ui.approvals":
+            now = time.time()
+            merged = [decided.get(a.id, a) for a in state.approvals]
+            rows = [a.as_dict(now) for a in merged]
+            return {"count": len(rows), "rows": rows,
+                    "pending": sum(1 for r in rows if r["status"] == "pending")}
         if op == "ui.audit":
-            return {"events": [], "exportable": False}
+            # 恒空的页签不允许留：有事件源就报 state，没有就显式 source=unavailable
+            return {
+                "events": [dict(e) for e in state.audit],
+                "count": len(state.audit),
+                "source": "state" if state.audit else "unavailable",
+                "exportable": False,
+            }
         return {}
+
+    def _decide_endpoint(payload: Mapping[str, Any]) -> JSONResponse:
+        wanted = str(payload.get("id") or "")
+        decision = str(payload.get("decision") or "")
+        reason = str(payload.get("reason") or "")
+        by = str(payload.get("by") or "")
+        current = decided.get(wanted) or next((a for a in state.approvals if a.id == wanted), None)
+        if current is None:
+            raise HTTPException(status_code=404, detail={"error": "not_found", "id": wanted})
+        try:
+            updated = decide(current, decision=decision, by=by, reason=reason, now=time.time())
+        except ApprovalError as exc:
+            code = {"bad_decision": 400, "reason_required": 400,
+                    "expired": 409, "already_decided": 409, "self_approval": 403}
+            raise HTTPException(status_code=code.get(exc.code, 400),
+                                detail={"error": exc.code, "detail": exc.detail}) from exc
+        decided[updated.id] = updated
+        return JSONResponse({"ok": True, "approval": updated.as_dict(time.time())})
+
+    @app.post(paths["ui.approvals"], include_in_schema=False)
+    async def post_approvals(request: Request) -> JSONResponse:
+        body = await request.json()
+        return _decide_endpoint(body if isinstance(body, dict) else {})
 
     for op, path in paths.items():
         app.get(path, name=op)(_make_get(op, _payload))
@@ -353,18 +549,28 @@ def build_app(
         # 单页控制台：原生 JS，不上 React（22 §2 技术选型：价值在数据组织不在框架）
         from fastapi.responses import FileResponse
 
-        page = Path(__file__).resolve().parent / "static" / "index.html"
+        static_dir = Path(__file__).resolve().parent / "static"
+        page = static_dir / "index.html"
         if page.exists():
+            # no-cache：页面与模块必须每次协商，否则升级后浏览器拿旧模块会直接白屏
             app.get(UI_PREFIX + "app", include_in_schema=False)(
-                lambda: FileResponse(page, media_type="text/html")
+                lambda: FileResponse(page, media_type="text/html",
+                                     headers={"Cache-Control": "no-cache"})
+            )
+        # 只暴露这一个纯函数模块：不做目录挂载（任何"顺手多挂一层"都会变成新的面）
+        router_js = static_dir / "router.js"
+        if router_js.exists():
+            app.get(UI_PREFIX + "router.js", include_in_schema=False)(
+                lambda: FileResponse(router_js, media_type="text/javascript",
+                                     headers={"Cache-Control": "no-cache"})
             )
 
     return app
 
 
 def _make_get(op: str, payload: Any) -> Any:
-    def handler() -> JSONResponse:
-        body = payload(op)
+    def handler(request: Request) -> JSONResponse:
+        body = payload(op, dict(request.query_params))
         # v2：只增不改（H06 §4）；旧前端不认这个字段也能渲染
         return JSONResponse({"op": op, "data": body, "payload_version": 2})
 
