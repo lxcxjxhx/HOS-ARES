@@ -6,10 +6,10 @@
 | 项 | 值 |
 |---|---|
 | 包版本 | `plan-hos-v1.0` |
-| 生成时间 | 2026-11-04T02:31:11.777Z |
-| 文件数 | 13 |
-| 总字节 | 123130 |
-| 总行数（文本） | 2223 |
+| 生成时间 | 2026-11-04T03:33:46.107Z |
+| 文件数 | 14 |
+| 总字节 | 130437 |
+| 总行数（文本） | 2346 |
 
 ## 校验
 
@@ -22,7 +22,7 @@ node plan-hos-ares/check-plan.cjs --write  # 内容改过之后重生成本文�
 
 | 文件 | 字节 | 行 | sha256（前 16） |
 |---|---:|---:|---|
-| `H00-总纲与四波排期.md` | 18658 | 255 | `51d84a857684cf3e` |
+| `H00-总纲与四波排期.md` | 18792 | 256 | `ce8ecff24be5d845` |
 | `H01-能力矩阵与对标口径.md` | 7807 | 91 | `412dd79073007e97` |
 | `H02-执行面规格-strix.md` | 11101 | 188 | `3851fb3ff77f1fa9` |
 | `H03-平台面规格-驭智.md` | 10519 | 168 | `b83aa32ea50a98a7` |
@@ -33,13 +33,14 @@ node plan-hos-ares/check-plan.cjs --write  # 内容改过之后重生成本文�
 | `H08-验收与断言.md` | 6640 | 130 | `935cfedbc35327ee` |
 | `H09-风险与决策项.md` | 6305 | 91 | `e4ce2957469fa8a3` |
 | `H10-PR与文件管理.md` | 7536 | 187 | `1c5ee708f38fafa6` |
+| `H11-二期接线与探测.md` | 7173 | 122 | `0b26acc8fa6c27ad` |
 | `README.md` | 5532 | 117 | `da8281504885e3a6` |
 | `check-plan.cjs` | 12013 | 279 | `36c8d85a8c208c65` |
 
 ## 完整 sha256
 
 ```
-51d84a857684cf3ef67ff790ab70569c33c9a81a3a2e2d3428527551bd73d3e7  H00-总纲与四波排期.md
+ce8ecff24be5d8453b0b38fe0bb31c5e56691be0e73cf3bbdfff5a8d2a9751bd  H00-总纲与四波排期.md
 412dd79073007e97e37a5a17f2e4acc771510c9a5f1bde19e4cdd3829590aac6  H01-能力矩阵与对标口径.md
 3851fb3ff77f1fa9840ca3bc8ee27896d71e9a72dc1f73095c5cf93883bf6df0  H02-执行面规格-strix.md
 b83aa32ea50a98a7c19e0434aa0d39e405e648071e805dc163d48310658d816d  H03-平台面规格-驭智.md
@@ -50,6 +51,7 @@ becfda5d4556efcd3a45a2b5dcc9d3ba2714d686b486a1b114eb0193a132630d  H05-判定内�
 935cfedbc35327ee4da2b3b140f26fd959141d92194f7c0eab49609afea15ac6  H08-验收与断言.md
 e4ce2957469fa8a3e5fef214f86f919af1f902da204d89a333043d7b2279c7e0  H09-风险与决策项.md
 1c5ee708f38fafa6fc58896556377bf0d9b234a38f538bfc3fe9051df367efda  H10-PR与文件管理.md
+0b26acc8fa6c27ad56e2ebe7cf20af11b570b1171864c96e020b5255eebdfda7  H11-二期接线与探测.md
 da8281504885e3a68755072c88bab3383823fefd15c3c93a6d27ae6e9a4d1207  README.md
 36c8d85a8c208c65383aa526b7de1ea2a1fa6dbaace50cc7609e18c68c0e5dbc  check-plan.cjs
 ```
