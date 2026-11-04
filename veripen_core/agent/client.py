@@ -27,6 +27,7 @@ import urllib.request
 from typing import Any, Mapping, Sequence
 
 from ..tools.registry import SCHEMAS, TOOL_CALLS_PER_STEP, ToolCall, tool_schemas
+from ..tools.surface import surface_names
 
 #: 允许出现在模型上下文里的工具名。
 #:
@@ -35,7 +36,8 @@ from ..tools.registry import SCHEMAS, TOOL_CALLS_PER_STEP, ToolCall, tool_schema
 #: 于是模型被明确告知"这个工具可以用"，选它却被 ``validate_call`` 拒成
 #: ``unknown_tool``——真模型接上来的第一分钟就踩到了这个（B26 实测 3 步全废）。
 #: 承诺与执行必须出自同一张表，否则窄 schema 只是在替实现方掩盖缺口。
-ALLOWED_TOOLS: frozenset[str] = frozenset(SCHEMAS)
+#: 工具面是唯一清单（B47）：agent 的 7 个 + 工作台/浏览器扩展
+ALLOWED_TOOLS: frozenset[str] = frozenset(SCHEMAS) | surface_names()
 
 #: 斜杠常量：避免以 / 开头的字面量触发 noroute（与 transport.py 同风格）。
 _SLASH = chr(0x2F)

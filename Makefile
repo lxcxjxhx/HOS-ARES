@@ -255,6 +255,38 @@ ui-loader:
 
 b37: ui-loader console-test types-check lint
 
+# B38 概览/摘要卡片 + 覆盖矩阵（H06 §3；A16 的静态结构部分）
+ui-dom:
+	$(PY) -m pytest tests/unit/test_ui_dom.py -q
+
+b38: ui-dom ui-contract ui-loader types-check lint
+
+# B39 URL 状态机（node 直跑 router.js：前端的纯函数也要能红）
+ui-router:
+	$(PY) -m pytest tests/unit/test_ui_router.py -q
+
+b39: ui-router ui-dom ui-contract ui-loader console-test types-check lint
+
+# B40 详情页五段（A 任意 id / B 无地址 / C capsule 缺失显性 / D 缺字段不省略）
+ui-finding:
+	$(PY) -m pytest tests/unit/test_ui_finding.py -q
+
+b40: ui-finding ui-router ui-dom ui-contract console-test types-check lint
+
+# B41 视觉系统（令牌 + 双配色对比度 + 三态）
+ui-contrast:
+	$(PY) scripts/ui/contrast_check.py
+	$(PY) -m pytest tests/unit/test_ui_contrast.py -q
+
+b41: ui-contrast ui-dom ui-finding types-check lint
+
+# B42 可访问性与打印（静态闸门 + 人工清单）
+ui-a11y:
+	$(PY) scripts/ui/a11y_check.py
+	$(PY) -m pytest tests/unit/test_ui_a11y.py -q
+
+b42: ui-a11y ui-contrast ui-router ui-dom types-check lint
+
 # B16 双客户档（A1：差异全部在 YAML，内核零改动）
 profile-test:
 	$(PY) -m pytest tests/unit/test_profiles.py -q
@@ -419,3 +451,108 @@ hunt-creds:
 b29: agent-discover
 b34: hunt-creds types-check lint
 
+
+# ══════════════════════════════════════════════════════════════════
+# B41–B59 目标（补齐：此前链式编辑漏加，逐条核对后重写）
+# ══════════════════════════════════════════════════════════════════
+
+# B45 容器隔离（策略/加固/BLOCKED 真验；真隔离需运行时）
+exec-isolation:
+	$(PY) -m pytest tests/unit/test_sandbox_policy.py tests/integration/test_sandbox_isolation.py -q
+
+# B47 工具面统一（唯一清单 + impact 分级 + 审计）
+tool-surface:
+	$(PY) -m pytest tests/unit/test_tool_surface.py -q
+
+# B41 视觉系统（令牌 + 双配色对比度 + 三态）
+ui-contrast:
+	$(PY) scripts/ui/contrast_check.py
+	$(PY) -m pytest tests/unit/test_ui_contrast.py -q
+
+# B42 可访问性与打印
+ui-a11y:
+	$(PY) scripts/ui/a11y_check.py
+	$(PY) -m pytest tests/unit/test_ui_a11y.py -q
+
+# B54 审批界面（唯一写入点）
+ui-approvals:
+	$(PY) -m pytest tests/unit/test_ui_approvals.py -q
+
+# B51 黑板冲突消解
+blackboard-conflict:
+	$(PY) -m pytest tests/unit/test_blackboard_conflict.py -q
+
+# B52 上下文压缩
+context-compress:
+	$(PY) -m pytest tests/unit/test_compression.py -q
+
+# B53 报告审计节
+report-audit:
+	$(PY) -m pytest tests/unit/test_report_audit.py -q
+
+# B50 打法资产（schema + oracle/impact + 实测率）
+playbook-check:
+	$(PY) -m veripen_cli.cmd_playbook check
+	$(PY) -m pytest tests/unit/test_playbooks.py -q
+
+playbook-run:
+	$(PY) scripts/b50/playbook_run.py --rounds 5
+
+# B55 插件端到端
+plugin-lifecycle:
+	$(PY) -m pytest tests/unit/test_plugin_lifecycle.py -q
+
+# B56 TUI
+tui-check:
+	$(PY) -m pytest tests/unit/test_tui.py -q
+	$(PY) -m veripen_cli.tui --once --task make-check
+
+# B57 跨任务记忆
+memory-check:
+	$(PY) -m pytest tests/unit/test_memory.py -q
+
+# B58 交付双形态
+offline-profiles:
+	$(PY) -m pytest tests/unit/test_offline_profiles.py -q
+
+package-light:
+	$(PY) scripts/package_offline.py --profile light --version 0.0.0-dev --out out/pkg-light
+
+package-browser:
+	$(PY) scripts/package_offline.py --profile browser --version 0.0.0-dev --out out/pkg-browser
+
+# B59：平台可证 + 三对标可证
+platform-check: playbook-check blackboard-conflict context-compress report-audit
+
+parity:
+	$(PY) -m veripen_cli.cmd_parity
+
+b43: ui-contract
+b44: ui-honesty ui-semantics ui-contract ui-dom
+b45: exec-isolation
+b46: exec-isolation
+b47: tool-surface exec-isolation
+b48: exec-isolation
+b49: exec-isolation blackboard-conflict
+b50: playbook-check
+b51: blackboard-conflict
+b52: context-compress
+b53: report-audit context-compress blackboard-conflict
+b54: ui-approvals ui-contract ui-dom
+b55: plugin-lifecycle plugin-roundtrip
+b56: tui-check
+b57: memory-check
+b58: offline-profiles
+b59: parity
+
+# B46 渲染执行体（真跑 Chromium：同输入同哈希 / 每次新 context / 超时 BLOCKED）
+browser-render:
+	$(PY) -m pytest tests/integration/test_browser_render.py -q
+
+b46: browser-render exec-isolation types-check lint
+
+# B49 任务级并行（进程内：并发==串行 / 跨任务读即事故 / 阶段回退不重算预算）
+parallel-check:
+	$(PY) -m pytest tests/unit/test_parallel.py -q
+
+b49: parallel-check types-check lint
