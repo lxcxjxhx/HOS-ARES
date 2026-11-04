@@ -106,7 +106,18 @@ def _check_deps() -> Check:
         tui = "tui: curses"
     except Exception:  # noqa: BLE001
         tui = "tui: line-mode"
-    detail = ("pydantic + yaml 就绪" if not missing else f"缺 {missing}") + " · " + tui
+    import shutil
+
+    sandbox = "docker" if shutil.which("docker") else (
+        "podman" if shutil.which("podman") else "none")
+    try:
+        import playwright  # noqa: F401, PLC0415
+
+        browser = "playwright"
+    except Exception:  # noqa: BLE001
+        browser = "none"
+    detail = (("pydantic + yaml 就绪" if not missing else f"缺 {missing}") + " · " + tui
+              + f" · sandbox: {sandbox} · browser: {browser}")
     return Check("deps", Level.OK if not missing else Level.FAIL, detail,
                  fix="" if not missing else "pip install pydantic pyyaml")
 
