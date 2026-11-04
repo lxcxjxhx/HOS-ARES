@@ -6,8 +6,8 @@
 // 约定：hash 是唯一状态源。视图 == f(hash, payload)。
 
 export const OPS = [
-  "overview", "engagement", "findings", "finding",
-  "unverified", "coverage", "routes", "audit", "bounds",
+  "overview", "engagement", "findings", "finding", "unverified",
+  "coverage", "routes", "audit", "bounds", "approvals",
 ];
 
 /** 允许出现在 hash 里的参数（未知键丢弃，避免 URL 长毛） */
@@ -19,6 +19,12 @@ const SEV_RANK = { critical: 4, high: 3, medium: 2, low: 1, info: 0 };
 
 export function normalizeOp(op) {
   return OPS.includes(op) ? op : "overview";
+}
+
+/** 页内锚点（`#main`）不是路由：跳过它，别把"跳到主内容"当成换页 */
+export function isRouteHash(hash) {
+  const value = String(hash || "");
+  return value === "" || value.startsWith("#/");
 }
 
 /** `#/findings?q=xss&sev=high` → { op, params } */

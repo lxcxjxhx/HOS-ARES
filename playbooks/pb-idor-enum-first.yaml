@@ -1,0 +1,44 @@
+apiVersion: veripen.playbook/v1
+id: pb-idor-enum-first
+version: 1.0.0
+title: 先枚举真实对象 id，再用低权账号试（IDOR）
+oracle: idor_cross_account
+impact: read_only
+applies_when:
+  - selector_available: object_read
+  - auth_available: [primary, secondary]
+steps:
+  - id: s1
+    action: verify_accounts
+    params: { roles: [primary, secondary], check: both_active }
+    produces: [fact:auth.secondary_ok]
+    on_fail: { next: end, reason: blocked_no_secondary_account }
+  - id: s2
+    action: sample_object_ids
+    params: { source: list_endpoint, count: 5 }
+    produces: [fact:object.real_ids]
+    on_empty: { next: end, reason: skipped_no_object_ids }
+  - id: s3
+    action: run_oracle
+    params: { oracle: idor_cross_account, basis: object.real_ids }
+    produces: [verdict]
+    on_verdict:
+      VERIFIED: { next: end }
+      REFUTED: { next: s4 }
+      INCONCLUSIVE: { next: end, reason: inconclusive_three_way_failed }
+      BLOCKED: { next: end, reason: blocked_baseline_abnormal }
+  - id: s4
+    action: recheck_with_control
+    params: { control: own_object }
+    produces: [fact:control.own_ok]
+pitfalls:
+  - id: pf1
+    text: 直接猜连续 id，命中 404 就被当成"对象不存在"——那只是猜错了。
+    guard: sample_before_guess
+    step: s2
+  - id: pf2
+    text: 把 403 与 404 混为一谈，从而错过真正越权（403 恰好说明对象存在）。
+    guard: distinguish_403_404
+    step: s3
+rollback: none
+success_rate: 1.0

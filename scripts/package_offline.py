@@ -26,6 +26,8 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--src", default=str(ROOT / "packaging" / "offline"))
     ap.add_argument("--profiles", default=str(ROOT / "profiles"))
     ap.add_argument("--verify", default="", help="只校验已有包")
+    ap.add_argument("--profile", default="light", choices=("light", "browser"),
+                    help="包形态：light 只带内核；browser 额外带渲染执行体")
     args = ap.parse_args(argv)
 
     stdout = sys.stdout
@@ -46,13 +48,13 @@ def main(argv: list[str]) -> int:
 
     try:
         manifest = build(src=Path(args.src), out=out, version=args.version,
-                         extra_profiles=profiles)
+                         extra_profiles=profiles, profile=args.profile)
     except PackageError as exc:
         print(f"组包失败：{exc}")
         return 1
 
     total = sum(e.size for e in manifest.entries)
-    print(f"已生成 {out}")
+    print(f"已生成 {out}（形态 {manifest.profile}）")
     print(f"  文件 {len(manifest.entries)} 个，共 {total} 字节")
     for note in manifest.notes:
         print(f"  注意：{note}")

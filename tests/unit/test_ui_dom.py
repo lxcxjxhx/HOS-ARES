@@ -95,7 +95,7 @@ def test_structure_no_inline_handlers() -> None:
 
 def test_structure_url_state_is_module_imported() -> None:
     assert '<script type="module">' in SRC
-    assert 'from "./router.js"' in SRC, "URL 状态必须来自可测试的纯函数模块"
+    assert re.search(r'from "\./router\.js(\?v=\d+)?"', SRC), "URL 状态必须来自可测试的纯函数模块"
     assert "hashchange" in SRC, "前进/后退必须生效"
     assert "setHash(" in SRC and "parseHash(" in SRC
 

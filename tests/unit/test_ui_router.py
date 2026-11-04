@@ -71,6 +71,11 @@ def test_hash_keys_are_sorted_and_unknown_dropped() -> None:
     assert out == "#/findings?q=x&sev=high"
 
 
+def test_page_anchor_is_not_a_route() -> None:
+    """「跳到主内容」用 #main，不能被当成换页（B42 实测到的问题）。"""
+    assert _run("return [m.isRouteHash('#main'), m.isRouteHash('#/findings'), m.isRouteHash('')];")         == [False, True, True]
+
+
 def test_hash_illegal_op_falls_back_to_overview() -> None:
     assert _run("return m.parseHash('#/nope?q=1').op;") == "overview"
 

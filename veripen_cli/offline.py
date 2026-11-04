@@ -59,11 +59,16 @@ class Entry:
         return f"{self.sha256}  {self.path}"
 
 
+#: 两种包形态（H02 §3）：light 只带内核；browser 额外带渲染执行体（体积 +300MB 量级）
+PROFILES = ("light", "browser")
+
+
 @dataclass
 class Manifest:
     version: str
     entries: list[Entry] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    profile: str = "light"
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -72,6 +77,7 @@ class Manifest:
             "total_bytes": sum(e.size for e in self.entries),
             "file_count": len(self.entries),
             "notes": list(self.notes),
+            "profile": self.profile,
             "entries": [{"path": e.path, "sha256": e.sha256, "size": e.size}
                         for e in self.entries],
         }
@@ -117,14 +123,17 @@ def check_scripts(root: Path) -> list[str]:
 
 
 def build(
-    *, src: Path, out: Path, version: str, extra_profiles: Sequence[Path] = ()
+    *, src: Path, out: Path, version: str, extra_profiles: Sequence[Path] = (),
+    profile: str = "light",
 ) -> Manifest:
     """组包。**已存在的输出目录直接拒**：覆盖一个交付包是不可逆操作。"""
     if out.exists():
         raise PackageError(f"{out} 已存在：覆盖交付包不可逆，请先手工确认")
     out.mkdir(parents=True)
 
-    manifest = Manifest(version=version)
+    if profile not in PROFILES:
+        raise PackageError(f"未知包形态 {profile!r}（只支持 {PROFILES}）")
+    manifest = Manifest(version=version, profile=profile)
     # 1 安装脚本与说明由调用方提供：本函数不生成策略性文本
     for name in ("install.sh", "uninstall.sh", "README.txt"):
         if not (src / name).exists():
@@ -149,6 +158,18 @@ def build(
         encoding="utf-8",
     )
     manifest.notes.append("images/ 为空：需在有 docker 的构建机补齐（verify 会报出）")
+
+    # 3.5 浏览器执行体（H02 §3）：只在 browser 形态出现，**且不假装已装**
+    if profile == "browser":
+        browser = out / "browser"
+        browser.mkdir()
+        (browser / "README.txt").write_text(
+            "本目录需放置 Chromium/Playwright 载荷（约 300MB）。" + chr(10)
+            + "构建机：python -m playwright install chromium，随后按 12 §2.5 打 tar。" + chr(10)
+            + "本包在无浏览器的环境下构建，因此此目录只有说明——verify 会如实报告。" + chr(10),
+            encoding="utf-8",
+        )
+        manifest.notes.append("browser/ 只有说明：Chromium 载荷需在有浏览器的构建机补齐")
 
     # 4 清单
     manifest.entries = collect(out)

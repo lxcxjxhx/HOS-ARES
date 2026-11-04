@@ -4,58 +4,118 @@
 <meta charset="utf-8">
 <title>VeriPen 控制台（只读）</title>
 <style>
-  :root { color-scheme: light dark; }
-  body { font: 14px/1.5 system-ui, sans-serif; margin: 0; }
-  header { padding: 12px 16px; border-bottom: 1px solid #8884; display: flex; gap: 12px; align-items: center; }
-  header .badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #8882; }
-  nav { display: flex; gap: 4px; padding: 8px 16px; border-bottom: 1px solid #8884; flex-wrap: wrap; }
-  nav button { border: 1px solid transparent; background: none; padding: 4px 10px; border-radius: 6px; cursor: pointer; }
-  nav button[aria-current="page"] { background: #8882; border-color: #8884; }
-  main { padding: 16px; }
+  /* ── 设计令牌（B41）：所有颜色/间距/字号只在这里定义，别处一律 var() ── */
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #14161a;
+    --muted: #565f6b;
+    --line: #d5d9df;
+    --surface: #f6f7f9;
+    --danger: #a11226;
+    --danger-bg: #fde8e8;
+    --warn-bg: #fff4cc;
+    --weak: #7a5200;
+    --accent: #1a56a8;
+    --focus: #1a56a8;
+    --radius: 8px;
+    --radius-sm: 6px;
+    --pad: 16px;
+    --row-pad: 6px;
+    --fs: 14px;
+    --fs-sm: 12px;
+    --fs-lg: 24px;
+    --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+    /* 打印固定黑白（不跟随主题），同样是令牌，规则里不写色号 */
+    --print-bg: #ffffff;
+    --print-fg: #000000;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --fg: #e9ecf1;
+      --muted: #a8b0bb;
+      --line: #333941;
+      --surface: #1c2026;
+      --danger: #ff8a8a;
+      --danger-bg: #3a1d1d;
+      --warn-bg: #3a3116;
+      --weak: #e8bf63;
+      --accent: #8ab6ff;
+      --focus: #8ab6ff;
+    }
+  }
+  /* 密度：舒适 / 紧凑（偏好存 localStorage，只影响本地视图） */
+  body[data-density="compact"] { --pad: 10px; --row-pad: 3px; --fs-sm: 11px; }
+
+  body { font: var(--fs)/1.5 var(--font); margin: 0; background: var(--bg); color: var(--fg); }
+  .skip { position: absolute; left: -999px; top: 0; padding: 8px 12px; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: var(--radius-sm); z-index: 10; }
+  .skip:focus { left: 8px; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  header { padding: 12px var(--pad); border-bottom: 1px solid var(--line); display: flex; gap: 12px; align-items: center; }
+  header .badge { font-size: var(--fs-sm); padding: 2px 8px; border-radius: 999px; background: var(--surface); }
+  nav { display: flex; gap: 4px; padding: 8px var(--pad); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  nav button { border: 1px solid transparent; background: none; color: inherit; padding: 4px 10px; border-radius: var(--radius-sm); cursor: pointer; font: inherit; }
+  nav button[aria-current="page"] { background: var(--surface); border-color: var(--line); }
+  main { padding: var(--pad); }
   table { border-collapse: collapse; width: 100%; }
-  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #8883; }
-  tr:focus-visible, tr[data-active="1"] { outline: 2px solid #4a90d9; outline-offset: -2px; }
-  .sev-critical { color: #b00; font-weight: 600; }
-  .sev-high { color: #d33; }
-  .sev-low, .sev-info { color: #666; }
-  .weak { color: #a60; }
-  .alert-red { background: #fdd; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; font-weight: 600; }
-  .alert-warn { background: #ffe9b3; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; }
-  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 16px; }
-  .card { border: 1px solid #8884; border-radius: 8px; padding: 12px; }
-  .card h2 { font-size: 13px; margin: 0 0 8px; color: #888; font-weight: 600; }
-  .card .big { font-size: 24px; font-weight: 600; }
+  th, td { text-align: left; padding: var(--row-pad) 8px; border-bottom: 1px solid var(--line); }
+  tr:focus-visible, tr[data-active="1"] { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .sev-critical { color: var(--danger); font-weight: 600; }
+  .sev-high { color: var(--danger); }
+  .sev-low, .sev-info { color: var(--muted); }
+  .weak { color: var(--weak); }
+  .alert-red { background: var(--danger-bg); color: var(--danger); padding: 8px 12px; border-radius: var(--radius-sm); margin-bottom: 12px; font-weight: 600; }
+  .alert-warn { background: var(--warn-bg); padding: 8px 12px; border-radius: var(--radius-sm); margin-bottom: 12px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: var(--pad); }
+  .card { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; background: var(--surface); }
+  .card h2 { font-size: 13px; margin: 0 0 8px; color: var(--muted); font-weight: 600; }
+  .card .big { font-size: var(--fs-lg); font-weight: 600; }
   .card a[data-drill] { color: inherit; text-decoration: underline dotted; }
-  .chip { display: inline-block; padding: 1px 8px; border-radius: 999px; border: 1px solid #8886; font-size: 12px; margin: 0 4px 4px 0; }
-  .cell-verified { color: #b00; font-weight: 600; }
-  .cell-blocked { color: #555; text-decoration: line-through; }
-  .cell-not_run { color: #999; }
+  .chip { display: inline-block; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); font-size: var(--fs-sm); margin: 0 4px 4px 0; }
+  .cell-verified { color: var(--danger); font-weight: 600; }
+  .cell-blocked { color: var(--muted); text-decoration: line-through; }
+  .cell-not_run { color: var(--muted); }
   .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
-  .toolbar input, .toolbar select { padding: 4px 8px; border: 1px solid #8885; border-radius: 6px; background: none; color: inherit; font: inherit; }
-  .toolbar .hint { color: #888; font-size: 12px; }
-  .muted { color: #888; font-size: 12px; }
-  pre { background: #8881; padding: 12px; border-radius: 6px; overflow: auto; }
+  .toolbar input, .toolbar select { padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); color: inherit; font: inherit; }
+  .toolbar .hint { color: var(--muted); font-size: var(--fs-sm); }
+  .muted { color: var(--muted); font-size: var(--fs-sm); }
+  pre { background: var(--surface); padding: 12px; border-radius: var(--radius-sm); overflow: auto; }
+  .skeleton { height: 1em; border-radius: 4px; background: var(--surface); margin: 6px 0; }
+  .state-error { border: 1px solid var(--danger); border-radius: var(--radius); padding: 12px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
   @media print {
-    header, nav, .toolbar { display: none; }
+    header, nav, .toolbar, .skip { display: none; }
+    tr { break-inside: avoid; }
+    thead { display: table-header-group; }
     main { padding: 0; }
     table { font-size: 11px; }
+    body { background: var(--print-bg); color: var(--print-fg); }
   }
 </style>
 </head>
 <body>
+<a class="skip" href="#main">跳到主内容</a>
 <header>
   <strong>VeriPen</strong>
   <span class="badge">只读</span>
   <span class="muted">控制台是「看和审」，不是「改」</span>
+  <button id="density" type="button" aria-pressed="false">密度：舒适</button>
 </header>
 <nav id="nav" aria-label="页面"></nav>
-<main id="main" aria-live="polite"><p class="muted">加载中…</p></main>
+<main id="main" tabindex="-1" aria-live="polite"><p class="muted" role="status">加载中…</p></main>
 <script type="module">
 // 页面清单、URL 状态、筛选排序全部来自 router.js（纯函数，可 node 测试）
-import { OPS, DEFAULT_SORT, parseHash, buildHash, viewRows } from "./router.js";
+import { OPS, DEFAULT_SORT, parseHash, buildHash, isRouteHash, viewRows } from "./router.js?v=2";
 
 const main = document.getElementById("main");
 const nav = document.getElementById("nav");
+
+// 启动期异常必须可见：否则页面停在「加载中」，而没人知道为什么
+window.addEventListener("error", (event) => {
+  main.setAttribute("aria-busy", "false");
+  main.replaceChildren(renderError("启动", event.message || "脚本错误"));
+});
 let state = parseHash(location.hash);
 let lastRows = [];
 
@@ -139,7 +199,7 @@ function renderFindings(data, params) {
   wrap.append(toolbar);
 
   if (!rows.length) {
-    wrap.append(el("p", {}, "没有匹配的已确认结论"));
+    wrap.append(el("p", { role: "status" }, "没有匹配的已确认结论"));
   } else {
     const table = el("table", { "aria-label": "已确认发现" });
     table.append(el("tr",
@@ -252,7 +312,7 @@ function renderCoverage(d) {
   const wrap = el("div");
   wrap.append(el("p", { class: "muted" }, `口径：${d.scope || "unknown"}（分母只含跑过的面）`));
   if (!(d.matrix || []).length) {
-    wrap.append(el("p", {}, "本轮没有可展示的覆盖数据"));
+    wrap.append(el("p", { role: "status" }, "本轮没有可展示的覆盖数据"));
     return wrap;
   }
   const table = el("table");
@@ -356,6 +416,57 @@ function renderFinding(d) {
   return wrap;
 }
 
+function renderError(op, status) {
+  return el("div", { class: "state-error", role: "alert" },
+    el("p", {}, `接口不可用：${op} 返回 ${status}`),
+    el("p", { class: "muted" }, "这是环境或契约问题，不是「没有发现」。"),
+    el("p", {}, el("a", { href: "#/overview" }, "回到概览")));
+}
+
+function renderApprovals(d) {
+  const wrap = el("div");
+  const rows = d.rows || [];
+  wrap.append(el("p", { class: "muted" },
+    `待批 ${d.pending || 0} 条 —— 批准/拒绝都要填理由；1h 未批自动过期（动作 BLOCKED）`));
+  if (!rows.length) {
+    wrap.append(el("p", { role: "status" }, "当前没有待批动作"));
+    return wrap;
+  }
+  for (const row of rows) {
+    const box = el("section", { class: "card" },
+      el("h2", {}, `${row.action_class} · ${row.impact} · ${row.asset}`),
+      el("p", { class: "muted" },
+        `影响 ${row.requests} 个请求 · 可逆：${row.reversible ? "是" : "否"}`
+        + ` · 绑定 ${row.route || "未绑定"} · 状态 ${row.status}`
+        + ` · 剩余 ${row.expires_in_s}s`));
+    if (row.status === "pending") {
+      const reason = el("input", { type: "text", placeholder: "必填理由（进报告附录）",
+                                   "aria-label": "审批理由" });
+      const send = (decision) => {
+        const body = { id: row.id, decision, reason: reason.value, by: "operator" };
+        fetch("../../ui/approvals", { method: "POST",
+          headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
+          .then((resp) => resp.json().then((data) => ({ ok: resp.ok, data })))
+          .then((res) => {
+            if (!res.ok) window.alert(`审批失败：${res.data?.detail?.error || "unknown"}`);
+            render();
+          });
+      };
+      box.append(el("p", {}, reason,
+        " ",
+        el("button", { type: "button" }, "批准"),
+        el("button", { type: "button" }, "拒绝")));
+      const buttons = box.querySelectorAll("button");
+      buttons[0].addEventListener("click", () => send("approve"));
+      buttons[1].addEventListener("click", () => send("reject"));
+    } else {
+      box.append(el("p", {}, `决定：${row.status} · ${row.decided_by || "-"} · ${row.reason || "-"}`));
+    }
+    wrap.append(box);
+  }
+  return wrap;
+}
+
 function renderGeneric(data) {
   return el("pre", {}, JSON.stringify(data, null, 2));
 }
@@ -376,8 +487,18 @@ async function render() {
   for (const btn of nav.querySelectorAll("button")) {
     btn.setAttribute("aria-current", btn.dataset.op === state.op ? "page" : "false");
   }
-  main.replaceChildren(el("p", { class: "muted" }, "加载中…"));
+  main.setAttribute("aria-busy", "true");
+  main.replaceChildren(
+    el("div", { role: "status" },
+      el("p", { class: "muted" }, "加载中…"),
+      el("div", { class: "skeleton", style: "" }),
+      el("div", { class: "skeleton", style: "" })));
   const data = await fetchOp(state.op, state.params);
+  main.setAttribute("aria-busy", "false");
+  if (data && data.error) {
+    main.replaceChildren(renderError(state.op, data.error));
+    return;
+  }
   lastRows = data.rows || [];
   let view;
   if (state.op === "overview") view = renderOverview(data);
@@ -385,6 +506,7 @@ async function render() {
   else if (state.op === "coverage") view = renderCoverage(data);
   else if (state.op === "findings") view = renderFindings(data, state.params);
   else if (state.op === "finding") view = renderFinding(data);
+  else if (state.op === "approvals") view = renderApprovals(data);
   else if (state.op === "unverified") view = renderUnverified(data);
   else if (state.op === "routes") view = renderRoutes(data);
   else if (state.op === "bounds") view = renderBounds(data);
@@ -398,7 +520,11 @@ for (const op of OPS) {
   nav.append(btn);
 }
 
-window.addEventListener("hashchange", render);
+window.addEventListener("hashchange", () => {
+  // 跳过导航等页内锚点（#main）不是换页，保持当前视图
+  if (!isRouteHash(location.hash)) return;
+  render();
+});
 
 // 斜杠键用字符码构造：仓库的 R-PATH 闸门会把该字符的字面量当成路径片段（noroute 纪律）
 const SLASH = String.fromCharCode(0x2f);
@@ -430,6 +556,21 @@ document.addEventListener("keydown", (event) => {
   rows[next].dataset.active = "1";
   rows[next].scrollIntoView({ block: "nearest" });
 });
+
+// 密度偏好：只影响本地视图，不写任何服务端状态（U4）
+const densityBtn = document.getElementById("density");
+function applyDensity(value) {
+  const compact = value === "compact";
+  document.body.dataset.density = compact ? "compact" : "comfortable";
+  densityBtn.textContent = compact ? "密度：紧凑" : "密度：舒适";
+  densityBtn.setAttribute("aria-pressed", compact ? "true" : "false");
+  try { localStorage.setItem("veripen.density", compact ? "compact" : "comfortable"); } catch (_) { /* 隐私模式 */ }
+}
+let density = "comfortable";
+try { density = localStorage.getItem("veripen.density") || "comfortable"; } catch (_) { /* 隐私模式 */ }
+applyDensity(density);
+densityBtn.addEventListener("click", () =>
+  applyDensity(document.body.dataset.density === "compact" ? "comfortable" : "compact"));
 
 if (!location.hash) setHash({ op: "overview", params: {} }, { replace: true });
 render();
