@@ -45,10 +45,13 @@ from veripen_contract.parser import ContractError, parse_openapi  # noqa: E402
 from veripen_contract.planner import plan  # noqa: E402
 from veripen_core.agent import AgentState, Loop, build_decider  # noqa: E402
 from veripen_core.agent.client import from_env  # noqa: E402
+from veripen_core.blackboard import AssetFacts  # noqa: E402
+from veripen_core.briefing import build_l1a  # noqa: E402
 from veripen_core.guard.budget import Budget  # noqa: E402
 from veripen_core.guard.context import GuardContext  # noqa: E402
 from veripen_core.guard.ratelimit import ThrottleConfig, TokenBucket  # noqa: E402
 from veripen_core.guard.scope import AssetScope, PlanDecision, ScopeGuard  # noqa: E402
+from veripen_core.store import Store  # noqa: E402
 from veripen_core.routes import (  # noqa: E402
     AssetRef,
     Resolver,
@@ -212,6 +215,17 @@ def _oracles_for(routeset: RouteSet) -> tuple[str, ...]:
     return tuple(sorted(picked))
 
 
+def _load_l1a(args: Any, asset_id: str):
+    """打开跨任务记忆库并组装 L1a（`H11 B62`）。
+
+    库不存在时用内存库走同一条代码路径——**不静默新建文件**，
+    也让 ``AssetFacts.injectable()`` 在真实运行中始终被调用，而不是只在测试里。
+    """
+    db = Path(args.db) if getattr(args, "db", "") else Path(args.out) / "hunt.db"
+    store = Store(str(db) if db.exists() else ":memory:").init()
+    return build_l1a(AssetFacts(store), asset_id)
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(prog="veripen hunt")
     ap.add_argument("--target", required=True, help="真实目标根地址（scheme + host[:port]）")
@@ -237,6 +251,11 @@ def main(argv: list[str]) -> int:
         help="逗号分隔的 oracle 黑名单；默认排除写类与压力类",
     )
     ap.add_argument("--out", default=str(ROOT / "out" / "hunt"))
+    ap.add_argument(
+        "--db",
+        default="",
+        help="跨任务记忆库（默认 <out>/hunt.db；库为空时 L1a 段为空，行为与未接线等价）",
+    )
     args = ap.parse_args(argv)
     setup_stdout()
 
@@ -317,10 +336,17 @@ def main(argv: list[str]) -> int:
     try:
         decider = build_decider(client=from_env() if args.model == "live" else None)
         state = AgentState(pending=oracles, strong=(), wave_order=oracles)
+        l1a = _load_l1a(args, host)
         print(f"决策器：{decider.name}")
+        if l1a.text:
+            print(f"L1a：{len(l1a.used)} 条 / 降幅 {l1a.reduction:.0%} / "
+                  f"过期 {len(l1a.stale_ids)} / 丢弃 {l1a.dropped}")
+        else:
+            print("L1a：空（库无可用跨任务事实）")
         print("-" * 78)
         result = Loop(
-            runtime=runtime, decider=decider, goal=f"验证 {host}", max_steps=args.max_steps
+            runtime=runtime, decider=decider,
+            goal=l1a.with_goal(f"验证 {host}"), max_steps=args.max_steps,
         ).run(state)
     finally:
         http_tool.uninstall_guard()
