@@ -241,7 +241,52 @@ def check_docker(root: Path) -> CheckResult:
     )
 
 
-#: doctor 的 16 项（顺序即渲染顺序）。**加一项就要问：它能不能被别人独立重跑？**
+# ── B61：三项运行时探测 ─────────────────────────────────────────
+# 判据来源复用既有实现，不另写一套探测逻辑：两处口径一旦分叉，
+# doctor 说"环境坏了"、parity 说"只是没验"，人就不知道该信谁。
+
+
+def check_sandbox(root: Path) -> CheckResult:
+    """沙箱执行体（B45/B61）。**没有运行时 = skip**，真隔离待运行时补验。"""
+    try:
+        from veripen_core.sandbox.runner import select_executor
+    except Exception as exc:  # noqa: BLE001
+        return CheckResult("沙箱执行体", Status.FAIL, f"导入失败：{exc}"[:120],
+                           "检查 veripen_core/sandbox/runner.py")
+    exe = select_executor()
+    if exe is None:
+        return CheckResult(
+            "沙箱执行体", Status.SKIP,
+            "无 docker/podman：BLOCKED 语义已验，真隔离未验",
+            "装 docker 或 podman 后重跑 make exec-isolation",
+        )
+    return CheckResult("沙箱执行体", Status.OK, type(exe).__name__)
+
+
+def check_tui(root: Path) -> CheckResult:
+    """TUI（B56）。缺 curses 意味着只能走非交互降级路径。"""
+    try:
+        import curses  # noqa: F401, PLC0415
+    except Exception:  # noqa: BLE001
+        return CheckResult("TUI", Status.SKIP, "无 curses（Windows 需 windows-curses）",
+                           "pip install windows-curses")
+    return CheckResult("TUI", Status.OK, "curses 可用")
+
+
+def check_browser(root: Path) -> CheckResult:
+    """浏览器渲染执行体（B46）。playwright 缺失时渲染走 blocked，不是错。"""
+    try:
+        from veripen_core.render.browser import BrowserRenderer
+    except Exception as exc:  # noqa: BLE001
+        return CheckResult("浏览器渲染", Status.FAIL, f"导入失败：{exc}"[:120],
+                           "检查 veripen_core/render/browser.py")
+    if not BrowserRenderer().available():
+        return CheckResult("浏览器渲染", Status.SKIP, "playwright 不可用：渲染走 blocked",
+                           "pip install playwright && playwright install chromium")
+    return CheckResult("浏览器渲染", Status.OK, "playwright 可用")
+
+
+#: doctor 的 19 项（顺序即渲染顺序）。**加一项就要问：它能不能被别人独立重跑？**
 CHECKS: tuple[tuple[str, Callable[[Path], CheckResult]], ...] = (
     ("python", check_python),
     ("layout", check_layout),
@@ -259,6 +304,9 @@ CHECKS: tuple[tuple[str, Callable[[Path], CheckResult]], ...] = (
     ("profiles", check_profiles),
     ("lock_snapshot", check_lock_snapshot),
     ("docker", check_docker),
+    ("sandbox", check_sandbox),
+    ("tui", check_tui),
+    ("browser", check_browser),
 )
 
 
@@ -285,19 +333,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     ap.add_argument("--root", default=str(Path(__file__).resolve().parents[1]))
     ap.add_argument("--only", nargs="*", default=[])
     ap.add_argument("--json", action="store_true")
-    args = ap.parse_args(list(argv or []))
+    # B61：``python -m`` 调用时 argv 为 None，原实现传空列表 → 所有参数被静默忽略
+    args = ap.parse_args(sys.argv[1:] if argv is None else list(argv))
 
     report = run_doctor(args.root, only=args.only)
+    # Windows 控制台是 GBK：统一按 UTF-8 写出，避免 ✅/❌/替换字符触发 UnicodeEncodeError。
+    # 用 getattr 兜一下：mypy 认为 sys.stdout 可能是任意 TextIO（无 reconfigure）。
+    # B61：两个分支都要，``--json`` 此前因 argv 被忽略而从未真正执行过。
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if callable(reconfigure):
+        reconfigure(encoding="utf-8", errors="replace")
     if args.json:
         print(json.dumps({"results": [r.as_dict() for r in report.results],
                           "green": report.green, "counts": report.by_status()},
                          ensure_ascii=False, indent=2))
     else:
-        # Windows 控制台是 GBK：统一按 UTF-8 写出，避免 ✅/❌ 触发 UnicodeEncodeError。
-        # 用 getattr 兜一下：mypy 认为 sys.stdout 可能是任意 TextIO（无 reconfigure）。
-        reconfigure = getattr(sys.stdout, "reconfigure", None)
-        if callable(reconfigure):
-            reconfigure(encoding="utf-8", errors="replace")
         print(report.render())
     return 0 if report.green else 1
 

@@ -75,11 +75,14 @@ def test_render_says_deliverable_only_when_green() -> None:
 # ══════════════════════════════════════════════════════════════════
 # 2 注册表
 # ══════════════════════════════════════════════════════════════════
-def test_registry_has_sixteen_checks() -> None:
-    """B13 DoD 说的 16 项。**加一项就要问：它能不能被别人独立重跑？**"""
-    assert len(CHECKS) == 16
+def test_registry_has_nineteen_checks() -> None:
+    """B13 的 16 项 + B61 的 sandbox/tui/browser 三项。
+
+    **加一项就要问：它能不能被别人独立重跑？**（`H11 B61`）
+    """
+    assert len(CHECKS) == 19
     names = [n for n, _ in CHECKS]
-    assert len(set(names)) == 16
+    assert len(set(names)) == 19
 
 
 def test_every_check_takes_root() -> None:
