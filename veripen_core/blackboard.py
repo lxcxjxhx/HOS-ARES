@@ -28,6 +28,10 @@ class FactError(RuntimeError):
 #: 事实来源（03 §1）。``target`` 必须 from_target=1，否则自检 13 报错。
 ORIGINS = frozenset({"observed", "target", "tool", "inference"})
 
+#: 冲突消解的来源等级（B51）：目标观测 > 工具输出 > 模型推断。
+#: **这不是判定**：它只决定"同一条事实谁进上下文"，不改任何 verdict。
+ORIGIN_RANK: dict[str, int] = {"target": 3, "observed": 3, "tool": 2, "inference": 1}
+
 
 @dataclass(frozen=True)
 class Fact:
@@ -62,6 +66,17 @@ class Fact:
             "ttl_s": self.ttl_s,
             "created_at": self.created_at,
         }
+
+
+@dataclass(frozen=True)
+class Resolution:
+    """一条冲突的消解结果：谁是 live，谁被压住，为什么。"""
+
+    subject: str
+    predicate: str
+    winner: Fact
+    losers: tuple[Fact, ...]
+    reason: str
 
 
 class Blackboard:
@@ -150,10 +165,58 @@ class Blackboard:
             groups.setdefault((fact.subject, fact.predicate), []).append(fact)
         return {k: v for k, v in groups.items() if len({f.value for f in v}) > 1}
 
+    def resolve(self, task_id: str) -> list["Resolution"]:
+        """同 (subject,predicate) 多值时按 (来源等级, 观测时间) 取一条 live，其余标 superseded。
+
+        **只增不改**：落选事实不删，只是不再注入（审计要能看"当时以为是什么"）。
+        绑定置信目前不在事实里（`RouteBinding.confidence` 不进黑板），
+        所以排序键只用两级；这一缺口记在 `H03 §3` 的负结论里。
+        """
+        # 写入序兜底：同一毫秒内的两条事实，用**落库顺序（rowid）**判"谁更新"，
+        # 不用 ULID 字典序（同毫秒的随机后缀不可比），也不用 all() 的排序（它按 id 排）。
+        order = self.store.conn.execute(
+            "SELECT id FROM blackboard_facts WHERE task_id=? ORDER BY rowid", (task_id,)
+        ).fetchall()
+        insertion = {str(row["id"]): i for i, row in enumerate(order)}
+        resolutions: list[Resolution] = []
+        for (subject, predicate), members in self.disputed(task_id).items():
+            ordered = sorted(
+                members,
+                key=lambda f: (-ORIGIN_RANK.get(f.origin, 0), -f.created_at, -insertion.get(f.id, 0)),
+            )
+            winner, losers = ordered[0], tuple(ordered[1:])
+            reason = (f"origin={winner.origin}(rank {ORIGIN_RANK.get(winner.origin, 0)}) "
+                      f"newer_than={[f.origin for f in losers]}")
+            resolutions.append(Resolution(subject=subject, predicate=predicate,
+                                          winner=winner, losers=losers, reason=reason))
+        resolutions.sort(key=lambda r: (r.subject, r.predicate))
+        return resolutions
+
     def injectable(self, task_id: str, *, limit: int = 30) -> list[Fact]:
-        """L1 注入视图：已确认事实，``from_target`` 的会带前缀（08 §4）。"""
-        live = self.live(task_id)
-        return sorted(live, key=lambda f: (f.from_target, -f.created_at))[:limit]
+        """L1 注入视图：冲突已消解，按 (来源等级, 新鲜度) 排序；``from_target`` 带前缀。"""
+        winners = {r.winner.id: r.winner for r in self.resolve(task_id)}
+        losers = {f.id for r in self.resolve(task_id) for f in r.losers}
+        live = [f for f in self.live(task_id) if f.id not in losers]
+        for fact in live:
+            winners.setdefault(fact.id, fact)
+        # 注入顺序沿用既有契约：非目标事实先注入（08 §4），再按来源等级、新鲜度
+        ordered = sorted(winners.values(),
+                         key=lambda f: (f.from_target, -ORIGIN_RANK.get(f.origin, 0),
+                                        -f.created_at, f.id))
+        return ordered[:limit]
+
+    def conflict_report(self, task_id: str) -> list[dict[str, object]]:
+        """给报告用的冲突表（确定性：resolve 已排序，字段固定）。"""
+        return [
+            {
+                "subject": r.subject,
+                "predicate": r.predicate,
+                "winner": {"id": r.winner.id, "value": r.winner.value, "origin": r.winner.origin},
+                "losers": [{"id": f.id, "value": f.value, "origin": f.origin} for f in r.losers],
+                "reason": r.reason,
+            }
+            for r in self.resolve(task_id)
+        ]
 
     @staticmethod
     def _to_fact(row: Any) -> Fact:
