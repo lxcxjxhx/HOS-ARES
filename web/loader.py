@@ -59,7 +59,7 @@ def _row(oracle: str, verdict: str, *, reason: str, seq: int, asset: str) -> Row
     return Row(
         finding_id="F-" + str(seq).zfill(3),
         title=f"{oracle} {'在 ' + asset + ' 上成立' if outcome == 'reported' else '未确认'}",
-        severity=SEVERITY.get(oracle, "medium") if outcome == "reported" else "",  # type: ignore[arg-type]
+        severity=SEVERITY.get(oracle, "medium") if outcome == "reported" else None,
         oracle_id=oracle,
         asset_id=asset,
         confidence=1.0 if outcome == "reported" else 0.0,

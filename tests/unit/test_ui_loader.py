@@ -89,7 +89,7 @@ def test_loader_hits_states() -> None:
 def test_loader_severity_only_on_verified() -> None:
     rows = {r.oracle_id: r for r in load_record(_record()).findings}
     assert rows["xss_reflected_ctx"].severity == SEVERITY["xss_reflected_ctx"]
-    assert rows["ssrf_oob"].severity in ("", None), "未验证行不得带 severity 分档"
+    assert rows["ssrf_oob"].severity is None, "未验证行不得带 severity 分档（null，不是空串）"
 
 
 # ── C 空输入安全 ───────────────────────────────────────────────
