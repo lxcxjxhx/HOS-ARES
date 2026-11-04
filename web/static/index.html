@@ -49,6 +49,9 @@
   body[data-density="compact"] { --pad: 10px; --row-pad: 3px; --fs-sm: 11px; }
 
   body { font: var(--fs)/1.5 var(--font); margin: 0; background: var(--bg); color: var(--fg); }
+  .skip { position: absolute; left: -999px; top: 0; padding: 8px 12px; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: var(--radius-sm); z-index: 10; }
+  .skip:focus { left: 8px; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   header { padding: 12px var(--pad); border-bottom: 1px solid var(--line); display: flex; gap: 12px; align-items: center; }
   header .badge { font-size: var(--fs-sm); padding: 2px 8px; border-radius: 999px; background: var(--surface); }
   nav { display: flex; gap: 4px; padding: 8px var(--pad); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
@@ -82,7 +85,9 @@
   .state-error { border: 1px solid var(--danger); border-radius: var(--radius); padding: 12px; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
   @media print {
-    header, nav, .toolbar { display: none; }
+    header, nav, .toolbar, .skip { display: none; }
+    tr { break-inside: avoid; }
+    thead { display: table-header-group; }
     main { padding: 0; }
     table { font-size: 11px; }
     body { background: var(--print-bg); color: var(--print-fg); }
@@ -90,6 +95,7 @@
 </style>
 </head>
 <body>
+<a class="skip" href="#main">跳到主内容</a>
 <header>
   <strong>VeriPen</strong>
   <span class="badge">只读</span>
@@ -97,13 +103,19 @@
   <button id="density" type="button" aria-pressed="false">密度：舒适</button>
 </header>
 <nav id="nav" aria-label="页面"></nav>
-<main id="main" aria-live="polite"><p class="muted" role="status">加载中…</p></main>
+<main id="main" tabindex="-1" aria-live="polite"><p class="muted" role="status">加载中…</p></main>
 <script type="module">
 // 页面清单、URL 状态、筛选排序全部来自 router.js（纯函数，可 node 测试）
-import { OPS, DEFAULT_SORT, parseHash, buildHash, viewRows } from "./router.js";
+import { OPS, DEFAULT_SORT, parseHash, buildHash, isRouteHash, viewRows } from "./router.js?v=2";
 
 const main = document.getElementById("main");
 const nav = document.getElementById("nav");
+
+// 启动期异常必须可见：否则页面停在「加载中」，而没人知道为什么
+window.addEventListener("error", (event) => {
+  main.setAttribute("aria-busy", "false");
+  main.replaceChildren(renderError("启动", event.message || "脚本错误"));
+});
 let state = parseHash(location.hash);
 let lastRows = [];
 
@@ -411,6 +423,50 @@ function renderError(op, status) {
     el("p", {}, el("a", { href: "#/overview" }, "回到概览")));
 }
 
+function renderApprovals(d) {
+  const wrap = el("div");
+  const rows = d.rows || [];
+  wrap.append(el("p", { class: "muted" },
+    `待批 ${d.pending || 0} 条 —— 批准/拒绝都要填理由；1h 未批自动过期（动作 BLOCKED）`));
+  if (!rows.length) {
+    wrap.append(el("p", { role: "status" }, "当前没有待批动作"));
+    return wrap;
+  }
+  for (const row of rows) {
+    const box = el("section", { class: "card" },
+      el("h2", {}, `${row.action_class} · ${row.impact} · ${row.asset}`),
+      el("p", { class: "muted" },
+        `影响 ${row.requests} 个请求 · 可逆：${row.reversible ? "是" : "否"}`
+        + ` · 绑定 ${row.route || "未绑定"} · 状态 ${row.status}`
+        + ` · 剩余 ${row.expires_in_s}s`));
+    if (row.status === "pending") {
+      const reason = el("input", { type: "text", placeholder: "必填理由（进报告附录）",
+                                   "aria-label": "审批理由" });
+      const send = (decision) => {
+        const body = { id: row.id, decision, reason: reason.value, by: "operator" };
+        fetch("../../ui/approvals", { method: "POST",
+          headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
+          .then((resp) => resp.json().then((data) => ({ ok: resp.ok, data })))
+          .then((res) => {
+            if (!res.ok) window.alert(`审批失败：${res.data?.detail?.error || "unknown"}`);
+            render();
+          });
+      };
+      box.append(el("p", {}, reason,
+        " ",
+        el("button", { type: "button" }, "批准"),
+        el("button", { type: "button" }, "拒绝")));
+      const buttons = box.querySelectorAll("button");
+      buttons[0].addEventListener("click", () => send("approve"));
+      buttons[1].addEventListener("click", () => send("reject"));
+    } else {
+      box.append(el("p", {}, `决定：${row.status} · ${row.decided_by || "-"} · ${row.reason || "-"}`));
+    }
+    wrap.append(box);
+  }
+  return wrap;
+}
+
 function renderGeneric(data) {
   return el("pre", {}, JSON.stringify(data, null, 2));
 }
@@ -450,6 +506,7 @@ async function render() {
   else if (state.op === "coverage") view = renderCoverage(data);
   else if (state.op === "findings") view = renderFindings(data, state.params);
   else if (state.op === "finding") view = renderFinding(data);
+  else if (state.op === "approvals") view = renderApprovals(data);
   else if (state.op === "unverified") view = renderUnverified(data);
   else if (state.op === "routes") view = renderRoutes(data);
   else if (state.op === "bounds") view = renderBounds(data);
@@ -463,7 +520,11 @@ for (const op of OPS) {
   nav.append(btn);
 }
 
-window.addEventListener("hashchange", render);
+window.addEventListener("hashchange", () => {
+  // 跳过导航等页内锚点（#main）不是换页，保持当前视图
+  if (!isRouteHash(location.hash)) return;
+  render();
+});
 
 // 斜杠键用字符码构造：仓库的 R-PATH 闸门会把该字符的字面量当成路径片段（noroute 纪律）
 const SLASH = String.fromCharCode(0x2f);
