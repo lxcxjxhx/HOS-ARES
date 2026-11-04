@@ -66,7 +66,13 @@ class SandboxRunner(Protocol):
 | 截图作为证据附件（不进 verdict） | 用截图"看起来像 XSS"当结论 |
 | 与 oracle 配对（baseline/probe/control 各一次渲染） | 在页面里执行任意脚本（`page.evaluate` 只允许取样模板） |
 
-### 3.2 契约
+### 3.2 契约（2026-11-04 B46 落地）
+
+> `veripen_core/render/`：`dom.outline()` 归一化（丢易变属性、排属性序、折叠空白、跳过 script/style 正文）、
+> `dom_sha256()` 指纹、`redact_url()` 只留 `ref:<8位>` 与查询参数名；
+> `BrowserRenderer.render()` 每次 **new_context**（不共享 cookie）、超时归一为 `blocked/render_timeout`、
+> 截图哈希入结果。**`isolation=host` 显式写在结果里**：本机无容器，容器内渲染未验。
+> `make browser-render` 真跑 Chromium：同输入同哈希、两次渲染两个 context。
 
 ```python
 render(binding: RouteBinding, *, wait: "networkidle|domcontentloaded", timeout_s: int) -> RenderResult
@@ -151,6 +157,12 @@ strix 会扫网段/找资产，我们 `16 §7` 明确"维持不做"。
 ---
 
 ## 6. E5 · 并行执行（B49，4 人天）
+
+> **执行记录（2026-11-04，进程内版）**：`veripen_core/parallel.py` 落地——
+> 并行单位是任务、上限 3（超了直接拒）、结果按 `task_id` 排序（与调度交错无关）；
+> `TaskScope` 跨任务读**抛 `cross_task_read`**（不是过滤成空）；`run_stages` 失败回退到上一阶段、
+> 预算只记跑过的步骤。判据实测：三任务并发 findings 指纹与串行逐条相同、峰值并发 ≥2。
+> **`isolation="process"` 显式写出**：容器级并行未验。
 
 | 规则 | 内容 |
 |---|---|
