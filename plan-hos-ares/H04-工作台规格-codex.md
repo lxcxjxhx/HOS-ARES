@@ -43,6 +43,11 @@
 
 ### 3.2 三块面板（够用即可，不做花活）
 
+> **执行记录（2026-11-04）**：`veripen_cli/tui.py` 落地——`render_panels()` 纯函数出三块面板
+> （任务区含五预算 used/limit、动作流最近 8 步、线索区 pending/已闭环），
+> `run()` 用 stdlib `curses`；无 curses（本机 Windows 即如此）自动降级 `line_mode()`，
+> `doctor` 的 deps 一行显示 `tui: line-mode`。TUI 全程只读，源码里不出现 verdict。
+
 | 面板 | 内容 | 数据源 |
 |---|---|---|
 | 任务区 | 当前任务 id / 阶段 / 步数 / 五预算余量 | `task_events` + `budget` |
@@ -61,6 +66,11 @@
 ---
 
 ## 4. B57 · 跨任务记忆（2 人天）
+
+> **执行记录（2026-11-04）**：`veripen_core/memory.py` 落地——复用 `blackboard_facts`（`mem.` 前缀），
+> 写入强制 `source_event_id`、默认 TTL 30 天；`recall()` 只给未过期的，`stale()` 保留过期项（I10 不删）。
+> 三条反滥用可执行：记忆 API 源码里不出现 `VERIFIED`/`judge(`；写入前后 `findings` 行数不变；
+> 注入形态是"资产.属性 = 值（出处 …）"，不带结论语气。
 
 ### 4.1 语义先定死（否则会变成"AI 记仇"）
 
