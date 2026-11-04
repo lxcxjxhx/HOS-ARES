@@ -1,0 +1,32 @@
+{
+  "pb-idor-enum-first": {
+    "success_rate": 1.0,
+    "samples": 5,
+    "verdicts": {
+      "VERIFIED": 5,
+      "REFUTED": 0
+    },
+    "rehearsal": true,
+    "fixture": "in-process"
+  },
+  "pb-ratelimit-window": {
+    "success_rate": 1.0,
+    "samples": 5,
+    "verdicts": {
+      "VERIFIED": 5,
+      "REFUTED": 0
+    },
+    "rehearsal": true,
+    "fixture": "in-process"
+  },
+  "pb-sqli-waf-probe": {
+    "success_rate": 0.0,
+    "samples": 5,
+    "verdicts": {
+      "VERIFIED": 0,
+      "REFUTED": 5
+    },
+    "rehearsal": true,
+    "fixture": "in-process"
+  }
+}
