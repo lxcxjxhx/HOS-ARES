@@ -371,6 +371,18 @@ def render_conflict_table(rows: Sequence[Mapping[str, Any]]) -> str:
         )
     return chr(10).join(lines) + chr(10)
 
+def render_markdown_with_audit(report: ReportInput, audit_text: str) -> str:
+    """报告 + 智能体行为审计节（B53）。
+
+    审计正文由 ``veripen.report.audit.render_audit_section`` 生成——
+    报告层不连库，只负责插入，和 leads / dead-letter 两节同构。
+    """
+    body = render_markdown(report)
+    if not audit_text.strip():
+        return body
+    return body + chr(10) + chr(10) + audit_text.strip() + chr(10)
+
+
 def render_markdown(report: ReportInput) -> str:
     assert_renderable(report)
     counts = counts_by_outcome(report)

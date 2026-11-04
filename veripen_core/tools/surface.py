@@ -136,6 +136,17 @@ class ToolSurface:
             raise SurfaceError("duplicate_tool", f"{spec.name} 已注册（一个动作只能有一个实现）")
         self._specs[spec.name] = spec
 
+    def unregister(self, name: str) -> None:
+        """卸载用：只允许移除**插件注册的**工具名（`plugin.` 前缀）。
+
+        工具面本身仍然"只增"——内置工具没有卸载路径，这条限制就是边界。
+        """
+        if name not in self._specs:
+            raise SurfaceError("unknown_tool", name)
+        if not name.startswith("plugin."):
+            raise SurfaceError("not_plugin_tool", f"{name} 不是插件工具，不允许卸载")
+        del self._specs[name]
+
     def names(self) -> tuple[str, ...]:
         return tuple(sorted(self._specs))
 

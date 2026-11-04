@@ -29,6 +29,7 @@ EXPECTED: dict[str, set[str]] = {
     "routes": {"count", "by_tag", "by_source", "bindings", "template_visible", "exportable"},
     "audit": {"events", "count", "source", "exportable"},
     "bounds": {"count", "alert", "events"},
+    "approvals": {"count", "rows", "pending"},
 }
 
 
@@ -140,7 +141,15 @@ def test_contract_detects_missing_verdict(monkeypatch: pytest.MonkeyPatch) -> No
 
 
 def test_contract_write_methods_still_405() -> None:
+    """除 `ui.approvals`（唯一审批写入点，B54）外，全部 `ui.*` 写方法必须 405。"""
     client = _client()
     for op in EXPECTED:
+        if op == "approvals":
+            continue
         path = UI + op.split(".", 1)[-1]
         assert client.post(path).status_code == 405, op
+
+
+def test_contract_approvals_is_the_only_write_exception() -> None:
+    """审批页的 POST 是**唯一**破例：没有 id 时返回 404 而不是 405。"""
+    assert _client().post(UI + "approvals", json={}).status_code == 404
