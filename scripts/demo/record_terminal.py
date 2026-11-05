@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -26,6 +27,8 @@ if str(ROOT / "tests") not in sys.path:
     sys.path.insert(0, str(ROOT / "tests"))
 
 SEP = chr(0x2F)
+#: 终端颜色码（[...m）
+_ANSI = re.compile(chr(27) + r"\[[0-9;]*m")
 OUT = ROOT / "out" / "demo" / "terminal"
 FRAMES = OUT / "frames"
 VIDEO = OUT / "terminal-tour.mp4"
@@ -66,6 +69,7 @@ def _run(cmd: Sequence[str], *, stdin: str | None = None,
         input=(stdin.encode("utf-8") if stdin is not None else None),
     )
     text = (proc.stdout or b"").decode("utf-8", "replace")
+    text = _ANSI.sub("", text)   # chat 输出带颜色码，进 HTML 前必须剥掉
     if proc.returncode != 0 and not text.strip():
         text = (proc.stderr or b"").decode("utf-8", "replace")
     return [ln for ln in text.splitlines() if ln.strip()]
@@ -201,18 +205,18 @@ def _compose(shots: Sequence[dict[str, Any]]) -> dict[str, Any]:
 #: 当成硬编码行集，分成 3+3+2 既表达同一语义，也不触发那条规则的误判。
 REQUIRED_SNIPPETS = ("cmd_run", "cmd_agent", "cmd_platform") + (
     "VERIFIED 2", "ok  write", "汇总：2 资产",
-) + ("客户档：", "档策略：可用 oracle",)
+) + ("客户档：", "档策略：可用 oracle", "⏺ 计划")
 
 
 def validate_manifest(m: dict[str, Any]) -> list[str]:
     problems: list[str] = []
     video = m.get("video") or {}
-    if float(video.get("duration_s") or 0) < 18:
-        problems.append(f"视频 {video.get('duration_s')}s < 18s（四幕）")
+    if float(video.get("duration_s") or 0) < 22:
+        problems.append(f"视频 {video.get('duration_s')}s < 22s（五幕）")
     if (video.get("width"), video.get("height")) != (W, H):
         problems.append(f"分辨率 {video.get('width')}x{video.get('height')} 不符")
     scenes = [s.get("id") for s in m.get("scenes") or []]
-    if scenes != ["run", "agent", "platform", "profile"]:
+    if scenes != ["run", "agent", "platform", "profile", "chat"]:
         problems.append(f"场景序列不符：{scenes}")
     # 命令串在 scene.prompt 里（画面上是淡色的 `$` 那行），输出在 all_lines
     blob = "\n".join(m.get("all_lines") or []) + "\n" + "\n".join(
@@ -285,6 +289,20 @@ def main(argv: list[str] | None = None) -> int:
             "prompt": "VP_ASSET_WEB_01=<lab> python -m veripen_cli.cmd_platform "
                       "--profile profiles/demo-a/profile.yaml --approve",
             "lines": profile_out,
+        })
+
+        # 第五幕（B78）：交互式 agent 界面 —— 说人话，它自己选工具
+        chat_out = _run(
+            [py, "-m", "veripen_cli.cmd_chat", "--root", str(ROOT),
+             "--db", str(OUT / "chat.db"), "--yes"],
+            stdin="往 out/demo/terminal/note.txt 写 chat 能听懂人话\n"
+                  "读一下它\n"
+                  "quit\n",
+        )
+        scenes.append({
+            "id": "chat", "title": "B77 · chat", "subtitle": "交互式 agent",
+            "prompt": "python -m veripen_cli.cmd_chat --root .",
+            "lines": chat_out,
         })
     finally:
         a.stop()

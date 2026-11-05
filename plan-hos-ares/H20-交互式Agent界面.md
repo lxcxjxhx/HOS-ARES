@@ -130,6 +130,12 @@ HOS-ARES chat · model: rules · 工作根 <root>
 4. **Windows 下 `cmd -lc` 不存在** —— `执行 python -V` 永远 exit=1。
    执行器加 `cmd /c` 分支。
 
+## 录屏（B78）
+
+第五幕已进终端录屏：`python -m veripen_cli.cmd_chat`，画面里能看到
+`model: rules` 横幅、`⏺ 计划`、`✓ 写入 20B +1 -0`、以及"读一下它"的指代生效。
+五幕合计 70 帧 / 24.87s；成片自动 55.4 → **60.3s**。
+
 ## 验收命令
 
 ```bash
