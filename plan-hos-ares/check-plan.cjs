@@ -213,8 +213,15 @@ const walk = (dir) => {
 };
 walk(HERE);
 const list = files.filter((f) => f !== 'MANIFEST.md').sort();
+
+//: 行尾规范化：`.gitattributes` 声明 `eol=lf`，但 Windows 上手动编辑/脚本写入
+//: 会产生 CRLF。**不规范化就会记录 CRLF hash**，任何 LF 环境（CI / 干净 clone /
+//: git add 之后）都判 MANIFEST 过期 —— 这个债复发过两次，所以在生成与校验两端
+//: 都统一按 LF 计算，让行尾不再影响内容寻址。
+const normalize = (buf) => Buffer.from(buf.toString('utf8').replace(/\r\n/g, '\n'), 'utf8');
+
 const rows = list.map((f) => {
-  const buf = fs.readFileSync(path.join(HERE, f));
+  const buf = normalize(fs.readFileSync(path.join(HERE, f)));
   const sha = crypto.createHash('sha256').update(buf).digest('hex');
   const lines = /\.(md|cjs|js|py|json|ya?ml)$/.test(f) ? buf.toString('utf8').split('\n').length : 0;
   return { f, sha, bytes: buf.length, lines };

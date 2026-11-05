@@ -16,8 +16,14 @@ const list = files.filter(f => !skip(f)).sort();
 
 let totalBytes = 0, totalLines = 0;
 const rows = [];
+
+//: 行尾规范化：`.gitattributes` 声明 `eol=lf`，但 Windows 上手动编辑会产生 CRLF。
+//: 不规范化就会把 CRLF hash 冻进 MANIFEST，任何 LF 环境（CI / 干净 clone）
+//: 都判 MISMATCH —— 与 plan-hos-ares/check-plan.cjs 同一条纪律，两端一致。
+const normalize = (buf) => Buffer.from(buf.toString('utf8').replace(/\r\n/g, '\n'), 'utf8');
+
 for (const f of list) {
-  const buf = fs.readFileSync(f);
+  const buf = normalize(fs.readFileSync(f));
   const sha = crypto.createHash('sha256').update(buf).digest('hex');
   totalBytes += buf.length;
   let lines = 0;
