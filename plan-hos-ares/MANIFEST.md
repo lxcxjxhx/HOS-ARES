@@ -6,10 +6,10 @@
 | 项 | 值 |
 |---|---|
 | 包版本 | `plan-hos-v1.0` |
-| 生成时间 | 2026-11-05T08:38:06.550Z |
+| 生成时间 | 2026-11-05T09:35:03.795Z |
 | 文件数 | 16 |
-| 总字节 | 146459 |
-| 总行数（文本） | 2614 |
+| 总字节 | 148735 |
+| 总行数（文本） | 2653 |
 
 ## 校验
 
@@ -35,7 +35,7 @@ node plan-hos-ares/check-plan.cjs --write  # 内容改过之后重生成本文�
 | `H10-PR与文件管理.md` | 7536 | 187 | `1c5ee708f38fafa6` |
 | `H11-二期接线与探测.md` | 10515 | 169 | `61a8fb2b84111cdc` |
 | `H12-界面演示与录屏.md` | 5562 | 103 | `cc499d43a58dc547` |
-| `H13-三支柱产品化入口.md` | 6875 | 116 | `4140e05851fde15c` |
+| `H13-三支柱产品化入口.md` | 9151 | 155 | `ce90c6ae312fec82` |
 | `README.md` | 5532 | 117 | `da8281504885e3a6` |
 | `check-plan.cjs` | 12013 | 279 | `36c8d85a8c208c65` |
 
@@ -55,7 +55,7 @@ e4ce2957469fa8a3e5fef214f86f919af1f902da204d89a333043d7b2279c7e0  H09-风险与�
 1c5ee708f38fafa6fc58896556377bf0d9b234a38f538bfc3fe9051df367efda  H10-PR与文件管理.md
 61a8fb2b84111cdcee7a507defaf0cbddbc2b6f27bc79b9326e4c60acff2ff94  H11-二期接线与探测.md
 cc499d43a58dc54711b7fe81e686163fa630994ce6cd8f1b2553fc1302189282  H12-界面演示与录屏.md
-4140e05851fde15caaf4d8614ac2bbef2f59d5a58fd96faf1656af921c8fc256  H13-三支柱产品化入口.md
+ce90c6ae312fec82587c70447d4fe7907e2fe1a62029c000f81d8261b945c016  H13-三支柱产品化入口.md
 da8281504885e3a68755072c88bab3383823fefd15c3c93a6d27ae6e9a4d1207  README.md
 36c8d85a8c208c65383aa526b7de1ea2a1fa6dbaace50cc7609e18c68c0e5dbc  check-plan.cjs
 ```
