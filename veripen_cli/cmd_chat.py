@@ -36,7 +36,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from veripen_core.agent.intent import Plan, parse  # noqa: E402
+from veripen_core.agent.intent import Plan, Step, parse  # noqa: E402
 from veripen_core.agent.session import Session  # noqa: E402
 from veripen_core.store import Store  # noqa: E402
 from veripen_core.workbench.executor import make_subprocess_executor  # noqa: E402
@@ -46,6 +46,9 @@ from ._io import setup_stdio  # noqa: E402
 
 NL = chr(10)
 PROMPT = "> "
+
+#: chat 能调的工具（与 _exec_step 的分支一一对应）
+CHAT_TOOLS = frozenset("read write edit sh status run platform".split())
 C_DIM = "\x1b[2m"
 C_BOLD = "\x1b[1m"
 C_GREEN = "\x1b[32m"
@@ -67,6 +70,39 @@ def _render_plan(plan: Plan) -> None:
     _say(f"{C_BOLD}⏺ 计划{C_OFF}  {C_DIM}{plan.understood_as}{C_OFF}")
     for i, s in enumerate(plan.steps, start=1):
         _say(_step_line(i, s.tool, dict(s.args), s.why))
+
+
+def _plan_from_model(client: Any, text: str, history: list[str]) -> Plan | None:
+    """问模型「这句话该调哪个工具」。**给不出合规调用就返回 None**（由调用方降级 rules）。
+
+    校验走 ``to_tool_call``（窄 schema）：未知工具 / 多调用 / 缺字段一律拒。
+    拒绝不是错误，是"这个模型这轮用不上"，要退回规则层而不是猜。
+    """
+    ctx = {"state": {"step": len(history), "pending": []}, "tools": {}}
+    try:
+        raw = client(text, ctx)
+    except Exception:  # noqa: BLE001 —— 模型层失败一律降级，不打断会话
+        return None
+
+    # **按 chat 自己的工具集校验**，不套 agent 的 oracle 白名单：
+    # `to_tool_call` 的白名单是 SCHEMAS ∪ surface_names()，面向判定链路；
+    # chat 要的是 read/write/edit/sh/run/platform。用错表会把合规调用判成非法。
+    if isinstance(raw, (list, tuple)):
+        return None                      # 一步一调用：多调用直接拒
+    if not isinstance(raw, dict):
+        return None
+    name = str(raw.get("tool") or raw.get("name") or "")
+    if not name or name == "finish" or name not in CHAT_TOOLS:
+        return None
+    args = raw.get("args") or raw.get("arguments") or {}
+    if not isinstance(args, dict):
+        return None
+    return Plan(
+        raw=text,
+        steps=(Step(name, args, "模型选择"),),
+        understood_as=f"模型：{name}",
+        confident=True,
+    )
 
 
 def _diff_text(before: str, after: str, path: str) -> tuple[str, int, int]:
@@ -258,7 +294,15 @@ def main(argv: list[str] | None = None) -> int:
             _say(f"  步数 {len(sess.turns)} · 决策层 {layer} · 库 {db}")
             continue
 
-        plan = parse(text, history=history)
+        if client is not None:
+            model_plan = _plan_from_model(client, text, history)
+            if model_plan is None:
+                _say(f"{C_DIM}模型未给出合规调用，本轮降级 rules{C_OFF}")
+                plan = parse(text, history=history)
+            else:
+                plan = model_plan
+        else:
+            plan = parse(text, history=history)
         if not plan.ok:
             _say(f"{C_DIM}{plan.understood_as}{C_OFF}")
             continue
