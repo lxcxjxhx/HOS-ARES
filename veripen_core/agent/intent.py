@@ -32,6 +32,9 @@ _WRITE_PATTERNS = (
     re.compile(r"(?:创建|新建|建)\s*(?P<path>[^\s，,]+)\s*(?:内容|写上)?\s*(?P<content>.+)$"),
 )
 
+#: 多步分段：「改完然后读一下」「跑完接着看报告」
+_SPLIT = re.compile(r"\s*(?:然后|接着|之后|再)\s*")
+
 #: 指代词：只用来沿用上一轮的路径，不做别的语义推断
 PRONOUN_WORDS = ("它", "那个", "这个") + ("刚才", "上一条")
 
@@ -91,7 +94,7 @@ def _verb_of(text: str, words: Sequence[str]) -> str:
     return ""
 
 
-def parse(text: str, *, history: Sequence[str] = ()) -> Plan:
+def parse(text: str, *, history: Sequence[str] = (), _depth: int = 0) -> Plan:
     """人话 → 计划。
 
     ``history`` 是最近几轮的人话（用于"它/那个文件"这类指代）。
@@ -101,11 +104,29 @@ def parse(text: str, *, history: Sequence[str] = ()) -> Plan:
     if not raw:
         return Plan(raw=raw, understood_as="（空输入）")
 
+    # 多步：只有**所有分段都解析成功**才拼成计划；
+    # 任一分段失败就退回单步路径（回显没听懂），不做"一半执行一半猜"。
+    if _depth == 0:
+        parts = [p.strip() for p in _SPLIT.split(raw) if p.strip()]
+        if len(parts) > 1:
+            subs = [
+                parse(p, history=[*history, *parts[:i]], _depth=1)
+                for i, p in enumerate(parts)
+            ]
+            if all(sub.ok for sub in subs):
+                return Plan(
+                    raw=raw,
+                    steps=tuple(st for sub in subs for st in sub.steps),
+                    understood_as=" → ".join(sub.understood_as for sub in subs),
+                    confident=True,
+                )
+
     low = raw.lower()
     path = _first_path(raw)
     if not path and history:
-        # "它/那个文件"：沿用上一条出现过的路径，只此一种指代
-        if any(w in raw for w in PRONOUN_WORDS):
+        # 指代只两处：显式代词（它/那个/这个）或"读/看"这类没带路径的动词。
+        # 都只沿用**上一条出现过的路径**，不做别的推断。
+        if any(w in raw for w in PRONOUN_WORDS) or _verb_of(low, READ_WORDS):
             for prev in reversed(history):
                 p = _first_path(prev)
                 if p:
