@@ -24,8 +24,11 @@
 
 from __future__ import annotations
 
+import contextlib
 import difflib
+import io
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +44,7 @@ from veripen_core.workbench.fs import Workbench  # noqa: E402
 
 from ._io import setup_stdio  # noqa: E402
 
+NL = chr(10)
 PROMPT = "> "
 C_DIM = "\x1b[2m"
 C_BOLD = "\x1b[1m"
@@ -82,6 +86,67 @@ def _exec_step(step: Any, *, wb: Workbench, root: Path) -> tuple[bool, str]:
 
     if tool == "status":
         return True, "见上方状态行"
+
+    if tool == "run":
+        target = a.get("target", "")
+        openapi = a.get("openapi", "")
+        if not target:
+            return False, "需要目标：跑一下 <url> openapi=<契约路径>"
+        if not openapi:
+            return False, "需要契约：句子里加 openapi=<路径>（不替你猜）"
+        from veripen_cli import cmd_run
+
+        out_dir = ROOT / "out" / "chat" / f"run-{int(time.time())}"
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            try:
+                rc = cmd_run.main(["--target", target, "--openapi", openapi,
+                                   "--out", str(out_dir)])
+            except SystemExit as exc:      # cmd_run 用退出码表达失败
+                rc = int(exc.code or 0)
+        full = buf.getvalue()
+        out_dir.mkdir(parents=True, exist_ok=True)
+        log = out_dir / "stdout.log"
+        log.write_text(full, encoding="utf-8")
+        tail = NL.join(full.splitlines()[-12:])
+        msg = NL.join([
+            ("✓" if rc == 0 else "✗") + f" exit={rc}",
+            tail,
+            f"  完整输出：{log}",
+        ])
+        return rc == 0, msg
+
+    if tool == "platform":
+        name = a.get("profile", "")
+        prof = ROOT / "profiles" / name / "profile.yaml"
+        if not prof.exists():
+            avail = sorted(pp.parent.name for pp in (ROOT / "profiles").glob("*/profile.yaml"))
+            return False, (f"没有档 {name!r}。可用：{', '.join(avail) or '（无）'}")
+        openapi = a.get("openapi", "")
+        if not openapi:
+            return False, "需要契约：句子里加 openapi=<路径>（档只给资产与策略，不给契约）"
+        from veripen_cli import cmd_platform
+
+        out_dir = ROOT / "out" / "chat" / f"pf-{int(time.time())}"
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            try:
+                rc = cmd_platform.main(["--profile", str(prof), "--openapi", openapi,
+                                        "--out", str(out_dir), "--db", str(out_dir / "pf.db"),
+                                        "--approve"])
+            except SystemExit as exc:
+                rc = int(exc.code or 0)
+        full = buf.getvalue()
+        out_dir.mkdir(parents=True, exist_ok=True)
+        log = out_dir / "stdout.log"
+        log.write_text(full, encoding="utf-8")
+        tail = NL.join(full.splitlines()[-12:])
+        msg = NL.join([
+            ("✓" if rc == 0 else "✗") + f" exit={rc}",
+            tail,
+            f"  完整输出：{log}",
+        ])
+        return rc == 0, msg
 
     if tool == "read":
         res = wb.read(a["path"])
