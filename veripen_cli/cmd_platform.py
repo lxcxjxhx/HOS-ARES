@@ -153,6 +153,11 @@ def main(argv: list[str] | None = None) -> int:
         targets = [resolved[a.id] for a in profile.assets]
         profile_hash = profile.profile_hash(resolved)
 
+        # 档身份要打在终端上，不只是写进报告：操作员得知道自己按哪个档在跑
+        print(f"客户档：{profile.name} · {profile.customer_id} · {profile.engagement_id}")
+        print(f"档策略：可用 oracle {len(profile.allowed_oracles())} 类 / "
+              f"需审批 {len(profile.oracles.needs_approval)} 类")
+
         # 白名单翻黑名单：cmd_run 只有 --exclude，本批不改它的契约
         allowed = set(profile.allowed_oracles())
         deny = sorted(o.meta.id for o in ALL_ORACLES if o.meta.id not in allowed)
