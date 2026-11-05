@@ -54,15 +54,27 @@ def plan(
     *,
     source: RouteProvenance = RouteProvenance.CONTRACT,
     confirm: Iterable[str] = (),
+    accept_structural: bool = False,
 ) -> PlanResult:
     """把 operations 转成 RouteCandidate。**只带结构，不带地址。**
 
     ``confirm`` 来自 profile 的 ``selectors``——那是 operator 的确认，
     也是"结构推断不能单独成立"这条规矩的出口（19 §3.1）。
+
+    ``accept_structural=True`` 时，把 parser 已经算好的 ``proposed``（结构推断）
+    也一并确认。**这不是新造推断器**：``parser._structural_tags`` 早就会算，
+    结果一直躺在 ``Operation.proposed`` 里没有调用方传 ``confirm``——
+    于是无显式标签的 operation 全被记 ``no_tags`` 跳过（B30 召回 0.33 的直接原因之一）。
+
+    采纳后 source 保持 ``structural``（不抹成 contract），confidence 0.80 低于
+    契约显式的 0.95：**猜错时要能一眼看出这条面是靠猜的**。
     """
     out: list[RouteCandidate] = []
     skipped: list[tuple[str, str]] = []
     confirm_set = set(confirm)
+    if accept_structural:
+        # proposed 是逐 operation 的；先把所有提议的标签名收齐，才能统一 confirm
+        confirm_set |= {t.tag for op in opset.operations for t in op.proposed}
 
     for operation in opset.operations:
         if confirm_set:
@@ -96,6 +108,10 @@ def _candidate(operation: Operation, source: RouteProvenance, resolver_version: 
         # 但 profile 的 selectors 需要它们来问"有哪些面"。
         response_shape={
             "semantic_tags": list(operation.tag_names),
+            # 逐条来源：contract（契约显式）/ structural（结构推断）/ operator（档确认）。
+            # 报告与日志靠它区分"这条面是靠什么认出来的"，出错时能定位推断的影响面。
+            "tag_sources": {t.tag: t.source for t in operation.tags},
+            "tag_confidence": {t.tag: t.tag_confidence for t in operation.tags},
             "resolver_version": resolver_version,
             "score": operation.score,
             "disputed": list(operation.disputed_tags),
