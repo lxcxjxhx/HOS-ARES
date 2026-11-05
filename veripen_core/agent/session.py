@@ -32,6 +32,20 @@ class Turn:
     summary: str
 
 
+#: 单条步骤摘要的上限（事件表不是日志转储）
+SUMMARY_MAX = 400
+
+
+def _scrub(text: str) -> str:
+    """把非法字符（孤立代理项等）replace 成 ``?``。
+
+    Windows 控制台解码失败时，`surrogateescape` 会留下 ``\\udcXX``；
+    直接写库会抛 ``UnicodeEncodeError: surrogates not allowed``，
+    一条工具输出的乱码就能把整个会话打崩。
+    """
+    return text.encode("utf-8", "replace").decode("utf-8")
+
+
 @dataclass
 class Session:
     """一次会话。``task_id`` 是恢复的键。"""
@@ -50,10 +64,10 @@ class Session:
     def record(self, *, instruction: str, tool: str, ok: bool, summary: str) -> Turn:
         turn = Turn(
             index=len(self.turns) + 1,
-            instruction=instruction,
+            instruction=_scrub(instruction),
             tool=tool,
             ok=ok,
-            summary=summary[:400],
+            summary=_scrub(summary)[:SUMMARY_MAX],
         )
         self.turns.append(turn)
         self.events.record(
@@ -63,7 +77,7 @@ class Session:
             tool=tool,
             detail={
                 "turn": turn.index,
-                "instruction": instruction[:400],
+                "instruction": turn.instruction[:SUMMARY_MAX],
                 "summary": turn.summary,
             },
         )

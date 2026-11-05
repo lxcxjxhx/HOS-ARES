@@ -1,0 +1,231 @@
+"""B77 · `veripen chat`：交互式 agent 界面（`H20 B77`）。
+
+像 Codex / Claude Code 那样**说人话**，而不是敲工具名：
+
+```
+> 看下 out/demo/x.txt 里写了什么
+
+⏺ 计划
+  1. read out/demo/x.txt
+  执行？[Y/n] y
+
+⏺ read(out/demo/x.txt)
+  ✓ 12 行 · 214B
+  ...
+```
+
+三条纪律：
+
+1. **计划先于执行**，且可否决（`n` 不执行）—— 不能"先干了再告诉你干了什么"；
+2. **决策层如实渲染**：配了模型显示模型名，没配显示 `model: rules`，
+   不假装调过模型；
+3. **Ctrl+C 只中断当前轮**，回到提示符，会话不丢（事件已在 `task_events`）。
+"""
+
+from __future__ import annotations
+
+import difflib
+import sys
+from pathlib import Path
+from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from veripen_core.agent.intent import Plan, parse  # noqa: E402
+from veripen_core.agent.session import Session  # noqa: E402
+from veripen_core.store import Store  # noqa: E402
+from veripen_core.workbench.executor import make_subprocess_executor  # noqa: E402
+from veripen_core.workbench.fs import Workbench  # noqa: E402
+
+from ._io import setup_stdio  # noqa: E402
+
+PROMPT = "> "
+C_DIM = "\x1b[2m"
+C_BOLD = "\x1b[1m"
+C_GREEN = "\x1b[32m"
+C_RED = "\x1b[31m"
+C_CYAN = "\x1b[36m"
+C_OFF = "\x1b[0m"
+
+
+def _say(text: str = "") -> None:
+    print(text)
+
+
+def _step_line(i: int, tool: str, args: dict[str, Any], why: str) -> str:
+    a = ", ".join(f"{k}={v}" for k, v in args.items())
+    return f"  {i}. {C_CYAN}{tool}{C_OFF}({a})" + (f"  {C_DIM}— {why}{C_OFF}" if why else "")
+
+
+def _render_plan(plan: Plan) -> None:
+    _say(f"{C_BOLD}⏺ 计划{C_OFF}  {C_DIM}{plan.understood_as}{C_OFF}")
+    for i, s in enumerate(plan.steps, start=1):
+        _say(_step_line(i, s.tool, dict(s.args), s.why))
+
+
+def _diff_text(before: str, after: str, path: str) -> tuple[str, int, int]:
+    """返回 (diff 文本, 新增行数, 删除行数)。"""
+    bl = before.splitlines()
+    al = after.splitlines()
+    diff = list(difflib.unified_diff(bl, al, fromfile=path, tofile=path, lineterm="", n=0))
+    added = sum(1 for d in diff if d.startswith("+") and not d.startswith("+++"))
+    removed = sum(1 for d in diff if d.startswith("-") and not d.startswith("---"))
+    body = "\n".join(d for d in diff if d[:1] in "+-" and not d.startswith(("+++", "---")))
+    return body, added, removed
+
+
+def _exec_step(step: Any, *, wb: Workbench, root: Path) -> tuple[bool, str]:
+    tool = step.tool
+    a = dict(step.args)
+
+    if tool == "status":
+        return True, "见上方状态行"
+
+    if tool == "read":
+        res = wb.read(a["path"])
+        head = "\n".join(res.text.splitlines()[:12])
+        return True, f"✓ {len(res.text.splitlines())} 行 · {res.bytes_total}B\n{head}"
+
+    if tool == "write":
+        path = a["path"]
+        before = ""
+        p = (root / path)
+        if p.exists():
+            before = p.read_text(encoding="utf-8", errors="replace")
+        res = wb.write(path, a.get("content", ""), overwrite=True)
+        body, added, removed = _diff_text(before, a.get("content", ""), path)
+        stat = f"✓ 写入 {res.bytes_written}B  {C_GREEN}+{added}{C_OFF} {C_RED}-{removed}{C_OFF}"
+        return True, stat + ("\n" + body if body else "")
+
+    if tool == "edit":
+        path = a["path"]
+        p = (root / path)
+        before = p.read_text(encoding="utf-8", errors="replace") if p.exists() else ""
+        res = wb.edit(path, old=a["old"], new=a["new"])
+        after = p.read_text(encoding="utf-8", errors="replace")
+        body, added, removed = _diff_text(before, after, path)
+        stat = f"✓ 替换 {res.replacements} 处  {C_GREEN}+{added}{C_OFF} {C_RED}-{removed}{C_OFF}"
+        return True, stat + ("\n" + body if body else "")
+
+    if tool == "sh":
+        # 用户给的是**完整命令行**（"执行 python -V"），不是脚本正文。
+        # 所以交给 shell（Windows: cmd /c；POSIX: sh -c），不要按"以 python 开头"
+        # 就当成 python 脚本 —— 那会把 `python -c "print(42)"` 再套一层 python -c。
+        interp = "cmd" if sys.platform == "win32" else "sh"
+        runner = make_subprocess_executor()
+        code, out, err = runner(a["cmd"], interp, str(root), 60, {})
+        text = (out or err or "").strip()
+        head = "\n".join(text.splitlines()[:20])
+        mark = "✓" if code == 0 else "✗"
+        return code == 0, f"{mark} exit={code}\n{head}"
+
+    return False, f"未知工具：{tool}"
+
+
+def _ask(prompt: str) -> str:
+    try:
+        return input(prompt)
+    except EOFError:
+        return "quit"
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    ap = argparse.ArgumentParser(prog="veripen chat", description="交互式 agent 会话")
+    ap.add_argument("--db", default=str(ROOT / "out" / "chat.db"), help="会话事件库")
+    ap.add_argument("--root", default=str(ROOT), help="工作根（读写不得逃逸）")
+    ap.add_argument("--task-id", default="", help="会话 id（--resume 时指定）")
+    ap.add_argument("--resume", action="store_true", help="恢复已有会话")
+    ap.add_argument("--yes", action="store_true", help="跳过计划确认（脚本/录屏用）")
+    args = ap.parse_args(sys.argv[1:] if argv is None else argv)
+    setup_stdio()
+
+    root = Path(args.root).resolve()
+    if not root.exists():
+        _say(f"工作根不存在：{root}")
+        return 2
+    db = Path(args.db)
+    db.parent.mkdir(parents=True, exist_ok=True)
+    store = Store(str(db)).init()
+    sess = Session.resume(store, args.task_id) if args.resume and args.task_id else Session(store)
+    wb = Workbench(root)
+
+    # 决策层如实渲染：没模型就说 rules，不假装
+    model_name = ""
+    try:
+        from veripen_core.agent.client import from_env
+
+        client = from_env()
+        model_name = getattr(client, "model", "") if client is not None else ""
+    except Exception:  # noqa: BLE001 —— 客户端构造失败不影响规则模式
+        client = None
+
+    layer = f"model: {model_name}" if model_name else "model: rules"
+    _say(f"{C_BOLD}HOS-ARES chat{C_OFF} · {layer} · 工作根 {root}")
+    _say(f"{C_DIM}会话 {sess.task_id} · 已录 {len(sess.turns)} 步"
+         f" · /help 看用法 · Ctrl+C 中断当前轮{C_OFF}")
+    _say()
+
+    history: list[str] = [t.instruction for t in sess.turns]
+    while True:
+        try:
+            line = _ask(f"{C_GREEN}{PROMPT}{C_OFF}")
+        except KeyboardInterrupt:
+            _say("\n（已中断）")
+            return 0
+
+        text = line.strip()
+        if not text:
+            continue
+        if text in ("/quit", "/exit", "quit", "exit"):
+            break
+        if text == "/help":
+            _say("  说人话就行：「看下 out/x.txt」「往 out/y.txt 写 hello」")
+            _say("  「把 a.txt 里的 foo 改成 bar」「执行 python -V」「状态」；/quit 退出")
+            continue
+        if text == "/status":
+            _say(f"  步数 {len(sess.turns)} · 决策层 {layer} · 库 {db}")
+            continue
+
+        plan = parse(text, history=history)
+        if not plan.ok:
+            _say(f"{C_DIM}{plan.understood_as}{C_OFF}")
+            continue
+
+        _render_plan(plan)
+        if not args.yes:
+            try:
+                ans = _ask("  执行？[Y/n] ").strip().lower()
+            except KeyboardInterrupt:
+                _say("\n（已中断，未执行）")
+                continue
+            if ans and ans not in ("y", "yes", "是", "执行"):
+                _say(f"{C_DIM}已否决，未执行{C_OFF}")
+                sess.record(instruction=text, tool="plan", ok=False,
+                            summary=f"用户否决：{plan.understood_as}")
+                continue
+
+        for step in plan.steps:
+            _say(f"{C_BOLD}⏺ {step.tool}{C_OFF}({', '.join(f'{k}={v}' for k, v in step.args.items())})")
+            try:
+                ok, out = _exec_step(step, wb=wb, root=root)
+            except KeyboardInterrupt:
+                _say(f"  {C_RED}中断{C_OFF}")
+                ok, out = False, "用户中断"
+            except Exception as exc:  # noqa: BLE001 —— 工具失败要如实报，不能把界面崩掉
+                ok, out = False, f"✗ {type(exc).__name__}: {str(exc)[:160]}"
+            for ln in out.splitlines():
+                _say("  " + ln)
+            sess.record(instruction=text, tool=step.tool, ok=ok, summary=out[:240])
+            history.append(text)
+        _say()
+
+    _say(f"{C_DIM}会话结束 · {len(sess.turns)} 步已落库 · {db}{C_OFF}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
