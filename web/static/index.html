@@ -347,6 +347,31 @@ function renderRoutes(data) {
   return wrap;
 }
 
+function renderAudit(data) {
+  const wrap = el("div");
+  if (!data.count) {
+    wrap.append(el("p", { class: "muted" },
+      data.source === "unavailable"
+        ? "没有事件源：用 --db 指向事件库后此页才有内容（空表不冒充正常）"
+        : "事件库为空"));
+    return wrap;
+  }
+  wrap.append(el("p", { class: "muted" },
+    `事件 ${data.count} 条 · 只读 · 来源 ${data.source}`));
+  const table = el("table");
+  table.append(el("tr", ...["时间", "谁", "做了什么", "对象", "结果"].map((h) => el("th", {}, h))));
+  for (const e of data.events) {
+    table.append(el("tr",
+      el("td", {}, String(e.at)),
+      el("td", {}, String(e.who)),
+      el("td", {}, String(e.what)),
+      el("td", {}, String(e.asset)),
+      el("td", {}, e.ok ? "ok" : "失败")));
+  }
+  wrap.append(table);
+  return wrap;
+}
+
 function renderBounds(data) {
   const wrap = el("div");
   if (data.alert === "red") {
@@ -509,6 +534,7 @@ async function render() {
   else if (state.op === "approvals") view = renderApprovals(data);
   else if (state.op === "unverified") view = renderUnverified(data);
   else if (state.op === "routes") view = renderRoutes(data);
+  else if (state.op === "audit") view = renderAudit(data);
   else if (state.op === "bounds") view = renderBounds(data);
   else view = renderGeneric(data);
   main.replaceChildren(view);

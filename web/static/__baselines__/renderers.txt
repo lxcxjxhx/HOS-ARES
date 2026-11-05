@@ -4,6 +4,7 @@ renderOverview
 renderEngagement
 renderCoverage
 renderRoutes
+renderAudit
 renderBounds
 renderFinding
 renderError

@@ -54,14 +54,15 @@ def test_structure_renderers_match_baseline() -> None:
 
 
 def test_structure_no_page_falls_back_to_pre() -> None:
-    """overview / engagement / coverage 必须走专属渲染器（B38）。"""
+    """十个页各走专属渲染器（B38 打底，B65 补上 audit）。"""
     pairs = (("overview", "renderOverview"), ("engagement", "renderEngagement"),
              ("coverage", "renderCoverage"), ("findings", "renderFindings"),
              ("unverified", "renderUnverified"), ("finding", "renderFinding"),
-             ("routes", "renderRoutes"), ("bounds", "renderBounds"))
+             ("routes", "renderRoutes"), ("bounds", "renderBounds"),
+             ("audit", "renderAudit"), ("approvals", "renderApprovals"))
     for op, fn in pairs:
         assert f'state.op === "{op}") view = {fn}(' in SRC, f"{op} 未接 {fn}"
-    # 兜底只剩 audit（B53 接事件源前没有更好形态）
+    # 兜底仍在：新增页未接专属渲染器时落到通用 JSON，而不是白屏
     assert "else view = renderGeneric(data)" in SRC
 
 
