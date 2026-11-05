@@ -6,10 +6,10 @@
 | 项 | 值 |
 |---|---|
 | 包版本 | `plan-v3.9` |
-| 生成时间 | 2026-11-04T02:31:11.526Z |
+| 生成时间 | 2026-11-05T12:10:41.586Z |
 | 文件数 | 54 |
-| 总字节 | 786714 |
-| 总行数（文本） | 13644 |
+| 总字节 | 787425 |
+| 总行数（文本） | 13653 |
 | 内容 | 41 篇规格（含 27–39）+ 37 批计划 + README + 3 个自检脚本 + allowlist + 6 份 JSON Schema |
 
 ## 校验命令
@@ -67,8 +67,8 @@ node _verify-manifest.cjs  # 逐个文件比对 sha256（★ 内容改过就必�
 | `40-验证方案与批次规划.md` | 11617 | 238 | `0dc2fd4b2d24faf2` |
 | `99-二期池.md` | 10569 | 130 | `3997842d8d4361b7` |
 | `README.md` | 19509 | 302 | `7cb7143f6f26087e` |
-| `_gen_manifest.cjs` | 2164 | 66 | `75c7d277cf8015e0` |
-| `_verify-manifest.cjs` | 738 | 17 | `c018f719d48e7e94` |
+| `_gen_manifest.cjs` | 2560 | 72 | `9388bb9309746c84` |
+| `_verify-manifest.cjs` | 1053 | 20 | `78ff83361bfb51ed` |
 | `check-noroute.cjs` | 9002 | 234 | `b1fa93672fc4945b` |
 | `check-plan.cjs` | 10777 | 237 | `470ea1d45420c31c` |
 | `noroute.allowlist` | 639 | - | `37480026dc33d566` |
@@ -125,8 +125,8 @@ a351623dad68361f0c6b11cf3a8ea2c17965c10289476a8a47f3308a91baf4aa  39-交付收�
 0dc2fd4b2d24faf298a9fe0401a009ccc565bd8c7cb3d47866e8e95f6e56ccde  40-验证方案与批次规划.md
 3997842d8d4361b7a4f6befca5b3d23bb3f158eb09a431d5139edc2ac884bf4e  99-二期池.md
 7cb7143f6f26087ea6f8081e08f3d5add6bb167730279cd3616155fbd5ade83a  README.md
-75c7d277cf8015e038c30bb20ddeb8f116d85c3fe9eea8c2d802c92b4cf1acff  _gen_manifest.cjs
-c018f719d48e7e9432728394ddf5d9253a69feaf52cbf18cd24fe830fb9ae2ab  _verify-manifest.cjs
+9388bb9309746c84ec589b24183894a6674fdb9f1a7cef8df3be0ae42287211f  _gen_manifest.cjs
+78ff83361bfb51ed2283d860c620d0c5c2e378d978deec29dc18f43782d1450b  _verify-manifest.cjs
 b1fa93672fc4945b24af980708e441569122240f2f3f9b4c51e6d0e1e53c442a  check-noroute.cjs
 470ea1d45420c31c4ae0122299ac5f4486f31ffcd61195203041f626b5494c6e  check-plan.cjs
 37480026dc33d5668268f0b6c238ec0bb12be277f6b7623f33d216a3cfe81180  noroute.allowlist
