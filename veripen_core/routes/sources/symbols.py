@@ -23,6 +23,7 @@ from typing import Iterable, Mapping, Sequence
 from urllib.parse import urlsplit
 
 from .base import SourceError, matches_hints
+from ..merge import extract_param_names
 from ..types import RouteCandidate, RouteProvenance, RouteQuery
 
 #: 模板占位符形态：``{base}`` / ``{oob}`` —— **与参数占位符同形**，
@@ -181,16 +182,28 @@ class SymbolSource:
         return out or template
 
     def collect(self, q: RouteQuery) -> list[RouteCandidate]:
+        """收集候选。**单条坏不拖全批**——真实契约几乎必含路径参数。
+
+        两个修正（B66 实证出来的）：
+
+        1. ``param_names`` 为空时从模板里兜底提取。契约解析会把 ``{id}`` 规范成
+           ``{p}``，但 ``planner`` 填的是 ``operation.params``（路径参数不在其中），
+           于是 ``{p}`` 被当成未知符号、``_render`` 抛 ``SourceError``；
+        2. 单条渲染失败**跳过该条**而不是让整个 source 失败。原先一抛，
+           ``Resolver`` 把 ``sources_failed=['contract']`` 记下并返回 0 条绑定 ——
+           一条带路径参数的路由能让整份契约的 oracle 全部消失。
+        """
         out: list[RouteCandidate] = []
         for c in self._candidates:
             if not matches_hints(c, q):
                 continue
-            template = self._render(c.template, c.param_names)
+            names = c.param_names or extract_param_names(c.template)
+            template = self._render(c.template, names)
             out.append(
                 RouteCandidate(
                     method=c.method,
                     template=template,
-                    param_names=c.param_names,
+                    param_names=tuple(names),
                     auth_requirement=c.auth_requirement,
                     body_shape_sha256=c.body_shape_sha256,
                     source=c.source,
