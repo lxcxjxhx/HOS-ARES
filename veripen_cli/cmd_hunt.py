@@ -227,6 +227,37 @@ def _load_l1a(args: Any, asset_id: str):
     return build_l1a(AssetFacts(store), asset_id)
 
 
+def build_guard(
+    host: str,
+    routeset: Any,
+    oracles: tuple[str, ...],
+    *,
+    rate: float = 1.0,
+    burst: float = 2.0,
+) -> GuardContext:
+    """装配出网闸门（`hunt` 与 `run` 共用）。
+
+    **没有它任何出网请求都会抛 `GuardMissing`**——闸门不是可选项，
+    所以两个入口必须走同一个构造函数，否则新入口会漏装。
+    """
+    resolved = _resolve_ips(host)
+    scope = ScopeGuard(
+        asset=AssetScope(id=host, host_keys=frozenset({host}), resolved_ips=resolved),
+        scope_in=frozenset({host}),
+        deny=frozenset(),
+        min_confidence=0.0,
+        now=int(time.time()),
+    )
+    return GuardContext(
+        scope=scope,
+        routeset=routeset,
+        plan=PlanDecision(allowed_oracles=oracles),
+        bucket=TokenBucket(ThrottleConfig(rate_per_s=rate, burst=burst)),
+        budget=Budget(),
+        now=int(time.time()),
+    )
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(prog="veripen hunt")
     ap.add_argument("--target", required=True, help="真实目标根地址（scheme + host[:port]）")
