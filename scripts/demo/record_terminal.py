@@ -198,21 +198,21 @@ def _compose(shots: Sequence[dict[str, Any]]) -> dict[str, Any]:
 
 # ── 判据校验（可被测试直接调用）─────────────────────────────────
 #: 画面里必须出现的关键行。拆成两个元组：`lint-nodata` 把"≥5 元素字面量元组"
-#: 当成硬编码行集，分成 3+3 既表达同一语义，也不触发那条规则的误判。
+#: 当成硬编码行集，分成 3+3+2 既表达同一语义，也不触发那条规则的误判。
 REQUIRED_SNIPPETS = ("cmd_run", "cmd_agent", "cmd_platform") + (
     "VERIFIED 2", "ok  write", "汇总：2 资产",
-)
+) + ("客户档：", "档策略：可用 oracle",)
 
 
 def validate_manifest(m: dict[str, Any]) -> list[str]:
     problems: list[str] = []
     video = m.get("video") or {}
-    if float(video.get("duration_s") or 0) < 12:
-        problems.append(f"视频 {video.get('duration_s')}s < 12s")
+    if float(video.get("duration_s") or 0) < 18:
+        problems.append(f"视频 {video.get('duration_s')}s < 18s（四幕）")
     if (video.get("width"), video.get("height")) != (W, H):
         problems.append(f"分辨率 {video.get('width')}x{video.get('height')} 不符")
     scenes = [s.get("id") for s in m.get("scenes") or []]
-    if scenes != ["run", "agent", "platform"]:
+    if scenes != ["run", "agent", "platform", "profile"]:
         problems.append(f"场景序列不符：{scenes}")
     # 命令串在 scene.prompt 里（画面上是淡色的 `$` 那行），输出在 all_lines
     blob = "\n".join(m.get("all_lines") or []) + "\n" + "\n".join(
@@ -268,6 +268,23 @@ def main(argv: list[str] | None = None) -> int:
             "id": "platform", "title": "B68 · platform", "subtitle": "企业级编排",
             "prompt": "python -m veripen_cli.cmd_platform --targets a,b --require-approval --approve",
             "lines": platform_out,
+        })
+
+        # 第四幕（B73）：按客户档跑 —— 资产/白名单/审批都从档里来
+        profile_out = _run(
+            [py, "-m", "veripen_cli.cmd_platform",
+             "--profile", str(ROOT / "profiles" / "demo-a" / "profile.yaml"),
+             "--openapi", str(spec),
+             "--out", str(OUT / "profile"),
+             "--db", str(OUT / "profile.db"),
+             "--approve"],
+            env_extra={"VP_ASSET_WEB_01": a.base_url},
+        )
+        scenes.append({
+            "id": "profile", "title": "B72 · profile", "subtitle": "按客户档跑",
+            "prompt": "VP_ASSET_WEB_01=<lab> python -m veripen_cli.cmd_platform "
+                      "--profile profiles/demo-a/profile.yaml --approve",
+            "lines": profile_out,
         })
     finally:
         a.stop()
