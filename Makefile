@@ -10,11 +10,18 @@ VERSION ?= 1.0.0
 package-offline:
 	$(PY) scripts/package_offline.py --version $(VERSION)
 
+# 演示成片（B70）：控制台 10 页 + 三幕终端 → 一支带章节卡的成片
+# 前置：pip install playwright && playwright install chromium；ffmpeg 在 PATH
+demo:
+	$(PY) scripts/demo/record_console.py
+	$(PY) scripts/demo/record_terminal.py
+	$(PY) scripts/demo/build_tour.py
+
 # 部署自检 16 项（skip 不算通过，全 ok 才叫绿）
 doctor:
 	$(PY) -m veripen_cli.cmd_doctor
 
-.PHONY: agent-discover hunt-creds b29 b34 help test doctor package-offline bindings-check lint-noroute lint-nodata-stub lint-noleak replay coverage-matrix cases bench-leads plugin-roundtrip workbench-smoke assertions b1 b4 b5 b6 b7 b8 b9 b10 b11 b12 b12.1 b12.2 b12.3 b12.4 b12.5 b12.6 b12.7 b12.8 b12.9 b12.10 b12.11 b12.12 b12.13 b12.14 b12.15 b12.16 bench-abi bench-rerun lint-act-cmd lint-ui b13 b14 b15 b16 b17
+.PHONY: demo agent-discover hunt-creds b29 b34 help test doctor package-offline bindings-check lint-noroute lint-nodata-stub lint-noleak replay coverage-matrix cases bench-leads plugin-roundtrip workbench-smoke assertions b1 b4 b5 b6 b7 b8 b9 b10 b11 b12 b12.1 b12.2 b12.3 b12.4 b12.5 b12.6 b12.7 b12.8 b12.9 b12.10 b12.11 b12.12 b12.13 b12.14 b12.15 b12.16 bench-abi bench-rerun lint-act-cmd lint-ui b13 b14 b15 b16 b17
 
 help:
 	@echo "make test             运行 B1 契约测试"
