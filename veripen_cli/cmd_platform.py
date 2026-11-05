@@ -208,6 +208,12 @@ def main(argv: list[str] | None = None) -> int:
         extra: list[str] = []
         if args.exclude:
             extra += ["--exclude", args.exclude]
+        if profile is not None:
+            # 档的 selectors 就是 operator 的确认（`19 §3.1` 的出口）：
+            # 只采纳这些标签，不是"全部结构推断"。
+            tags = ",".join(sorted({s.semantic_tag for s in profile.selectors}))
+            if tags:
+                extra += ["--confirm-tags", tags]
         rc = cmd_run.main([
             "--target", target, "--openapi", str(spec_path), "--out", str(sub), *extra,
         ])

@@ -99,6 +99,17 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--exclude", default=DEFAULT_EXCLUDE, help="逗号分隔的 oracle 黑名单")
     ap.add_argument("--token", default="", help="主身份 token（可空；空则相关 oracle 落 BLOCKED）")
     ap.add_argument("--max-oracles", type=int, default=0, help="0 = 全跑")
+    ap.add_argument(
+        "--confirm-structural",
+        action="store_true",
+        help="采纳 parser 的结构推断标签（source=structural，置信 0.80）；"
+             "不带时与今天一致：只认契约显式标签",
+    )
+    ap.add_argument(
+        "--confirm-tags",
+        default="",
+        help="逗号分隔的标签名：只采纳这些（来自 profile 的 selectors，即 operator 确认）",
+    )
     args = ap.parse_args(sys.argv[1:] if argv is None else argv)
     setup_stdout()
 
@@ -110,15 +121,29 @@ def main(argv: list[str] | None = None) -> int:
         print(f"契约拒绝：{exc}", file=sys.stderr)
         return 2
 
-    planned = plan(opset, source=RouteProvenance.CONTRACT)
+    planned = plan(
+        opset, source=RouteProvenance.CONTRACT,
+        confirm={t.strip() for t in args.confirm_tags.split(",") if t.strip()},
+        accept_structural=args.confirm_structural,
+    )
     routeset = _build_routeset(args.target, list(planned.candidates), host)
     excluded = {x.strip() for x in args.exclude.split(",") if x.strip()}
     oracles = [o for o in _oracles_for(routeset) if o not in excluded]
     if args.max_oracles > 0:
         oracles = oracles[: args.max_oracles]
 
+    # 推断的影响面要可见：这批面里有几条是靠结构猜出来的
+    inferred = {
+        tag
+        for c in planned.candidates
+        for tag, src in (c.response_shape.get("tag_sources") or {}).items()
+        if src == "structural"
+    }
     print(f"目标：{host}")
     print(f"路由：{len(routeset.bindings)} 条绑定 / 可跑 oracle {len(oracles)} 个")
+    if inferred:
+        print(f"标签：结构推断 {len(inferred)} 类（{', '.join(sorted(inferred))}）"
+              f"—— 置信 0.80，低于契约显式 0.95")
     if not oracles:
         print("没有可跑的 oracle（契约无语义标签或全被排除）", file=sys.stderr)
         return 1
