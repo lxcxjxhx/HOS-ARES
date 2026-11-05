@@ -19,6 +19,11 @@ from typing import Any, Iterable, Mapping, Sequence
 WEAK_STRENGTHS = frozenset({"crawl", "probe"})
 HIGH_SEVERITIES = frozenset({"high", "critical"})
 ROUTE_PREFIX_LEN = 8
+#: 面标识的 scheme。``route://`` 恰好等于 ROUTE_PREFIX_LEN，直接截断会把
+#: 可辨识部分（来源段 + id 前几位）全部切掉，见 ``FindingView.route_short``。
+ROUTE_SCHEME = "route" + ":" + "//"
+#: 保留 id 前多少字符（够区分面，又不含完整 id）
+ROUTE_ID_LEN = 8
 
 
 class RenderError(RuntimeError):
@@ -85,7 +90,24 @@ class FindingView:
 
     @property
     def route_short(self) -> str:
-        return (self.route_ref or "")[:ROUTE_PREFIX_LEN]
+        """面的短标识：**保留来源段，截断不透明 id**。
+
+        早先直接 ``route_ref[:8]``，而 ``route://`` 恰好是 8 个字符——
+        于是所有发现的"面"都显示成 ``route://``，读者看不出它是契约来的还是观测来的。
+
+        完整 ref 是 ``route://contract/<64 hex>``，进报告会让每行多 60 字符，
+        且不透明 id 没有阅读价值。所以保留 scheme + 来源段，只截 id。
+        """
+        ref = self.route_ref or ""
+        if not ref:
+            return ""
+        if ref.startswith(ROUTE_SCHEME):
+            tail = ref[len(ROUTE_SCHEME):]
+            source, sep, rid = tail.partition("/")
+            if sep:
+                return ROUTE_SCHEME + source + "/" + rid[:ROUTE_ID_LEN]
+            return ROUTE_SCHEME + tail[:ROUTE_ID_LEN]
+        return ref[:ROUTE_PREFIX_LEN]
 
     @property
     def is_weak(self) -> bool:
