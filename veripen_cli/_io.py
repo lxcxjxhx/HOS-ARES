@@ -9,9 +9,31 @@ import sys
 from typing import Any, cast
 
 
+def _reconfigure(stream: Any, **kwargs: Any) -> None:
+    """有 reconfigure 就切，没有就跳过。
+
+    测试用 ``io.StringIO`` 替换 sys.stdin —— 它没有 reconfigure，
+    直接调用会 AttributeError，把整条命令打死。
+    """
+    fn = getattr(stream, "reconfigure", None)
+    if callable(fn):
+        fn(**kwargs)
+
+
 def setup_stdout() -> None:
     """把 stdout 切成 utf-8（Windows 控制台默认可能是 gbk）。"""
-    cast(Any, sys.stdout).reconfigure(encoding="utf-8", errors="replace")
+    _reconfigure(sys.stdout, encoding="utf-8", errors="replace")
 
 
-__all__ = ["setup_stdout"]
+def setup_stdio() -> None:
+    """stdout **和** stdin 都切 utf-8。
+
+    只切 stdout 不够：管道/重定向进来的中文会按 locale（Windows 上是 GBK）解码，
+    于是「往 x.txt 写 hello」里的「写」变成乱码，只有 ASCII 路径能认出来——
+    界面会把每句话都当成"读文件"（B77 实测踩到）。读交互输入的命令必须用这个。
+    """
+    setup_stdout()
+    _reconfigure(sys.stdin, encoding="utf-8", errors="replace")
+
+
+__all__ = ["setup_stdio", "setup_stdout"]

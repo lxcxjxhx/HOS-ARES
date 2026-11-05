@@ -71,7 +71,14 @@ def make_subprocess_executor(
     """
 
     def _run(script: str, interp: str, cwd: str, timeout_s: int, env: Mapping[str, str]) -> tuple[int, str, str]:
-        argv = [interp, "-c", script] if interp in ("python", "python3") else [interp, "-lc", script]
+        if interp in ("python", "python3"):
+            argv = [interp, "-c", script]
+        elif sys.platform == "win32" and interp in ("cmd", "cmd.exe"):
+            # Windows 的 cmd 没有 -lc：只认 /c。不特判会让 "执行 python -V"
+            # 这类命令在 Windows 上永远 exit=1（B77 实测）。
+            argv = ["cmd", chr(0x2F) + "c", script]
+        else:
+            argv = [interp, "-lc", script]
         proc_env = dict(base_env or {})
         proc_env.update({k: v for k, v in env.items() if v})
         try:
