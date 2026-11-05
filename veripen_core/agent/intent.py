@@ -35,6 +35,17 @@ _WRITE_PATTERNS = (
 #: 指代词：只用来沿用上一轮的路径，不做别的语义推断
 PRONOUN_WORDS = ("它", "那个", "这个") + ("刚才", "上一条")
 
+#: 跑渗透：「跑一下 X」「扫一下 X」「hunt X」，可带 openapi=<路径>
+_RUN_INTENT = re.compile(
+    r"(?:跑一下|跑一遍|扫一下|扫一遍|hunt|渗透)\s*(?P<target>\S+)?"
+)
+#: openapi 路径（可从任意位置抓）
+_OPENAPI_ARG = re.compile(r"openapi\s*[=:：]?\s*(?P<path>\S+\.(?:json|ya?ml))", re.I)
+#: 按客户档跑：「按 <档名> 跑」「用 <档名> 这个档」「按档跑」
+_PROFILE_INTENT = re.compile(
+    r"(?:按|用)\s*(?P<name>[A-Za-z0-9_.\-]+)\s*(?:这个?档|档|跑)"
+)
+
 #: 读类动词
 READ_WORDS = "看 读 打开 显示 查看 cat show read open display".split()
 #: 写类动词
@@ -105,6 +116,36 @@ def parse(text: str, *, history: Sequence[str] = ()) -> Plan:
     if _verb_of(low, STATUS_WORDS):
         return Plan(raw=raw, steps=(Step("status", {}, "查看会话状态"),),
                     understood_as="看状态（步数 / 决策层 / 工作根）", confident=True)
+
+    # ── 按客户档跑（驭智面）──────────────────────────────────────
+    pm = _PROFILE_INTENT.search(raw)
+    # "按 X 跑 / 用 X 这个档" 都是档用法；不再额外要求出现"档"字——
+    # "按 <档名> 跑" 里的"跑"是动词，不是要执行的命令。
+    if pm:
+        return Plan(
+            raw=raw,
+            steps=(Step("platform", {"profile": pm.group("name")}, "按客户档跑企业编排"),),
+            understood_as=f"按客户档「{pm.group('name')}」跑",
+            confident=True,
+        )
+
+    # ── 跑渗透（strix 面）────────────────────────────────────────
+    rm = _RUN_INTENT.search(raw)
+    if rm:
+        args: dict[str, str] = {}
+        tgt = (rm.group("target") or "").strip(" ：:，,")
+        if tgt and not tgt.startswith("openapi"):
+            args["target"] = tgt
+        om = _OPENAPI_ARG.search(raw)
+        if om:
+            args["openapi"] = om.group("path")
+        return Plan(
+            raw=raw,
+            steps=(Step("run", args, "端到端渗透：契约→oracle→capsule→报告"),),
+            understood_as=(f"跑渗透 {args.get('target', '（缺目标）')}"
+                           + (f" · 契约 {args['openapi']}" if "openapi" in args else "")),
+            confident=True,
+        )
 
     # ── 跑命令 ──────────────────────────────────────────────────
     if _verb_of(low, SHELL_WORDS) and not _verb_of(low, READ_WORDS):
