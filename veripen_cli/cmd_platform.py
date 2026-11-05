@@ -106,7 +106,8 @@ def main(argv: list[str] | None = None) -> int:
     import argparse
 
     ap = argparse.ArgumentParser(prog="veripen platform", description="企业级编排")
-    ap.add_argument("--targets", required=True, help="逗号分隔的多个目标根地址")
+    ap.add_argument("--targets", default="", help="逗号分隔的多个目标（与 --profile 二选一）")
+    ap.add_argument("--profile", default="", help="客户档路径（与 --targets 二选一）")
     ap.add_argument("--openapi", required=True, help="各目标共用的 OpenAPI 文档路径")
     ap.add_argument("--out", default=str(ROOT / "out" / "platform"))
     ap.add_argument("--db", default=str(ROOT / "out" / "platform.db"))
@@ -116,7 +117,56 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(sys.argv[1:] if argv is None else argv)
     setup_stdout()
 
-    targets = [t.strip() for t in args.targets.split(",") if t.strip()]
+    # ── 资产来源：客户档 or 直给（二选一，不静默取一个）──────────
+    profile = None
+    profile_hash = ""
+    if args.profile and args.targets:
+        print("--profile 与 --targets 不能同时给（档里已有 assets）", file=sys.stderr)
+        return 2
+    if not args.profile and not args.targets:
+        print("必须给 --profile 或 --targets", file=sys.stderr)
+        return 2
+
+    if args.profile:
+        import os
+
+        from veripen_core.profile import ProfileError, load_profile
+        from veripen_oracles import ALL_ORACLES
+
+        try:
+            profile = load_profile(args.profile)
+        except Exception as exc:  # noqa: BLE001 —— 档坏了要如实说，不猜
+            print(f"profile 解析失败：{type(exc).__name__}: {exc}", file=sys.stderr)
+            return 2
+
+        resolved = {
+            a.id: os.environ.get(profile.asset_env.get(a.id, ""), "")
+            for a in profile.assets
+        }
+        try:
+            profile.assert_resolvable(resolved)     # fail-closed：缺一个就整批拒跑
+        except ProfileError as exc:
+            names = ", ".join(sorted(profile.asset_env.values()))
+            print(f"{exc}（需要注入：{names}）", file=sys.stderr)
+            return 2
+
+        targets = [resolved[a.id] for a in profile.assets]
+        profile_hash = profile.profile_hash(resolved)
+
+        # 白名单翻黑名单：cmd_run 只有 --exclude，本批不改它的契约
+        allowed = set(profile.allowed_oracles())
+        deny = sorted(o.meta.id for o in ALL_ORACLES if o.meta.id not in allowed)
+        extra = [x.strip() for x in args.exclude.split(",") if x.strip()]
+        args.exclude = ",".join(sorted(set(deny) | set(extra)))
+
+        # 档说"要批"就必须批：命令行只决定谁签了字，不决定要不要签
+        if profile.oracles.needs_approval and not args.require_approval:
+            args.require_approval = True
+            print(f"审批：档要求 {len(profile.oracles.needs_approval)} 类动作需放行"
+                  f"（{', '.join(profile.oracles.needs_approval)}）")
+    else:
+        targets = [t.strip() for t in args.targets.split(",") if t.strip()]
+
     if not targets:
         print("没有目标", file=sys.stderr)
         return 2
@@ -181,6 +231,16 @@ def main(argv: list[str] | None = None) -> int:
         "# 平台运行报告",
         "",
         f"- 生成时间：{time.strftime('%Y-%m-%dT%H:%M:%S%z')}",
+    ]
+    if profile is not None:
+        # 档的身份必须写进报告：接手的人要知道"这批是按哪个客户档跑的"
+        lines += [
+            f"- 客户档：`{profile.name}` · {profile.customer_id} · "
+            f"engagement `{profile.engagement_id}` · hash `{profile_hash[:12]}`",
+            f"- 档策略：可用 oracle {len(profile.allowed_oracles())} 类 / "
+            f"需审批 {len(profile.oracles.needs_approval)} 类",
+        ]
+    lines += [
         f"- 资产数：{len(per_asset)}",
         f"- 结论：已验证 **{verified}** / 总项 {total}",
         "",
