@@ -251,6 +251,9 @@ def main(argv: list[str] | None = None) -> int:
             _say("  说人话就行：「看下 out/x.txt」「往 out/y.txt 写 hello」")
             _say("  「把 a.txt 里的 foo 改成 bar」「执行 python -V」「状态」；/quit 退出")
             continue
+        if text == "/history":
+            _say(sess.render_history())
+            continue
         if text == "/status":
             _say(f"  步数 {len(sess.turns)} · 决策层 {layer} · 库 {db}")
             continue
@@ -273,7 +276,8 @@ def main(argv: list[str] | None = None) -> int:
                             summary=f"用户否决：{plan.understood_as}")
                 continue
 
-        for step in plan.steps:
+        failed_at = 0
+        for idx, step in enumerate(plan.steps, start=1):
             _say(f"{C_BOLD}⏺ {step.tool}{C_OFF}({', '.join(f'{k}={v}' for k, v in step.args.items())})")
             try:
                 ok, out = _exec_step(step, wb=wb, root=root)
@@ -285,7 +289,16 @@ def main(argv: list[str] | None = None) -> int:
             for ln in out.splitlines():
                 _say("  " + ln)
             sess.record(instruction=text, tool=step.tool, ok=ok, summary=out[:240])
-            history.append(text)
+            if not ok:
+                failed_at = idx
+                break
+        if failed_at:
+            # 停止要明说停在第几步、还剩几步——用户才知道世界处于什么状态。
+            # 最后一步失败也要说（"没有后续"本身就是信息）。
+            remaining = len(plan.steps) - failed_at
+            tail = f"，后续 {remaining} 步未执行" if remaining else "（最后一步）"
+            _say(f"  {C_RED}已停止：第 {failed_at} 步失败{tail}{C_OFF}")
+        history.append(text)
         _say()
 
     _say(f"{C_DIM}会话结束 · {len(sess.turns)} 步已落库 · {db}{C_OFF}")
