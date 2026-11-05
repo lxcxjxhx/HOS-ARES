@@ -30,13 +30,14 @@ def _scenes() -> list[dict[str, object]]:
         {"id": "agent", "lines": 8, "prompt": "python -m veripen_cli.cmd_agent"},
         {"id": "platform", "lines": 12, "prompt": "python -m veripen_cli.cmd_platform"},
         {"id": "profile", "lines": 9, "prompt": "VP_ASSET_WEB_01=<lab> ... --profile ..."},
+        {"id": "chat", "lines": 8, "prompt": "python -m veripen_cli.cmd_chat --root ."},
     ]
 
 
 def _good() -> dict[str, object]:
     return {
         "scenes": _scenes(),
-        "video": {"duration_s": 19.9, "width": 1280, "height": 720},
+        "video": {"duration_s": 24.9, "width": 1280, "height": 720},
         # 拆成 3+2 拼接：`lint-nodata` 把"≥5 元素字面量列表"当成硬编码行集
         "all_lines": [
             "结论：VERIFIED 2 / 共 5 项",
@@ -45,7 +46,7 @@ def _good() -> dict[str, object]:
         ] + [
             "客户档：demo-a · DEMO-A-001 · ENG-2026-001",
             "档策略：可用 oracle 9 类 / 需审批 3 类",
-        ],
+        ] + ["⏺ 计划  写 out/x.txt"],
     }
 
 
@@ -56,8 +57,8 @@ def test_valid_manifest_passes() -> None:
 
 def test_short_video_detected() -> None:
     m = _good()
-    m["video"] = {"duration_s": 8.0, "width": 1280, "height": 720}
-    assert any("18s" in p for p in _module().validate_manifest(m))
+    m["video"] = {"duration_s": 10.0, "width": 1280, "height": 720}
+    assert any("22s" in p for p in _module().validate_manifest(m))
 
 
 def test_wrong_viewport_detected() -> None:
@@ -86,7 +87,7 @@ def test_command_strings_count_from_prompt() -> None:
     m = _good()
     m["all_lines"] = [
         "结论：VERIFIED 2 / 共 5 项", " 1 ok  write  x", "汇总：2 资产",
-    ] + ["客户档：demo-a", "档策略：可用 oracle 9 类"]
+    ] + ["客户档：demo-a", "档策略：可用 oracle 9 类", "⏺ 计划  写 x"]
     assert _module().validate_manifest(m) == [], "prompt 已提供命令串，不应误判"
 
 
@@ -96,4 +97,5 @@ def test_recorded_manifest_is_valid() -> None:
         pytest.skip("尚无 out/demo/terminal/manifest.json：先跑 scripts/demo/record_terminal.py")
     data = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert _module().validate_manifest(data) == []
-    assert [s["id"] for s in data["scenes"]] == ["run", "agent", "platform", "profile"]
+    want = ["run", "agent", "platform"] + ["profile", "chat"]
+    assert [s["id"] for s in data["scenes"]] == want
