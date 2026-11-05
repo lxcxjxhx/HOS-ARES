@@ -3,3 +3,6 @@
 放在这里的理由与依赖方向（33 §5）一致：内核只提供能力，
 "怎么用、怎么自检、怎么打包"是 CLI 的事，不该让 `veripen_core` 反过来依赖它们。
 """
+
+#: 与 pyproject.toml 的 project.version 保持一致
+__version__ = "0.1.0"

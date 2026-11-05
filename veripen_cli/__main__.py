@@ -1,0 +1,80 @@
+"""B82 · 统一 CLI 入口（`H24 B82`）。
+
+一个词进产品：`veripen chat` / `veripen run` / `veripen platform`，
+而不是记住九个 `python -m veripen_cli.cmd_xxx`。
+
+**透传规则**：子命令拿到剩下的 argv 后**原样**交给对应 `main()`。
+中间层不解析、不改写、不补默认值——一旦开始"帮你补参数"，
+`--help` 与实际行为就会分叉，而且分叉点没人记得住。
+
+不引 `click`/`typer`：零依赖纪律（离线包要能装进内网），`argparse` 够用。
+"""
+
+from __future__ import annotations
+
+import sys
+from typing import Callable, Sequence
+
+#: 子命令 → (模块路径, 一句话说明)
+COMMANDS: tuple[tuple[str, str, str], ...] = (
+    ("chat", "veripen_cli.cmd_chat", "交互式 agent 会话（说人话，计划 + 工具流 + diff）"),
+    ("run", "veripen_cli.cmd_run", "端到端渗透：契约→oracle→capsule→报告"),
+    ("platform", "veripen_cli.cmd_platform", "企业编排：多资产 + 审批阻断 + 汇总报告"),
+    ("hunt", "veripen_cli.cmd_hunt", "边跑边打印（人盯着看的那种）"),
+    ("console", "veripen_cli.cmd_console", "只读控制台（10 页）"),
+    ("agent", "veripen_cli.cmd_agent", "指令模式会话（白名单动词）"),
+    ("tui", "veripen_cli.tui", "终端三面板（只读）"),
+    ("doctor", "veripen_cli.cmd_doctor", "部署自检（19 项）"),
+    ("parity", "veripen_cli.cmd_parity", "三对标总验收（5 面 × 22 项）"),
+    ("playbook", "veripen_cli.cmd_playbook", "Playbook 资产库"),
+    ("replay", "veripen_cli.cmd_replay", "证据重放"),
+)
+
+
+def _load(module_path: str) -> Callable[[Sequence[str] | None], int]:
+    import importlib
+
+    mod = importlib.import_module(module_path)
+    fn = getattr(mod, "main", None)
+    if not callable(fn):
+        raise SystemExit(f"{module_path} 没有 main(argv)")
+    return fn
+
+
+def _usage() -> str:
+    width = max(len(name) for name, _, _ in COMMANDS)
+    lines = ["veripen —— 可验证渗透内核", "", "用法：veripen <子命令> [参数…]", "",
+             "子命令："]
+    for name, _, desc in COMMANDS:
+        lines.append(f"  {name:<{width}}  {desc}")
+    lines += ["", "每个子命令都支持 --help：veripen chat --help", ""]
+    return "\n".join(lines)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = list(sys.argv[1:] if argv is None else argv)
+
+    if not args or args[0] in ("-h", "--help", "help"):
+        print(_usage())
+        return 0
+
+    if args[0] in ("-V", "--version"):
+        import veripen_cli
+
+        print(getattr(veripen_cli, "__version__", "0.0.0"))
+        return 0
+
+    name, rest = args[0], args[1:]
+    table = {n: m for n, m, _ in COMMANDS}
+    module_path = table.get(name)
+    if module_path is None:
+        print(f"未知子命令：{name}", file=sys.stderr)
+        print(_usage(), file=sys.stderr)
+        return 2
+
+    # **原样透传**：不解析、不改写、不补默认值
+    return int(_load(module_path)(rest) or 0)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
