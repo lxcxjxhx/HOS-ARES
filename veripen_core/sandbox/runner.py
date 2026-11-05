@@ -34,6 +34,9 @@ class ExecResult:
     outcome: str = "ok"          # ok | blocked | error
     reason: str = ""
     argv: tuple[str, ...] = field(default=(), repr=False)
+    #: 执行档位：``container``（docker/podman）或 ``job-object``（Windows 受限执行）。
+    #: **不许把 job-object 写成 container**——那会让 E1 的"真隔离未验"变成假绿。
+    isolation: str = "container"
 
 
 class Executor(Protocol):
@@ -123,7 +126,59 @@ class DockerRunner:
                           reason="" if proc.returncode == 0 else f"exit={proc.returncode}")
 
 
+class JobObjectExecutor:
+    """把 Windows Job Object 适配成 ``Executor`` 协议（`H26 B84`）。
+
+    ``image`` / ``mounts`` 在这里**没有意义**：Job Object 不建文件系统命名空间。
+    它们被接受但忽略，且 ``isolation`` 如实写 ``job-object``。
+    """
+
+    name = "job-object"
+
+    def __init__(self, runner: Any | None = None) -> None:
+        from .win_job import WinJobRunner
+
+        self._runner = runner or WinJobRunner()
+
+    def available(self) -> bool:
+        return bool(self._runner.available())
+
+    def run(
+        self,
+        argv: Sequence[str],
+        *,
+        image: str = "",
+        mounts: Sequence[tuple[str, str]] = (),
+        env: Sequence[tuple[str, str]] = (),
+        timeout_s: int = 120,
+    ) -> ExecResult:
+        res = self._runner.run(
+            list(argv), timeout_s=timeout_s,
+            env={k: v for k, v in env} if env else None,
+        )
+        return ExecResult(
+            exit_code=res.exit_code,
+            stdout=res.stdout.decode("utf-8", "replace"),
+            stderr=res.stderr.decode("utf-8", "replace"),
+            outcome=res.outcome,
+            reason=res.reason,
+            argv=tuple(argv),
+            isolation="job-object",
+        )
+
+
 def select_executor() -> Executor | None:
-    """没有运行时返回 `None`——调用方必须把它翻译成 `BLOCKED`，不许换路。"""
+    """三级：docker/podman → Windows Job Object → None（调用方翻 BLOCKED）。
+
+    **不许降级到裸跑**：没有隔离时宁可不执行，也不假装执行过。
+    """
     runner = DockerRunner()
-    return runner if runner.available() else None
+    if runner.available():
+        return runner
+    try:
+        job = JobObjectExecutor()
+        if job.available():
+            return job
+    except Exception:  # noqa: BLE001 —— 平台不支持时静默跳过，不打断选择
+        pass
+    return None
