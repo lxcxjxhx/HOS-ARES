@@ -19,6 +19,10 @@ dependencies = [
     "uvicorn>=0.30",
 ]
 
+# 安装后可直接 `veripen <子命令>`；未安装时用 `python -m veripen_cli`
+[project.scripts]
+veripen = "veripen_cli.__main__:main"
+
 [project.optional-dependencies]
 # cryptography 只被 tests/lab/tls.py 用来现场签发证书（https 分支的夹具）。
 # 它**不进运行期依赖**：产品代码走 stdlib ssl，不需要它；
