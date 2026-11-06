@@ -39,9 +39,26 @@ def _argv_runner() -> DockerRunner:
 
 # ── 无运行时必须 BLOCKED，且绝不回退宿主 ───────────────────────
 def test_no_runtime_selects_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """三级选择的**尽头**必须是 None：没有隔离就 BLOCKED，不许裸跑。
+
+    B84 之后中间多了一级（Windows Job Object），所以"没有 docker"不再等于 None——
+    这条断言要连 Job Object 一起关掉，才测得到真正的兜底。
+    """
     monkeypatch.setattr(runner_mod.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(runner_mod.JobObjectExecutor, "available", lambda _self: False)
     assert select_executor() is None
     assert DockerRunner().available() is False
+
+
+def test_job_object_is_selected_but_never_called_container(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """有 Job Object 就返回它，但它**不许**冒充容器（B84 的诚实边界）。"""
+    monkeypatch.setattr(runner_mod.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(runner_mod.JobObjectExecutor, "available", lambda _self: True)
+    executor = select_executor()
+    assert isinstance(executor, runner_mod.JobObjectExecutor)
+    assert executor.name == "job-object"  # 不是 "container"
 
 
 def test_no_runtime_raises_instead_of_falling_back(monkeypatch: pytest.MonkeyPatch) -> None:

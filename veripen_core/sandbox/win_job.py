@@ -176,11 +176,11 @@ class WinJobRunner:
                 assigned = bool(kernel32.AssignProcessToJobObject(job, wt.HANDLE(handle)))
             if not assigned:
                 # 没进 job 就别假装受限：明确报出来，由调用方决定
-                err = ctypes.get_last_error()
+                last_error = ctypes.get_last_error()
                 out, errb = proc.communicate(timeout=timeout_s)
                 return JobExecResult(
                     proc.returncode or 1, out or b"", errb or b"",
-                    "error", f"assign_failed:err={err}",
+                    "error", f"assign_failed:err={last_error}",
                 )
             try:
                 out, err = proc.communicate(timeout=timeout_s)

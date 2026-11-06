@@ -205,17 +205,17 @@ def main(argv: list[str] | None = None) -> int:
     for i, target in enumerate(targets, start=1):
         sub = out / f"asset-{i}"
         print(f"[{i}/{len(targets)}] {target}")
-        extra: list[str] = []
+        extra_args: list[str] = []
         if args.exclude:
-            extra += ["--exclude", args.exclude]
+            extra_args += ["--exclude", args.exclude]
         if profile is not None:
             # 档的 selectors 就是 operator 的确认（`19 §3.1` 的出口）：
             # 只采纳这些标签，不是"全部结构推断"。
             tags = ",".join(sorted({s.semantic_tag for s in profile.selectors}))
             if tags:
-                extra += ["--confirm-tags", tags]
+                extra_args += ["--confirm-tags", tags]
         rc = cmd_run.main([
-            "--target", target, "--openapi", str(spec_path), "--out", str(sub), *extra,
+            "--target", target, "--openapi", str(spec_path), "--out", str(sub), *extra_args,
         ])
         found: list[dict[str, Any]] = []
         findings_file = sub / "findings.json"

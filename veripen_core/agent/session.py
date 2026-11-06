@@ -16,7 +16,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..blackboard import EventLog, new_ulid
+from ..blackboard import EventLog
+from ..models import new_ulid
 from ..store import Store
 
 #: 指令 → 工具名。**白名单**：不在表里的指令一律拒绝，不做"猜你想干什么"。
