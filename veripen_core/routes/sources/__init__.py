@@ -1,7 +1,8 @@
 """来源包：五个来源的实现与注册（27 §3.2）。
 
 B1.5 落 ``contract`` 与 ``observed`` 两个真实现；
-``crawl`` / ``probe`` / ``operator`` 先给空适配器（返回 []），由后续批次接线。
+B86 把 ``crawl`` 从空适配器换成真实现（候选由 ``veripen_core.discovery`` 产出）；
+``probe`` / ``operator`` 先给空适配器（返回 []），由后续批次接线。
 空适配器**不报错、不猜路径**——词表为空时 probe 直接不参与（27 §3.2 末注）。
 """
 
@@ -18,7 +19,7 @@ from .base import (
     matches_hints,
 )
 from .contract import ContractSource, parse_operations, validate_contract_hosts
-from .observed import ObservedSource
+from .observed import CrawlSource, ObservedSource
 
 
 def empty_source(name: str, provenance: RouteProvenance) -> StaticSource:
@@ -30,7 +31,7 @@ def default_sources(q: RouteQuery) -> list[Source]:  # noqa: ARG001 - 形态先�
     return [
         ContractSource([]),
         ObservedSource([]),
-        empty_source("crawl", RouteProvenance.CRAWL),
+        CrawlSource([]),
         empty_source("probe", RouteProvenance.PROBE),
         empty_source("operator", RouteProvenance.OPERATOR),
     ]
@@ -39,6 +40,7 @@ def default_sources(q: RouteQuery) -> list[Source]:  # noqa: ARG001 - 形态先�
 __all__ = [
     "ContractOp",
     "ContractSource",
+    "CrawlSource",
     "ObservedRecord",
     "ObservedSource",
     "Source",
