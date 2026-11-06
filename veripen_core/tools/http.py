@@ -43,11 +43,35 @@ def send(
     params: Mapping[str, str],
     auth: str | None = None,
 ) -> HttpTrace:
-    """唯一签名。传字符串即 ``TypeError``；没有闸门即拒绝；闸门不过即拒绝。
+    """唯一的**发请求**签名。传字符串即 ``TypeError``；没有闸门即拒绝；闸门不过即拒绝。
 
     闸门顺序**不可调换**：② binding → ③ preflight → ④ post_connect（在传输层）。
     ④ 必须在**发出请求字节之前**执行——发完再查等于"已经送到不该去的地方了"。
+
+    ``send_body`` 共用同一条链，只是把响应体一起交出来（发现面要读 HTML）。
     """
+    return _dispatch(binding, params, auth)[0]
+
+
+def send_body(
+    binding: RouteBinding,
+    params: Mapping[str, str],
+    auth: str | None = None,
+) -> tuple[HttpTrace, bytes]:
+    """同 ``send`` 的全部门，多返回响应体。
+
+    为什么必须共用这条链：无契约发现要读 HTML，而**读 HTML 也是一次出网**。
+    如果为了拿 body 另开一条"只读不审"的近路，审计就会在发现阶段出现盲区——
+    恰恰是最容易被绕过的一段。
+    """
+    return _dispatch(binding, params, auth)
+
+
+def _dispatch(
+    binding: RouteBinding,
+    params: Mapping[str, str],
+    auth: str | None,
+) -> tuple[HttpTrace, bytes]:
     if not isinstance(binding, RouteBinding):
         raise TypeError(
             f"send() 只接受 RouteBinding，收到 {type(binding).__name__}；"
@@ -83,4 +107,4 @@ def send(
         headers["Authorization"] = auth
 
     status, resp_headers, payload = perform(r, headers=headers, post_connect=_post_connect)
-    return trace(binding.ref, status, resp_headers, payload)
+    return trace(binding.ref, status, resp_headers, payload), payload

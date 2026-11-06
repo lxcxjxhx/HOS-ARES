@@ -19,6 +19,7 @@ from typing import Callable, Sequence, cast
 COMMANDS: tuple[tuple[str, str, str], ...] = (
     ("chat", "veripen_cli.cmd_chat", "交互式 agent 会话（说人话，计划 + 工具流 + diff）"),
     ("run", "veripen_cli.cmd_run", "端到端渗透：契约→oracle→capsule→报告"),
+    ("discover", "veripen_cli.cmd_discover", "无契约发现：从首页攒面（不产判定）"),
     ("platform", "veripen_cli.cmd_platform", "企业编排：多资产 + 审批阻断 + 汇总报告"),
     ("hunt", "veripen_cli.cmd_hunt", "边跑边打印（人盯着看的那种）"),
     ("console", "veripen_cli.cmd_console", "只读控制台（10 页）"),
