@@ -25,6 +25,17 @@ _METHODS: frozenset[str] = frozenset("GET POST PUT PATCH DELETE".split())
 #: 单页最多抽多少条入口：一页导航栏 300 个链接是常态，但没必要全收。
 MAX_PER_PAGE = 200
 
+#: **不是"面"的资源**：下载型文档与静态资源。
+#: 判据是 MIME 分类而不是"看起来像文件"——``application/pdf`` / ``image/*`` /
+#: ``font/*`` 在 HTTP 上是 file，不是 page（MDN Common types），拿 oracle 打它们
+#: 只会得到一份二进制响应，然后把覆盖率分母撑大。
+#: ``.jsp`` / ``.php`` / ``.aspx`` **不在**表里：它们是服务端页面，响应是 HTML。
+_SKIP_EXTS: frozenset[str] = frozenset(
+    "pdf doc docx xls xlsx ppt pptx zip rar 7z gz tar bz2 "
+    "jpg jpeg png gif webp bmp svg ico css js mjs woff woff2 ttf eot "
+    "mp3 mp4 avi mov wav webm wasm".split()
+)
+
 
 @dataclass(frozen=True)
 class Sighting:
@@ -71,6 +82,13 @@ def _query_names(query: str) -> list[str]:
     return names
 
 
+def _is_skippable(path: str) -> bool:
+    """路径末段的后缀是否属于"下载型资源"。查询串已在调用方剥掉。"""
+    tail = path.rstrip(SEP).rsplit(SEP, 1)[-1]
+    _, dot, ext = tail.rpartition(".")
+    return bool(dot) and ext.lower() in _SKIP_EXTS
+
+
 def normalize_href(href: str, *, base_path: str = "") -> tuple[str, tuple[str, ...]] | None:
     """href → (相对路径, 查询参数名)；不该跟的返回 ``None``。
 
@@ -82,6 +100,8 @@ def normalize_href(href: str, *, base_path: str = "") -> tuple[str, tuple[str, .
         return None
     h = h.split("#", 1)[0]
     path, _, query = h.partition("?")
+    if _is_skippable(path):
+        return None
     if not path:
         path = base_path or SEP
     elif path.startswith(SEP):

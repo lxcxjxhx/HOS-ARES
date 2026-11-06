@@ -175,3 +175,24 @@ def test_crawl_source_confidence_is_lower_than_observed() -> None:
     assert crawl.bindings[0].source == "crawl"
     assert crawl.bindings[0].confidence == pytest.approx(0.70)
     assert crawl.bindings[0].usable is True
+
+
+# ── 5. 下载型资源不是"面" ─────────────────────────────────────────
+
+
+def test_extract_drops_download_resources() -> None:
+    """`application/pdf` / `image/*` 在 HTTP 上是 file 不是 page，不该进发现面。"""
+    html = page(
+        p("a", "b.pdf"),
+        p("a", "c.jpg"),
+        p("a", "d.css"),
+        p("a", "e.htm"),
+        p("a", "f.jsp"),
+    )
+    assert [s.path for s in extract(html)] == [p("a", "e.htm"), p("a", "f.jsp")]
+
+
+def test_extract_keeps_query_style_downloads() -> None:
+    """`/export?file=x.pdf` 是**页面端点**（path 无后缀），不要误杀。"""
+    html = page(p("export") + "?file=x.pdf")
+    assert [s.path for s in extract(html)] == [p("export")]
