@@ -88,6 +88,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     crawl = Crawler(transport_fetcher(), max_pages=args.max_pages)
 
     known: set[str] = set()
+    #: 看见了但还没抓的入口。它们不是"面"（没有形状），但确实是候选——
+    #: 只报已抓的会让页数预算看起来像"这个站只有三条面"。
+    pending: set[str] = set()
     skipped_all: list[tuple[str, str]] = []
     pages = 0
     candidates = [seed_candidate(BASE_SYMBOL)]
@@ -121,11 +124,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"第 {round_no} 轮：抓 {result.fetched} 页 / 新面 {len(fresh)} 条{note}")
         if not result.next:
             break
+        for sighting in result.next:
+            pending.add(sighting.path)
         candidates = [candidate_of(s, BASE_SYMBOL) for s in result.next]
 
     faces = sorted(known)
+    candidates_left = sorted(pending - known)
     print(f"目标：{host}")
-    print(f"发现：{len(faces)} 条面 / 抓 {pages} 页 / 置信 0.70（crawl，未验证）")
+    print(
+        f"发现：已抓面 {len(faces)} 条 / 待抓候选 {len(candidates_left)} 条"
+        f" / 抓 {pages} 页 / 置信 0.70（crawl，未验证）"
+    )
     for template in faces[:40]:
         print(f"  · {template}")
     if len(faces) > 40:
@@ -143,6 +152,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "confidence": 0.70,
                     "source": RouteProvenance.CRAWL.value,
                     "faces": faces,
+                    "candidates": candidates_left,
                     "pages": pages,
                     "truncated": truncated,
                     "skipped": [{"template": t, "reason": r} for t, r in skipped_all],
