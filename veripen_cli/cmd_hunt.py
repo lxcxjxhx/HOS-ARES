@@ -88,6 +88,9 @@ class HuntRuntime:
         self.symbols = symbols
         self.calls: list[str] = []
         self.reasons: dict[str, str] = {}
+        #: oracle_id → 它实际打的那条面。覆盖账本要按面归口，
+        #: 而"挑了哪条绑定"这段逻辑只在这里发生过一次——不要在外面重算一遍。
+        self.binding_refs: dict[str, str] = {}
 
     def list_assets(self) -> list[dict[str, Any]]:
         return [{"id": self.routeset.asset_id, "kind": "web", "criticality": "unknown"}]
@@ -121,6 +124,7 @@ class HuntRuntime:
         if not tags or tags[0] not in bindings:
             self.reasons[oracle_id] = "route_unresolved"
             return {"verdict": "BLOCKED", "reason": "route_unresolved", "route_strength": "contract"}
+        self.binding_refs[oracle_id] = bindings[tags[0]].ref
         self.transport.oracle_id = oracle_id
         try:
             result = run_oracle(
@@ -415,6 +419,35 @@ def main(argv: list[str]) -> int:
         for k, v in blocked.items():
             print(f"未确认：{k} = {v['verdict']}（{v['reason']}）")
 
+    # ── 覆盖账本（B87）：hunt 也要回答"漏了什么"，不能只有 run 有 ──────
+    # 同一个账本、同一套缺口分类：换入口不等于换口径。
+    from veripen_core.coverage import Observation, build_coverage, completion_status, write_coverage
+
+    oracle_tags = {
+        str(c.meta.id): tuple(str(t) for t in getattr(c.meta, "selector_tags", ()))
+        for c in ALL_ORACLES
+    }
+    observations = [
+        Observation(
+            oracle_id=oid,
+            route_ref=runtime.binding_refs.get(oid, ""),
+            verdict=str(verdict),
+            reason=runtime.reasons.get(oid, "")[:200],
+        )
+        for oid, verdict in result.verdicts.items()
+    ]
+    finished = completion_status(result.decision.value, result.reason) == "completed"
+    coverage = build_coverage(
+        asset_id=host,
+        bindings=routeset.bindings,
+        oracle_tags=oracle_tags,
+        selected=oracles,
+        observations=observations,
+        excluded=sorted(excluded),
+        run_status="completed" if finished else result.decision.value,
+        exit_reason=result.reason,
+    )
+
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     record = {
@@ -435,8 +468,23 @@ def main(argv: list[str]) -> int:
         "budget": dict(result.budget),
         "requests": transport.sent,
     }
+    record["coverage"] = {
+        "summary": coverage["summary"],
+        "gaps": len(coverage["gaps"]),
+        "complete": coverage["completeness"]["complete"],
+    }
     (out / "hunt.json").write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
+    cov_path = write_coverage(out, coverage)
     print()
+    cov_summary = coverage["summary"]
+    print(
+        f"覆盖：{cov_summary['faces_covered']}/{cov_summary['faces']} 面"
+        f" / 适用 {cov_summary['applicable_pairs']} 对 / 执行 {cov_summary['executed']}"
+        f" / 缺口 {cov_summary['gaps']} → {cov_path.name}"
+    )
+    if not coverage["completeness"]["complete"]:
+        for caveat in coverage["completeness"]["caveats"]:
+            print(f"  注意：{caveat}")
     print(f"证据：{out / 'hunt.json'}")
     return 0
 
