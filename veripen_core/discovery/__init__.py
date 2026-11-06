@@ -21,6 +21,9 @@ from .crawl import (
     CrawlRound,
     Crawler,
     Fetcher,
+    candidate_of,
+    seed_candidate,
+    transport_fetcher,
 )
 from .links import MAX_PER_PAGE, SEP, Sighting, extract, normalize_href
 from .templatize import templatize
@@ -35,6 +38,9 @@ __all__ = [
     "CrawlRound",
     "Crawler",
     "Fetcher",
+    "candidate_of",
+    "seed_candidate",
+    "transport_fetcher",
     "Sighting",
     "extract",
     "normalize_href",

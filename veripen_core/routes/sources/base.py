@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from ..tagging import infer_tags
 from ..types import RouteCandidate, RouteProvenance, RouteQuery
 
 
@@ -35,7 +36,11 @@ class ContractOp:
 
 @dataclass(frozen=True)
 class ObservedRecord:
-    """既有流量证据里真实发生过的一次请求（模板已归一）。"""
+    """既有流量证据里真实发生过的一次请求（模板已归一）。
+
+    ``content_type`` / ``fields`` 是**看见的形状**：没有契约时，标签只能从这两样
+    加上方法与参数推出来（见 ``routes/tagging.py``）。留空表示没观察到，不是"没有"。
+    """
 
     method: str
     template: str
@@ -43,6 +48,53 @@ class ObservedRecord:
     auth_requirement: str | None = None
     body_schema: dict[str, Any] | None = None
     verifications: int = 1
+    content_type: str = ""
+    fields: tuple[str, ...] = ()
+
+
+def candidate_from_record(
+    rec: "ObservedRecord",
+    *,
+    source: RouteProvenance,
+    prefix: str = "",
+) -> RouteCandidate:
+    """观测记录 → 候选。**标签只从看见的形状推**（见 ``routes/tagging.py``）。
+
+    ``prefix`` 用来把相对模板挂到基址符号上（``{base}``）——符号替换留给
+    ``SymbolSource`` 做，这里只拼字符串，不解析地址。
+    """
+    # 前缀里的符号（``{base}``）不是参数：把它算进 param_names 会让每条面
+    # 都凭空多出 param_injectable，覆盖率与 oracle 选择一起失真。
+    symbol_names = {
+        name
+        for name in (prefix.strip("{}") if prefix else "",)
+        if name
+    }
+    names = tuple(n for n in rec.param_names if n not in symbol_names)
+    tags = infer_tags(
+        method=rec.method,
+        template=rec.template,
+        param_names=names,
+        content_type=rec.content_type,
+        fields=rec.fields,
+    )
+    shape: dict[str, Any] = {}
+    if tags:
+        # tag_sources 让报告区分"契约给的"与"观测推的"：后者是猜，要标出来。
+        shape = {
+            "semantic_tags": list(tags),
+            "tag_sources": {tag: "structural" for tag in tags},
+        }
+    return RouteCandidate(
+        method=rec.method,
+        template=prefix + rec.template,
+        param_names=names,
+        auth_requirement=rec.auth_requirement,
+        body_shape_sha256=body_shape_sha256(rec.body_schema),
+        source=source,
+        verifications=rec.verifications,
+        response_shape=shape,
+    )
 
 
 class Source(Protocol):
