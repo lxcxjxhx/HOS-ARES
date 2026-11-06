@@ -195,19 +195,19 @@ def _exec_step(step: Any, *, wb: Workbench, root: Path) -> tuple[bool, str]:
         p = (root / path)
         if p.exists():
             before = p.read_text(encoding="utf-8", errors="replace")
-        res = wb.write(path, a.get("content", ""), overwrite=True)
+        write_res = wb.write(path, a.get("content", ""), overwrite=True)
         body, added, removed = _diff_text(before, a.get("content", ""), path)
-        stat = f"✓ 写入 {res.bytes_written}B  {C_GREEN}+{added}{C_OFF} {C_RED}-{removed}{C_OFF}"
+        stat = f"✓ 写入 {write_res.bytes_written}B  {C_GREEN}+{added}{C_OFF} {C_RED}-{removed}{C_OFF}"
         return True, stat + ("\n" + body if body else "")
 
     if tool == "edit":
         path = a["path"]
         p = (root / path)
         before = p.read_text(encoding="utf-8", errors="replace") if p.exists() else ""
-        res = wb.edit(path, old=a["old"], new=a["new"])
+        edit_res = wb.edit(path, old=a["old"], new=a["new"])
         after = p.read_text(encoding="utf-8", errors="replace")
         body, added, removed = _diff_text(before, after, path)
-        stat = f"✓ 替换 {res.replacements} 处  {C_GREEN}+{added}{C_OFF} {C_RED}-{removed}{C_OFF}"
+        stat = f"✓ 替换 {edit_res.replacements} 处  {C_GREEN}+{added}{C_OFF} {C_RED}-{removed}{C_OFF}"
         return True, stat + ("\n" + body if body else "")
 
     if tool == "sh":

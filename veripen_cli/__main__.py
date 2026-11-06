@@ -13,7 +13,7 @@
 from __future__ import annotations
 
 import sys
-from typing import Callable, Sequence
+from typing import Callable, Sequence, cast
 
 #: 子命令 → (模块路径, 一句话说明)
 COMMANDS: tuple[tuple[str, str, str], ...] = (
@@ -38,7 +38,7 @@ def _load(module_path: str) -> Callable[[Sequence[str] | None], int]:
     fn = getattr(mod, "main", None)
     if not callable(fn):
         raise SystemExit(f"{module_path} 没有 main(argv)")
-    return fn
+    return cast("Callable[[Sequence[str] | None], int]", fn)
 
 
 def _usage() -> str:

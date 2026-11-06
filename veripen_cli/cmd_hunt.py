@@ -216,7 +216,7 @@ def _oracles_for(routeset: RouteSet) -> tuple[str, ...]:
     return tuple(sorted(picked))
 
 
-def _load_l1a(args: Any, asset_id: str):
+def _load_l1a(args: Any, asset_id: str) -> Any:
     """打开跨任务记忆库并组装 L1a（`H11 B62`）。
 
     库不存在时用内存库走同一条代码路径——**不静默新建文件**，

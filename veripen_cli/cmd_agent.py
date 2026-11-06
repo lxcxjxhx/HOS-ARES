@@ -64,7 +64,7 @@ def _do_edit(wb: Workbench, arg: str) -> tuple[bool, str]:
     if not path or "=>" not in body:
         return False, "用法：edit <路径> <旧> => <新>"
     res = wb.edit(path, old=old.strip(), new=new.strip())
-    return True, f"{res.path} 替换 {res.replaced} 处"
+    return True, f"{res.path} 替换 {res.replacements} 处"
 
 
 def _do_sh(root: Path, arg: str) -> tuple[bool, str]:

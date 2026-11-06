@@ -13,10 +13,30 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Protocol, Sequence
 
-from .blackboard import Fact
 from .context import verdict_fingerprint
+
+class FactLike(Protocol):
+    """压缩只读四件事：``id`` / ``subject`` / ``predicate`` / ``value``。
+
+    用 Protocol 而不是绑定具体类：``Fact``（本次任务）与 ``AssetFact``（跨任务记忆）
+    字段不同、语义不同，但压缩对它们做的事完全一样。硬绑一个类只会逼调用方
+    手写一遍映射——那段映射除了多一次出错机会，什么也不产生。
+    """
+
+    @property
+    def id(self) -> str: ...
+
+    @property
+    def subject(self) -> str: ...
+
+    @property
+    def predicate(self) -> str: ...
+
+    @property
+    def value(self) -> str: ...
+
 
 #: 估算口径：4 字符 ≈ 1 token（与 budget 的粗算一致，不引入分词器依赖）
 CHARS_PER_TOKEN = 4
@@ -62,9 +82,9 @@ class Compressed:
         return 1.0 - (self.tokens_after / self.tokens_before)
 
 
-def summarize_facts(facts: Sequence[Fact]) -> tuple[FactLine, ...]:
+def summarize_facts(facts: Sequence[FactLike]) -> tuple[FactLine, ...]:
     """按 `(subject, predicate)` 合并；值去重保序，`merged_from` 记录全部原 id。"""
-    groups: dict[tuple[str, str], list[Fact]] = {}
+    groups: dict[tuple[str, str], list[FactLike]] = {}
     for fact in facts:
         groups.setdefault((fact.subject, fact.predicate), []).append(fact)
     lines: list[FactLine] = []
@@ -94,7 +114,7 @@ def summarize_steps(events: Sequence[Mapping[str, Any]],
     return tuple(lines)
 
 
-def _raw_text(facts: Sequence[Fact], events: Sequence[Mapping[str, Any]]) -> str:
+def _raw_text(facts: Sequence[FactLike], events: Sequence[Mapping[str, Any]]) -> str:
     fact_part = [f"{f.subject}.{f.predicate}={f.value}" for f in facts]
     event_part = [
         f"{e.get('kind')}:{e.get('tool') or e.get('oracle_id') or '-'}:"
@@ -106,7 +126,7 @@ def _raw_text(facts: Sequence[Fact], events: Sequence[Mapping[str, Any]]) -> str
 
 def compress(
     *,
-    facts: Sequence[Fact],
+    facts: Sequence[FactLike],
     events: Sequence[Mapping[str, Any]],
     capsule_ids: Iterable[str],
     verdicts: Mapping[str, str],
@@ -167,6 +187,7 @@ __all__ = [
     "compress",
     "estimate_tokens",
     "expand",
+    "FactLike",
     "summarize_facts",
     "summarize_steps",
 ]
