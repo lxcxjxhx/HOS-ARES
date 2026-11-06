@@ -26,6 +26,7 @@ if str(ROOT) not in sys.path:
 
 from veripen_contract.parser import ContractError, parse_openapi  # noqa: E402
 from veripen_contract.planner import plan  # noqa: E402
+from veripen_contract.spec_detect import SpecFormatError, as_openapi_text  # noqa: E402
 from veripen_core.evidence import (  # noqa: E402
     CapsuleDoc,
     chain_capsules,
@@ -114,7 +115,13 @@ def main(argv: list[str] | None = None) -> int:
     setup_stdout()
 
     host = _host_of(args.target)
-    text = Path(args.openapi).read_text(encoding="utf-8")
+    # 契约格式先归一（B89）：swagger 2.0 会在这里折成 OpenAPI 3；
+    # Postman/认不出的格式当场说清楚，不要等到 parser 报"paths 不是对象"。
+    try:
+        text = as_openapi_text(Path(args.openapi).read_text(encoding="utf-8"))
+    except SpecFormatError as exc:
+        print(f"契约格式不支持：{exc}", file=sys.stderr)
+        return 2
     try:
         opset = parse_openapi(text, asset_id=host, allowed_hosts=[host])
     except ContractError as exc:
