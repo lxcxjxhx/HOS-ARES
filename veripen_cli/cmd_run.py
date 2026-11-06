@@ -243,6 +243,31 @@ def main(argv: list[str] | None = None) -> int:
         )
         for oid, meta, res, binding in results
     ]
+    # ── 覆盖账本（B87）：先算账，再写报告——报告里要带缺口清单 ──────
+    from veripen_core.coverage import Observation, build_coverage, write_coverage
+
+    oracle_tags = {
+        str(c.meta.id): tuple(str(t) for t in getattr(c.meta, "selector_tags", ()))
+        for c in ALL_ORACLES
+    }
+    observations = [
+        Observation(
+            oracle_id=oid,
+            route_ref=str(getattr(binding, "ref", "")),
+            verdict=str(getattr(res.verdict, "value", res.verdict)),
+            reason=str(getattr(res, "reason", "") or "")[:200],
+        )
+        for oid, _meta, res, binding in results
+    ]
+    coverage = build_coverage(
+        asset_id=host,
+        bindings=routeset.bindings,
+        oracle_tags=oracle_tags,
+        selected=oracles,
+        observations=observations,
+        excluded=sorted(excluded),
+    )
+
     report = ReportInput(
         engagement=host,
         profile_hash="",
@@ -251,6 +276,9 @@ def main(argv: list[str] | None = None) -> int:
         routeset_sha256=[str(getattr(routeset, "routeset_sha256", ""))],
         resolver_version=str(getattr(routeset, "resolver_version", "")),
         findings=views,
+        # 报告第 4 节要能把"哪条面没被判定"点名，而不只给一个统计
+        coverage={"gaps": coverage["gaps"], "summary": coverage["summary"],
+                  "completeness": coverage["completeness"]},
         render_time=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     )
 
@@ -262,6 +290,18 @@ def main(argv: list[str] | None = None) -> int:
     verified = sum(1 for v in views if v.outcome.value == "reported")
     print("-" * 62)
     print(f"结论：VERIFIED {verified} / 共 {len(views)} 项")
+
+    cov_path = write_coverage(out, coverage)
+    cov_summary = coverage["summary"]
+    print(
+        f"覆盖：{cov_summary['faces_covered']}/{cov_summary['faces']} 面"
+        f" / 适用 {cov_summary['applicable_pairs']} 对 / 执行 {cov_summary['executed']}"
+        f" / 缺口 {cov_summary['gaps']} → {cov_path.name}"
+    )
+    if not coverage["completeness"]["complete"]:
+        for caveat in coverage["completeness"]["caveats"]:
+            print(f"  注意：{caveat}")
+
     print(f"证据：{len(sealed)} 份 capsule → {capsules_dir}")
     print(f"交付：{(out / 'report.md').name} / {(out / 'findings.json').name}")
     print(f"耗时：{time.time() - started:.1f}s")

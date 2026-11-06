@@ -527,6 +527,10 @@ def _render_leads_and_dead(report: ReportInput, lines: list[str]) -> None:
         w("")
 
 
+#: 报告里最多列这么多条缺口：正文是给人读的，全量在 coverage.json。
+MAX_GAPS_IN_REPORT = 20
+
+
 def _render_coverage(report: ReportInput, lines: list[str]) -> None:
     w = lines.append
     tiers = coverage_by_source(report)
@@ -564,9 +568,26 @@ def _render_coverage(report: ReportInput, lines: list[str]) -> None:
         w("无。")
     w("")
 
+    # 缺口清单（B87）：上面回答"覆盖来源分档"，这里回答"哪条面根本没判定"。
+    # 两节必须分开写——前者是统计，后者是点名。
+    gaps = list(report.coverage.get("gaps") or ())
+    if gaps:
+        w("### 覆盖缺口（这些面**没有**被判定过）")
+        w("")
+        w("| 缺口 | 严重度 | 说明 |")
+        w("|---|---|---|")
+        for gap in gaps[:MAX_GAPS_IN_REPORT]:
+            detail = str(gap.get("detail", "")).replace("|", chr(92) + "|")
+            w(f"| `{gap.get('kind', '')}` | {gap.get('severity', '')} | {detail} |")
+        w("")
+        if len(gaps) > MAX_GAPS_IN_REPORT:
+            w(f"（另有 {len(gaps) - MAX_GAPS_IN_REPORT} 条，全量见 `coverage.json`）")
+            w("")
+
 
 __all__ = [
     "HIGH_SEVERITIES",
+    "MAX_GAPS_IN_REPORT",
     "Outcome",
     "FindingView",
     "ROUTE_PREFIX_LEN",
