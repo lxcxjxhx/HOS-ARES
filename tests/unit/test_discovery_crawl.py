@@ -125,24 +125,27 @@ def test_templatize_is_idempotent_on_templates(path: str) -> None:
 # ── 3. 轮次 ────────────────────────────────────────────────────────
 
 
-def test_crawl_round_emits_records_and_next_entries() -> None:
+def test_crawl_round_records_fetched_face_and_queues_links() -> None:
+    """记录 = 这条被真正抓过的面；链接只进下一轮候选。
+
+    早期版本把父页的 content-type 贴在子链接上，JSON 接口于是被当成 text/html，
+    ``object_read`` 永远推不出来——形状必须是这条面自己的响应。
+    """
     binding = _binding(p("index"))
     body = page(p("api", "items", "1"), p("login"))
-    crawler = Crawler(lambda _b: (200, body))
+    crawler = Crawler(lambda _b: (200, "text/html", body))
 
     round_one = crawler.step([binding])
     assert round_one.fetched == 1
-    assert [r.template for r in round_one.records] == [
-        p("api", "items", "{p1}"),
-        p("login"),
-    ]
+    assert [r.template for r in round_one.records] == [p("index")]
+    assert round_one.records[0].content_type == "text/html"
     assert len(round_one.next) == 2
     assert round_one.truncated is False
 
 
 def test_crawl_does_not_refetch_a_seen_page() -> None:
     binding = _binding(p("index"))
-    crawler = Crawler(lambda _b: (200, page(p("a"))))
+    crawler = Crawler(lambda _b: (200, "text/html", page(p("a"))))
     crawler.step([binding])
     second = crawler.step([binding])
     assert second.fetched == 0
@@ -158,7 +161,7 @@ def test_crawl_failure_is_skipped_not_fatal() -> None:
 
 def test_crawl_respects_page_budget() -> None:
     bindings = [_binding(p("page", str(i))) for i in range(3)]
-    crawler = Crawler(lambda _b: (200, page(p("x"))), max_pages=2)
+    crawler = Crawler(lambda _b: (200, "text/html", page(p("x"))), max_pages=2)
     round_one = crawler.step(bindings)
     assert round_one.fetched == 2
     assert round_one.truncated is True

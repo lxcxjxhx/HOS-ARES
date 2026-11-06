@@ -90,12 +90,95 @@ def _findings_view(
     )
 
 
+#: 基址符号名：地址由符号值给，模板里不写地址（N3）。
+BASE_SYMBOL = "base"
+SEP = chr(0x2F)
+
+
+def _discover_routeset(args: Any, host: str) -> Any:
+    """无契约路径：轮次发现 → 最终 RouteSet。
+
+    抓链接要发请求，发请求必须持 ``RouteBinding``，而绑定只能由 resolver 产出。
+    所以一轮只抓已绑定的面，新面交回下一轮——地址纪律不破例。
+
+    最终把**所有**观测记录一次性喂给 resolver：面本身来自观测（crawl 0.70），
+    标签由看见的形状推出来（``routes/tagging.py``），并在 ``tag_sources`` 里标 structural。
+    """
+    from veripen_core.discovery import (
+        Crawler,
+        candidate_of,
+        seed_candidate,
+        transport_fetcher,
+    )
+    from veripen_core.routes import AssetRef, Resolver, RouteHints, RouteQuery
+    from veripen_core.routes.sources.base import ObservedRecord, candidate_from_record
+    from veripen_core.routes.sources.symbols import (
+        SymbolSource as SymSource,
+        SymbolTable as RouteSymbols,
+    )
+    from veripen_core.tools import http as http_tool
+
+    symbols = RouteSymbols({BASE_SYMBOL: args.target.rstrip(SEP)})
+    crawler = Crawler(transport_fetcher(), max_pages=args.discover_pages)
+    candidates = [seed_candidate(BASE_SYMBOL)]
+    records: list[ObservedRecord] = []
+    seen: set[tuple[str, str]] = set()
+
+    def _resolve(cands: list[Any]) -> Any:
+        src = SymSource(
+            "crawl", RouteProvenance.CRAWL, cands, symbols, base_symbol=BASE_SYMBOL
+        )
+        query = RouteQuery(
+            asset=AssetRef(id=host), hints=RouteHints(), min_confidence=0.0
+        )
+        return Resolver(sources=[src]).resolve(query, now=int(time.time()))
+
+    for round_no in range(1, max(1, args.discover_rounds) + 1):
+        routeset = _resolve(candidates)
+        if not routeset.bindings:
+            print(f"发现第 {round_no} 轮：解析出 0 条绑定，停。", file=sys.stderr)
+            break
+        guard = build_guard(host, routeset, ("discover",))
+        guard.oracle_id = "discover"
+        http_tool.install_guard(guard)
+        try:
+            step = crawler.step(routeset.bindings)
+        finally:
+            http_tool.uninstall_guard()
+        fresh = 0
+        for rec in step.records:
+            key = (rec.method, rec.template)
+            if key in seen:
+                continue
+            seen.add(key)
+            records.append(rec)
+            fresh += 1
+        print(f"发现第 {round_no} 轮：抓 {step.fetched} 页 / 新面 {fresh} 条")
+        if not step.next:
+            break
+        candidates = [candidate_of(s, BASE_SYMBOL) for s in step.next]
+
+    final = [
+        candidate_from_record(rec, source=RouteProvenance.CRAWL, prefix="{" + BASE_SYMBOL + "}")
+        for rec in records
+    ]
+    final.insert(0, seed_candidate(BASE_SYMBOL))
+    return _resolve(final)
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
     ap = argparse.ArgumentParser(prog="veripen run", description="端到端渗透：跑完给交付物")
     ap.add_argument("--target", required=True, help="目标根地址（scheme + host[:port]）")
-    ap.add_argument("--openapi", required=True, help="该目标的 OpenAPI 文档路径")
+    ap.add_argument("--openapi", default="", help="OpenAPI/Swagger 文档路径（与 --discover 二选一）")
+    ap.add_argument(
+        "--discover",
+        action="store_true",
+        help="无契约：先从目标攒面再跑（与 --openapi 二选一）",
+    )
+    ap.add_argument("--discover-rounds", type=int, default=2, help="发现最多几轮")
+    ap.add_argument("--discover-pages", type=int, default=20, help="每轮最多抓几页")
     ap.add_argument("--out", default=str(ROOT / "out" / "run"))
     ap.add_argument("--exclude", default=DEFAULT_EXCLUDE, help="逗号分隔的 oracle 黑名单")
     ap.add_argument("--token", default="", help="主身份 token（可空；空则相关 oracle 落 BLOCKED）")
@@ -115,44 +198,57 @@ def main(argv: list[str] | None = None) -> int:
     setup_stdout()
 
     host = _host_of(args.target)
-    # 契约格式先归一（B89）：swagger 2.0 会在这里折成 OpenAPI 3；
-    # Postman/认不出的格式当场说清楚，不要等到 parser 报"paths 不是对象"。
-    try:
-        text = as_openapi_text(Path(args.openapi).read_text(encoding="utf-8"))
-    except SpecFormatError as exc:
-        print(f"契约格式不支持：{exc}", file=sys.stderr)
-        return 2
-    try:
-        opset = parse_openapi(text, asset_id=host, allowed_hosts=[host])
-    except ContractError as exc:
-        print(f"契约拒绝：{exc}", file=sys.stderr)
+    if bool(args.openapi) == bool(args.discover):
+        print("--openapi 与 --discover 必须二选一", file=sys.stderr)
         return 2
 
-    planned = plan(
-        opset, source=RouteProvenance.CONTRACT,
-        confirm={t.strip() for t in args.confirm_tags.split(",") if t.strip()},
-        accept_structural=args.confirm_structural,
-    )
-    routeset = _build_routeset(args.target, list(planned.candidates), host)
+    planned = None
+    if args.discover:
+        # 无契约：面的来源是观测（crawl），标签由看见的形状推出来（B94）。
+        routeset = _discover_routeset(args, host)
+        inferred = {
+            tag
+            for b in routeset.bindings
+            for tag in b.semantic_tags
+        }
+    else:
+        # 契约格式先归一（B89）：swagger 2.0 会在这里折成 OpenAPI 3；
+        # Postman/认不出的格式当场说清楚，不要等到 parser 报"paths 不是对象"。
+        try:
+            text = as_openapi_text(Path(args.openapi).read_text(encoding="utf-8"))
+        except SpecFormatError as exc:
+            print(f"契约格式不支持：{exc}", file=sys.stderr)
+            return 2
+        try:
+            opset = parse_openapi(text, asset_id=host, allowed_hosts=[host])
+        except ContractError as exc:
+            print(f"契约拒绝：{exc}", file=sys.stderr)
+            return 2
+        planned = plan(
+            opset, source=RouteProvenance.CONTRACT,
+            confirm={t.strip() for t in args.confirm_tags.split(",") if t.strip()},
+            accept_structural=args.confirm_structural,
+        )
+        routeset = _build_routeset(args.target, list(planned.candidates), host)
+        inferred = {
+            tag
+            for c in planned.candidates
+            for tag, src in (c.response_shape.get("tag_sources") or {}).items()
+            if src == "structural"
+        }
     excluded = {x.strip() for x in args.exclude.split(",") if x.strip()}
     oracles = [o for o in _oracles_for(routeset) if o not in excluded]
     if args.max_oracles > 0:
         oracles = oracles[: args.max_oracles]
 
-    # 推断的影响面要可见：这批面里有几条是靠结构猜出来的
-    inferred = {
-        tag
-        for c in planned.candidates
-        for tag, src in (c.response_shape.get("tag_sources") or {}).items()
-        if src == "structural"
-    }
     print(f"目标：{host}")
     print(f"路由：{len(routeset.bindings)} 条绑定 / 可跑 oracle {len(oracles)} 个")
     if inferred:
-        print(f"标签：结构推断 {len(inferred)} 类（{', '.join(sorted(inferred))}）"
+        where = "观测推断" if args.discover else "结构推断"
+        print(f"标签：{where} {len(inferred)} 类（{', '.join(sorted(inferred))}）"
               f"—— 置信 0.80，低于契约显式 0.95")
     if not oracles:
-        print("没有可跑的 oracle（契约无语义标签或全被排除）", file=sys.stderr)
+        print("没有可跑的 oracle（面无语义标签或全被排除）", file=sys.stderr)
         return 1
 
     out = Path(args.out)

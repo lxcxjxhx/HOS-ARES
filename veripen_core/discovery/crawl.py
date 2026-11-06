@@ -16,12 +16,13 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Callable, Sequence
 from urllib.parse import urlsplit
 
 from ..routes.sources.base import ObservedRecord
-from ..routes.types import RouteBinding
+from ..routes.types import RouteBinding, RouteCandidate, RouteProvenance
 from .links import SEP, Sighting, extract
 from .templatize import templatize
 
@@ -34,8 +35,27 @@ MAX_RECORDS_PER_ROUND = 200
 #: 单个响应体最多解析这么多字节。10MB 的首页只值一份预算，不值一整轮。
 BODY_LIMIT = 256 * 1024
 
-#: ``fetch(binding) -> (status, body) | None``；拿不到（超时/闸门拒/异常）返回 None。
-Fetcher = Callable[[RouteBinding], "tuple[int, str] | None"]
+#: ``fetch(binding) -> (status, content_type, body) | None``；拿不到（超时/闸门拒/异常）返回 None。
+#: content_type 是**观测事实**：没有契约时，标签只能从它与 body 形状推（见 routes/tagging.py）。
+Fetcher = Callable[[RouteBinding], "tuple[int, str, str] | None"]
+
+
+def _json_fields(body: str, content_type: str) -> tuple[str, ...]:
+    """从 JSON 响应里取顶层字段名，供"单对象读/列表读"的结构推断用。
+
+    只看顶层：嵌套结构要靠契约（``$ref``/``allOf``），这里推不动也不要装作能推。
+    """
+    if "json" not in content_type.lower():
+        return ()
+    try:
+        data = json.loads(body[:BODY_LIMIT])
+    except (ValueError, TypeError):
+        return ()
+    if isinstance(data, dict):
+        return tuple(str(key) for key in list(data)[:20])
+    if isinstance(data, list) and data and isinstance(data[0], dict):
+        return tuple(str(key) for key in list(data[0])[:20])
+    return ()
 
 
 def _page_path(binding: RouteBinding) -> str:
@@ -44,6 +64,54 @@ def _page_path(binding: RouteBinding) -> str:
     if "://" in template:
         return urlsplit(template).path or SEP
     return template or SEP
+
+
+def transport_fetcher() -> Fetcher:
+    """把 ``tools.http.send_body`` 包成 crawler 要的 fetch。**共用同一条闸门链**。
+
+    读 HTML 也是一次出网；为拿 body 另开"只读不审"的近路，盲区正好落在发现阶段。
+    """
+
+    def _fetch(binding: RouteBinding) -> tuple[int, str, str] | None:
+        from ..tools import http as http_tool
+
+        try:
+            trace, payload = http_tool.send_body(binding, {})
+        except Exception:  # noqa: BLE001 - 闸门拒/超时/坏证书都按"这页没拿到"处理
+            return None
+        lowered = {str(k).lower(): str(v) for k, v in trace.headers.items()}
+        return (
+            trace.status,
+            lowered.get("content-type", ""),
+            payload.decode("utf-8", errors="replace"),
+        )
+
+    return _fetch
+
+
+def seed_candidate(base_symbol: str) -> RouteCandidate:
+    """入口面：只有基址，没有路径——首页那一条。"""
+    return RouteCandidate(
+        method="GET",
+        template="{" + base_symbol + "}",
+        source=RouteProvenance.CRAWL,
+    )
+
+
+def candidate_of(sighting: Sighting, base_symbol: str) -> RouteCandidate:
+    """看见的入口 → 候选模板。基址由符号在解析期补，这里只拼相对部分。
+
+    **保持具体路径**：这一轮是要真的把它抓下来，而带 ``{p1}`` 的模板没有参数值，
+    ``transport.render`` 会以"仍有未替换参数"直接拒绝——那条面就白白丢了。
+    归一（``/api/users/1`` → ``/api/users/{p1}``）留到**记录**时做：
+    抓到的形状属于这条面，而面是按模板去重的。
+    """
+    return RouteCandidate(
+        method=sighting.method,
+        template="{" + base_symbol + "}" + sighting.path,
+        param_names=sighting.params,
+        source=RouteProvenance.CRAWL,
+    )
 
 
 @dataclass(frozen=True)
@@ -104,29 +172,38 @@ class Crawler:
             if result is None:
                 skipped.append((key[:80], "fetch_failed"))
                 continue
-            status, body = result
+            status, content_type, body = result
             if status >= 400:
                 skipped.append((key[:80], f"http_{status}"))
                 continue
 
+            # 记录属于**这条被真正抓过的面**，不属于页面里看见的链接。
+            # 早期版本把父页的 content-type 贴在子链接上，于是 JSON 接口被当成
+            # text/html，object_read 永远推不出来——形状必须是"自己的响应"。
+            if len(records) >= self._max_records:
+                truncated = True
+                break
+            # 具体路径 → 模板：面按模板去重，抓到的形状属于这条面。
+            identity, path_params = templatize(binding.identity_template or _page_path(binding))
+            if identity in seen_templates:
+                continue
+            seen_templates.add(identity)
+            records.append(
+                ObservedRecord(
+                    method=binding.method,
+                    template=identity,
+                    param_names=path_params,
+                    content_type=content_type,
+                    fields=_json_fields(body, content_type),
+                    verifications=1,  # 真的抓到了：这次请求发生过
+                )
+            )
+
             for sighting in extract(body[:BODY_LIMIT], base_path=_page_path(binding)):
-                template, params = templatize(sighting.path)
+                template, _params = templatize(sighting.path)
                 if template in seen_templates:
                     continue
-                if len(records) >= self._max_records:
-                    truncated = True
-                    break
                 seen_templates.add(template)
-                records.append(
-                    ObservedRecord(
-                        method=sighting.method,
-                        template=template,
-                        param_names=params + sighting.params,
-                        # 0 = "看见过这条面，还没请求过它"。真的打过去之后
-                        # 由下一次 transport 观测把它升成 1，置信度自己会涨。
-                        verifications=0,
-                    )
-                )
                 pending.append(sighting)
 
         return CrawlRound(
@@ -145,4 +222,7 @@ __all__ = [
     "CrawlRound",
     "Crawler",
     "Fetcher",
+    "candidate_of",
+    "seed_candidate",
+    "transport_fetcher",
 ]

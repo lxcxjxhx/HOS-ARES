@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Iterable
 
 from ..types import RouteCandidate, RouteProvenance, RouteQuery
-from .base import ObservedRecord, body_shape_sha256, matches_hints
+from .base import ObservedRecord, candidate_from_record, matches_hints
 
 
 class ObservedSource:
@@ -25,15 +25,7 @@ class ObservedSource:
     def collect(self, q: RouteQuery) -> list[RouteCandidate]:
         out: list[RouteCandidate] = []
         for rec in self._records:
-            candidate = RouteCandidate(
-                method=rec.method,
-                template=rec.template,
-                param_names=rec.param_names,
-                auth_requirement=rec.auth_requirement,
-                body_shape_sha256=body_shape_sha256(rec.body_schema),
-                source=self.provenance,
-                verifications=rec.verifications,
-            )
+            candidate = candidate_from_record(rec, source=self.provenance)
             if matches_hints(candidate, q):
                 out.append(candidate)
         return out

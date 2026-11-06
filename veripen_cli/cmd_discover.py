@@ -32,8 +32,12 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from veripen_core.discovery import Crawler, Fetcher  # noqa: E402
-from veripen_core.discovery.links import Sighting  # noqa: E402
+from veripen_core.discovery import (  # noqa: E402
+    Crawler,
+    candidate_of,
+    seed_candidate,
+    transport_fetcher,
+)
 from veripen_core.routes import (  # noqa: E402
     AssetRef,
     Resolver,
@@ -63,38 +67,6 @@ DEFAULT_MAX_PAGES = 20
 DISCOVER_ACTION = "discover"
 
 
-def _seed_candidate() -> RouteCandidate:
-    """入口面：只有基址，没有路径——首页的那一条。"""
-    return RouteCandidate(
-        method="GET",
-        template="{" + BASE_SYMBOL + "}",
-        source=RouteProvenance.CRAWL,
-    )
-
-
-def _candidate_of(sighting: Sighting) -> RouteCandidate:
-    """看见的入口 → 候选模板。模板仍是相对形式，基址由符号在解析期补。"""
-    return RouteCandidate(
-        method=sighting.method,
-        template="{" + BASE_SYMBOL + "}" + sighting.path,
-        param_names=sighting.params,
-        source=RouteProvenance.CRAWL,
-    )
-
-
-def _fetcher() -> Fetcher:
-    """把 ``send_body`` 包成 crawler 要的 ``fetch``。**不绕过闸门**。"""
-
-    def _fetch(binding: RouteBinding) -> tuple[int, str] | None:
-        try:
-            trace, payload = http_tool.send_body(binding, {})
-        except Exception:  # noqa: BLE001 - 闸门拒/超时/坏证书都按"这页没拿到"处理
-            return None
-        return trace.status, payload.decode("utf-8", errors="replace")
-
-    return _fetch
-
-
 def main(argv: Sequence[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         prog="veripen discover",
@@ -113,12 +85,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     host = _host_of(args.target)
     symbols = RouteSymbols({BASE_SYMBOL: args.target.rstrip(SEP)})
-    crawl = Crawler(_fetcher(), max_pages=args.max_pages)
+    crawl = Crawler(transport_fetcher(), max_pages=args.max_pages)
 
     known: set[str] = set()
+    #: 看见了但还没抓的入口。它们不是"面"（没有形状），但确实是候选——
+    #: 只报已抓的会让页数预算看起来像"这个站只有三条面"。
+    pending: set[str] = set()
     skipped_all: list[tuple[str, str]] = []
     pages = 0
-    candidates = [_seed_candidate()]
+    candidates = [seed_candidate(BASE_SYMBOL)]
     truncated = False
 
     for round_no in range(1, max(1, args.max_rounds) + 1):
@@ -149,11 +124,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"第 {round_no} 轮：抓 {result.fetched} 页 / 新面 {len(fresh)} 条{note}")
         if not result.next:
             break
-        candidates = [_candidate_of(s) for s in result.next]
+        for sighting in result.next:
+            pending.add(sighting.path)
+        candidates = [candidate_of(s, BASE_SYMBOL) for s in result.next]
 
     faces = sorted(known)
+    candidates_left = sorted(pending - known)
     print(f"目标：{host}")
-    print(f"发现：{len(faces)} 条面 / 抓 {pages} 页 / 置信 0.70（crawl，未验证）")
+    print(
+        f"发现：已抓面 {len(faces)} 条 / 待抓候选 {len(candidates_left)} 条"
+        f" / 抓 {pages} 页 / 置信 0.70（crawl，未验证）"
+    )
     for template in faces[:40]:
         print(f"  · {template}")
     if len(faces) > 40:
@@ -171,6 +152,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "confidence": 0.70,
                     "source": RouteProvenance.CRAWL.value,
                     "faces": faces,
+                    "candidates": candidates_left,
                     "pages": pages,
                     "truncated": truncated,
                     "skipped": [{"template": t, "reason": r} for t, r in skipped_all],
