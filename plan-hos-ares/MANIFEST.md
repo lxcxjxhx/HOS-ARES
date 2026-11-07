@@ -6,10 +6,10 @@
 | 项 | 值 |
 |---|---|
 | 包版本 | `plan-hos-v1.0` |
-| 生成时间 | 2026-11-06T00:50:42.699Z |
+| 生成时间 | 2026-11-07T07:48:27.555Z |
 | 文件数 | 30 |
-| 总字节 | 217676 |
-| 总行数（文本） | 4056 |
+| 总字节 | 219203 |
+| 总行数（文本） | 4084 |
 
 ## 校验
 
@@ -49,7 +49,7 @@ node plan-hos-ares/check-plan.cjs --write  # 内容改过之后重生成本文�
 | `H24-统一CLI入口.md` | 3237 | 78 | `2de3c5db241529e9` |
 | `H25-项目入口文档.md` | 2693 | 58 | `d0097b00dabc5211` |
 | `H26-无容器时的受限执行.md` | 4025 | 93 | `7648a4b2c35ae57a` |
-| `H27-strix收割与无契约发现.md` | 18890 | 334 | `e8159e7eacc73c23` |
+| `H27-strix收割与无契约发现.md` | 20417 | 362 | `0175079e80bd89ec` |
 | `README.md` | 5532 | 117 | `da8281504885e3a6` |
 | `check-plan.cjs` | 12493 | 286 | `812044a1edd690cb` |
 
@@ -83,7 +83,7 @@ ce0dd58a3bcb9c5eb9916da5f76fbec8d3993bf52c37c1cbdd79c5df2f96bb22  H22-多步计�
 2de3c5db241529e9d08d0caf6808ff07fad388f350063fe91fd45b32caf67f31  H24-统一CLI入口.md
 d0097b00dabc52113b96f0f1162517604a635c9b818eb254f6c974953d023735  H25-项目入口文档.md
 7648a4b2c35ae57a7cf6b2761c1a41a0ebdff4a1d3f4f73a21d856ae9c731d24  H26-无容器时的受限执行.md
-e8159e7eacc73c234e356fe1a25a902dfe2d3e655822f1f3a460f29c367e3399  H27-strix收割与无契约发现.md
+0175079e80bd89eca39e0b797712b47d50c87cf1ac0a3b6887c4dacc17ceb011  H27-strix收割与无契约发现.md
 da8281504885e3a68755072c88bab3383823fefd15c3c93a6d27ae6e9a4d1207  README.md
 812044a1edd690cb8b2c26106b1d88082928869db407842ca54d96e8bf648260  check-plan.cjs
 ```
