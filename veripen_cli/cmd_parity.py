@@ -32,9 +32,23 @@ class Item:
 
 
 def _pure_judge() -> tuple[str, str]:
+    """V1 不查"是不是正好 15 条"（手抄的数字），只查**不变量**。"""
     from veripen_oracles import ALL_ORACLES
+    from veripen_oracles.policy import severity_for
 
-    return (GREEN, f"{len(ALL_ORACLES)} 类 oracle") if len(ALL_ORACLES) == 15 else (RED, "oracle 数不对")
+    ids = [c.meta.id for c in ALL_ORACLES]
+    if len(ids) != len(set(ids)):
+        return RED, "oracle id 重复"
+    thin = [c.meta.id for c in ALL_ORACLES if not (c.meta.cwe and c.meta.selector_tags)]
+    if thin:
+        return RED, f"元数据不全（缺 cwe / selector_tags）：{thin}"
+    unruly = [
+        c.meta.id for c in ALL_ORACLES
+        if severity_for(c.meta.id, c.meta.severity_rule)[1] != "rule"
+    ]
+    if unruly:
+        return RED, f"严重度规则不在表里：{unruly}"
+    return GREEN, f"{len(ids)} 条 oracle（id 唯一 / 元数据齐全 / 严重度有规则）"
 
 
 def _evidence() -> tuple[str, str]:

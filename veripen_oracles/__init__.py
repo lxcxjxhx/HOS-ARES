@@ -25,7 +25,7 @@ from .common.harness import (
 #: 全部已注册 oracle（B5 的 4 类 + B6 的 2 类）；B7 起继续追加
 from . import tierA, tierA_rest, tierB  # noqa: E402
 from .auth import jwt_suite  # noqa: E402
-from . import tierC  # noqa: E402
+from . import tierC, tier_dom  # noqa: E402
 
 TIER_A: tuple[type[BaseOracle], ...] = tierA.REGISTRY + (
     tierA_rest.OpenRedirect,
@@ -52,7 +52,10 @@ TIER_C: tuple[type[BaseOracle], ...] = (
 )
 
 #: 全部已注册 oracle
-ALL_ORACLES: tuple[type[BaseOracle], ...] = TIER_A + TIER_B + AUTH + TIER_C
+#: DOM 型（需要浏览器传输，不是 HTTP）
+TIER_DOM: tuple[type[BaseOracle], ...] = (tier_dom.XssDom,)
+
+ALL_ORACLES: tuple[type[BaseOracle], ...] = TIER_A + TIER_B + AUTH + TIER_C + TIER_DOM
 
 __all__ = [
     "BaseOracle",
@@ -72,9 +75,11 @@ __all__ = [
     "TIER_A",
     "TIER_B",
     "TIER_C",
+    "TIER_DOM",
     "tierC",
     "tierA",
     "tierA_rest",
     "tierB",
+    "tier_dom",
     "jwt_suite",
 ]

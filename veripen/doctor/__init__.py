@@ -133,13 +133,26 @@ def _check_package_imports() -> Check:
 
 
 def _check_oracle_registry() -> Check:
-    from veripen_oracles import ALL_ORACLES, TIER_A, TIER_B, TIER_C
+    """注册表的**不变量**：分档之和 = 总数、id 唯一、各档都有东西。
+
+    以前这里写死 ``total == 15 and A6/B5/C3``：每加一个 oracle 就得回来改一遍
+    （B117 加 xss_dom 时踩到）。数字会过时，不变量不会。
+    """
+    from veripen_oracles import ALL_ORACLES, AUTH, TIER_A, TIER_B, TIER_C, TIER_DOM
 
     total = len(ALL_ORACLES)
-    ok = total == 15 and len(TIER_A) == 6 and len(TIER_B) == 5 and len(TIER_C) == 3
-    return Check("oracles", Level.OK if ok else Level.FAIL,
-                 f"注册 {total} 类（A{len(TIER_A)} B{len(TIER_B)} C{len(TIER_C)} + auth）",
-                 fix="" if ok else "注册表与 18 §0 的 14 类不一致")
+    tiers = {"A": TIER_A, "B": TIER_B, "C": TIER_C, "DOM": TIER_DOM, "auth": AUTH}
+    ids = [c.meta.id for c in ALL_ORACLES]
+    sum_ok = total == sum(len(t) for t in tiers.values())
+    empty = [name for name, tier in tiers.items() if not tier]
+    ok = sum_ok and len(ids) == len(set(ids)) and not empty
+    detail = f"注册 {total} 类（" + " ".join(
+        f"{name}{len(tier)}" for name, tier in tiers.items() if name != "auth"
+    ) + f" + auth{len(AUTH)}）"
+    fix = ""
+    if not ok:
+        fix = "分档之和与总数不一致 / id 重复 / 空档：" + (", ".join(empty) or "见 ids")
+    return Check("oracles", Level.OK if ok else Level.FAIL, detail, fix=fix)
 
 
 def _check_default_off() -> Check:
