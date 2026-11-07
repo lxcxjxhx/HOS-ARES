@@ -51,6 +51,10 @@ def infer_tags(
     verb = method.upper()
     ctype = content_type.lower()
     tags: list[str] = []
+    # HTML 文档本身也是一种"面"：响应头类判定（CSP/HSTS…）只需要它。
+    # 以前这类页面没有任何标签，于是永远记 face_without_oracle。
+    if "html" in (content_type or "").lower():
+        tags.append("html_document")
 
     if verb in ("GET", "HEAD"):
         if _path_param_count(template) == 1 and fields:

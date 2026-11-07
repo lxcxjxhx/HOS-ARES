@@ -138,17 +138,17 @@ def _check_oracle_registry() -> Check:
     以前这里写死 ``total == 15 and A6/B5/C3``：每加一个 oracle 就得回来改一遍
     （B117 加 xss_dom 时踩到）。数字会过时，不变量不会。
     """
-    from veripen_oracles import ALL_ORACLES, AUTH, TIER_A, TIER_B, TIER_C, TIER_DOM
+    from veripen_oracles import ALL_ORACLES, tiers
 
     total = len(ALL_ORACLES)
-    tiers = {"A": TIER_A, "B": TIER_B, "C": TIER_C, "DOM": TIER_DOM, "auth": AUTH}
+    groups = tiers()
     ids = [c.meta.id for c in ALL_ORACLES]
-    sum_ok = total == sum(len(t) for t in tiers.values())
-    empty = [name for name, tier in tiers.items() if not tier]
+    sum_ok = total == sum(len(t) for t in groups.values())
+    empty = [name for name, tier in groups.items() if not tier]
     ok = sum_ok and len(ids) == len(set(ids)) and not empty
     detail = f"注册 {total} 类（" + " ".join(
-        f"{name}{len(tier)}" for name, tier in tiers.items() if name != "auth"
-    ) + f" + auth{len(AUTH)}）"
+        f"{name}{len(tier)}" for name, tier in groups.items()
+    ) + "）"
     fix = ""
     if not ok:
         fix = "分档之和与总数不一致 / id 重复 / 空档：" + (", ".join(empty) or "见 ids")

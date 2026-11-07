@@ -17,13 +17,13 @@ import pytest
 S = chr(0x2F)
 #: 回环地址拼出来：测试目录也在零地址闸门扫描范围内。
 LOOPBACK = "127" + "." + "0" + "." + "0" + "." + "1"
-PAGE = ('<html><body><a href="' + S + 'about.htm">a</a></body></html>').encode()
+PAGE = b"plain text body"   # 纯文本：没有语义标签，用来验证"一个 oracle 都跑不了"的分支
 
 
 class _H(BaseHTTPRequestHandler):
     def do_GET(self):  # noqa: N802
         body = PAGE if self.path == S else b'{"ok":true}'
-        ctype = "text/html" if self.path == S else "application/json"
+        ctype = "text/plain"
         self.send_response(200)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
