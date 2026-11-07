@@ -155,6 +155,9 @@ class Trace:
     headers: Mapping[str, str] = field(default_factory=dict)
     error: str | None = None
     elapsed_ms: int = 0
+    #: 这次请求用的协议名（``http`` / ``https``）。**只是协议**，不含 host/port。
+    #: 有些判据只对 https 成立（HSTS），judge 需要它才能诚实地说"不适用"。
+    scheme: str = ""
 
     @property
     def body_sha256(self) -> str:

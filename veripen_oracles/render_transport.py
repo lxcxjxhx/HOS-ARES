@@ -112,6 +112,7 @@ class RenderTransport:
             status=200 if cap.outcome == "ok" else 0,
             body=body,
             headers={},
+            scheme=r.scheme,
             error=None if cap.outcome == "ok" else (cap.reason or "render_failed"),
         )
 
