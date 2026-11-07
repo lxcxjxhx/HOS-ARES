@@ -100,6 +100,10 @@ class HuntRuntime:
         #: oracle_id → 它实际打的那条面。覆盖账本要按面归口，
         #: 而"挑了哪条绑定"这段逻辑只在这里发生过一次——不要在外面重算一遍。
         self.binding_refs: dict[str, str] = {}
+        #: oracle_id → 下一条要跑的面下标（route_ref 没给时按序推进）
+        self._cursor: dict[str, int] = {}
+        #: 逐面运行记录：覆盖账本按面计，不再只记一条
+        self.faces_run: list[dict[str, Any]] = []
 
     def list_assets(self) -> list[dict[str, Any]]:
         return [{"id": self.routeset.asset_id, "kind": "web", "criticality": "unknown"}]
@@ -124,20 +128,47 @@ class HuntRuntime:
             return {"verdict": "BLOCKED", "reason": "unknown_oracle", "route_strength": "contract"}
         oracle = cls()
         tags = [str(t) for t in getattr(oracle.meta, "selector_tags", ())]
-        bindings: dict[str, Any] = {}
-        for tag in tags:
-            for b in self.routeset.bindings:
-                if tag in b.semantic_tags:
-                    bindings[tag] = b
-                    break
-        if not tags or tags[0] not in bindings:
+        faces = [
+            b for b in self.routeset.bindings
+            if tags and tags[0] in getattr(b, "semantic_tags", ())
+        ]
+        chosen = None
+        if route_ref:
+            # 模型指定了面就用它——**这个参数以前被完全忽略**
+            chosen = next((b for b in faces if b.ref == route_ref), None)
+            if chosen is None:
+                self.reasons[oracle_id] = "route_ref_not_found"
+                return {
+                    "verdict": "BLOCKED",
+                    "reason": "route_ref_not_found",
+                    "route_strength": "none",
+                    "faces_total": len(faces),
+                }
+        else:
+            index = self._cursor.get(oracle_id, 0)
+            if index >= len(faces):
+                self.reasons[oracle_id] = "all_faces_done"
+                return {
+                    "verdict": "BLOCKED",
+                    "reason": "all_faces_done",
+                    "route_strength": "none",
+                    "faces_total": len(faces),
+                    "hint": "该 oracle 的全部面都已跑过；换 oracle 或指定 route_ref",
+                }
+            chosen = faces[index]
+            self._cursor[oracle_id] = index + 1
+        if chosen is None:
             self.reasons[oracle_id] = "route_unresolved"
             return {"verdict": "BLOCKED", "reason": "route_unresolved", "route_strength": "none"}
-        self.binding_refs[oracle_id] = bindings[tags[0]].ref
+        bindings: dict[str, Any] = {
+            tag: chosen for tag in tags if tag in getattr(chosen, "semantic_tags", ())
+        }
+        face_index = faces.index(chosen) + 1
+        self.binding_refs[oracle_id] = chosen.ref
         self.transport.oracle_id = oracle_id
         try:
             result = run_oracle(
-                oracle, bindings[tags[0]], self.transport,
+                oracle, chosen, self.transport,
                 symbols=self.symbols, nonce=f"hunt-{oracle_id}", token=None, bindings=bindings,
             )
         except Exception as exc:  # noqa: BLE001 - 真实目标上什么都可能发生，如实报
@@ -145,9 +176,21 @@ class HuntRuntime:
             self.reasons[oracle_id] = detail
             return {"verdict": "BLOCKED", "reason": detail, "route_strength": "contract"}
         self.reasons[oracle_id] = result.reason
+        self.faces_run.append({
+            "oracle_id": oracle_id,
+            "route_ref": chosen.ref,
+            "template": str(getattr(chosen, "template", ""))[:80],
+            "face_index": face_index,
+            "faces_total": len(faces),
+            "verdict": result.verdict.value,
+            "reason": str(result.reason)[:120],
+        })
         return {
             "verdict": result.verdict.value,
             "reason": result.reason,
+            "face": str(getattr(chosen, "template", ""))[:80],
+            "face_index": face_index,
+            "faces_total": len(faces),
             # 面强度由置信档推：发现来的面是 crawl，不能跟着契约面一起写 contract
             "route_strength": _strength_of(bindings[tags[0]]),
             "capsule_id": f"sha256:{oracle_id}" if result.verdict.value == "VERIFIED" else None,
@@ -453,15 +496,27 @@ def main(argv: list[str]) -> int:
         str(c.meta.id): tuple(str(t) for t in getattr(c.meta, "selector_tags", ()))
         for c in ALL_ORACLES
     }
-    observations = [
-        Observation(
-            oracle_id=oid,
-            route_ref=runtime.binding_refs.get(oid, ""),
-            verdict=str(verdict),
-            reason=runtime.reasons.get(oid, "")[:200],
-        )
-        for oid, verdict in result.verdicts.items()
-    ]
+    # 有逐面记录就按面计（多面执行），否则退回"一 oracle 一条"的老口径
+    if runtime.faces_run:
+        observations = [
+            Observation(
+                oracle_id=str(row["oracle_id"]),
+                route_ref=str(row["route_ref"]),
+                verdict=str(row["verdict"]),
+                reason=str(row["reason"])[:200],
+            )
+            for row in runtime.faces_run
+        ]
+    else:
+        observations = [
+            Observation(
+                oracle_id=oid,
+                route_ref=runtime.binding_refs.get(oid, ""),
+                verdict=str(verdict),
+                reason=runtime.reasons.get(oid, "")[:200],
+            )
+            for oid, verdict in result.verdicts.items()
+        ]
     finished = completion_status(result.decision.value, result.reason) == "completed"
     coverage = build_coverage(
         asset_id=host,
@@ -487,6 +542,8 @@ def main(argv: list[str]) -> int:
         "decision": result.decision.value,
         "reason": result.reason,
         "findings": findings,
+        # 逐面运行记录：多面执行时"一个 oracle 一条"已经不够描述
+        "faces_run": runtime.faces_run,
         "not_confirmed": blocked,
         "steps": [
             {"step": e.step, "tool": e.tool, "ok": e.ok,
