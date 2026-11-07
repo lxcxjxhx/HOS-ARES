@@ -72,6 +72,44 @@ def check_enabled(
     return PolicyDecision(tuple(allowed), blocked)
 
 
+#: severity 规则 → 报告等级。**这是产品政策，不是测量结果。**
+#:
+#: oracle 只声明"这是哪一类问题"（``OracleMeta.severity_rule``），等级由这张表统一给。
+#: 让每个 oracle 各自写一个数字，等于谁都能往高里写；写死在这里，改动就走 review，
+#: 而它直接决定客户报告里的严重度。
+#:
+#: 依据：能被第三方复现的数据外泄/越权/注入给 high；需要用户交互或配置缺失给 medium/low。
+SEVERITY_BY_RULE: dict[str, str] = {
+    "differential_data_leak": "high",
+    "cross_account_read": "high",
+    "server_side_fetch": "high",
+    "token_acceptance": "high",
+    "token_validation_defect": "high",
+    "file_disclosure": "high",
+    "error_based_injection": "high",
+    "functional_authz_missing": "high",
+    "stored_unescaped": "medium",
+    "reflected_unescaped": "medium",
+    "readonly_field_accepted": "medium",
+    "unvalidated_redirect": "medium",
+    "acao_reflect": "medium",
+    "introspection_or_authz": "medium",
+    "config_missing_rate_limit": "low",
+}
+
+
+def severity_for(oracle_id: str, rule: str) -> tuple[str, str]:
+    """→ (severity, basis)。
+
+    ``basis`` 是**给人看的**：``rule`` = 有规则依据，``default`` = 表里没有这条规则、
+    按 medium 兜底。报告里要能看出哪一条是兜底值——否则"medium"会被读成"评估过"。
+    """
+    level = SEVERITY_BY_RULE.get(rule)
+    if level is None:
+        return "medium", "default"
+    return cap_severity(oracle_id, level), "rule"
+
+
 #: 报告分级上限（18 §2.5：限流缺失是"配置缺失"，不是高危）
 SEVERITY_CAP = {"rate_limit_absent": "low"}
 
@@ -91,7 +129,9 @@ __all__ = [
     "ImpactCeilingExceeded",
     "OracleDisabled",
     "PolicyDecision",
+    "SEVERITY_BY_RULE",
     "SEVERITY_CAP",
     "cap_severity",
+    "severity_for",
     "check_enabled",
 ]

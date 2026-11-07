@@ -181,3 +181,23 @@ def test_tiers_are_disjoint_and_complete() -> None:
     ids_b = {c.meta.id for c in TIER_B}
     assert not ids_a & ids_b
     assert len(ids_a) == 6 and len(ids_b) == 5, "A 档 6 + B 档 5 = 11 类（18 §0）"
+
+
+# ── B99：severity 由规则表给，兜底要能看出来 ──────────────────────
+def test_severity_rule_table_covers_every_registered_oracle() -> None:
+    """每个 oracle 声明的 severity_rule 都必须在表里——否则报告全是兜底 medium。"""
+    from veripen_oracles import ALL_ORACLES
+
+    missing = sorted(
+        {c.meta.severity_rule for c in ALL_ORACLES} - set(policy.SEVERITY_BY_RULE)
+    )
+    assert not missing, f"未映射的 severity_rule: {missing}"
+
+
+def test_severity_for_uses_rule_and_marks_basis() -> None:
+    assert policy.severity_for("ssrf_oob", "server_side_fetch") == ("high", "rule")
+    assert policy.severity_for("x", "unknown_rule") == ("medium", "default")
+
+
+def test_severity_for_applies_cap() -> None:
+    assert policy.severity_for("rate_limit_absent", "config_missing_rate_limit") == ("low", "rule")

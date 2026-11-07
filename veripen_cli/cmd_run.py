@@ -85,20 +85,14 @@ def _findings_view(
         asset_id=asset_id,
         oracle_id=oracle_id,
         cwe=str(_meta(meta, "cwe", "")),
-        severity=_severity_for(meta, _strength_of(binding)),
+        severity=_severity_of(meta, oracle_id, _strength_of(binding))[0],
         confidence=1.0 if verdict == "VERIFIED" else 0.0,
         route_strength=_strength_of(binding),
         route_ref=str(getattr(binding, "ref", "") or ""),
         capsule_id=(capsule.capsule_id if capsule else None),
         self_sha256=(capsule.chain.self_sha256 if capsule else None),
         replay_status="NEVER",
-        situation=(
-            ("弱面（" + _strength_of(binding) + "）：严重度按 medium 计。"
-             if (_strength_of(binding) in WEAK_STRENGTHS
-                 and str(_meta(meta, "severity", "medium")) in HIGH_SEVERITIES)
-             else "")
-            + str(getattr(result, "reason", "") or "")
-        )[:200],
+        situation=_situation(meta, oracle_id, binding, result),
         outcome=outcome,
         reason_code=str(getattr(result, "reason", "") or "")[:60],
     )
@@ -198,12 +192,34 @@ def _strength_of(binding: Any) -> str:
     return confidence_tier(float(getattr(binding, "confidence", 1.0)))
 
 
-def _severity_for(meta: Any, strength: str) -> str:
-    """弱面不得标高严重度：降一档并在 situation 里说明（不是偷偷改数）。"""
-    severity = str(_meta(meta, "severity", "medium"))
+def _severity_of(meta: Any, oracle_id: str, strength: str) -> tuple[str, str]:
+    """→ (severity, basis)。等级来自 **policy 的规则表**，不是模型也不是默认值。
+
+    两道约束叠在一起：
+    1. ``severity_for`` 把 ``severity_rule`` 映射成等级（表外的规则兜底 medium 并标 default）；
+    2. 弱面（crawl/probe）不得标高严重度——压到 medium 并改 basis 为 ``weak_face_cap``。
+
+    ``basis`` 会写进 ``situation``：报告读者要能分清"评估给出"和"兜底/降级给出"。
+    """
+    from veripen_oracles.policy import severity_for
+
+    rule = str(_meta(meta, "severity_rule", ""))
+    severity, basis = severity_for(oracle_id, rule)
     if strength in WEAK_STRENGTHS and severity in HIGH_SEVERITIES:
-        return "medium"
-    return severity
+        return "medium", "weak_face_cap"
+    return severity, basis
+
+
+def _situation(meta: Any, oracle_id: str, binding: Any, result: Any) -> str:
+    """现况一句话。**严重度的来路写在这里**，而不是靠读者猜 medium 是评估还是兜底。"""
+    strength = _strength_of(binding)
+    _severity, basis = _severity_of(meta, oracle_id, strength)
+    prefix = ""
+    if basis == "weak_face_cap":
+        prefix = f"弱面（{strength}）：严重度按 medium 计。"
+    elif basis == "default":
+        prefix = "oracle 未声明该规则对应的严重度，按 medium 兜底。"
+    return (prefix + str(getattr(result, "reason", "") or ""))[:200]
 
 
 def main(argv: list[str] | None = None) -> int:

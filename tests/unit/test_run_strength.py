@@ -23,7 +23,7 @@ from veripen_core.routes.types import (
     RouteProvenance,
     RouteQuery,
 )
-from veripen_cli.cmd_run import _severity_for, _strength_of
+from veripen_cli.cmd_run import _severity_of, _strength_of
 
 S = chr(0x2F)
 
@@ -59,21 +59,29 @@ def test_crawl_binding_is_not_reported_as_contract() -> None:
 
 
 class _Meta:
-    def __init__(self, severity: str) -> None:
-        self.severity = severity
+    def __init__(self, severity_rule: str) -> None:
+        self.severity_rule = severity_rule
 
 
-@pytest.mark.parametrize("severity", ["high", "critical"])
-def test_weak_face_cannot_carry_high_severity(severity: str) -> None:
-    assert _severity_for(_Meta(severity), "crawl") == "medium"
+@pytest.mark.parametrize("rule", ["server_side_fetch", "cross_account_read"])
+def test_weak_face_cannot_carry_high_severity(rule: str) -> None:
+    severity, basis = _severity_of(_Meta(rule), "ssrf_oob", "crawl")
+    assert severity == "medium" and basis == "weak_face_cap"
 
 
-def test_contract_face_keeps_its_severity() -> None:
-    assert _severity_for(_Meta("high"), "contract") == "high"
+def test_contract_face_keeps_rule_severity() -> None:
+    assert _severity_of(_Meta("server_side_fetch"), "ssrf_oob", "contract") == ("high", "rule")
 
 
-def test_low_severity_is_untouched_on_weak_faces() -> None:
-    assert _severity_for(_Meta("low"), "crawl") == "low"
+def test_low_rule_is_untouched_on_weak_faces() -> None:
+    assert _severity_of(_Meta("config_missing_rate_limit"), "rate_limit_absent", "crawl") == (
+        "low",
+        "rule",
+    )
+
+
+def test_unknown_rule_falls_back_with_visible_basis() -> None:
+    assert _severity_of(_Meta("something_new"), "x", "contract") == ("medium", "default")
 
 
 # ── B98：`_meta` 必须同时认 oracle 与 oracle.meta ───────────────────
