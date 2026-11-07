@@ -102,8 +102,10 @@ class HuntRuntime:
         self.binding_refs: dict[str, str] = {}
         #: oracle_id → 下一条要跑的面下标（route_ref 没给时按序推进）
         self._cursor: dict[str, int] = {}
-        #: 逐面运行记录：覆盖账本按面计，不再只记一条
-        self.faces_run: list[dict[str, Any]] = []
+        #: 逐面运行记录：覆盖账本按面计，不再只记一条（形状与 run 共用 FaceRun）
+        from veripen_core.coverage import FaceRun
+
+        self.faces_run: list[FaceRun] = []
 
     def list_assets(self) -> list[dict[str, Any]]:
         return [{"id": self.routeset.asset_id, "kind": "web", "criticality": "unknown"}]
@@ -176,15 +178,17 @@ class HuntRuntime:
             self.reasons[oracle_id] = detail
             return {"verdict": "BLOCKED", "reason": detail, "route_strength": "contract"}
         self.reasons[oracle_id] = result.reason
-        self.faces_run.append({
-            "oracle_id": oracle_id,
-            "route_ref": chosen.ref,
-            "template": str(getattr(chosen, "template", ""))[:80],
-            "face_index": face_index,
-            "faces_total": len(faces),
-            "verdict": result.verdict.value,
-            "reason": str(result.reason)[:120],
-        })
+        from veripen_core.coverage import FaceRun
+
+        self.faces_run.append(FaceRun(
+            oracle_id=oracle_id,
+            route_ref=chosen.ref,
+            template=str(getattr(chosen, "template", "")),
+            verdict=result.verdict.value,
+            reason=str(result.reason),
+            face_index=face_index,
+            faces_total=len(faces),
+        ))
         return {
             "verdict": result.verdict.value,
             "reason": result.reason,
@@ -498,15 +502,9 @@ def main(argv: list[str]) -> int:
     }
     # 有逐面记录就按面计（多面执行），否则退回"一 oracle 一条"的老口径
     if runtime.faces_run:
-        observations = [
-            Observation(
-                oracle_id=str(row["oracle_id"]),
-                route_ref=str(row["route_ref"]),
-                verdict=str(row["verdict"]),
-                reason=str(row["reason"])[:200],
-            )
-            for row in runtime.faces_run
-        ]
+        from veripen_core.coverage import observations_from
+
+        observations = observations_from(runtime.faces_run)
     else:
         observations = [
             Observation(
@@ -543,7 +541,7 @@ def main(argv: list[str]) -> int:
         "reason": result.reason,
         "findings": findings,
         # 逐面运行记录：多面执行时"一个 oracle 一条"已经不够描述
-        "faces_run": runtime.faces_run,
+        "faces_run": [row.as_dict() for row in runtime.faces_run],
         "not_confirmed": blocked,
         "steps": [
             {"step": e.step, "tool": e.tool, "ok": e.ok,

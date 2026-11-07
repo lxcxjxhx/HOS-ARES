@@ -375,6 +375,7 @@ def main(argv: list[str] | None = None) -> int:
     started = time.time()
     results: list[tuple[str, Any, Any, Any]] = []   # (oracle_id, meta, result, binding)
     render_state: dict[str, Any] = {"thread": None, "sent": []}
+    face_runs: list[Any] = []   # list[FaceRun]：账本观测的唯一来源
     try:
         for oracle_id in oracles:
             cls = next((c for c in ALL_ORACLES if c.meta.id == oracle_id), None)
@@ -430,6 +431,17 @@ def main(argv: list[str] | None = None) -> int:
                     f"{str(getattr(result, 'reason', ''))[:36]:<36} {face}"
                 )
                 results.append((oracle_id, oracle.meta, result, primary))
+                from veripen_core.coverage import FaceRun
+
+                face_runs.append(FaceRun(
+                    oracle_id=oracle_id,
+                    route_ref=str(getattr(primary, "ref", "")),
+                    template=str(getattr(primary, "template", "")),
+                    verdict=verdict,
+                    reason=str(getattr(result, "reason", "") or ""),
+                    face_index=faces.index(primary) + 1,
+                    faces_total=len(faces),
+                ))
 
 
     finally:
@@ -495,15 +507,10 @@ def main(argv: list[str] | None = None) -> int:
         str(c.meta.id): tuple(str(t) for t in getattr(c.meta, "selector_tags", ()))
         for c in ALL_ORACLES
     }
-    observations = [
-        Observation(
-            oracle_id=oid,
-            route_ref=str(getattr(binding, "ref", "")),
-            verdict=str(getattr(res.verdict, "value", res.verdict)),
-            reason=str(getattr(res, "reason", "") or "")[:200],
-        )
-        for oid, _meta, res, binding in results
-    ]
+    # 观测只从 face_runs 出：别在调用方再拼一遍（B122）
+    from veripen_core.coverage import observations_from
+
+    observations = observations_from(face_runs)
     coverage = build_coverage(
         asset_id=host,
         bindings=routeset.bindings,

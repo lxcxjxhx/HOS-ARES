@@ -68,6 +68,48 @@ class Observation:
 
 
 @dataclass(frozen=True)
+class FaceRun:
+    """一条面跑了一次 oracle 的事实。
+
+    `run` 与 `hunt` 都用它：序列化形状与账本观测都从这里出，避免两边各写一遍。
+    注意它**只记事实**（跑了哪条面、结论、原因），不装结果对象——
+    capsule 需要完整结果，由调用方自己留着。
+    """
+
+    oracle_id: str
+    route_ref: str
+    template: str = ""
+    verdict: str = "BLOCKED"
+    reason: str = ""
+    face_index: int = 1
+    faces_total: int = 1
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "oracle_id": self.oracle_id,
+            "route_ref": self.route_ref,
+            "template": self.template[:80],
+            "verdict": self.verdict,
+            "reason": str(self.reason)[:120],
+            "face_index": self.face_index,
+            "faces_total": self.faces_total,
+        }
+
+    def to_observation(self) -> "Observation":
+        return Observation(
+            oracle_id=self.oracle_id,
+            route_ref=self.route_ref,
+            verdict=self.verdict,
+            reason=str(self.reason)[:200],
+        )
+
+
+def observations_from(runs: Sequence["FaceRun"]) -> list["Observation"]:
+    """逐面运行 → 账本观测。**唯一入口**：别在调用方再拼一遍。"""
+    return [run.to_observation() for run in runs]
+
+
+@dataclass(frozen=True)
 class Claim:
     """agent 自称覆盖过的面。**只用来对账，不用来加分。**"""
 
@@ -312,6 +354,8 @@ def write_coverage(run_dir: Path, document: Mapping[str, Any]) -> Path:
 
 
 __all__ = [
+    "FaceRun",
+    "observations_from",
     "COVERAGE_FILENAME",
     "COVERAGE_SCHEMA_VERSION",
     "OUTCOME_LABELS",
