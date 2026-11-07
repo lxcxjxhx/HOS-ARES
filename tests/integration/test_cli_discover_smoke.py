@@ -98,3 +98,38 @@ def test_no_module_uses_names_it_never_imported() -> None:
             if name not in imported and name not in defined and name not in builtin_names
         }
         assert not missing, f"{rel} 调用了未导入的名字：{sorted(missing)}"
+
+# ── B113：三个入口的发现参数必须一致 ─────────────────────────────
+_DISCOVERY_FLAGS = ("--discover-rounds", "--discover-pages", "--render", "--submit-forms")
+
+
+@pytest.mark.parametrize(
+    "module, argv",
+    [
+        ("veripen_cli.cmd_discover", ["discover"]),
+        ("veripen_cli.cmd_run", ["run"]),
+        ("veripen_cli.cmd_hunt", ["hunt"]),
+    ],
+)
+def test_entrypoints_expose_the_same_discovery_flags(
+    module: str, argv: list[str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """这组参数曾经各抄一遍：hunt 少了 --submit-forms，discover 叫 --max-rounds。"""
+    import importlib
+
+    mod = importlib.import_module(module)
+    with pytest.raises(SystemExit):
+        mod.main(["--help"])
+    out = capsys.readouterr().out
+    missing = [f for f in _DISCOVERY_FLAGS if f not in out]
+    assert not missing, f"{module} 缺少发现参数：{missing}"
+
+
+def test_discover_keeps_legacy_alias(capsys: pytest.CaptureFixture[str]) -> None:
+    """旧脚本用 --max-rounds：别名要留着，别让升级断掉。"""
+    from veripen_cli.cmd_discover import main
+
+    with pytest.raises(SystemExit):
+        main(["--help"])
+    out = capsys.readouterr().out
+    assert "--max-rounds" in out and "--max-pages" in out

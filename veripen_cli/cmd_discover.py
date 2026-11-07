@@ -26,6 +26,7 @@ import time
 from pathlib import Path
 from typing import Sequence
 
+from ._discover_args import add_discovery_args
 from ._io import setup_stdout
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -74,21 +75,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         description="无契约发现：从首页链接/表单攒面（不产判定）",
     )
     ap.add_argument("--target", required=True, help="目标根地址（scheme + host[:port]）")
-    ap.add_argument("--max-rounds", type=int, default=DEFAULT_MAX_ROUNDS,
-                    help="最多几轮（一轮 = 解析 + 抓 + 抽）")
-    ap.add_argument("--max-pages", type=int, default=DEFAULT_MAX_PAGES,
-                    help="每轮最多抓几页")
+    add_discovery_args(ap, include_enable=False, legacy_aliases=True)
     ap.add_argument("--rate", type=float, default=1.0, help="每秒请求上限（默认 1）")
     ap.add_argument("--burst", type=float, default=2.0, help="突发桶容量（默认 2）")
     ap.add_argument("--out", default="", help="把发现结果写成 JSON（可选）")
-    ap.add_argument(
-        "--submit-forms", action="store_true",
-        help="提交无副作用的 GET 表单（探针值 1），看响应里还有什么",
-    )
-    ap.add_argument(
-        "--render", action="store_true",
-        help="渲染 HTML 再抽入口（补 JS 生成与同源 XHR；慢，默认关）",
-    )
     args = ap.parse_args(sys.argv[1:] if argv is None else argv)
     setup_stdout()
 
@@ -102,7 +92,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         from veripen_core.render.browser import BrowserRenderer
 
         renderer = stack.enter_context(BrowserRenderer())
-    crawl = Crawler(transport_fetcher(), max_pages=args.max_pages, renderer=renderer,
+    crawl = Crawler(transport_fetcher(), max_pages=args.discover_pages, renderer=renderer,
             submit_forms=getattr(args, "submit_forms", False),
             ignore_params=(BASE_SYMBOL,))
 
@@ -115,7 +105,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     candidates = [seed_candidate(BASE_SYMBOL), *well_known_candidates(BASE_SYMBOL)]
     truncated = False
 
-    for round_no in range(1, max(1, args.max_rounds) + 1):
+    for round_no in range(1, max(1, args.discover_rounds) + 1):
         src = SymSource("crawl", RouteProvenance.CRAWL, candidates, symbols, base_symbol=BASE_SYMBOL)
         q = RouteQuery(asset=AssetRef(id=host), hints=RouteHints(), min_confidence=0.0)
         routeset = Resolver(sources=[src]).resolve(q, now=int(time.time()))
