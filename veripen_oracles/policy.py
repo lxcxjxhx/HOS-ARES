@@ -92,6 +92,8 @@ SEVERITY_BY_RULE: dict[str, str] = {
     "reflected_unescaped": "medium",
     # DOM 型成立时是"真的执行了"，比反射型更硬
     "dom_sink_execution": "high",
+    # 缺安全响应头：是弱点，但单独不足以致命
+    "missing_security_header": "medium",
     "readonly_field_accepted": "medium",
     "unvalidated_redirect": "medium",
     "acao_reflect": "medium",

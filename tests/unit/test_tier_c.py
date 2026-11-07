@@ -132,15 +132,17 @@ def test_graphql_introspection_alone_is_info() -> None:
 
 # ── 4 注册表与默认关闭 ────────────────────────────────────────────
 def test_tier_c_registered() -> None:
-    from veripen_oracles import AUTH, TIER_A, TIER_B, TIER_C, TIER_DOM
+    from veripen_oracles import tiers
 
     assert {c.meta.id for c in TIER_C} == {
         "xss_stored_probe", "cors_misconfig", "graphql_introspection"
     }
-    # 不写死条数：写死就得每加一个 oracle 回来改一遍（B117 踩过）
-    assert len(ALL_ORACLES) == (
-        len(TIER_A) + len(TIER_B) + len(AUTH) + len(TIER_C) + len(TIER_DOM)
-    ), "全部注册 = 各档之和"
+    # 不写死条数、也不抄档名：包自己回答有哪些档（B117 / B123 各红过一次）
+    groups = tiers()
+    assert all(groups.values()), "空档说明注册漏了"
+    assert sum(len(t) for t in groups.values()) == len(ALL_ORACLES), (
+        f"全部注册 = 各档之和；当前档：{ {k: len(v) for k, v in groups.items()} }"
+    )
 
 
 def test_tier_c_tags_are_semantic() -> None:

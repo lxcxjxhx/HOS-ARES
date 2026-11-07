@@ -25,7 +25,7 @@ from .common.harness import (
 #: 全部已注册 oracle（B5 的 4 类 + B6 的 2 类）；B7 起继续追加
 from . import tierA, tierA_rest, tierB  # noqa: E402
 from .auth import jwt_suite  # noqa: E402
-from . import tierC, tier_dom  # noqa: E402
+from . import tierC, tier_dom, tier_headers  # noqa: E402
 
 TIER_A: tuple[type[BaseOracle], ...] = tierA.REGISTRY + (
     tierA_rest.OpenRedirect,
@@ -55,7 +55,27 @@ TIER_C: tuple[type[BaseOracle], ...] = (
 #: DOM 型（需要浏览器传输，不是 HTTP）
 TIER_DOM: tuple[type[BaseOracle], ...] = (tier_dom.XssDom,)
 
-ALL_ORACLES: tuple[type[BaseOracle], ...] = TIER_A + TIER_B + AUTH + TIER_C + TIER_DOM
+#: 响应头型（只看头，不需要载荷，也不需要浏览器）
+TIER_HEADERS: tuple[type[BaseOracle], ...] = (tier_headers.CspAbsent,)
+
+ALL_ORACLES: tuple[type[BaseOracle], ...] = (
+    TIER_A + TIER_B + AUTH + TIER_C + TIER_DOM + TIER_HEADERS
+)
+
+
+def tiers() -> dict[str, tuple[type[BaseOracle], ...]]:
+    """所有分档（TIER_* 与 AUTH）——**由模块自己回答**，不在别处抄清单。
+
+    每加一档就要回来改 doctor / parity / test 的写法已经红过两次（B117/B123）。
+    """
+    out: dict[str, tuple[type[BaseOracle], ...]] = {}
+    for name, value in list(globals().items()):
+        if not (name.startswith("TIER_") or name == "AUTH"):
+            continue
+        if isinstance(value, tuple) and value and isinstance(value[0], type):
+            out[name] = value
+    return dict(sorted(out.items()))
+
 
 __all__ = [
     "BaseOracle",
@@ -71,15 +91,18 @@ __all__ = [
     "run",
     "three_way_holds",
     "ALL_ORACLES",
+    "tiers",
     "AUTH",
     "TIER_A",
     "TIER_B",
     "TIER_C",
     "TIER_DOM",
+    "TIER_HEADERS",
     "tierC",
     "tierA",
     "tierA_rest",
     "tierB",
     "tier_dom",
+    "tier_headers",
     "jwt_suite",
 ]
