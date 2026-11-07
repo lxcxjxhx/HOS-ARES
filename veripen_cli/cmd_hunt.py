@@ -78,6 +78,13 @@ from veripen_oracles.common.harness import SymbolTable, run as run_oracle  # noq
 BASE_SYMBOL = "TARGET_BASE"
 
 
+def _strength_of(binding: Any) -> str:
+    """面强度：与 run 共用同一条规则（routes.confidence.strength_of）。"""
+    from veripen_core.routes.confidence import strength_of
+
+    return strength_of(binding)
+
+
 class HuntRuntime:
     """给 `Loop` 用的最小 runtime：只做 oracle 执行与重发现。"""
 
@@ -124,7 +131,7 @@ class HuntRuntime:
                     break
         if not tags or tags[0] not in bindings:
             self.reasons[oracle_id] = "route_unresolved"
-            return {"verdict": "BLOCKED", "reason": "route_unresolved", "route_strength": "contract"}
+            return {"verdict": "BLOCKED", "reason": "route_unresolved", "route_strength": "none"}
         self.binding_refs[oracle_id] = bindings[tags[0]].ref
         self.transport.oracle_id = oracle_id
         try:
@@ -140,7 +147,8 @@ class HuntRuntime:
         return {
             "verdict": result.verdict.value,
             "reason": result.reason,
-            "route_strength": "contract",
+            # 面强度由置信档推：发现来的面是 crawl，不能跟着契约面一起写 contract
+            "route_strength": _strength_of(bindings[tags[0]]),
             "capsule_id": f"sha256:{oracle_id}" if result.verdict.value == "VERIFIED" else None,
         }
 
@@ -266,7 +274,13 @@ def build_guard(
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(prog="veripen hunt")
     ap.add_argument("--target", required=True, help="真实目标根地址（scheme + host[:port]）")
-    ap.add_argument("--openapi", required=True, help="该目标的 OpenAPI 文档路径")
+    ap.add_argument("--openapi", default="", help="OpenAPI/Swagger 文档路径（与 --discover 二选一）")
+    ap.add_argument(
+        "--discover", action="store_true",
+        help="无契约：先从目标攒面再跑（与 --openapi 二选一）",
+    )
+    ap.add_argument("--discover-rounds", type=int, default=2, help="发现最多几轮")
+    ap.add_argument("--discover-pages", type=int, default=20, help="每轮最多抓几页")
     ap.add_argument("--model", choices=("scripted", "live"), default="scripted")
     ap.add_argument("--token", default="",
                     help="[兼容] 主身份 Bearer token。会进 shell 历史与进程列表，优先用 --token-file")
@@ -302,27 +316,37 @@ def main(argv: list[str]) -> int:
     setup_stdout()
 
     host = _host_of(args.target)
-    # 契约格式先归一（B89）：swagger 2.0 折成 OpenAPI 3，Postman/认不出的当场说清。
-    try:
-        text = as_openapi_text(Path(args.openapi).read_text(encoding="utf-8"))
-    except SpecFormatError as exc:
-        print(f"契约格式不支持：{exc}", file=sys.stderr)
+    if bool(args.openapi) == bool(args.discover):
+        print("--openapi 与 --discover 必须二选一", file=sys.stderr)
         return 2
-    try:
-        opset = parse_openapi(text, asset_id=host, allowed_hosts=[host])
-    except ContractError as exc:
-        print(f"契约拒绝：{exc}", file=sys.stderr)
-        return 2
-
     excluded = {x.strip() for x in args.exclude.split(",") if x.strip()}
 
-    planned = plan(opset, source=RouteProvenance.CONTRACT)
-    routeset = _build_routeset(args.target, list(planned.candidates), host)
+    planned = None
+    if args.discover:
+        # 复用 run 的发现轮次：同一套地址纪律（绑定只能由 resolver 出），只是不封证据。
+        from veripen_cli.cmd_run import _discover_routeset
+
+        routeset = _discover_routeset(args, host)
+    else:
+        # 契约格式先归一（B89）：swagger 2.0 折成 OpenAPI 3，Postman/认不出的当场说清。
+        try:
+            text = as_openapi_text(Path(args.openapi).read_text(encoding="utf-8"))
+        except SpecFormatError as exc:
+            print(f"契约格式不支持：{exc}", file=sys.stderr)
+            return 2
+        try:
+            opset = parse_openapi(text, asset_id=host, allowed_hosts=[host])
+        except ContractError as exc:
+            print(f"契约拒绝：{exc}", file=sys.stderr)
+            return 2
+        planned = plan(opset, source=RouteProvenance.CONTRACT)
+        routeset = _build_routeset(args.target, list(planned.candidates), host)
     oracles = tuple(o for o in _oracles_for(routeset) if o not in excluded)
     dropped = tuple(o for o in _oracles_for(routeset) if o in excluded)
 
     print(f"目标：{host}")
-    print(f"契约：{len(planned.candidates)} 条候选 / 跳过 {len(planned.skipped)}")
+    if planned is not None:
+        print(f"契约：{len(planned.candidates)} 条候选 / 跳过 {len(planned.skipped)}")
     print(f"路由：{len(routeset.bindings)} 条绑定")
     print(f"可跑 oracle：{len(oracles)} 个 —— {', '.join(oracles) or '（无）'}")
     if dropped:
@@ -458,8 +482,10 @@ def main(argv: list[str]) -> int:
     out.mkdir(parents=True, exist_ok=True)
     record = {
         "target_host": host,
-        "candidates": len(planned.candidates),
-        "skipped": list(planned.skipped),
+        # 无契约路径没有"契约候选"这个概念：给 None 而不是 0——0 会被读成"契约里 0 条"
+        "candidates": (len(planned.candidates) if planned is not None else None),
+        "skipped": (list(planned.skipped) if planned is not None else None),
+        "source": ("discover" if planned is None else "contract"),
         "bindings": len(routeset.bindings),
         "oracles": list(oracles),
         "decision": result.decision.value,
