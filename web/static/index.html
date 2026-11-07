@@ -311,6 +311,30 @@ function renderEngagement(d) {
 function renderCoverage(d) {
   const wrap = el("div");
   wrap.append(el("p", { class: "muted" }, `口径：${d.scope || "unknown"}（分母只含跑过的面）`));
+  // B97：有账本就先把"哪条面根本没判定"摆出来——它比矩阵更接近客户问的那个问题。
+  if (d.ledger) {
+    const L = d.ledger;
+    const s = L.summary || {};
+    const done = (L.completeness || {}).complete;
+    wrap.append(el("p", {},
+      `账本：面 ${s.faces || 0}（有判定 ${s.faces_covered || 0}）· 适用 ${s.applicable_pairs || 0} 对`
+      + ` · 执行 ${s.executed || 0} · 缺口 ${s.gaps || 0} · 完整：${done ? "是" : "否"}`));
+    // 账本里的话是给 markdown 报告写的，控制台是纯文本：把 **强调** 去掉再显示
+    const plain = (s0) => String(s0).replace(/\*\*/g, "");
+    for (const c of ((L.completeness || {}).caveats || [])) {
+      wrap.append(el("p", { class: "muted" }, plain(c)));
+    }
+    const gaps = L.gaps || [];
+    if (gaps.length) {
+      const t = el("table");
+      t.append(el("tr", ...["缺口", "严重度", "说明"].map((h) => el("th", {}, h))));
+      for (const g of gaps) {
+        t.append(el("tr", el("td", {}, String(g.kind)),
+          el("td", {}, String(g.severity)), el("td", {}, plain(g.detail || ""))));
+      }
+      wrap.append(t);
+    }
+  }
   if (!(d.matrix || []).length) {
     wrap.append(el("p", { role: "status" }, "本轮没有可展示的覆盖数据"));
     return wrap;

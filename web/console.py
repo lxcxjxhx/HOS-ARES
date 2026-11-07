@@ -442,11 +442,21 @@ def build_app(
             return unverified_view([r for r in state.findings if r.outcome != "reported"])
         if op == "ui.coverage":
             if "matrix" in state.coverage:          # 调用方已给矩阵：直接用
-                return dict(state.coverage)
-            return coverage_from_findings(
-                state.findings,
-                zero_hit_tags=state.coverage.get("zero_hit_tags", ()),
-            )
+                view = dict(state.coverage)
+            else:
+                view = coverage_from_findings(
+                    state.findings,
+                    zero_hit_tags=state.coverage.get("zero_hit_tags", ()),
+                )
+            # B97：有账本就把"哪条面根本没判定"一起给出（六类缺口 + 完整度）。
+            ledger = state.coverage.get("ledger") or {}
+            if ledger:
+                view["ledger"] = {
+                    "summary": ledger.get("summary") or {},
+                    "completeness": ledger.get("completeness") or {},
+                    "gaps": list(ledger.get("gaps") or ())[:50],
+                }
+            return view
         if op == "ui.overview":
             cov = coverage_from_findings(state.findings)
             cells = [cell for row in cov["matrix"] for cell in row["cells"].values()]

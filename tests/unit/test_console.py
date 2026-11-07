@@ -219,3 +219,47 @@ def test_static_page_does_not_hardcode_api_paths() -> None:
     text = page.read_text(encoding="utf-8")
     assert (SLASH + "api") not in text
     assert "fetch(" in text
+
+
+# ── 5.5 覆盖账本（B97）：账本进页面，不只留在文件里 ────────────────
+def test_coverage_page_carries_ledger_gaps() -> None:
+    ledger = {
+        "summary": {"faces": 3, "faces_covered": 1, "applicable_pairs": 3, "executed": 2, "gaps": 2},
+        "completeness": {"complete": False, "caveats": ["本轮以 'budget' 结束"]},
+        "gaps": [
+            {"kind": "oracle_not_run", "severity": "critical", "detail": "没跑"},
+            {"kind": "oracle_blocked", "severity": "warn", "detail": "测不了"},
+        ],
+    }
+    state = ConsoleState(findings=[_row()], coverage={"ledger": ledger})
+    data = _client(state).get(UI + "coverage").json()["data"]
+    assert data["ledger"]["summary"]["faces"] == 3
+    assert [g["kind"] for g in data["ledger"]["gaps"]] == ["oracle_not_run", "oracle_blocked"]
+    assert data["ledger"]["completeness"]["complete"] is False
+
+
+def test_coverage_page_without_ledger_still_returns_matrix() -> None:
+    data = _client().get(UI + "coverage").json()["data"]
+    assert "ledger" not in data
+    assert "matrix" in data
+
+
+def test_loader_reads_sibling_coverage_json(tmp_path) -> None:
+    from web.loader import load_file
+
+    hunt = tmp_path / "hunt.json"
+    hunt.write_text('{"target_host": "web-01", "findings": {}, "not_confirmed": {}}', encoding="utf-8")
+    (tmp_path / "coverage.json").write_text(
+        '{"summary": {"faces": 2}, "gaps": [{"kind": "x", "severity": "info", "detail": "d"}]}',
+        encoding="utf-8",
+    )
+    state = load_file(hunt)
+    assert state.coverage["ledger"]["summary"]["faces"] == 2
+
+
+def test_loader_without_ledger_leaves_coverage_empty(tmp_path) -> None:
+    from web.loader import load_file
+
+    hunt = tmp_path / "hunt.json"
+    hunt.write_text('{"target_host": "web-01", "findings": {}, "not_confirmed": {}}', encoding="utf-8")
+    assert "ledger" not in load_file(hunt).coverage
