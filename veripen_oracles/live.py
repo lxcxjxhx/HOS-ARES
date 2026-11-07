@@ -138,7 +138,7 @@ class CoreTransport:
         # HttpTrace 只留 body 哈希，那是给 evidence 层用的形状；oracle 要判正文，
         # 所以这里返回完整的 Trace，不经过 models.HttpTrace。
         return Trace(route_ref=binding.ref, status=status, body=payload,
-                     headers=resp_headers)
+                     headers=resp_headers, scheme=r.scheme)
 
 
 __all__ = ["CoreTransport", "GuardMissing", "USER_AGENT"]

@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any, ClassVar
 
 from pydantic import BaseModel, ConfigDict
@@ -31,6 +32,9 @@ from .common.harness import Pair, Variant
 CSP = "content-security-policy"
 XFO = "x-frame-options"
 NOSNIFF = "x-content-type-options"
+STS = "strict-transport-security"
+
+_MAX_AGE = re.compile(r"max-age\s*=\s*([0-9]+)", re.I)
 
 
 class HeaderParams(BaseModel):
@@ -105,6 +109,52 @@ class _HeaderAbsent(BaseOracle):
         return self.refuted(self.present_reason, assertion)
 
 
+class HstsAbsent(_HeaderAbsent):
+    """缺少 HSTS。**只在 https 上有意义**——http 目标判"不适用"。"""
+
+    header_name = STS
+    absent_reason = "hsts_absent"
+    present_reason = "hsts_present"
+
+    meta = OracleMeta(
+        id="hsts_absent",
+        version="1.0.0",
+        cwe="CWE-319",
+        impact=ImpactClass.READ_ONLY,
+        severity_rule="missing_security_header",
+        selector_tags=("html_document",),
+    )
+
+    def _present(self, trace: Any) -> bool:
+        value = _header_of(trace, STS)
+        if not value:
+            return False
+        # `max-age=0` 是"关掉 HSTS"的正式写法：头在，等于没有
+        match = _MAX_AGE.search(value)
+        if match is None:
+            return False
+        return int(match.group(1)) > 0
+
+    def judge(self, pairs: list[Pair]) -> Judgement:
+        by_role = {p.role: p for p in pairs}
+        probe = by_role.get("probe")
+        if probe is None:
+            return self.inconclusive("missing_variant")
+        if (probe.trace.scheme or "").lower() != "https":
+            # 不适用就是"说不出来"，不是"没问题"，也不是"有问题"
+            return self.inconclusive(
+                "not_https",
+                {
+                    "kind": "not_applicable",
+                    "statement": "HSTS 只对 https 成立，本次请求不是 https",
+                    "expected": {},
+                    "observed": {"scheme": probe.trace.scheme or "unknown"},
+                    "fingerprint": {"applicable": False},
+                },
+            )
+        return super().judge(pairs)
+
+
 class CspAbsent(_HeaderAbsent):
     """缺少 Content-Security-Policy。**只说"没有"，不说"弱"。**"""
 
@@ -168,9 +218,11 @@ class NosniffAbsent(_HeaderAbsent):
 
 __all__ = [
     "CSP",
+    "STS",
     "NOSNIFF",
     "XFO",
     "CspAbsent",
+    "HstsAbsent",
     "FrameOptAbsent",
     "NosniffAbsent",
     "HeaderParams",

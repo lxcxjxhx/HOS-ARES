@@ -58,6 +58,7 @@ TIER_DOM: tuple[type[BaseOracle], ...] = (tier_dom.XssDom,)
 #: 响应头型（只看头，不需要载荷，也不需要浏览器）
 TIER_HEADERS: tuple[type[BaseOracle], ...] = (
     tier_headers.CspAbsent,
+    tier_headers.HstsAbsent,
     tier_headers.FrameOptAbsent,
     tier_headers.NosniffAbsent,
 )
