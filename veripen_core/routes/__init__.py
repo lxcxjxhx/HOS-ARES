@@ -46,6 +46,7 @@ from .sources import (
     validate_contract_hosts,
 )
 from .types import (
+    short_ref,
     AssetRef,
     ContractHostError,
     ContractLocatorUnresolved,
@@ -120,6 +121,7 @@ __all__ = [
     "parse_operations",
     "primary_source",
     "resolve_routes",
+    "short_ref",
     "sort_key",
     "source_rank",
     "structural_key",

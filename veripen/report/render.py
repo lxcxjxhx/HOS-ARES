@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from veripen_core.routes.types import short_ref
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Iterable, Mapping, Sequence
@@ -98,16 +99,12 @@ class FindingView:
         完整 ref 是 ``route://contract/<64 hex>``，进报告会让每行多 60 字符，
         且不透明 id 没有阅读价值。所以保留 scheme + 来源段，只截 id。
         """
-        ref = self.route_ref or ""
-        if not ref:
+        if not self.route_ref:
             return ""
-        if ref.startswith(ROUTE_SCHEME):
-            tail = ref[len(ROUTE_SCHEME):]
-            source, sep, rid = tail.partition("/")
-            if sep:
-                return ROUTE_SCHEME + source + "/" + rid[:ROUTE_ID_LEN]
-            return ROUTE_SCHEME + tail[:ROUTE_ID_LEN]
-        return ref[:ROUTE_PREFIX_LEN]
+        # 截断规则只有一份（routes.short_ref）：这里只负责加回 scheme 用于展示。
+        return short_ref(
+            self.route_ref, ROUTE_ID_LEN, with_source=True, with_scheme=True
+        )
 
     @property
     def is_weak(self) -> bool:
@@ -224,7 +221,11 @@ def render_json(report: ReportInput) -> dict[str, Any]:
                 "title": f.title,
                 "asset": f.asset_id,
                 "route": {
-                    "ref": f.route_short,
+                    # ref 是**不透明身份**（route://<source>/<hash>），不含地址；
+                    # 截断只用于展示，机器要能拿它回查绑定。早期把短形式写进 ref，
+                    # 于是下游永远拿不到完整身份（B101）。
+                    "ref": f.route_ref or "",
+                    "short": f.route_short,
                     "source": f.route_strength,
                     "strength": f.route_strength,
                     "template_sha256": f.template_sha256[:12],

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import time
+from veripen_core.routes.types import short_ref
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Mapping, Sequence
@@ -81,10 +82,7 @@ class Row:
         直接切前 8 位会得到 ``route://`` —— 既泄露 scheme 又毫无信息（B40 实测到）。
         所以取最后一段（哈希）前 8 位；无 ref 时给空串，由前端渲染「未绑定」。
         """
-        ref = self.route_ref or ""
-        if not ref:
-            return ""
-        return ref.rsplit(_SEP, 1)[-1][:8]
+        return short_ref(self.route_ref)
 
     @property
     def verdict(self) -> str:
@@ -365,6 +363,11 @@ class Approval:
     reason: str = ""
     decided_at: float | None = None
 
+    @property
+    def route_short(self) -> str:
+        """同 Row.route_short：取哈希前 8 位，不切 scheme（否则永远是 ``route://``）。"""
+        return short_ref(self.route_ref)
+
     def status(self, now: float) -> str:
         if self.decision != "pending":
             return self.decision
@@ -375,7 +378,7 @@ class Approval:
         return {
             "id": self.id, "action_class": self.action_class, "impact": self.impact,
             "asset": self.asset, "requests": self.requests, "reversible": self.reversible,
-            "route": self.route_ref[:8], "status": self.status(now), "expires_in_s": left,
+            "route": self.route_short, "status": self.status(now), "expires_in_s": left,
             "decided_by": self.decided_by, "reason": self.reason,
         }
 
