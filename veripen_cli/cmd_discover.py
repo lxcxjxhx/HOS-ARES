@@ -82,6 +82,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     ap.add_argument("--burst", type=float, default=2.0, help="突发桶容量（默认 2）")
     ap.add_argument("--out", default="", help="把发现结果写成 JSON（可选）")
     ap.add_argument(
+        "--submit-forms", action="store_true",
+        help="提交无副作用的 GET 表单（探针值 1），看响应里还有什么",
+    )
+    ap.add_argument(
         "--render", action="store_true",
         help="渲染 HTML 再抽入口（补 JS 生成与同源 XHR；慢，默认关）",
     )
@@ -99,6 +103,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         renderer = stack.enter_context(BrowserRenderer())
     crawl = Crawler(transport_fetcher(), max_pages=args.max_pages, renderer=renderer,
+            submit_forms=getattr(args, "submit_forms", False),
             ignore_params=(BASE_SYMBOL,))
 
     known: set[str] = set()

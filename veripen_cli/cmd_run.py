@@ -137,6 +137,7 @@ def _discover_routeset(args: Any, host: str) -> Any:
 
         renderer = stack.enter_context(BrowserRenderer())
     crawler = Crawler(transport_fetcher(), max_pages=args.discover_pages, renderer=renderer,
+            submit_forms=getattr(args, "submit_forms", False),
             ignore_params=(BASE_SYMBOL,))
     candidates = [seed_candidate(BASE_SYMBOL), *well_known_candidates(BASE_SYMBOL)]
     records: list[ObservedRecord] = []
@@ -260,6 +261,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--render", action="store_true",
         help="发现时渲染 HTML（补 JS 生成的入口与同源 XHR；慢，默认关）",
+    )
+    ap.add_argument(
+        "--submit-forms", action="store_true",
+        help="提交无副作用的 GET 表单（探针值 1），看响应里还有什么",
     )
     ap.add_argument("--out", default=str(ROOT / "out" / "run"))
     ap.add_argument("--exclude", default=DEFAULT_EXCLUDE, help="逗号分隔的 oracle 黑名单")
