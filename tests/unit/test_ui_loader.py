@@ -175,3 +175,40 @@ def test_report_shape_severity_comes_from_policy() -> None:
 
 def test_report_shape_unreported_row_has_no_severity() -> None:
     assert load_record(_report_doc(outcome="undetermined")).findings[0].severity is None
+
+# ── B115：控制台吃目录，资产名取自账本 ───────────────────────────
+def _write(tmp_path: "object", name: str, payload: dict) -> None:
+    import json
+    from pathlib import Path
+
+    (Path(tmp_path) / name).write_text(json.dumps(payload), encoding="utf-8")
+
+
+def test_loader_accepts_a_directory(tmp_path: object) -> None:
+    """用户敲 --hunt out/run-xxx 时给的是目录。"""
+    _write(tmp_path, "hunt.json", {"target_host": "a.invalid", "findings": {"sqli_bool_diff": "VERIFIED"}})
+    state = load_file(tmp_path)  # type: ignore[arg-type]
+    assert summarize(state)["total"] == 1
+    assert summarize(state)["asset"] == "a.invalid"
+
+
+def test_loader_prefers_hunt_over_coverage(tmp_path: object) -> None:
+    _write(tmp_path, "hunt.json", {"target_host": "a.invalid", "findings": {}})
+    _write(tmp_path, "coverage.json", {"asset_id": "b.invalid", "summary": {}, "gaps": []})
+    assert summarize(load_file(tmp_path))["asset"] == "a.invalid"  # type: ignore[arg-type]
+
+
+def test_coverage_only_artifact_takes_asset_from_ledger(tmp_path: object) -> None:
+    _write(tmp_path, "coverage.json", {
+        "asset_id": "c.invalid",
+        "summary": {"faces": 1, "faces_covered": 0, "gaps": 1},
+        "gaps": [{"kind": "face_without_oracle", "severity": "critical", "why": "x"}],
+    })
+    state = load_file(tmp_path)  # type: ignore[arg-type]
+    assert summarize(state)["asset"] == "c.invalid", "只有账本时资产名别显示 unknown"
+    assert state.coverage.get("ledger", {}).get("summary", {}).get("faces") == 1
+
+
+def test_empty_directory_is_empty_state_not_a_crash(tmp_path: object) -> None:
+    state = load_file(tmp_path)  # type: ignore[arg-type]
+    assert state.findings == ()
