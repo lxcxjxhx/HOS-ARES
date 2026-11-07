@@ -464,6 +464,12 @@ def main(argv: list[str] | None = None) -> int:
         # 报告第 4 节要能把"哪条面没被判定"点名，而不只给一个统计
         coverage={"gaps": coverage["gaps"], "summary": coverage["summary"],
                   "completeness": coverage["completeness"]},
+        # 面是怎么来的：无契约时必须在报告头写清，否则读者会当成契约面
+        discovery=(
+            {"mode": "discover", "rounds": args.discover_rounds,
+             "pages": args.discover_pages}
+            if args.discover else {}
+        ),
         render_time=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     )
 

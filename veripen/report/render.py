@@ -120,6 +120,8 @@ class ReportInput:
     routeset_sha256: Sequence[str] = ()
     resolver_version: str = ""
     findings: Sequence[FindingView] = ()
+    #: 面的来源口径（空 = 契约）。发现来的面必须在报告里说明，否则读者会当成契约面。
+    discovery: Mapping[str, Any] = field(default_factory=dict)
     rules: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
     coverage: Mapping[str, Any] = field(default_factory=dict)
     frameworks: Sequence[str] = ()
@@ -251,6 +253,7 @@ def render_json(report: ReportInput) -> dict[str, Any]:
             "profile_hash": report.profile_hash,
             "image_digest": report.image_digest,
             "resolver_version": report.resolver_version,
+            "discovery": dict(report.discovery),
             "distribution": report.distribution,
         },
         "root_sha256": report.root_sha256,
@@ -420,6 +423,14 @@ def render_markdown(report: ReportInput) -> str:
     w(f"- 报告指纹 root_sha256: `{report.root_sha256[:16]}`")
     for s in report.routeset_sha256:
         w(f"- routeset_sha256: `{s[:12]}`")
+    if report.discovery:
+        mode = str(report.discovery.get("mode", "discover"))
+        rounds = report.discovery.get("rounds")
+        pages = report.discovery.get("pages")
+        w(
+            f"- **面的来源**：{mode}（crawl，置信 0.70；预算 {rounds} 轮 / {pages} 页）"
+            "—— 面由观测推断，不是契约声明"
+        )
     if report.route_sources_failed:
         w(f"- **来源失败**：{', '.join(report.route_sources_failed)}（本次只用其余来源）")
     w("")
