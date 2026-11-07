@@ -66,6 +66,16 @@ def compute_confidence(
     return max(0.0, min(1.0, value))
 
 
+def strength_of(binding: object) -> str:
+    """面的证据强度：**由置信档推出来**，不是写死的来源名。
+
+    ``RouteBinding`` 没有 ``strength`` 字段；直接 ``getattr(binding, "strength",
+    "contract")`` 会把 crawl 面（0.70）写成 contract（0.90），
+    等于把"猜的面"洗成"契约声明的面"（B98 修过一次，B104 让 hunt 共用同一条规则）。
+    """
+    return confidence_tier(float(getattr(binding, "confidence", 1.0)))
+
+
 def confidence_tier(confidence: float) -> str:
     """分档（27 §3.3 末表）：决定“能不能打”。"""
     if confidence >= 0.95:

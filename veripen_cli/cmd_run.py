@@ -198,9 +198,9 @@ def _strength_of(binding: Any) -> str:
     被写成 contract（0.90）。那是把"猜的面"和"契约声明的面"混成同一档，
     正是 09 §3.1 要防的事。
     """
-    from veripen_core.routes.confidence import confidence_tier
+    from veripen_core.routes.confidence import strength_of
 
-    return confidence_tier(float(getattr(binding, "confidence", 1.0)))
+    return strength_of(binding)
 
 
 def _severity_of(meta: Any, oracle_id: str, strength: str) -> tuple[str, str]:

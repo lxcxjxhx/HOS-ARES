@@ -126,3 +126,10 @@ def test_ref_tail_without_ref_is_stable() -> None:
         ref = ""
 
     assert _ref_tail(_B()) == "noref"
+
+# ── B104：hunt 与 run 共用同一条强度规则 ─────────────────────────
+def test_hunt_strength_matches_run_rule() -> None:
+    from veripen_cli.cmd_hunt import _strength_of as hunt_strength
+
+    assert hunt_strength(_contract_binding()) == "contract"
+    assert hunt_strength(_crawl_binding()) == "crawl"
