@@ -118,6 +118,7 @@ class NetTransport:
         params: Mapping[str, str],
         role: str,
         headers: Mapping[str, str] | None = None,
+        method: str = "",
     ) -> Trace:
         from veripen_core.tools import transport as T
 
@@ -134,7 +135,7 @@ class NetTransport:
             host=parts.hostname or "",
             port=parts.port or DEFAULT_PORTS.get(scheme, 80),
             path=r.path + (("?" + r.query) if r.query else ""),
-            method=r.method.upper(),
+            method=(method or r.method).upper(),
             template_sha256=getattr(binding, "template_sha256", ""),
         )
 

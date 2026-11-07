@@ -87,6 +87,8 @@ class Variant:
     #: 打哪个绑定（selector 标签）；空 = 主绑定。
     #: B7 起必须：BOLA 要 admin_function/normal_function 两条，mass_assignment 要 write+read 两条。
     binding_tag: str = ""
+    #: 方法覆盖（空 = 用 binding 自带的方法）。CORS 预检需要发 OPTIONS（B140）。
+    method: str = ""
 
 
 # ── nonce 与符号表（07 §0.4）────────────────────────────────────────
@@ -370,7 +372,11 @@ def run(
         headers = {k: _fill(v, symbols, nonce_obj, binding, token) for k, v in variant.headers.items()}
         runs: list[Trace] = []
         for _ in range(max(repeats, 1)):
-            runs.append(transport.send(target_binding, params, variant.role, headers))
+            # 只有真要换方法时才传 method：不强迫每个传输（含测试替身）都实现它
+            extra = {'method': variant.method} if variant.method else {}
+            runs.append(
+                transport.send(target_binding, params, variant.role, headers, **extra)
+            )
         collected.append((variant, runs[0], tuple(runs)))
         sent_params.append(dict(params))
         sent_headers.append(dict(headers))

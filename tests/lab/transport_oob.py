@@ -38,9 +38,10 @@ class LabTransport(WsgiTransport):
         params: Mapping[str, str],
         role: str,
         headers: Mapping[str, str] | None = None,
+        method: str = "",
     ) -> Trace:
         mark = self.oob.snapshot()
-        trace = super().send(binding, params, role, headers)
+        trace = super().send(binding, params, role, headers, method=method)
         return Trace(
             route_ref=trace.route_ref,
             status=trace.status,
