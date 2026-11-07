@@ -70,6 +70,10 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--rate", type=float, default=3.0)
     ap.add_argument("--out", default="")
     ap.add_argument("--render", action="store_true", help="发现时渲染 HTML（慢）")
+    ap.add_argument(
+        "--submit-forms", action="store_true",
+        help="提交无副作用的 GET 表单（探针值 1），看响应里还有什么",
+    )
     args = ap.parse_args(argv)
 
     host = _host_of(args.target)
@@ -83,6 +87,7 @@ def main(argv: list[str]) -> int:
 
         renderer = stack.enter_context(BrowserRenderer())
     crawler = Crawler(transport_fetcher(), max_pages=args.pages, renderer=renderer,
+            submit_forms=getattr(args, "submit_forms", False),
             ignore_params=(BASE,))
     candidates = [seed_candidate(BASE), *well_known_candidates(BASE)]
     records = []

@@ -165,6 +165,8 @@ class Crawler:
         renderer: Any = None,
         max_renders: int = 5,
         ignore_params: Sequence[str] = (),
+        submit_forms: bool = False,
+        max_submits: int = 10,
     ) -> None:
         self._fetch = fetch
         self._max_pages = max_pages
@@ -176,6 +178,10 @@ class Crawler:
         #: 模板里的**符号名**（如 ``base``）不是参数：不滤掉的话每条面都会
         #: 凭空多出 param_injectable，标签与覆盖率一起失真。
         self._ignore = set(ignore_params)
+        #: 提交 GET 表单（探针值 1）——**只 GET**：POST/点击都可能改状态，不做。
+        self._submit_forms = submit_forms
+        self._max_submits = max_submits
+        self._submitted: set[tuple[str, tuple[str, ...]]] = set()
         self._seen: set[str] = set()
 
     def step(self, seeds: Sequence[RouteBinding]) -> CrawlRound:
@@ -183,6 +189,8 @@ class Crawler:
         pending: list[Sighting] = []
         skipped: list[tuple[str, str]] = []
         seen_templates: set[str] = set()
+        #: 记录按"模板"去重（一条面一条记录），与 pending 的去重分开
+        seen_records: set[str] = set()
         fetched = 0
         render_total = 0
         truncated = False
@@ -239,6 +247,11 @@ class Crawler:
             raw_identity = binding.identity_template or _page_path(binding)
             identity_path, _, query = raw_identity.partition("?")
             identity, path_params = templatize(identity_path)
+            # 记录按模板去重，但**链接抽取不能跳过**：同一个模板的不同查询串
+            # （/search 与 /search?q=1）返回的内容不同，后者才是结果页。
+            is_new_record = identity not in seen_records
+            if is_new_record:
+                seen_records.add(identity)
             # 表单字段名在候选上（candidate_of 从 <form> 的 name 收来）。
             # 只 templatize 路径会把它整段丢掉，GET 表单就永远是无参静态页。
             extra = tuple(
@@ -246,19 +259,17 @@ class Crawler:
                 if name and name not in self._ignore
             )
             param_names = tuple(dict.fromkeys(path_params + query_names(query) + extra))
-            if identity in seen_templates:
-                continue
-            seen_templates.add(identity)
-            records.append(
-                ObservedRecord(
-                    method=binding.method,
-                    template=identity,
-                    param_names=param_names,
-                    content_type=content_type,
-                    fields=_json_fields(body, content_type),
-                    verifications=1,  # 真的抓到了：这次请求发生过
+            if is_new_record:
+                records.append(
+                    ObservedRecord(
+                        method=binding.method,
+                        template=identity,
+                        param_names=param_names,
+                        content_type=content_type,
+                        fields=_json_fields(body, content_type),
+                        verifications=1,  # 真的抓到了：这次请求发生过
+                    )
                 )
-            )
 
             # 渲染补充：SPA 的入口和接口调用都在 JS 里，源码看不到。
             rendered = 0
@@ -298,10 +309,29 @@ class Crawler:
 
             for sighting in extract(body[:BODY_LIMIT], base_path=_page_path(binding)):
                 template, _params = templatize(sighting.path)
-                if template in seen_templates:
-                    continue
-                seen_templates.add(template)
-                pending.append(sighting)
+                if template not in seen_templates:
+                    seen_templates.add(template)
+                    pending.append(sighting)
+                # 表单提交变体：只对 GET 表单、只发一次、只用一个探针值。
+                if (
+                    self._submit_forms
+                    and sighting.method == "GET"
+                    and sighting.params
+                    and len(self._submitted) < self._max_submits
+                ):
+                    submit_key = (sighting.path, tuple(sighting.params))
+                    if submit_key in self._submitted:
+                        continue
+                    self._submitted.add(submit_key)
+                    probe = "&".join(f"{name}=1" for name in sighting.params)
+                    pending.append(
+                        Sighting(
+                            method="GET",
+                            path=sighting.path,
+                            params=sighting.params,
+                            query=probe,
+                        )
+                    )
 
         return CrawlRound(
             fetched=fetched,

@@ -296,3 +296,49 @@ def test_symbol_names_are_not_parameters() -> None:
                       ignore_params=("base",))
     (rec,) = crawler.step([binding]).records
     assert rec.param_names == ()
+
+# ── B112：提交 GET 表单（只 GET，只一次，探针值 1）────────────────
+def test_get_form_is_submitted_once_with_probe() -> None:
+    binding = _binding(p("index"))
+    body = page() + ('<form action="' + p("search")
+                     + '" method="get"><input name="q"></form>')
+    crawler = Crawler(lambda _b: (200, "text/html", body), submit_forms=True)
+    step = crawler.step([binding])
+    submitted = [s for s in step.next if s.query]
+    assert len(submitted) == 1
+    assert submitted[0].path == p("search") and submitted[0].query == "q=1"
+
+
+def test_post_form_is_not_submitted() -> None:
+    binding = _binding(p("index"))
+    body = ('<form action="' + p("feedback")
+            + '" method="post"><input name="msg"></form>')
+    crawler = Crawler(lambda _b: (200, "text/html", body), submit_forms=True)
+    assert [s for s in crawler.step([binding]).next if s.query] == []
+
+
+def test_same_template_with_query_still_yields_links() -> None:
+    """回归：记录按模板去重，但第二个响应（/search?q=1）的链接不能被跳过。"""
+    from veripen_core.routes import (
+        AssetRef, Resolver, RouteCandidate, RouteHints, RouteProvenance, RouteQuery,
+    )
+    from veripen_core.routes.sources import StaticSource
+
+    cands = [
+        RouteCandidate(method="GET", template=p("search"), source=RouteProvenance.CRAWL),
+        RouteCandidate(method="GET", template=p("search") + "?q=1",
+                       source=RouteProvenance.CRAWL),
+    ]
+    rs = Resolver(sources=[StaticSource("crawl", RouteProvenance.CRAWL, cands)]).resolve(
+        RouteQuery(asset=AssetRef(id="a"), hints=RouteHints(), min_confidence=0.0), now=1
+    )
+
+    def fetch(binding: object) -> tuple[int, str, str]:
+        url = getattr(binding, "template", "")
+        if "q=1" in url:
+            return 200, "text/html", page(p("result", "42"))
+        return 200, "text/html", page()
+
+    step = Crawler(fetch, submit_forms=False).step(rs.bindings)
+    paths = {s.path for s in step.next}
+    assert p("result", "42") in paths, "带查询串那一页的链接被去重逻辑吞掉了"
