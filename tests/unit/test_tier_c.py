@@ -132,10 +132,15 @@ def test_graphql_introspection_alone_is_info() -> None:
 
 # ── 4 注册表与默认关闭 ────────────────────────────────────────────
 def test_tier_c_registered() -> None:
+    from veripen_oracles import AUTH, TIER_A, TIER_B, TIER_C, TIER_DOM
+
     assert {c.meta.id for c in TIER_C} == {
         "xss_stored_probe", "cors_misconfig", "graphql_introspection"
     }
-    assert len(ALL_ORACLES) == 15, "6 A + 5 B + 1 auth + 3 C = 15"
+    # 不写死条数：写死就得每加一个 oracle 回来改一遍（B117 踩过）
+    assert len(ALL_ORACLES) == (
+        len(TIER_A) + len(TIER_B) + len(AUTH) + len(TIER_C) + len(TIER_DOM)
+    ), "全部注册 = 各档之和"
 
 
 def test_tier_c_tags_are_semantic() -> None:

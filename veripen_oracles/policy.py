@@ -90,6 +90,8 @@ SEVERITY_BY_RULE: dict[str, str] = {
     "functional_authz_missing": "high",
     "stored_unescaped": "medium",
     "reflected_unescaped": "medium",
+    # DOM 型成立时是"真的执行了"，比反射型更硬
+    "dom_sink_execution": "high",
     "readonly_field_accepted": "medium",
     "unvalidated_redirect": "medium",
     "acao_reflect": "medium",
