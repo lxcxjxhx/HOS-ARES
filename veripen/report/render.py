@@ -215,6 +215,8 @@ def render_json(report: ReportInput) -> dict[str, Any]:
         findings.append(
             {
                 "id": f.finding_id,
+                # 附加字段：控制台/下游要按 oracle 归口，不能靠解析 finding_id 猜
+                "oracle": f.oracle_id,
                 "ruleId": rule_id(f.oracle_id, f.cwe),
                 "cwe": f.cwe,
                 "severity": f.severity,

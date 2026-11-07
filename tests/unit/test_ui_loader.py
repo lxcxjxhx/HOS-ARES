@@ -131,3 +131,47 @@ def test_loader_real_artifact_shape() -> None:
     assert data["queues"]["now"] == 0
     finding = client.get(UI + "finding?id=F-003").json()["data"]
     assert finding["selected_by"] == "query" and finding["assertion"]["verdict"] == "blocked"
+
+
+# ── B100：run 的 findings.json 也要能打开 ───────────────────────
+def _report_doc(outcome: str = "reported") -> dict:
+    return {
+        "schema": "veripen.report/v1",
+        "engagement": "web-01",
+        "findings": [
+            {
+                "id": "F-idor_cross_account-abc",
+                "oracle": "idor_cross_account",
+                "title": "idor_cross_account",
+                "severity": "high",
+                "confidence": 1.0,
+                "asset": "web-01",
+                "outcome": outcome,
+                "reason_code": "",
+                "route": {"ref": "route://contract/abc", "strength": "contract"},
+                "evidence": {"capsule_id": "c", "replay_status": "OK"},
+            }
+        ],
+    }
+
+
+def test_loader_accepts_report_findings_list() -> None:
+    state = load_record(_report_doc())
+    assert len(state.findings) == 1
+    row = state.findings[0]
+    assert row.oracle_id == "idor_cross_account"
+    assert row.route_strength == "contract"
+    assert row.route_ref == "route://contract/abc"
+    assert summarize(state)["total"] == 1
+
+
+def test_report_shape_severity_comes_from_policy() -> None:
+    """严重度只有一张表（policy）；loader 不再自己抄一份。"""
+    from veripen_oracles.policy import severity_for
+
+    assert SEVERITY["idor_cross_account"] == severity_for("idor_cross_account", "cross_account_read")[0]
+    assert SEVERITY["open_redirect"] == severity_for("open_redirect", "unvalidated_redirect")[0]
+
+
+def test_report_shape_unreported_row_has_no_severity() -> None:
+    assert load_record(_report_doc(outcome="undetermined")).findings[0].severity is None
