@@ -50,7 +50,15 @@ DEFAULT_EXCLUDE = "rate_limit_missing,mass_assignment,xss_stored_probe"
 
 
 def _meta(oracle: Any, key: str, default: Any = "") -> Any:
-    return getattr(getattr(oracle, "meta", None), key, default)
+    """读 oracle 元信息。**同时接受 oracle 与 oracle.meta 两种传法。**
+
+    早期实现写的是 ``getattr(getattr(oracle, "meta", None), key, default)``，
+    而调用方传进来的已经是 ``oracle.meta``——再取一次 ``.meta`` 得到 ``None``，
+    于是**每一次**都落到默认值：severity 恒 medium、cwe 恒空、标题恒为 oracle id。
+    报告看起来"有内容"，但每一条的严重度都是编出来的。
+    """
+    meta = getattr(oracle, "meta", oracle)
+    return getattr(meta, key, default)
 
 
 def _findings_view(
@@ -77,14 +85,20 @@ def _findings_view(
         asset_id=asset_id,
         oracle_id=oracle_id,
         cwe=str(_meta(meta, "cwe", "")),
-        severity=str(_meta(meta, "severity", "medium")),
+        severity=_severity_for(meta, _strength_of(binding)),
         confidence=1.0 if verdict == "VERIFIED" else 0.0,
-        route_strength=str(getattr(binding, "strength", "contract") or "contract"),
+        route_strength=_strength_of(binding),
         route_ref=str(getattr(binding, "ref", "") or ""),
         capsule_id=(capsule.capsule_id if capsule else None),
         self_sha256=(capsule.chain.self_sha256 if capsule else None),
         replay_status="NEVER",
-        situation=str(getattr(result, "reason", "") or "")[:200],
+        situation=(
+            ("弱面（" + _strength_of(binding) + "）：严重度按 medium 计。"
+             if (_strength_of(binding) in WEAK_STRENGTHS
+                 and str(_meta(meta, "severity", "medium")) in HIGH_SEVERITIES)
+             else "")
+            + str(getattr(result, "reason", "") or "")
+        )[:200],
         outcome=outcome,
         reason_code=str(getattr(result, "reason", "") or "")[:60],
     )
@@ -164,6 +178,32 @@ def _discover_routeset(args: Any, host: str) -> Any:
     ]
     final.insert(0, seed_candidate(BASE_SYMBOL))
     return _resolve(final)
+
+
+#: 弱证据面（09 §3.1）：这些面出来的结论不得标高严重度。
+WEAK_STRENGTHS = frozenset({"crawl", "probe"})
+HIGH_SEVERITIES = frozenset({"high", "critical"})
+
+
+def _strength_of(binding: Any) -> str:
+    """面的证据强度：**由置信档推出来，不写死 contract**。
+
+    早期版本 ``getattr(binding, "strength", "contract")`` —— 而 ``RouteBinding``
+    根本没有 ``strength`` 字段，于是 discovery 抓来的面（crawl 0.70）在报告里
+    被写成 contract（0.90）。那是把"猜的面"和"契约声明的面"混成同一档，
+    正是 09 §3.1 要防的事。
+    """
+    from veripen_core.routes.confidence import confidence_tier
+
+    return confidence_tier(float(getattr(binding, "confidence", 1.0)))
+
+
+def _severity_for(meta: Any, strength: str) -> str:
+    """弱面不得标高严重度：降一档并在 situation 里说明（不是偷偷改数）。"""
+    severity = str(_meta(meta, "severity", "medium"))
+    if strength in WEAK_STRENGTHS and severity in HIGH_SEVERITIES:
+        return "medium"
+    return severity
 
 
 def main(argv: list[str] | None = None) -> int:
