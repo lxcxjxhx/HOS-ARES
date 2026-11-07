@@ -166,8 +166,16 @@ def _check_default_off() -> Check:
 
 
 def _check_routes_deterministic() -> Check:
-    # 靶场路径在 tests/ 下，仅运行期可达（mypy 静态看不到，见 pyproject 的 mypy 配置）
-    import lab.routes as R  # noqa: N812
+    # 靶场路径在 tests/ 下，仅运行期可达（mypy 静态看不到，见 pyproject 的 mypy 配置）。
+    # **夹具不在就 WARN**：装在正式环境时没有 tests/，那不是"环境坏了"，是"这条查不了"。
+    try:
+        import lab.routes as R  # noqa: N812
+    except Exception as exc:  # noqa: BLE001
+        return Check(
+            "routeset", Level.WARN,
+            f"夹具不可用，本条未验（{type(exc).__name__}）",
+            fix="在仓库内运行 doctor；发布包里不该带 tests/",
+        )
 
     a, b = R.routeset(), R.routeset()
     same = a.routeset_sha256 == b.routeset_sha256
@@ -179,7 +187,14 @@ def _check_routes_deterministic() -> Check:
 def _check_capsule_roundtrip() -> Check:
     import tempfile
 
-    import capsule_fixture as F
+    try:
+        import capsule_fixture as F
+    except Exception as exc:  # noqa: BLE001
+        return Check(
+            "capsule", Level.WARN,
+            f"夹具不可用，本条未验（{type(exc).__name__}）",
+            fix="在仓库内运行 doctor；发布包里不该带 tests/",
+        )
 
     from veripen_core.evidence import dumps_capsule, load_capsule, save_capsule, verify_chain
 
@@ -194,7 +209,14 @@ def _check_capsule_roundtrip() -> Check:
 
 
 def _check_replay_offline() -> Check:
-    import capsule_fixture as F
+    try:
+        import capsule_fixture as F
+    except Exception as exc:  # noqa: BLE001
+        return Check(
+            "replay-offline", Level.WARN,
+            f"夹具不可用，本条未验（{type(exc).__name__}）",
+            fix="在仓库内运行 doctor；发布包里不该带 tests/",
+        )
 
     from veripen_core.evidence import ReplayEnv, ReplayMode, replay
     from veripen_core.models import ReplayStatus
