@@ -15,24 +15,50 @@ from veripen_oracles.common.harness import Pair, Trace, Variant
 from veripen_oracles.tier_dom import MARKER, PAYLOAD, XssDom
 
 
-def _trace(marker: str, *, status: int = 200, error: str | None = None) -> Trace:
+def _trace(
+    marker: str,
+    *,
+    status: int = 200,
+    error: str | None = None,
+    echoed: dict[str, bool] | None = None,
+) -> Trace:
+    payload = {"marker": marker}
+    if echoed is not None:
+        payload["echoed"] = echoed
     return Trace(
         route_ref="route" + ":" + chr(0x2F) * 2 + "crawl/deadbeef",
         status=status,
-        body=json.dumps({"marker": marker}).encode(),
+        body=json.dumps(payload).encode(),
         error=error,
     )
 
 
-def _pair(role: str, marker: str, *, error: str | None = None) -> Pair:
+def _pair(
+    role: str,
+    marker: str,
+    *,
+    error: str | None = None,
+    echoed: dict[str, bool] | None = None,
+) -> Pair:
     variant = Variant(name=f"dom_{role}", role=role)
-    return Pair(variant=variant, baseline=_trace(""), trace=_trace(marker, error=error))
+    return Pair(
+        variant=variant,
+        baseline=_trace(""),
+        trace=_trace(marker, error=error, echoed=echoed),
+    )
 
 
-def _judge(probe: str, baseline: str = "", control: str = "", *, error: str | None = None):  # noqa: ANN202
+def _judge(
+    probe: str,
+    baseline: str = "",
+    control: str = "",
+    *,
+    error: str | None = None,
+    echoed: dict[str, bool] | None = None,
+):  # noqa: ANN202
     return XssDom().judge([
         _pair("baseline", baseline),
-        _pair("probe", probe, error=error),
+        _pair("probe", probe, error=error, echoed=echoed),
         _pair("control", control),
     ])
 
@@ -88,3 +114,26 @@ def test_payload_targets_the_marker() -> None:
 def test_plan_covers_three_roles(role: str) -> None:
     names = {v.role for v in XssDom().plan(object())}
     assert names == {"baseline", "probe", "control"}
+
+
+# ── B119：反射型与客户端型要分得开 ───────────────────────────────
+def test_server_echo_is_labelled_reflected() -> None:
+    verdict = _judge(probe="1", echoed={"q": True})
+    assert verdict.verdict is Verdict.VERIFIED
+    assert verdict.reason == "reflected_marker_fired"
+    assert verdict.assertion["observed"]["sink"] == "reflected"
+    assert verdict.assertion["fingerprint"]["client_side"] is False
+
+
+def test_no_echo_is_labelled_client_side() -> None:
+    verdict = _judge(probe="1", echoed={"q": False})
+    assert verdict.verdict is Verdict.VERIFIED
+    assert verdict.reason == "dom_marker_fired"
+    assert verdict.assertion["observed"]["sink"] == "client_side"
+    assert verdict.assertion["fingerprint"]["client_side"] is True
+
+
+def test_missing_echo_defaults_to_client_side() -> None:
+    """传输没给 echoed（老数据/别家实现）→ 不猜，按没有回显处理。"""
+    verdict = _judge(probe="1")
+    assert verdict.assertion["observed"]["sink"] == "client_side"

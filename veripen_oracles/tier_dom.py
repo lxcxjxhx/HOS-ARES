@@ -43,6 +43,20 @@ class DomParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+def _echoed_of(trace: Trace) -> dict[str, bool]:
+    """传输层给的"原样回显"表；取不到就当全 False（**不猜**）。"""
+    try:
+        data = json.loads(trace.body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return {}
+    if not isinstance(data, Mapping):
+        return {}
+    echoed = data.get("echoed")
+    if not isinstance(echoed, Mapping):
+        return {}
+    return {str(k): bool(v) for k, v in echoed.items()}
+
+
 def _marker_of(trace: Trace) -> str:
     """从渲染传输合成的 body 里取标记位；取不到就当空（**不猜**）。"""
     try:
@@ -101,6 +115,12 @@ class XssDom(BaseOracle):
         control_mark = _marker_of(control.trace)
         base_mark = _marker_of(baseline.trace)
 
+        # 定性：原始响应里原样出现了载荷 → 反射型；没有 → 客户端拼接。
+        # 判据只用"服务端回了什么"，不看它执行成什么样。
+        echoed = _echoed_of(probe.trace)
+        reflected = any(echoed.values())
+        sink = "reflected" if reflected else "client_side"
+
         assertion = {
             "kind": "dom_xss_execution",
             "statement": "载荷进入 DOM 后被执行（标记位被写），且基线/对照都不写",
@@ -111,11 +131,17 @@ class XssDom(BaseOracle):
                 "baseline_marker": base_mark,
                 "control_marker": control_mark,
                 "probe_status": probe.trace.status,
+                # 服务端是否原样回了载荷：决定这条算反射型还是客户端型
+                "reflected_in_raw": reflected,
+                "sink": sink,
             },
-            "fingerprint": {"executed": probe_mark == "1"},
+            "fingerprint": {"executed": probe_mark == "1", "client_side": not reflected},
         }
         if probe_mark == "1" and base_mark != "1" and control_mark != "1":
-            return self.verified("dom_marker_fired", assertion, 0.85)
+            # 两种都算成立，但**结论要分得开**：反射型是服务端没转义，
+            # 客户端型是前端把不可信数据拼进了 sink。
+            reason = "reflected_marker_fired" if reflected else "dom_marker_fired"
+            return self.verified(reason, assertion, 0.85)
         if probe.trace.error:
             return self.inconclusive("render_failed", assertion)
         return self.refuted("marker_not_fired", assertion)
