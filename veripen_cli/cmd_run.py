@@ -117,6 +117,7 @@ def _discover_routeset(args: Any, host: str) -> Any:
         candidate_of,
         seed_candidate,
         transport_fetcher,
+        well_known_candidates,
     )
     from veripen_core.routes import AssetRef, Resolver, RouteHints, RouteQuery
     from veripen_core.routes.sources.base import ObservedRecord, candidate_from_record
@@ -136,7 +137,7 @@ def _discover_routeset(args: Any, host: str) -> Any:
 
         renderer = stack.enter_context(BrowserRenderer())
     crawler = Crawler(transport_fetcher(), max_pages=args.discover_pages, renderer=renderer)
-    candidates = [seed_candidate(BASE_SYMBOL)]
+    candidates = [seed_candidate(BASE_SYMBOL), *well_known_candidates(BASE_SYMBOL)]
     records: list[ObservedRecord] = []
     seen: set[tuple[str, str]] = set()
 

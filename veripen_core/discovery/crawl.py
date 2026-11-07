@@ -24,6 +24,7 @@ from urllib.parse import urlsplit
 from ..routes.sources.base import ObservedRecord
 from ..routes.types import RouteBinding, RouteCandidate, RouteProvenance
 from .links import SEP, Sighting, extract, normalize_href, query_names
+from .wellknown import WELL_KNOWN, paths_for
 from .templatize import templatize
 
 #: 单轮最多抓几页：一轮就是一份请求预算，不因为"还没爬完"就继续。
@@ -87,6 +88,21 @@ def transport_fetcher() -> Fetcher:
         )
 
     return _fetch
+
+
+def well_known_candidates(base_symbol: str) -> list[RouteCandidate]:
+    """robots.txt / sitemap.xml 作为**第一轮**候选去抓。
+
+    它们本身不是"面"（抓到后只解析、不记录），但经常是静态站最全的目录来源。
+    """
+    return [
+        RouteCandidate(
+            method="GET",
+            template="{" + base_symbol + "}" + path,
+            source=RouteProvenance.CRAWL,
+        )
+        for path in WELL_KNOWN
+    ]
 
 
 def seed_candidate(base_symbol: str) -> RouteCandidate:
@@ -185,6 +201,26 @@ class Crawler:
             status, content_type, body = result
             if status >= 400:
                 skipped.append((key[:80], f"http_{status}"))
+                continue
+
+            # well-known 只解析、不记录：它们不是可判定的面，价值在里面的路径清单。
+            page = _page_path(binding)
+            if page in WELL_KNOWN:
+                for found in paths_for(page, body[:BODY_LIMIT]):
+                    parsed = normalize_href(found)
+                    if parsed is None:
+                        continue
+                    raw = found.split("?", 1)
+                    sighting = Sighting(
+                        method="GET", path=raw[0],
+                        params=query_names(raw[1]) if len(raw) > 1 else (),
+                        query=raw[1] if len(raw) > 1 else "",
+                    )
+                    template, _p = templatize(sighting.path)
+                    if template in seen_templates:
+                        continue
+                    seen_templates.add(template)
+                    pending.append(sighting)
                 continue
 
             # 记录属于**这条被真正抓过的面**，不属于页面里看见的链接。
