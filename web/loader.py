@@ -113,8 +113,27 @@ def load_record(record: Mapping[str, Any]) -> ConsoleState:
     return ConsoleState(findings=rows, engagement=engagement)
 
 
+#: 覆盖账本的文件名（B87 产出，和 hunt.json 同目录）。
+LEDGER_NAME = "coverage.json"
+
+
+def _load_ledger(path: Path) -> dict[str, Any]:
+    """读覆盖账本。**读不到就空**——控制台不替运行产物编数字。"""
+    if not path.is_file():
+        return {}
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    return dict(doc) if isinstance(doc, Mapping) else {}
+
+
 def load_file(path: str | Path) -> ConsoleState:
-    """读产物文件；不存在/空/坏 JSON 都退化成空状态（页面显示空态，比塞假数据诚实）。"""
+    """读产物文件；不存在/空/坏 JSON 都退化成空状态（页面显示空态，比塞假数据诚实）。
+
+    同时尝试同目录的 ``coverage.json``：账本是独立产物，缺它不影响结论页，
+    但覆盖页会少掉"哪条面根本没判定"那一段。
+    """
     p = Path(path)
     if not p.is_file():
         return ConsoleState()
@@ -124,7 +143,11 @@ def load_file(path: str | Path) -> ConsoleState:
         return ConsoleState()
     if not isinstance(record, Mapping):
         return ConsoleState()
-    return load_record(record)
+    state = load_record(record)
+    ledger = _load_ledger(p.parent / LEDGER_NAME)
+    if ledger:
+        state.coverage = {**state.coverage, "ledger": ledger}
+    return state
 
 
 def summarize(state: ConsoleState) -> dict[str, Any]:
