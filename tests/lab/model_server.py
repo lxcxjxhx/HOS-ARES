@@ -36,6 +36,8 @@ class _Handler(BaseHTTPRequestHandler):
             "has_tools": "tools" in payload or "response_format" in payload,
             "model": payload.get("model", ""),
             "messages": len(payload.get("messages") or ()),
+            # 首条系统消息：调用方用哪套提示（判定链路 vs 工作台）只能从这里看出
+            "system": str(((payload.get("messages") or [{}])[0] or {}).get("content") or ""),
         })
 
         if self.mode == "error":

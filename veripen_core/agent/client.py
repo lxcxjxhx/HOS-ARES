@@ -116,6 +116,7 @@ class HttpChatClient:
         timeout_s: float = 30.0,
         tool_names: Sequence[str] | None = None,
         discover: bool = False,
+        system_prompt: str | None = None,
     ) -> None:
         # 用 chr(0x2F) 拼斜杠：本仓库禁止以 / 开头的地址字面量（noroute R-PATH），
         # 与 tools/transport.py 处理根路径的写法一致。
@@ -128,6 +129,11 @@ class HttpChatClient:
         #: 指令版靠一句"pending 非空就 run_oracle"把答案写在提示里，测出来的是
         #: 「照做」而不是「判断」；探索版必须把这句话拿掉，否则 B29 测不出东西。
         self.discover = discover
+        #: 自带系统提示：chat 这类**非判定链路**的调用方，工具集与纪律都不同
+        #: （read/write/edit/sh 而不是 oracle）。不给就只能套判定链路的提示，
+        #: 于是模型永远答 run_oracle，被 chat 的白名单拒掉 → 每轮降级 rules。
+        #: 给了就**不注入 agent 的 few-shot**：那套示例教的是 oracle 选择。
+        self.system_prompt = system_prompt
         #: 累计用量。**只记网关自己报的数**，不自己估算——
         #: 估出来的 token 数不能拿来算成本，那是把猜测当账。
         self.usage: dict[str, int] = {
@@ -212,6 +218,13 @@ class HttpChatClient:
                 },
             ],
         }
+        if self.system_prompt:
+            # 自定义提示替换整段 messages：few-shot 里示范的是 run_oracle，
+            # 留着会把非判定链路的模型引到错误的工具上。
+            payload["messages"] = [
+                {"role": "system", "content": self.system_prompt},
+                {"role": "user", "content": json.dumps({"goal": goal, **ctx}, default=str)},
+            ]
         data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(
             self.base_url + _SLASH + "chat" + _SLASH + "completions",
@@ -276,7 +289,9 @@ class ScriptedClient:
         return dict(r)
 
 
-def from_env(*, discover: bool = False) -> HttpChatClient | None:
+def from_env(
+    *, discover: bool = False, system_prompt: str | None = None
+) -> HttpChatClient | None:
     """从环境变量构造。**没配就返回 None** —— 调用方据此降级，不假装有模型。"""
     base = os.environ.get("VERIPEN_MODEL_BASE_URL", "").strip()
     model = os.environ.get("VERIPEN_MODEL", "").strip()
@@ -287,6 +302,7 @@ def from_env(*, discover: bool = False) -> HttpChatClient | None:
         model=model,
         api_key=os.environ.get("VERIPEN_MODEL_API_KEY", "").strip(),
         discover=discover,
+        system_prompt=system_prompt,
     )
 
 

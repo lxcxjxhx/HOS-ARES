@@ -127,3 +127,20 @@ def test_no_model_uses_rules(ctx: Any, capsys: pytest.CaptureFixture[str]) -> No
     out = _out(capsys)
     assert "model: rules" in out
     assert "降级" not in out, "没配模型不该出现降级提示"
+
+
+# ── F：chat 必须用自己的系统提示，不能复用判定链路那句 ───────────
+def test_chat_sends_workspace_system_prompt(model: Any, ctx: Any, tmp_path: Path,
+                                            capsys: pytest.CaptureFixture[str]) -> None:
+    """回归 B95：套用判定链路的提示会让模型永远答 run_oracle，然后被白名单拒掉。
+
+    假服务不会"看提示再作答"，所以这条断言只能查**发出去的提示内容**——
+    真模型上表现为"每轮降级 rules"，那也是从同一个根因来的。
+    """
+    (tmp_path / "notes.txt").write_text("hi", encoding="utf-8")
+    ctx("随便说点什么" + chr(10) + SEP + "quit" + chr(10), base_url=model.base_url)
+    _out(capsys)
+
+    system = model.requests[-1]["system"]
+    assert "sh{cmd}" in system, f"chat 的系统提示没带工作台工具表：{system[:200]}"
+    assert "run_oracle" not in system, "chat 的提示里混进了判定链路的工具"
