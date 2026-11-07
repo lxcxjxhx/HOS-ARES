@@ -133,3 +133,22 @@ def test_discover_keeps_legacy_alias(capsys: pytest.CaptureFixture[str]) -> None
         main(["--help"])
     out = capsys.readouterr().out
     assert "--max-rounds" in out and "--max-pages" in out
+
+# ── B114：没有可跑 oracle 时也要出账本 ───────────────────────────
+def test_no_oracle_still_writes_ledger(tmp_path: pathlib.Path, site: str) -> None:
+    """一个面都判不了时，最需要写清"为什么"——不能只打一行就返回。"""
+    import json
+
+    from veripen_cli.cmd_run import main
+
+    out = tmp_path / "r"
+    rc = main(["--target", site, "--discover", "--discover-rounds", "1",
+               "--discover-pages", "2", "--out", str(out)])
+    assert rc == 1, "没判定成功就不许返回 0"
+    doc = json.loads((out / "coverage.json").read_text(encoding="utf-8"))
+    assert doc["summary"]["faces"] >= 1
+    kinds = {g["kind"] for g in doc["gaps"]}
+    assert "face_without_oracle" in kinds
+    assert doc["completeness"]["complete"] is False
+    assert doc["completeness"]["exit_reason"] == "no_selectable_oracle"
+    assert not (out / "findings.json").exists(), "没跑 oracle 就不该有 findings"

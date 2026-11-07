@@ -322,7 +322,40 @@ def main(argv: list[str] | None = None) -> int:
         print(f"标签：{where} {len(inferred)} 类（{', '.join(sorted(inferred))}）"
               f"—— 置信 0.80，低于契约显式 0.95")
     if not oracles:
-        print("没有可跑的 oracle（面无语义标签或全被排除）", file=sys.stderr)
+        # **照样出账本**：一个面都没判，正是最需要写清"为什么"的时候。
+        out = Path(args.out)
+        out.mkdir(parents=True, exist_ok=True)
+        from veripen_core.coverage import build_coverage, write_coverage
+
+        selectors = {
+            str(c.meta.id): tuple(str(t) for t in getattr(c.meta, "selector_tags", ()))
+            for c in ALL_ORACLES
+        }
+        empty = build_coverage(
+            asset_id=host,
+            bindings=routeset.bindings,
+            oracle_tags=selectors,
+            selected=(),
+            observations=(),
+            excluded=sorted(excluded),
+            run_status="no_oracle",
+            exit_reason="no_selectable_oracle",
+        )
+        write_coverage(out, empty)
+        print("没有可跑的 oracle —— 逐面原因：", file=sys.stderr)
+        for binding in routeset.bindings:
+            tags_of = tuple(getattr(binding, "semantic_tags", ()) or ())
+            if not tags_of:
+                why = "这条面没有语义标签（响应形状推不出类型、也没有参数）"
+            else:
+                hit = sorted({oid for oid, sel in selectors.items() if sel and sel[0] in tags_of})
+                why = (
+                    "标签 " + ", ".join(tags_of) + " 没有对应 oracle"
+                    if not hit
+                    else "标签 " + ", ".join(tags_of) + " 的 oracle 全被 --exclude 排除"
+                )
+            print(f"  - {str(getattr(binding, 'template', ''))[:70]}：{why}", file=sys.stderr)
+        print(f"账本：{out / 'coverage.json'}（缺口 {len(empty['gaps'])} 条）", file=sys.stderr)
         return 1
 
     out = Path(args.out)
