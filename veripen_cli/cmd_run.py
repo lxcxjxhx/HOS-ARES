@@ -258,6 +258,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--token", default="", help="主身份 token（可空；空则相关 oracle 落 BLOCKED）")
     ap.add_argument("--max-oracles", type=int, default=0, help="0 = 全跑")
     ap.add_argument(
+        "--max-faces", type=int, default=5,
+        help="每个 oracle 最多跑几条适用的面（默认 5；0 视为 1）",
+    )
+    ap.add_argument(
         "--confirm-structural",
         action="store_true",
         help="采纳 parser 的结构推断标签（source=structural，置信 0.80）；"
@@ -378,46 +382,54 @@ def main(argv: list[str] | None = None) -> int:
                 continue
             oracle = cls()
             tags = [str(t) for t in getattr(oracle.meta, "selector_tags", ())]
-            bindings: dict[str, Any] = {}
-            for tag in tags:
-                for b in routeset.bindings:
-                    if tag in b.semantic_tags:
-                        bindings[tag] = b
-                        break
-            primary = bindings.get(tags[0]) if tags else None
-            if primary is None:
+            # **每一条**适用的面都要跑，不只第一条：否则发现出来的面只判一条，
+            # 其余永远记 face_without_oracle——覆盖率缺口有一半是这么来的。
+            faces = [
+                b for b in routeset.bindings
+                if tags and tags[0] in getattr(b, "semantic_tags", ())
+            ][: max(1, args.max_faces)]
+            if not faces:
                 print(f"  {oracle_id:<24} 跳过：路由未解析")
                 continue
-            try:
-                # 闸门按 oracle 放行：不设这一项，请求会被 plan_denied 拦下
-                transport.oracle_id = oracle_id
-                # 需要渲染的 oracle 换传输：HTTP 看不到"脚本有没有真跑"
-                active: Any
-                if bool(getattr(cls, "needs_render", False)):
-                    if render_state.get("thread") is None:
-                        from veripen_core.render.worker import RenderThread
+            for primary in faces:
+                bindings: dict[str, Any] = {
+                    tag: primary for tag in tags
+                    if tag in getattr(primary, "semantic_tags", ())
+                }
+                try:
+                    # 闸门按 oracle 放行：不设这一项，请求会被 plan_denied 拦下
+                    transport.oracle_id = oracle_id
+                    # 需要渲染的 oracle 换传输：HTTP 看不到"脚本有没有真跑"
+                    active: Any
+                    if bool(getattr(cls, "needs_render", False)):
+                        if render_state.get("thread") is None:
+                            from veripen_core.render.worker import RenderThread
 
-                        render_state["thread"] = RenderThread()
-                    from veripen_oracles.render_transport import RenderTransport
+                            render_state["thread"] = RenderThread()
+                        from veripen_oracles.render_transport import RenderTransport
 
-                    active = RenderTransport(
-                        render_state["thread"], oracle_id=oracle_id
+                        active = RenderTransport(
+                            render_state["thread"], oracle_id=oracle_id
+                        )
+                    else:
+                        active = transport
+                    result = run_oracle(
+                        oracle, primary, active,
+                        symbols=SymbolTable(), nonce=f"run-{oracle_id}",
+                        token=args.token or None, bindings=bindings,
                     )
-                else:
-                    active = transport
-                result = run_oracle(
-                    oracle, primary, active,
-                    symbols=SymbolTable(), nonce=f"run-{oracle_id}",
-                    token=args.token or None, bindings=bindings,
+                    # 渲染请求也要计入请求数：报告里的 requests 是"真的发出去多少"
+                    render_state["sent"].extend(getattr(active, "sent", []))
+                except Exception as exc:  # noqa: BLE001 —— 目标上什么都可能发生，如实记
+                    print(f"  {oracle_id:<24} 执行异常：{type(exc).__name__}: {str(exc)[:60]}")
+                    continue
+                verdict = str(getattr(result.verdict, "value", result.verdict))
+                face = str(getattr(primary, "template", ""))[:44]
+                print(
+                    f"  {oracle_id:<24} {verdict:<14} "
+                    f"{str(getattr(result, 'reason', ''))[:36]:<36} {face}"
                 )
-                # 渲染请求也要计入请求数：报告里的 requests 是"真的发出去多少"
-                render_state["sent"].extend(getattr(active, "sent", []))
-            except Exception as exc:  # noqa: BLE001 —— 目标上什么都可能发生，如实记
-                print(f"  {oracle_id:<24} 执行异常：{type(exc).__name__}: {str(exc)[:60]}")
-                continue
-            verdict = str(getattr(result.verdict, "value", result.verdict))
-            print(f"  {oracle_id:<24} {verdict:<14} {str(getattr(result, 'reason', ''))[:50]}")
-            results.append((oracle_id, oracle.meta, result, primary))
+                results.append((oracle_id, oracle.meta, result, primary))
 
 
     finally:
