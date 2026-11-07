@@ -37,6 +37,7 @@ from veripen_core.discovery import (  # noqa: E402
     candidate_of,
     seed_candidate,
     transport_fetcher,
+    well_known_candidates,
 )
 from veripen_core.routes import (  # noqa: E402
     AssetRef,
