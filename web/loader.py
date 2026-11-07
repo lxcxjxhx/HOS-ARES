@@ -171,13 +171,29 @@ def _load_ledger(path: Path) -> dict[str, Any]:
     return dict(doc) if isinstance(doc, Mapping) else {}
 
 
-def load_file(path: str | Path) -> ConsoleState:
-    """读产物文件；不存在/空/坏 JSON 都退化成空状态（页面显示空态，比塞假数据诚实）。
+#: 目录里按这个顺序找主产物：hunt 最全 → run 的 findings → 只有账本。
+ARTIFACT_NAMES = ("hunt.json", "findings.json", "coverage.json")
 
+
+def _resolve_artifact(path: Path) -> Path:
+    """给目录就按候选顺序找主产物；给文件就原样用。"""
+    if not path.is_dir():
+        return path
+    for name in ARTIFACT_NAMES:
+        candidate = path / name
+        if candidate.is_file():
+            return candidate
+    return path / ARTIFACT_NAMES[0]
+
+
+def load_file(path: str | Path) -> ConsoleState:
+    """读产物文件**或目录**；不存在/空/坏 JSON 都退化成空状态。
+
+    目录支持是必须的：用户敲 ``--hunt out/run-xxx`` 时给的就是目录。
     同时尝试同目录的 ``coverage.json``：账本是独立产物，缺它不影响结论页，
     但覆盖页会少掉"哪条面根本没判定"那一段。
     """
-    p = Path(path)
+    p = _resolve_artifact(Path(path))
     if not p.is_file():
         return ConsoleState()
     try:
@@ -190,6 +206,11 @@ def load_file(path: str | Path) -> ConsoleState:
     ledger = _load_ledger(p.parent / LEDGER_NAME)
     if ledger:
         state.coverage = {**state.coverage, "ledger": ledger}
+        # 只有账本的产物没有 target_host：资产名从账本里取，别显示 unknown
+        if str(state.engagement.get("asset") or "") in ("", "unknown"):
+            asset = str(ledger.get("asset_id") or "")
+            if asset:
+                state.engagement = {**state.engagement, "asset": asset}
     return state
 
 
