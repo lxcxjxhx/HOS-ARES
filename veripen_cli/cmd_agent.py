@@ -31,7 +31,7 @@ from veripen_core.store import Store  # noqa: E402
 from veripen_core.workbench.executor import make_subprocess_executor  # noqa: E402
 from veripen_core.workbench.fs import Workbench  # noqa: E402
 
-from ._io import setup_stdout  # noqa: E402
+from ._io import setup_stdio  # noqa: E402
 
 PROMPT = "agent> "
 
@@ -89,7 +89,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--resume", action="store_true", help="恢复已有会话")
     ap.add_argument("--max-turns", type=int, default=0, help="0 = 不限")
     args = ap.parse_args(sys.argv[1:] if argv is None else argv)
-    setup_stdout()
+    setup_stdio()
 
     root = Path(args.root).resolve()
     if not root.exists():

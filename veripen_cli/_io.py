@@ -33,7 +33,9 @@ def setup_stdio() -> None:
     界面会把每句话都当成"读文件"（B77 实测踩到）。读交互输入的命令必须用这个。
     """
     setup_stdout()
-    _reconfigure(sys.stdin, encoding="utf-8", errors="replace")
+    # utf-8-sig：管道/重定向过来的流常带 BOM。用 utf-8 解码会把 BOM 留在第一个
+    # token 里（"read" 变成 "\ufeffread"），指令模式当场全废；没有 BOM 时两者等价。
+    _reconfigure(sys.stdin, encoding="utf-8-sig", errors="replace")
 
 
 __all__ = ["setup_stdio", "setup_stdout"]
