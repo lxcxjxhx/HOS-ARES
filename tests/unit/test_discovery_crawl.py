@@ -199,3 +199,24 @@ def test_extract_keeps_query_style_downloads() -> None:
     """`/export?file=x.pdf` 是**页面端点**（path 无后缀），不要误杀。"""
     html = page(p("export") + "?file=x.pdf")
     assert [s.path for s in extract(html)] == [p("export")]
+
+# ── B103：查询参数名必须进记录，否则 param_injectable 永远推不出来 ──
+def test_record_keeps_query_parameter_names() -> None:
+    binding = _binding(p("search") + "?q=abc")
+    crawler = Crawler(lambda _b: (200, "application/json", '{"total":0}'))
+    step = crawler.step([binding])
+    (rec,) = step.records
+    assert rec.param_names == ("q",)
+
+
+def test_query_face_becomes_param_injectable() -> None:
+    from veripen_core.routes.tagging import infer_tags
+
+    binding = _binding(p("search") + "?q=abc")
+    crawler = Crawler(lambda _b: (200, "application/json", '{"total":0}'))
+    rec = crawler.step([binding]).records[0]
+    tags = infer_tags(
+        method=rec.method, template=rec.template, param_names=rec.param_names,
+        content_type=rec.content_type, fields=rec.fields,
+    )
+    assert "param_injectable" in tags

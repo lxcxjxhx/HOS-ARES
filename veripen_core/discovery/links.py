@@ -44,6 +44,9 @@ class Sighting:
     method: str
     path: str
     params: tuple[str, ...] = ()
+    #: 原始查询串（不含 ``?``）。**值只是样本**：它让"这条面确实带参数"这件事
+    #: 能一路传到记录层；面模板本身仍然按路径去重，不会因为 q 不同而分叉。
+    query: str = ""
 
 
 def _external(href: str) -> bool:
@@ -71,7 +74,7 @@ def _join(base_path: str, relative: str) -> str:
     return _clean(base_dir + SEP + relative)
 
 
-def _query_names(query: str) -> list[str]:
+def query_names(query: str) -> tuple[str, ...]:
     names: list[str] = []
     for pair in query.split("&"):
         if not pair:
@@ -79,7 +82,7 @@ def _query_names(query: str) -> list[str]:
         name = pair.split("=", 1)[0].strip()
         if name:
             names.append(name)
-    return names
+    return tuple(names)
 
 
 def _is_skippable(path: str) -> bool:
@@ -108,7 +111,7 @@ def normalize_href(href: str, *, base_path: str = "") -> tuple[str, tuple[str, .
         path = _clean(path)
     else:
         path = _join(base_path, path)
-    return path, tuple(_query_names(query))
+    return path, query_names(query)
 
 
 class _LinkParser(HTMLParser):
@@ -134,7 +137,9 @@ class _LinkParser(HTMLParser):
         if key in self._seen:
             return None
         self._seen.add(key)
-        self.found.append(Sighting(method=method, path=path, params=params))
+        raw = href.split("#", 1)[0]
+        query = raw.split("?", 1)[1] if "?" in raw else ""
+        self.found.append(Sighting(method=method, path=path, params=params, query=query))
         return len(self.found) - 1
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
@@ -183,4 +188,4 @@ def extract(
     return parser.found[:max_sightings]
 
 
-__all__ = ["MAX_PER_PAGE", "SEP", "Sighting", "extract", "normalize_href"]
+__all__ = ["MAX_PER_PAGE", "SEP", "Sighting", "extract", "normalize_href", "query_names"]

@@ -23,7 +23,7 @@ from urllib.parse import urlsplit
 
 from ..routes.sources.base import ObservedRecord
 from ..routes.types import RouteBinding, RouteCandidate, RouteProvenance
-from .links import SEP, Sighting, extract
+from .links import SEP, Sighting, extract, query_names
 from .templatize import templatize
 
 #: 单轮最多抓几页：一轮就是一份请求预算，不因为"还没爬完"就继续。
@@ -106,9 +106,10 @@ def candidate_of(sighting: Sighting, base_symbol: str) -> RouteCandidate:
     归一（``/api/users/1`` → ``/api/users/{p1}``）留到**记录**时做：
     抓到的形状属于这条面，而面是按模板去重的。
     """
+    suffix = ("?" + sighting.query) if sighting.query else ""
     return RouteCandidate(
         method=sighting.method,
-        template="{" + base_symbol + "}" + sighting.path,
+        template="{" + base_symbol + "}" + sighting.path + suffix,
         param_names=sighting.params,
         source=RouteProvenance.CRAWL,
     )
@@ -184,7 +185,12 @@ class Crawler:
                 truncated = True
                 break
             # 具体路径 → 模板：面按模板去重，抓到的形状属于这条面。
-            identity, path_params = templatize(binding.identity_template or _page_path(binding))
+            # **查询串要单独取**：它不在路径段里，只 templatize 路径会把它整段吞掉，
+            # 于是 param_injectable 永远推不出来（带 ?q= 的面被当成无参静态页）。
+            raw_identity = binding.identity_template or _page_path(binding)
+            identity_path, _, query = raw_identity.partition("?")
+            identity, path_params = templatize(identity_path)
+            param_names = path_params + query_names(query)
             if identity in seen_templates:
                 continue
             seen_templates.add(identity)
@@ -192,7 +198,7 @@ class Crawler:
                 ObservedRecord(
                     method=binding.method,
                     template=identity,
-                    param_names=path_params,
+                    param_names=param_names,
                     content_type=content_type,
                     fields=_json_fields(body, content_type),
                     verifications=1,  # 真的抓到了：这次请求发生过
