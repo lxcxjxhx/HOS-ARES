@@ -156,6 +156,8 @@ def parse(text: str, *, history: Sequence[str] = (), _depth: int = 0) -> Plan:
         args: dict[str, str] = {}
         tgt = (rm.group("target") or "").strip(" ：:，,")
         if tgt and not tgt.startswith("openapi"):
+            if re.search(r"无契约|没有契约|discover", text, re.I):
+                args["discover"] = "true"
             args["target"] = tgt
         om = _OPENAPI_ARG.search(raw)
         if om:

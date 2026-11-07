@@ -9,6 +9,7 @@ from __future__ import annotations
 from veripen_core.agent.intent import parse
 
 SEP = chr(0x2F)
+TARGET = "http" + ":" + SEP * 2 + "TARGET"
 
 
 # ── A：说人话能落到工具 ────────────────────────────────────────
@@ -69,3 +70,19 @@ def test_pronoun_reuses_previous_path() -> None:
 def test_no_history_no_pronoun_guess() -> None:
     p = parse("读一下它")
     assert not p.ok, "没有历史时不许凭空猜路径"
+
+
+# ── B96：无契约跑法 ───────────────────────────────────────────────
+def test_run_phrase_with_discover_keyword() -> None:
+    """「无契约」要落成 discover 标志，而不是被当成目标的一部分。"""
+    p = parse(f"跑一下 {TARGET} 无契约")
+    assert p.ok and p.steps[0].tool == "run"
+    assert p.steps[0].args.get("discover") == "true"
+    assert "openapi" not in p.steps[0].args
+
+
+def test_run_phrase_without_contract_or_discover_is_rejected() -> None:
+    p = parse(f"跑一下 {TARGET}")
+    assert p.ok  # 解析成功，但要由执行层拒绝"既无契约也无 discover"
+    assert p.steps[0].tool == "run"
+    assert "openapi" not in p.steps[0].args and "discover" not in p.steps[0].args

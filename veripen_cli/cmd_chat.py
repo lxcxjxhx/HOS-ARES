@@ -58,10 +58,11 @@ CHAT_SYSTEM_PROMPT = (
     "只回一个 json 对象 {\"tool\": <名字>, \"args\": {...}}，不要解释，不要多调用。"
     "可用工具与参数（字段名必须完全一致，多一个都会被拒；无参工具给 {}）："
     "read{path} · write{path,content} · edit{path,old,new} · sh{cmd} · "
-    "run{target,openapi} · platform{profile,openapi} · status{}。"
+    "run{target,openapi?,discover?} · platform{profile,openapi} · status{}。"
     "选择规则：要执行命令或查看系统信息用 sh（cmd 是完整命令行）；"
     "读文件用 read；整文件重写用 write；局部替换用 edit；"
-    "要跑一次渗透用 run（target 与 openapi 缺一不可，缺就问，不要编）；"
+    "要跑一次渗透用 run：有契约给 openapi；没有契约给 discover=true（两者二选一，"
+    "都没有就问，不要编）；"
     "按档批量跑用 platform；问会话状态用 status。"
     "拿不准就调 status。"
 )
@@ -132,6 +133,13 @@ def _diff_text(before: str, after: str, path: str) -> tuple[str, int, int]:
     return body, added, removed
 
 
+def _truthy(value: Any) -> bool:
+    """模型可能给 true，规则层给 "true"；两种都要认，但**不把非空字符串都当真**。"""
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in ("1", "true", "yes", "y", "on")
+
+
 def _exec_step(step: Any, *, wb: Workbench, root: Path) -> tuple[bool, str]:
     tool = step.tool
     a = dict(step.args)
@@ -142,18 +150,22 @@ def _exec_step(step: Any, *, wb: Workbench, root: Path) -> tuple[bool, str]:
     if tool == "run":
         target = a.get("target", "")
         openapi = a.get("openapi", "")
+        discover = _truthy(a.get("discover"))
         if not target:
-            return False, "需要目标：跑一下 <url> openapi=<契约路径>"
-        if not openapi:
-            return False, "需要契约：句子里加 openapi=<路径>（不替你猜）"
+            return False, "需要目标：跑一下 <url> openapi=<契约路径>，或 discover 表示无契约"
+        if openapi and discover:
+            return False, "openapi 与 discover 二选一：有契约就别猜面"
+        if not openapi and not discover:
+            return False, "需要契约：句子里加 openapi=<路径>；没有契约就加 discover（不替你猜）"
         from veripen_cli import cmd_run
 
         out_dir = ROOT / "out" / "chat" / f"run-{int(time.time())}"
         buf = io.StringIO()
+        argv = ["--target", target, "--out", str(out_dir)]
+        argv += ["--discover"] if discover else ["--openapi", openapi]
         with contextlib.redirect_stdout(buf):
             try:
-                rc = cmd_run.main(["--target", target, "--openapi", openapi,
-                                   "--out", str(out_dir)])
+                rc = cmd_run.main(argv)
             except SystemExit as exc:      # cmd_run 用退出码表达失败
                 rc = int(exc.code or 0)
         full = buf.getvalue()
