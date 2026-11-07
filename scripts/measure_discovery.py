@@ -68,11 +68,20 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--pages", type=int, default=10)
     ap.add_argument("--rate", type=float, default=3.0)
     ap.add_argument("--out", default="")
+    ap.add_argument("--render", action="store_true", help="发现时渲染 HTML（慢）")
     args = ap.parse_args(argv)
 
     host = _host_of(args.target)
     symbols = RouteSymbols({BASE: args.target.rstrip(SEP)})
-    crawler = Crawler(transport_fetcher(), max_pages=args.pages)
+    import contextlib
+
+    stack = contextlib.ExitStack()
+    renderer = None
+    if args.render:
+        from veripen_core.render.browser import BrowserRenderer
+
+        renderer = stack.enter_context(BrowserRenderer())
+    crawler = Crawler(transport_fetcher(), max_pages=args.pages, renderer=renderer)
     candidates = [seed_candidate(BASE)]
     records = []
     seen: set[tuple[str, str]] = set()
@@ -105,6 +114,7 @@ def main(argv: list[str]) -> int:
             break
         candidates = [candidate_of(s, BASE) for s in step.next]
 
+    stack.close()
     tags_by_face: dict[str, list[str]] = {}
     for rec in records:
         cand = candidate_from_record(

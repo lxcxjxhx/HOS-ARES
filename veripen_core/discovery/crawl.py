@@ -18,12 +18,12 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Callable, Sequence
+from typing import Any, Callable, Sequence
 from urllib.parse import urlsplit
 
 from ..routes.sources.base import ObservedRecord
 from ..routes.types import RouteBinding, RouteCandidate, RouteProvenance
-from .links import SEP, Sighting, extract, query_names
+from .links import SEP, Sighting, extract, normalize_href, query_names
 from .templatize import templatize
 
 #: 单轮最多抓几页：一轮就是一份请求预算，不因为"还没爬完"就继续。
@@ -124,6 +124,8 @@ class CrawlRound:
     next: tuple[Sighting, ...]
     skipped: tuple[tuple[str, str], ...]
     truncated: bool
+    #: 本轮渲染了几页（0 = 没开渲染，或没有 HTML 面）
+    rendered: int = 0
 
     @property
     def counts(self) -> dict[str, int]:
@@ -144,10 +146,16 @@ class Crawler:
         *,
         max_pages: int = MAX_PAGES_PER_ROUND,
         max_records: int = MAX_RECORDS_PER_ROUND,
+        renderer: Any = None,
+        max_renders: int = 5,
     ) -> None:
         self._fetch = fetch
         self._max_pages = max_pages
         self._max_records = max_records
+        #: 可选：BrowserRenderer。只补"静态 HTML 里看不见"的入口（JS 生成 / XHR）。
+        self._renderer = renderer
+        self._max_renders = max_renders
+        self._renders = 0
         self._seen: set[str] = set()
 
     def step(self, seeds: Sequence[RouteBinding]) -> CrawlRound:
@@ -156,6 +164,7 @@ class Crawler:
         skipped: list[tuple[str, str]] = []
         seen_templates: set[str] = set()
         fetched = 0
+        render_total = 0
         truncated = False
 
         for binding in seeds:
@@ -205,6 +214,42 @@ class Crawler:
                 )
             )
 
+            # 渲染补充：SPA 的入口和接口调用都在 JS 里，源码看不到。
+            rendered = 0
+            if (
+                self._renderer is not None
+                and "text/html" in content_type.lower()
+                and self._renders < self._max_renders
+            ):
+                self._renders += 1
+                rendered = 1
+                capture = self._renderer.capture(url=binding.template)
+                if capture.outcome == "ok":
+                    for extra in extract(capture.html[:BODY_LIMIT],
+                                         base_path=_page_path(binding)):
+                        template, _p = templatize(extra.path)
+                        if template in seen_templates:
+                            continue
+                        seen_templates.add(template)
+                        pending.append(extra)
+                    for path in capture.paths:
+                        parsed = normalize_href(path)
+                        if parsed is None:
+                            continue
+                        raw = path.split("?", 1)
+                        sighting = Sighting(
+                            method="GET", path=raw[0],
+                            params=query_names(raw[1]) if len(raw) > 1 else (),
+                            query=raw[1] if len(raw) > 1 else "",
+                        )
+                        template, _p = templatize(sighting.path)
+                        if template in seen_templates:
+                            continue
+                        seen_templates.add(template)
+                        pending.append(sighting)
+                skipped.append((key[:80], f"render_{capture.outcome}"))
+            render_total += rendered
+
             for sighting in extract(body[:BODY_LIMIT], base_path=_page_path(binding)):
                 template, _params = templatize(sighting.path)
                 if template in seen_templates:
@@ -218,6 +263,7 @@ class Crawler:
             next=tuple(pending),
             skipped=tuple(skipped),
             truncated=truncated,
+            rendered=render_total,
         )
 
 

@@ -126,8 +126,16 @@ def _discover_routeset(args: Any, host: str) -> Any:
     )
     from veripen_core.tools import http as http_tool
 
+    import contextlib
+
     symbols = RouteSymbols({BASE_SYMBOL: args.target.rstrip(SEP)})
-    crawler = Crawler(transport_fetcher(), max_pages=args.discover_pages)
+    stack = contextlib.ExitStack()
+    renderer = None
+    if getattr(args, "render", False):
+        from veripen_core.render.browser import BrowserRenderer
+
+        renderer = stack.enter_context(BrowserRenderer())
+    crawler = Crawler(transport_fetcher(), max_pages=args.discover_pages, renderer=renderer)
     candidates = [seed_candidate(BASE_SYMBOL)]
     records: list[ObservedRecord] = []
     seen: set[tuple[str, str]] = set()
@@ -171,6 +179,7 @@ def _discover_routeset(args: Any, host: str) -> Any:
         for rec in records
     ]
     final.insert(0, seed_candidate(BASE_SYMBOL))
+    stack.close()
     return _resolve(final)
 
 
@@ -246,6 +255,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("--discover-rounds", type=int, default=2, help="发现最多几轮")
     ap.add_argument("--discover-pages", type=int, default=20, help="每轮最多抓几页")
+    ap.add_argument(
+        "--render", action="store_true",
+        help="发现时渲染 HTML（补 JS 生成的入口与同源 XHR；慢，默认关）",
+    )
     ap.add_argument("--out", default=str(ROOT / "out" / "run"))
     ap.add_argument("--exclude", default=DEFAULT_EXCLUDE, help="逗号分隔的 oracle 黑名单")
     ap.add_argument("--token", default="", help="主身份 token（可空；空则相关 oracle 落 BLOCKED）")

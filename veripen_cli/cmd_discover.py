@@ -80,12 +80,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     ap.add_argument("--rate", type=float, default=1.0, help="每秒请求上限（默认 1）")
     ap.add_argument("--burst", type=float, default=2.0, help="突发桶容量（默认 2）")
     ap.add_argument("--out", default="", help="把发现结果写成 JSON（可选）")
+    ap.add_argument(
+        "--render", action="store_true",
+        help="渲染 HTML 再抽入口（补 JS 生成与同源 XHR；慢，默认关）",
+    )
     args = ap.parse_args(sys.argv[1:] if argv is None else argv)
     setup_stdout()
 
     host = _host_of(args.target)
     symbols = RouteSymbols({BASE_SYMBOL: args.target.rstrip(SEP)})
-    crawl = Crawler(transport_fetcher(), max_pages=args.max_pages)
+    import contextlib
+
+    stack = contextlib.ExitStack()
+    renderer = None
+    if args.render:
+        from veripen_core.render.browser import BrowserRenderer
+
+        renderer = stack.enter_context(BrowserRenderer())
+    crawl = Crawler(transport_fetcher(), max_pages=args.max_pages, renderer=renderer)
 
     known: set[str] = set()
     #: 看见了但还没抓的入口。它们不是"面"（没有形状），但确实是候选——
@@ -121,6 +133,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         truncated = truncated or result.truncated
 
         note = "（本轮触到页数/记录上限）" if result.truncated else ""
+        if result.rendered:
+            note += f"（渲染 {result.rendered} 页）"
         print(f"第 {round_no} 轮：抓 {result.fetched} 页 / 新面 {len(fresh)} 条{note}")
         if not result.next:
             break
@@ -128,6 +142,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             pending.add(sighting.path)
         candidates = [candidate_of(s, BASE_SYMBOL) for s in result.next]
 
+    stack.close()
     faces = sorted(known)
     candidates_left = sorted(pending - known)
     print(f"目标：{host}")
