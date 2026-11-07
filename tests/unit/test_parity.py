@@ -31,11 +31,11 @@ def test_every_item_reports_one_of_four_states() -> None:
     assert all(r["detail"].strip() for r in rows), "每一项都要有说明，不许空着"
 
 
-def test_missing_runtime_items_are_unverified_not_green() -> None:
-    """无 docker / 无并行任务 → 未验；渲染执行体已实现（宿主）→ 绿但注明容器未验。"""
+def test_runtime_gaps_are_unverified_and_discovery_is_done() -> None:
+    """缺 docker → 未验；渲染/并行/发现都已实现 → 绿（不再是"不做"）。"""
     by_key = {row["key"]: row for row in run()}
     assert by_key["E1"]["status"] == UNVERIFIED, "无 docker：真隔离只能未验"
-    assert by_key["E4"]["status"] == SKIPPED, "资产发现是决策不做，不是没做"
+    assert by_key["E4"]["status"] == GREEN, "资产发现已实现（B86 起），不该再标不做"
     assert by_key["E2"]["status"] == GREEN and "容器内未验" in by_key["E2"]["detail"]
     assert by_key["E5"]["status"] == GREEN and "容器级并行未验" in by_key["E5"]["detail"]
 
