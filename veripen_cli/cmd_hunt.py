@@ -281,6 +281,10 @@ def main(argv: list[str]) -> int:
     )
     ap.add_argument("--discover-rounds", type=int, default=2, help="发现最多几轮")
     ap.add_argument("--discover-pages", type=int, default=20, help="每轮最多抓几页")
+    ap.add_argument(
+        "--render", action="store_true",
+        help="发现时渲染 HTML（补 JS 生成的入口与同源 XHR；慢，默认关）",
+    )
     ap.add_argument("--model", choices=("scripted", "live"), default="scripted")
     ap.add_argument("--token", default="",
                     help="[兼容] 主身份 Bearer token。会进 shell 历史与进程列表，优先用 --token-file")

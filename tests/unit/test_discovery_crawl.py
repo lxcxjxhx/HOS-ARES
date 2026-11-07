@@ -220,3 +220,49 @@ def test_query_face_becomes_param_injectable() -> None:
         content_type=rec.content_type, fields=rec.fields,
     )
     assert "param_injectable" in tags
+
+# ── B106：渲染补充（SPA 的入口在 JS 里）──────────────────────────
+class _StubRenderer:
+    def __init__(self, paths: tuple[str, ...], html: str = "") -> None:
+        self.paths = paths
+        self.html = html
+        self.calls: list[str] = []
+
+    def capture(self, *, url: str, **_kw: object) -> object:
+        from veripen_core.render.browser import CaptureResult
+
+        self.calls.append(url)
+        return CaptureResult(html=self.html, paths=self.paths, outcome="ok")
+
+
+def test_render_adds_paths_that_are_not_in_the_html() -> None:
+    """JS 里 fetch 的接口在源码里没有链接，只有渲染后的同源请求能看到。"""
+    binding = _binding(p("index"))
+    body = page(p("about.htm"))          # 源码里只有 about
+    renderer = _StubRenderer(paths=(p("api", "secret") + "?id=7",))
+
+    crawler = Crawler(lambda _b: (200, "text/html", body), renderer=renderer)
+    step = crawler.step([binding])
+
+    assert renderer.calls, "没调用渲染器"
+    paths = [s.path for s in step.next]
+    assert p("api", "secret") in paths
+    assert p("about.htm") in paths
+
+
+def test_render_is_skipped_for_json_pages() -> None:
+    """JSON 响应没什么可渲染的——别把预算花在起浏览器上。"""
+    binding = _binding(p("api", "x"))
+    renderer = _StubRenderer(paths=(p("nope"),))
+    crawler = Crawler(lambda _b: (200, "application/json", "{}"), renderer=renderer)
+    crawler.step([binding])
+    assert not renderer.calls
+
+
+def test_render_budget_is_respected() -> None:
+    bindings = [_binding(p("page", str(i))) for i in range(3)]
+    renderer = _StubRenderer(paths=())
+    crawler = Crawler(lambda _b: (200, "text/html", page()), renderer=renderer, max_renders=1)
+    step = crawler.step(bindings)
+    assert len(renderer.calls) == 1
+    assert step.rendered == 1

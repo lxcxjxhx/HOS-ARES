@@ -52,6 +52,35 @@ def _blocked(reason: str, *, isolation: str = "host") -> RenderResult:
     return RenderResult(outcome="blocked", reason=reason, isolation=isolation)
 
 
+@dataclass(frozen=True)
+class CaptureResult:
+    """渲染一页的结果，供**发现**用（不是证据）。
+
+    ``html`` 是渲染后的 DOM 源码；``paths`` 是同源请求路径（已去掉 host）。
+    地址不进这里——host 由调用方的绑定决定（N2）。
+    """
+
+    html: str = ""
+    paths: tuple[str, ...] = ()
+    outcome: str = "ok"
+    reason: str = ""
+    channel: str = ""
+
+
+def _same_origin_path(url: str, origin: str) -> str | None:
+    """同源 → 返回 path（带查询参数名）；跨域/无法解析 → None。"""
+    from urllib.parse import urlsplit
+
+    parts = urlsplit(url)
+    if not parts.scheme or not parts.netloc:
+        return None
+    if f"{parts.scheme}://{parts.netloc}" != origin:
+        return None
+    names = sorted({kv.split("=", 1)[0] for kv in parts.query.split("&") if kv})
+    path = parts.path or chr(0x2F)
+    return path + (("?" + "&".join(names)) if names else "")
+
+
 class BrowserRenderer:
     """一个浏览器、多次渲染；**每次渲染一个新 context**。"""
 
@@ -108,6 +137,46 @@ class BrowserRenderer:
             self._playwright = None
 
     # ── 渲染 ───────────────────────────────────────────────────
+    def capture(self, *, url: str, wait: str = "networkidle", timeout_s: int = 30) -> CaptureResult:
+        """渲染一页，返回渲染后 HTML + 同源请求路径。**只用于发现，不进证据。**
+
+        为什么不能用 ``render()``：那返回的是 DOM 大纲（去属性、脱敏），
+        发现需要的是"页面上真有哪些入口"，包括 JS 生成的链接与接口。
+        """
+        if not self.available():
+            return CaptureResult(outcome="blocked", reason="renderer_unavailable")
+        if self._browser is None:
+            return CaptureResult(outcome="blocked", reason="renderer_not_started")
+
+        from urllib.parse import urlsplit
+
+        parts = urlsplit(url)
+        origin = f"{parts.scheme}://{parts.netloc}"
+        seen: list[str] = []
+
+        context = self._browser.new_context()
+        try:
+            page = context.new_page()
+            page.set_default_timeout(timeout_s * 1000)
+
+            def _on_request(request: Any) -> None:
+                path = _same_origin_path(request.url, origin)
+                if path and path not in seen:
+                    seen.append(path)
+
+            page.on("request", _on_request)
+            page.goto(url, wait_until=wait)
+            html = page.content()
+            return CaptureResult(html=html, paths=tuple(seen), channel=self.channel)
+        except Exception as exc:  # noqa: BLE001
+            name = type(exc).__name__
+            reason = "render_timeout" if "Timeout" in name else f"render_error:{name}"
+            return CaptureResult(
+                paths=tuple(seen), outcome="blocked", reason=reason, channel=self.channel
+            )
+        finally:
+            context.close()
+
     def render(self, *, url: str | None = None, html: str | None = None,
                wait: str = "domcontentloaded", timeout_s: int = 30) -> RenderResult:
         if not self.available():
@@ -150,4 +219,4 @@ class BrowserRenderer:
             context.close()
 
 
-__all__ = ["BrowserRenderer", "NET_LOG_LIMIT", "RenderResult"]
+__all__ = ["BrowserRenderer", "CaptureResult", "NET_LOG_LIMIT", "RenderResult"]
