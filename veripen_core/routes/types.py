@@ -16,6 +16,43 @@ from typing import Any, NewType
 RouteRef = NewType("RouteRef", str)
 
 
+#: 面标识的 scheme（与 report 层同源：这里只定义"怎么截"，不定义"怎么显示"）。
+_SEP = chr(0x2F)
+_REF_SCHEME = "route" + ":" + _SEP * 2
+
+
+def short_ref(
+    ref: str | None,
+    length: int = 8,
+    *,
+    with_source: bool = False,
+    with_scheme: bool = False,
+) -> str:
+    """不透明引用的**可辨识短形式**。
+
+    为什么不能直接切前 8 位：``route://`` 恰好是 8 个字符，切出来永远是 scheme，
+    读者既分不出面，也分不出来源段（B40/B100 两次踩到同一个坑）。
+
+    两种用法各自有硬约束，所以做成显式开关而不是两种实现：
+    - 报告展示：``with_source+with_scheme`` → ``route://contract/e27578ec``
+      （保留来源段，读者能分清契约面与观测面）；
+    - 控制台：默认 → ``e27578ec``（页面只许给 8 位十六进制片段，不得泄露 scheme）。
+    """
+    text = (ref or "").strip()
+    if not text:
+        return ""
+    had_scheme = text.startswith(_REF_SCHEME)
+    if had_scheme:
+        text = text[len(_REF_SCHEME):]
+    source, sep, tail = text.partition(_SEP)
+    if sep:
+        body = (source + _SEP + tail[:length]) if with_source else tail[:length]
+    else:
+        body = text[:length]
+    # 只有原本带 scheme 的才加回去：无 scheme 的 ref 保持原样截断（B74 行为）
+    return (_REF_SCHEME + body) if (with_scheme and had_scheme) else body
+
+
 class RouteProvenance(str, Enum):
     CONTRACT = "contract"
     OBSERVED = "observed"
