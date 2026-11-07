@@ -136,7 +136,8 @@ def _discover_routeset(args: Any, host: str) -> Any:
         from veripen_core.render.browser import BrowserRenderer
 
         renderer = stack.enter_context(BrowserRenderer())
-    crawler = Crawler(transport_fetcher(), max_pages=args.discover_pages, renderer=renderer)
+    crawler = Crawler(transport_fetcher(), max_pages=args.discover_pages, renderer=renderer,
+            ignore_params=(BASE_SYMBOL,))
     candidates = [seed_candidate(BASE_SYMBOL), *well_known_candidates(BASE_SYMBOL)]
     records: list[ObservedRecord] = []
     seen: set[tuple[str, str]] = set()

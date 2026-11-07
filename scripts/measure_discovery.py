@@ -82,7 +82,8 @@ def main(argv: list[str]) -> int:
         from veripen_core.render.browser import BrowserRenderer
 
         renderer = stack.enter_context(BrowserRenderer())
-    crawler = Crawler(transport_fetcher(), max_pages=args.pages, renderer=renderer)
+    crawler = Crawler(transport_fetcher(), max_pages=args.pages, renderer=renderer,
+            ignore_params=(BASE,))
     candidates = [seed_candidate(BASE), *well_known_candidates(BASE)]
     records = []
     seen: set[tuple[str, str]] = set()

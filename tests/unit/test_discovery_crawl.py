@@ -266,3 +266,33 @@ def test_render_budget_is_respected() -> None:
     step = crawler.step(bindings)
     assert len(renderer.calls) == 1
     assert step.rendered == 1
+
+# ── B108：表单字段名必须进记录 ───────────────────────────────────
+def test_record_keeps_form_field_names() -> None:
+    """`<form>` 的 name 在 candidate 上，记录时不能丢——否则 GET 表单永远是无参页。"""
+    binding = _binding(p("search"), names=("q", "page"))
+    crawler = Crawler(lambda _b: (200, "application/json", '{"total":0}'))
+    (rec,) = crawler.step([binding]).records
+    assert rec.param_names == ("q", "page")
+
+
+def test_form_fields_become_param_injectable() -> None:
+    from veripen_core.routes.tagging import infer_tags
+
+    binding = _binding(p("search"), names=("q",))
+    crawler = Crawler(lambda _b: (200, "application/json", '{"total":0}'))
+    rec = crawler.step([binding]).records[0]
+    tags = infer_tags(
+        method=rec.method, template=rec.template, param_names=rec.param_names,
+        content_type=rec.content_type, fields=rec.fields,
+    )
+    assert "param_injectable" in tags
+
+
+def test_symbol_names_are_not_parameters() -> None:
+    """`base` 是符号不是参数：不滤掉的话每条面都凭空多出 param_injectable。"""
+    binding = _binding(p("plain"), names=("base",))
+    crawler = Crawler(lambda _b: (200, "text/html", "<html></html>"),
+                      ignore_params=("base",))
+    (rec,) = crawler.step([binding]).records
+    assert rec.param_names == ()
