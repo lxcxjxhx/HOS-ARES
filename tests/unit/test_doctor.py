@@ -148,3 +148,15 @@ def test_repo_doctor_json_is_serialisable() -> None:
     rep = run_doctor(ROOT, only=["python", "layout"])
     blob = json.dumps({"results": [r.as_dict() for r in rep.results]}, ensure_ascii=False)
     assert "python" in blob
+
+# ── B105：浏览器实测是显式开关，默认不做 ─────────────────────────
+def test_browser_check_defaults_to_no_launch(monkeypatch) -> None:
+    from pathlib import Path
+
+    from veripen_cli.cmd_doctor import check_browser
+
+    monkeypatch.delenv("VERIPEN_DOCTOR_BROWSER", raising=False)
+    result = check_browser(Path("."))
+    # 没装 playwright 时是 skip；装了就是 ok——两种都不许"起浏览器"
+    assert result.status in {"ok", "skip"}
+    assert "launch" in result.detail or result.status == "skip"

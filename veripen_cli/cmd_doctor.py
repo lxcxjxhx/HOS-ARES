@@ -14,6 +14,7 @@ doctor 不"综合判断"，它只汇总，判定权在人。
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -287,10 +288,26 @@ def check_browser(root: Path) -> CheckResult:
     except Exception as exc:  # noqa: BLE001
         return CheckResult("浏览器渲染", Status.FAIL, f"导入失败：{exc}"[:120],
                            "检查 veripen_core/render/browser.py")
-    if not BrowserRenderer().available():
+    renderer = BrowserRenderer()
+    if not renderer.available():
         return CheckResult("浏览器渲染", Status.SKIP, "playwright 不可用：渲染走 blocked",
                            "pip install playwright && playwright install chromium")
-    return CheckResult("浏览器渲染", Status.OK, "playwright 可用")
+    # 装了包不等于能起浏览器（自带 chromium 可能已损坏），但每次 doctor 都起一个
+    # 浏览器会把自检变成慢且不稳的动作。所以实测放在显式开关后面。
+    if os.environ.get("VERIPEN_DOCTOR_BROWSER", "") != "launch":
+        return CheckResult(
+            "浏览器渲染", Status.OK,
+            "playwright 可用（未试启动；VERIPEN_DOCTOR_BROWSER=launch 可实测通道）",
+        )
+    try:
+        with renderer:
+            channel = renderer.channel
+    except Exception as exc:  # noqa: BLE001 —— 起不来就是起不来
+        return CheckResult(
+            "浏览器渲染", Status.FAIL, f"没有可用的浏览器通道：{str(exc)[:90]}",
+            "playwright install chromium，或安装 Edge/Chrome 走回退链",
+        )
+    return CheckResult("浏览器渲染", Status.OK, f"浏览器通道：{channel}")
 
 
 #: doctor 的 19 项（顺序即渲染顺序）。**加一项就要问：它能不能被别人独立重跑？**
