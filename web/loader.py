@@ -12,26 +12,20 @@ import json
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from veripen_oracles import ALL_ORACLES
+from veripen_oracles.policy import severity_for
+
 from web.console import ConsoleState, Row
 
-#: 严重度只在已验证行上有意义；这里只做"oracle → 分档"的展示映射，不参与判定。
+#: 严重度：**从 policy 的规则表算**，不在这里另抄一份。
+#:
+#: 早先这里有一张手写表，和 `veripen_oracles/policy.py` 各写一遍——
+#: 两份表迟早给出两个数（open_redirect 一边 low 一边 medium）。
 SEVERITY: Mapping[str, str] = {
-    "sqli_bool_diff": "high",
-    "sqli_error_based": "high",
-    "xss_reflected_ctx": "medium",
-    "xss_stored_probe": "high",
-    "idor_cross_account": "high",
-    "open_redirect": "low",
-    "path_traversal": "high",
-    "ssrf_oob": "high",
-    "jwt_replay": "medium",
-    "jwt_suite": "medium",
-    "rate_limit_absent": "low",
-    "bola_functional": "high",
-    "mass_assignment": "medium",
-    "cors_misconfig": "low",
-    "graphql_introspection": "low",
+    str(c.meta.id): severity_for(str(c.meta.id), str(c.meta.severity_rule))[0]
+    for c in ALL_ORACLES
 }
+
 
 #: 判定域的四态 → 控制台行状态。**只做映射**：不在表里的值一律当"未确认"，不许升级。
 _OUTCOME: Mapping[str, str] = {
@@ -73,6 +67,53 @@ def _row(oracle: str, verdict: str, *, reason: str, seq: int, asset: str) -> Row
     )
 
 
+def _from_report_findings(record: Mapping[str, Any], findings: Sequence[Any]) -> ConsoleState:
+    """`run` 的 findings.json（列表形态）→ 控制台状态。
+
+    两种产物必须都能打开：`hunt.json` 是 oracle→verdict 的映射，
+    `findings.json` 是渲染后的列表。只认前者的话，用户把 `run` 的目录指给
+    控制台会看到空白页——而 `run` 才是主命令。
+    """
+    asset = str(record.get("engagement") or "unknown")
+    rows: list[Row] = []
+    for i, raw in enumerate(findings, start=1):
+        if not isinstance(raw, Mapping):
+            continue
+        oracle = str(raw.get("oracle") or "")
+        outcome = str(raw.get("outcome") or "undetermined")
+        route_raw = raw.get("route")
+        route: Mapping[str, Any] = route_raw if isinstance(route_raw, Mapping) else {}
+        evidence_raw = raw.get("evidence")
+        evidence: Mapping[str, Any] = (
+            evidence_raw if isinstance(evidence_raw, Mapping) else {}
+        )
+        rows.append(
+            Row(
+                finding_id=str(raw.get("id") or ("F-" + str(i).zfill(3))),
+                title=str(raw.get("title") or oracle),
+                severity=(str(raw.get("severity")) if outcome == "reported" else None),
+                oracle_id=oracle,
+                asset_id=str(raw.get("asset") or asset),
+                confidence=float(raw.get("confidence") or 0.0),
+                route_strength=str(route.get("strength") or route.get("source") or "contract"),
+                route_ref=(str(route["ref"]) if route.get("ref") else None),
+                replay_status=str(evidence.get("replay_status") or "NEVER"),
+                outcome=outcome,
+                reason_code=str(raw.get("reason_code") or ""),
+                hits=_HITS.get(outcome),
+                capsule_id=(str(evidence["capsule_id"]) if evidence.get("capsule_id") else None),
+            )
+        )
+    engagement = {
+        "id": "ENG-ARTIFACT",
+        "asset": asset,
+        "scope": "只读验证（来自运行产物）",
+        "confirmed": sum(1 for r in rows if r.outcome == "reported"),
+        "total": len(rows),
+    }
+    return ConsoleState(findings=rows, engagement=engagement)
+
+
 def load_record(record: Mapping[str, Any]) -> ConsoleState:
     """把一轮运行的 JSON 记录映射成控制台状态（纯函数，无 IO）。"""
     asset = str(record.get("target_host") or "unknown")
@@ -80,6 +121,8 @@ def load_record(record: Mapping[str, Any]) -> ConsoleState:
     seq = 0
 
     confirmed = record.get("findings") or {}
+    if isinstance(confirmed, Sequence) and not isinstance(confirmed, (str, bytes)):
+        return _from_report_findings(record, confirmed)
     if isinstance(confirmed, Mapping):
         for oracle in sorted(confirmed):
             seq += 1

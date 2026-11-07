@@ -107,3 +107,22 @@ def test_meta_does_not_silently_return_default() -> None:
         cwe = "CWE-79"
 
     assert _meta(_M(), "cwe") != ""
+
+
+# ── B100：finding id 里必须是面的可辨识尾巴，不能是 "route://" ──────
+def test_ref_tail_is_not_the_scheme() -> None:
+    from veripen_cli.cmd_run import _ref_tail
+
+    class _B:
+        ref = "route://contract/abcd1234ef56"
+
+    assert _ref_tail(_B()) == "abcd1234"
+
+
+def test_ref_tail_without_ref_is_stable() -> None:
+    from veripen_cli.cmd_run import _ref_tail
+
+    class _B:
+        ref = ""
+
+    assert _ref_tail(_B()) == "noref"

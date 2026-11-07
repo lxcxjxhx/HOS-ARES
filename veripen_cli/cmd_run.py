@@ -80,7 +80,7 @@ def _findings_view(
     else:
         outcome = Outcome.ERROR
     return FindingView(
-        finding_id=f"F-{oracle_id}-{str(getattr(binding, 'ref', ''))[:8]}",
+        finding_id=f"F-{oracle_id}-{_ref_tail(binding)}",
         title=str(_meta(meta, "name", oracle_id)),
         asset_id=asset_id,
         oracle_id=oracle_id,
@@ -177,6 +177,17 @@ def _discover_routeset(args: Any, host: str) -> Any:
 #: 弱证据面（09 §3.1）：这些面出来的结论不得标高严重度。
 WEAK_STRENGTHS = frozenset({"crawl", "probe"})
 HIGH_SEVERITIES = frozenset({"high", "critical"})
+
+
+def _ref_tail(binding: Any, length: int = 8) -> str:
+    """面标识的尾巴：``route://contract/abcd1234…`` → ``abcd1234``。
+
+    早期直接 ``ref[:8]`` —— 而 ``route://`` 恰好 8 个字符，于是**同一个 oracle 的
+    所有 finding 拿到同一个 id**（都与面无关），详情页按 id 选人时永远选中第一条。
+    """
+    ref = str(getattr(binding, "ref", "") or "")
+    tail = ref.rsplit(chr(0x2F), 1)[-1]
+    return tail[:length] or "noref"
 
 
 def _strength_of(binding: Any) -> str:
