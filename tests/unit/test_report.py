@@ -283,3 +283,35 @@ def test_sarif_shape() -> None:
     for field in "id shortDescription fullDescription defaultConfiguration properties".split():
         assert field in rule
     assert "security" in rule["properties"]["tags"]
+
+# ── B109：报告要写明"面是怎么来的" ───────────────────────────────
+def _report_with(discovery: dict) -> object:
+    from veripen.report.render import ReportInput
+
+    return ReportInput(
+        engagement="e", profile_hash="", image_digest="", root_sha256="",
+        findings=[], discovery=discovery,
+    )
+
+
+def test_report_states_discovery_provenance() -> None:
+    from veripen.report.render import render_markdown
+
+    md = render_markdown(_report_with({"mode": "discover", "rounds": 2, "pages": 8}))
+    assert "面的来源" in md
+    assert "不是契约声明" in md
+    assert "2 轮 / 8 页" in md
+
+
+def test_report_without_discovery_says_nothing() -> None:
+    from veripen.report.render import render_markdown
+
+    assert "面的来源" not in render_markdown(_report_with({}))
+
+
+def test_json_env_carries_discovery() -> None:
+    from veripen.report.render import render_json
+
+    env = render_json(_report_with({"mode": "discover", "rounds": 1, "pages": 4}))["env"]
+    assert env["discovery"]["mode"] == "discover"
+    assert env["discovery"]["pages"] == 4
