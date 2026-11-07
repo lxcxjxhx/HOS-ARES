@@ -31,6 +31,7 @@ from veripen_core.discovery import (  # noqa: E402
     candidate_of,
     seed_candidate,
     transport_fetcher,
+    well_known_candidates,
 )
 from veripen_core.routes import (  # noqa: E402
     AssetRef,
@@ -82,7 +83,7 @@ def main(argv: list[str]) -> int:
 
         renderer = stack.enter_context(BrowserRenderer())
     crawler = Crawler(transport_fetcher(), max_pages=args.pages, renderer=renderer)
-    candidates = [seed_candidate(BASE)]
+    candidates = [seed_candidate(BASE), *well_known_candidates(BASE)]
     records = []
     seen: set[tuple[str, str]] = set()
     pages = 0

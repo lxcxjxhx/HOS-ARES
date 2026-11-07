@@ -105,7 +105,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     pending: set[str] = set()
     skipped_all: list[tuple[str, str]] = []
     pages = 0
-    candidates = [seed_candidate(BASE_SYMBOL)]
+    candidates = [seed_candidate(BASE_SYMBOL), *well_known_candidates(BASE_SYMBOL)]
     truncated = False
 
     for round_no in range(1, max(1, args.max_rounds) + 1):

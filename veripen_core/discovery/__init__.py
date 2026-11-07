@@ -23,6 +23,7 @@ from .crawl import (
     Fetcher,
     candidate_of,
     seed_candidate,
+    well_known_candidates,
     transport_fetcher,
 )
 from .links import MAX_PER_PAGE, SEP, Sighting, extract, normalize_href
@@ -40,6 +41,7 @@ __all__ = [
     "Fetcher",
     "candidate_of",
     "seed_candidate",
+    "well_known_candidates",
     "transport_fetcher",
     "Sighting",
     "extract",
