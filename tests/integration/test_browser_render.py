@@ -105,3 +105,20 @@ def test_no_verdict_field_in_result() -> None:
     result = BrowserRenderer().render(html="<p>x</p>") if _available() else None
     payload = result.as_dict() if result else {}
     assert "verdict" not in payload
+
+# ── B102：启动通道回退链，且实际用了哪个必须写出来 ────────────────
+@needs_browser
+def test_channel_is_recorded_when_bundled_browser_is_broken() -> None:
+    """自带 chromium 起不来时回退到系统浏览器；结果里必须写清楚用了哪个。"""
+    with BrowserRenderer() as renderer:
+        result = renderer.render(html=PAGE)
+    assert result.channel in {"chromium", "msedge", "chrome"}, result.channel
+    assert result.as_dict()["channel"] == result.channel
+
+
+def test_all_channels_failing_raises_instead_of_pretending() -> None:
+    """一个通道都起不来时如实抛错——不许返回"渲染成功但内容为空"。"""
+    renderer = BrowserRenderer(channels=("no-such-channel",))
+    with pytest.raises(RuntimeError):
+        with renderer:
+            pass
