@@ -49,6 +49,22 @@ PROMPT = "> "
 
 #: chat 能调的工具（与 _exec_step 的分支一一对应）
 CHAT_TOOLS = frozenset("read write edit sh status run platform".split())
+
+#: chat 自己的系统提示（B95）。**不能复用判定链路那句"只选 oracle"**：
+#: 那会把模型固定引导到 run_oracle，然后被 CHAT_TOOLS 拒掉、每轮降级 rules。
+#: 字段名必须与 ``_exec_step`` 读的键完全一致，否则参数对不上。
+CHAT_SYSTEM_PROMPT = (
+    "你是 VeriPen 的工作台助手：把用户的一句话翻译成**恰好一次**工具调用。"
+    "只回一个 json 对象 {\"tool\": <名字>, \"args\": {...}}，不要解释，不要多调用。"
+    "可用工具与参数（字段名必须完全一致，多一个都会被拒；无参工具给 {}）："
+    "read{path} · write{path,content} · edit{path,old,new} · sh{cmd} · "
+    "run{target,openapi} · platform{profile,openapi} · status{}。"
+    "选择规则：要执行命令或查看系统信息用 sh（cmd 是完整命令行）；"
+    "读文件用 read；整文件重写用 write；局部替换用 edit；"
+    "要跑一次渗透用 run（target 与 openapi 缺一不可，缺就问，不要编）；"
+    "按档批量跑用 platform；问会话状态用 status。"
+    "拿不准就调 status。"
+)
 C_DIM = "\x1b[2m"
 C_BOLD = "\x1b[1m"
 C_GREEN = "\x1b[32m"
@@ -259,7 +275,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         from veripen_core.agent.client import from_env
 
-        client = from_env()
+        client = from_env(system_prompt=CHAT_SYSTEM_PROMPT)
         model_name = getattr(client, "model", "") if client is not None else ""
     except Exception:  # noqa: BLE001 —— 客户端构造失败不影响规则模式
         client = None
