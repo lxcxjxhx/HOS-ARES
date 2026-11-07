@@ -6,6 +6,8 @@
 - **每次新 context**：不共享 cookie/localStorage，避免"上一个动作的登录态"偷偷影响这一次；
 - **超时即 BLOCKED**：渲染失败不退化成"没发现"；
 - **宿主降级是显式的**：本机没有容器，`isolation="host"` 必须被调用方与证据同时看见。
+- **浏览器通道也是显式的**：自带 chromium 起不来时回退到系统 Edge/Chrome，
+  实际用哪个写进 `RenderResult.channel`（证据里不能自称用了 chromium）。
 
 依赖：`playwright`（可选）。没装时 `available()` 为 False，调用返回 `blocked`。
 """
@@ -31,6 +33,8 @@ class RenderResult:
     isolation: str = "host"          # host | container
     outcome: str = "ok"              # ok | blocked | error
     reason: str = ""
+    #: 实际用的浏览器通道：``chromium`` / ``msedge`` / ``chrome`` / 空（没起来）
+    channel: str = ""
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -40,6 +44,7 @@ class RenderResult:
             "isolation": self.isolation,
             "outcome": self.outcome,
             "reason": self.reason,
+            "channel": self.channel,
         }
 
 
@@ -50,8 +55,18 @@ def _blocked(reason: str, *, isolation: str = "host") -> RenderResult:
 class BrowserRenderer:
     """一个浏览器、多次渲染；**每次渲染一个新 context**。"""
 
-    def __init__(self, *, isolation: str = "host") -> None:
+    #: 启动通道回退链：空串 = 自带 chromium；其余是 playwright 的 channel 名。
+    DEFAULT_CHANNELS: tuple[str, ...] = ("", "msedge", "chrome")
+
+    def __init__(
+        self,
+        *,
+        isolation: str = "host",
+        channels: tuple[str, ...] | None = None,
+    ) -> None:
         self.isolation = isolation
+        self.channels = channels or self.DEFAULT_CHANNELS
+        self.channel = ""
         self._playwright: Any = None
         self._browser: Any = None
 
@@ -67,8 +82,20 @@ class BrowserRenderer:
         from playwright.sync_api import sync_playwright  # noqa: PLC0415
 
         self._playwright = sync_playwright().start()
-        self._browser = self._playwright.chromium.launch()
-        return self
+        errors: list[str] = []
+        for channel in self.channels:
+            try:
+                if channel:
+                    self._browser = self._playwright.chromium.launch(channel=channel)
+                else:
+                    self._browser = self._playwright.chromium.launch()
+            except Exception as exc:  # noqa: BLE001 - 起不来就试下一个通道
+                errors.append(f"{channel or 'bundled'}: {type(exc).__name__}")
+                continue
+            self.channel = channel or "chromium"
+            return self
+        # 全部起不来：如实抛，不在"没有浏览器"的情况下假装渲染过
+        raise RuntimeError("没有可用的浏览器通道（" + "；".join(errors) + "）")
 
     def __exit__(self, *_exc: object) -> None:
         try:
@@ -112,12 +139,13 @@ class BrowserRenderer:
             shot = hashlib.sha256(page.screenshot(full_page=True)).hexdigest()
             return RenderResult(dom_outline=text, dom_sha256=dom_sha256(text),
                                 net_log=tuple(net), screenshot_sha256=shot,
-                                isolation=self.isolation)
+                                isolation=self.isolation, channel=self.channel)
         except Exception as exc:  # noqa: BLE001 - 超时/崩溃都归一，**不降级成"没发现"**
             name = type(exc).__name__
             reason = "render_timeout" if "Timeout" in name else f"render_error:{name}"
             return RenderResult(outcome="blocked", reason=reason,
-                                net_log=tuple(net), isolation=self.isolation)
+                                net_log=tuple(net), isolation=self.isolation,
+                                channel=self.channel)
         finally:
             context.close()
 
