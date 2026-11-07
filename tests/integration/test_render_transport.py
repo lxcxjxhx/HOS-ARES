@@ -133,3 +133,52 @@ def test_trace_carries_marker_but_no_address(site) -> None:  # noqa: ANN001
     assert data["marker"] == "1"
     assert str(port) not in trace.body.decode("utf-8"), "trace 里不许出现端口/地址"
     assert trace.route_ref.startswith("route" + ":" + S * 2)
+
+# ── B128：回显判定改为全量扫描，不截断、不留正文 ──────────────────
+@needs_browser
+def test_echoed_scans_whole_body_beyond_old_limit(site) -> None:  # noqa: ANN001
+    """原来只存前 256KB：靠后的回显会被漏判。现在扫完整响应体，只回布尔。"""
+    import http.server
+    import threading
+
+    padding = "x" * (400 * 1024)
+    needle = "<svg onload=mark>"
+
+    class _Big(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802
+            body = f"<html><body><div>{padding}{needle}</div></body></html>".encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *a):  # noqa: ANN002
+            pass
+
+    big = http.server.HTTPServer((LOOPBACK, 0), _Big)
+    port = big.server_address[1]
+    threading.Thread(target=big.serve_forever, daemon=True).start()
+    try:
+        # 走 RenderThread：全量跑时主线程可能有 running loop（B118 的教训）
+        from veripen_core.render.worker import RenderThread
+
+        with RenderThread() as renderer:
+            cap = renderer.capture(
+                url=HTTP + f"{LOOPBACK}:{port}{S}?q=x",
+                needles=(needle, "definitely-absent"),
+            )
+    finally:
+        big.shutdown()
+
+    assert cap.echoed[needle] is True, "超过 256KB 的回显也要能找到"
+    assert cap.echoed["definitely-absent"] is False
+    assert not hasattr(cap, "raw_html"), "不该再保留正文字节"
+
+
+def test_capture_result_has_no_raw_body_field() -> None:
+    from veripen_core.render.browser import CaptureResult
+
+    fields = set(CaptureResult.__dataclass_fields__)
+    assert "echoed" in fields
+    assert "raw_html" not in fields

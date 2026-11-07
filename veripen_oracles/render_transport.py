@@ -88,7 +88,11 @@ class RenderTransport:
         url = f"{r.scheme}://{netloc}{path}"
 
         self.sent.append({"role": role, "path": path})
-        cap = self.renderer.capture(url=url, marker=self.marker, timeout_s=int(self.timeout_s))
+        # 让浏览器层在**完整**响应体上扫，只回布尔表（不再截断保存正文）
+        needles = tuple(v for v in params.values() if v)
+        cap = self.renderer.capture(
+            url=url, marker=self.marker, timeout_s=int(self.timeout_s), needles=needles
+        )
 
         body = json.dumps(
             {
@@ -101,7 +105,7 @@ class RenderTransport:
                 # 逐参数：这个值有没有**原样**出现在网络原始响应里。
                 # 传输层只知道"发了什么、回来什么"，不猜它意味着什么。
                 "echoed": {
-                    k: bool(v) and (v in cap.raw_html) for k, v in params.items()
+                    k: bool(cap.echoed.get(v, False)) for k, v in params.items() if v
                 },
             },
             ensure_ascii=False,

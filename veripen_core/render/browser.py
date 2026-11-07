@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Any, Sequence, Mapping
 
 from .dom import dom_sha256, outline, redact_url
 
@@ -52,10 +52,6 @@ def _blocked(reason: str, *, isolation: str = "host") -> RenderResult:
     return RenderResult(outcome="blocked", reason=reason, isolation=isolation)
 
 
-#: 原始响应体只留这么多：判定只需要"载荷有没有原样出现"。
-RAW_LIMIT = 256 * 1024
-
-
 @dataclass(frozen=True)
 class CaptureResult:
     """渲染一页的结果，供**发现**用（不是证据）。
@@ -72,9 +68,9 @@ class CaptureResult:
     #: ``marker`` 表达式的求值结果（空串 = 没有标记 / 没取到）。
     #: 判定 DOM XSS 只用这个信号：**只有真执行才会写值**。
     marker: str = ""
-    #: 网络原始响应体（**未经脚本加工**）。用来区分"服务端回显"与"客户端拼接"。
-    #: 只保留长度上限内的前缀，判定只需要"载荷是否原样出现"。
-    raw_html: str = ""
+    #: 逐个 needle 在**完整**原始响应体里是否出现过（未经脚本加工）。
+    #: 用来区分"服务端回显"与"客户端拼接"——只回布尔，不留正文。
+    echoed: dict[str, bool] = field(default_factory=dict)
 
 
 def _same_origin_path(url: str, origin: str) -> str | None:
@@ -154,6 +150,7 @@ class BrowserRenderer:
         wait: str = "networkidle",
         timeout_s: int = 30,
         marker: str = "",
+        needles: Sequence[str] = (),
     ) -> CaptureResult:
         """渲染一页，返回渲染后 HTML + 同源请求路径。**只用于发现，不进证据。**
 
@@ -182,16 +179,18 @@ class BrowserRenderer:
                     seen.append(path)
 
             page.on("request", _on_request)
-            raw = ""
+            # 扫描**完整**响应体（不截断、不留存）：只回哪些 needle 出现过
+            echoed: dict[str, bool] = {}
             try:
                 response = page.goto(url, wait_until=wait)
-                if response is not None:
-                    raw = response.text()[:RAW_LIMIT]
+                if response is not None and needles:
+                    raw = response.text()
+                    echoed = {str(n): (str(n) in raw) for n in needles if n}
             except (NameError, AttributeError, TypeError):
-                # 代码错误不许被当成"取不到"：那会让整批判定静默变味（本批踩过）
+                # 代码错误不许被当成"取不到"：那会让整批判定静默变味（B119 踩过）
                 raise
             except Exception:  # noqa: BLE001 - 真·网络/渲染异常才降级
-                raw = ""
+                echoed = {}
             # 标记位必须在页面脚本跑完之后取：它是"执行过"的唯一证据。
             value = ""
             if marker:
@@ -206,7 +205,7 @@ class BrowserRenderer:
             html = page.content()
             return CaptureResult(
                 html=html, paths=tuple(seen), channel=self.channel,
-                marker=value, raw_html=raw,
+                marker=value, echoed=echoed,
             )
         except Exception as exc:  # noqa: BLE001
             name = type(exc).__name__
