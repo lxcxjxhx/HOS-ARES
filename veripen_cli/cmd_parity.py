@@ -101,7 +101,42 @@ def _tool_surface() -> tuple[str, str]:
 
 
 def _discovery() -> tuple[str, str]:
-    return SKIPPED, "资产发现按 D-H-03 维持不做"
+    """E4 资产发现：**已经做了**（B86 起）。桩 fetch 走一轮，不需要网络。
+
+    以前这条写的是"暂按 D-H-03 维持不做"——能力矩阵在说假话，比"没验"更糟。
+    """
+    import time
+
+    try:
+        from veripen_core.discovery import Crawler, seed_candidate
+        from veripen_core.routes import (
+            AssetRef,
+            Resolver,
+            RouteHints,
+            RouteProvenance,
+            RouteQuery,
+        )
+        from veripen_core.routes.sources import StaticSource
+    except Exception as exc:  # noqa: BLE001
+        return RED, f"发现链导入失败：{type(exc).__name__}"
+
+    def _fetch(_binding: object) -> tuple[int, str, str]:
+        # 桩：一页 HTML 带一个链接，够验证"能不能从 HTML 抽候选"
+        return 200, "text/html", '<html><a href="/api/items/1">i</a></html>'
+
+    crawler = Crawler(_fetch, max_pages=2)
+    src = StaticSource("crawl", RouteProvenance.CRAWL, [seed_candidate("base")])
+    routeset = Resolver(sources=[src]).resolve(
+        RouteQuery(asset=AssetRef(id="fixture.invalid"), hints=RouteHints(),
+                   min_confidence=0.0),
+        now=int(time.time()),
+    )
+    if not routeset.bindings:
+        return RED, "种子面没解析出来"
+    got = len(crawler.step(routeset.bindings).next)
+    if not got:
+        return RED, "抓了一页却没抽出任何候选"
+    return GREEN, f"发现链可用（一轮抽到 {got} 条候选）"
 
 
 def _parallel() -> tuple[str, str]:
