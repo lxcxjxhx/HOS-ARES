@@ -247,6 +247,40 @@ def check_docker(root: Path) -> CheckResult:
 # doctor 说"环境坏了"、parity 说"只是没验"，人就不知道该信谁。
 
 
+def check_sandbox_behavior(root: Path) -> CheckResult:
+    """执行体**行为**（B127）：超时/退出码/输出。与"真隔离"是两件事。
+
+    没容器时这三件照样能验——验过就报 OK，没验过才算 skip。
+    注意 OK 不代表"隔离成立"：detail 里会写清当前只有哪种隔离。
+    """
+    try:
+        from veripen_core.sandbox.attest import attest, verdict
+        from veripen_core.sandbox.runner import select_executor
+    except Exception as exc:  # noqa: BLE001
+        return CheckResult("执行体行为", Status.FAIL, f"导入失败：{exc}"[:120],
+                           "检查 veripen_core/sandbox/attest.py")
+    executor = select_executor()
+    if executor is None:
+        return CheckResult("执行体行为", Status.SKIP, "没有可用执行体（执行会报 BLOCKED）",
+                           "安装 docker/podman，或在 Windows 上确认 Job Object 可用")
+    facts = attest(executor)
+    ok, why = verdict(facts)
+    detail = (
+        f"{facts.get('executor')}：超时={facts.get('timeout_enforced')} "
+        f"退出码={facts.get('exit_code_preserved')} 输出={facts.get('stdout_captured')} "
+        f"│ {why}"
+    )
+    # 行为验过就是 OK；"隔离未验"由另一条检查负责，不在这里假装
+    behavior_ok = bool(
+        facts.get("timeout_enforced") and facts.get("exit_code_preserved")
+        and facts.get("stdout_captured")
+    )
+    return CheckResult(
+        "执行体行为", Status.OK if behavior_ok else Status.FAIL, detail[:200],
+        "" if behavior_ok else "执行体行为不符合：看 detail 里哪一项为 False",
+    )
+
+
 def check_sandbox(root: Path) -> CheckResult:
     """沙箱执行体（B45/B61）。**没有运行时 = skip**，真隔离待运行时补验。"""
     try:
@@ -329,6 +363,7 @@ CHECKS: tuple[tuple[str, Callable[[Path], CheckResult]], ...] = (
     ("lock_snapshot", check_lock_snapshot),
     ("docker", check_docker),
     ("sandbox", check_sandbox),
+    ("sandbox_behavior", check_sandbox_behavior),
     ("tui", check_tui),
     ("browser", check_browser),
 )

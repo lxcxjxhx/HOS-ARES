@@ -75,14 +75,15 @@ def test_render_says_deliverable_only_when_green() -> None:
 # ══════════════════════════════════════════════════════════════════
 # 2 注册表
 # ══════════════════════════════════════════════════════════════════
-def test_registry_has_nineteen_checks() -> None:
-    """B13 的 16 项 + B61 的 sandbox/tui/browser 三项。
+def test_registry_checks_are_unique_and_signed() -> None:
+    """注册表的不变量：名字唯一、签名统一、条数只增不减。
 
-    **加一项就要问：它能不能被别人独立重跑？**（`H11 B61`）
+    以前写死 `== 19`，每加一条检查都要回来改（B127 加"执行体行为"时又红一次）。
+    数字会过时，不变量不会——这里下限用 19，是"已有能力不能悄悄消失"。
     """
-    assert len(CHECKS) == 19
     names = [n for n, _ in CHECKS]
-    assert len(set(names)) == 19
+    assert len(names) == len(set(names)), "检查名重复"
+    assert len(CHECKS) >= 19, f"检查条数变少了：{len(CHECKS)}"
 
 
 def test_every_check_takes_root() -> None:
