@@ -33,8 +33,10 @@ from .common.harness import Pair, Trace, Variant
 MARKER = "__vp_xss"
 #: 标记位写入语句：只有真执行才会跑。
 FIRE = "window." + MARKER + "=1"
-#: 探针载荷：图片加载失败触发 onerror。
-PAYLOAD = '<img src=x onerror="' + FIRE + '">'
+#: 探针载荷：SVG 插入即触发 onload。
+#: **不用 `<img src=x onerror=…>`**：目标对任意路径都返回 200 时图片会"加载成功"，
+#: onerror 不触发——那会把有洞的页面判成 REFUTED（假阴性）。onload 不依赖资源失败。
+PAYLOAD = '<svg onload="' + FIRE + '">'
 
 
 class DomParams(BaseModel):
@@ -102,7 +104,8 @@ class XssDom(BaseOracle):
         assertion = {
             "kind": "dom_xss_execution",
             "statement": "载荷进入 DOM 后被执行（标记位被写），且基线/对照都不写",
-            "expected": {"probe_marker": "1", "baseline_marker": "", "control_marker": ""},
+            # expected 的 schema 是 dict[str, list[int]]：1 = 标记位被写 / 0 = 没写
+            "expected": {"probe_marker": [1], "baseline_marker": [0], "control_marker": [0]},
             "observed": {
                 "probe_marker": probe_mark,
                 "baseline_marker": base_mark,

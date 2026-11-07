@@ -370,6 +370,7 @@ def main(argv: list[str] | None = None) -> int:
     http_tool.install_guard(guard)
     started = time.time()
     results: list[tuple[str, Any, Any, Any]] = []   # (oracle_id, meta, result, binding)
+    render_state: dict[str, Any] = {"thread": None, "sent": []}
     try:
         for oracle_id in oracles:
             cls = next((c for c in ALL_ORACLES if c.meta.id == oracle_id), None)
@@ -390,11 +391,27 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 # 闸门按 oracle 放行：不设这一项，请求会被 plan_denied 拦下
                 transport.oracle_id = oracle_id
+                # 需要渲染的 oracle 换传输：HTTP 看不到"脚本有没有真跑"
+                active: Any
+                if bool(getattr(cls, "needs_render", False)):
+                    if render_state.get("thread") is None:
+                        from veripen_core.render.worker import RenderThread
+
+                        render_state["thread"] = RenderThread()
+                    from veripen_oracles.render_transport import RenderTransport
+
+                    active = RenderTransport(
+                        render_state["thread"], oracle_id=oracle_id
+                    )
+                else:
+                    active = transport
                 result = run_oracle(
-                    oracle, primary, transport,
+                    oracle, primary, active,
                     symbols=SymbolTable(), nonce=f"run-{oracle_id}",
                     token=args.token or None, bindings=bindings,
                 )
+                # 渲染请求也要计入请求数：报告里的 requests 是"真的发出去多少"
+                render_state["sent"].extend(getattr(active, "sent", []))
             except Exception as exc:  # noqa: BLE001 —— 目标上什么都可能发生，如实记
                 print(f"  {oracle_id:<24} 执行异常：{type(exc).__name__}: {str(exc)[:60]}")
                 continue
@@ -405,6 +422,12 @@ def main(argv: list[str] | None = None) -> int:
 
     finally:
         http_tool.uninstall_guard()
+        thread = render_state.get("thread")
+        if thread is not None:
+            try:
+                thread.close()
+            except Exception:  # noqa: BLE001 - 关不掉不该盖住主流程
+                pass
     if not results:
         print("全部 oracle 未产出结果", file=sys.stderr)
         return 1

@@ -79,8 +79,9 @@ def test_body_that_is_not_json_counts_as_no_marker() -> None:
 
 
 def test_payload_targets_the_marker() -> None:
+    """载荷靠 `onload` 触发，**不靠 onerror**：目标对任意路径返回 200 时图片会加载成功。"""
     assert MARKER in PAYLOAD
-    assert "onerror" in PAYLOAD
+    assert "onload" in PAYLOAD
 
 
 @pytest.mark.parametrize("role", ["baseline", "probe", "control"])
