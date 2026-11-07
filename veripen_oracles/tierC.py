@@ -144,6 +144,10 @@ def _nonce_of(pair: Pair) -> str:
 # ══════════════════════════════════════════════════════════════════
 # 2 cors_misconfig · CWE-942
 # ══════════════════════════════════════════════════════════════════
+#: 预检里算"允许写"的方法（通配 `*` 单列，不混进这个集合）
+_WRITE_METHODS = frozenset({"PUT", "POST", "DELETE", "PATCH"})
+
+
 class CorsParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
     repeat: int = 2
@@ -178,6 +182,11 @@ class CorsMisconfig(BaseOracle):
             # 对照：同源 Origin 必须被精确匹配（或干脆不回 ACAO）
             variant("same_origin", "control", expect="normal",
                     headers={"Origin": "{{ref:SITE_ORIGIN}}"}),
+            # 预检：只有 OPTIONS + 这两个请求头，才代表"浏览器真要跨域写"（B140）
+            variant("preflight", "readback", expect="normal", method="OPTIONS",
+                    headers={"Origin": "{{ref:OOB_URL}}",
+                             "Access-Control-Request-Method": "PUT",
+                             "Access-Control-Request-Headers": "authorization"}),
         ]
 
     def judge(self, pairs: list[Pair]) -> Judgement:
@@ -214,6 +223,18 @@ class CorsMisconfig(BaseOracle):
 
         control_ok = control_acao is None or control_acao != "*"
 
+        # ── 预检（B140）：允许写方法 + 回 ACAO，是最该报的形态 ──
+        pre = by_name.get("preflight")
+        pre_acao = "" if pre is None else (_header(pre.trace, "access-control-allow-origin") or "")
+        pre_methods = "" if pre is None else (_header(pre.trace, "access-control-allow-methods") or "")
+        pre_headers = "" if pre is None else (_header(pre.trace, "access-control-allow-headers") or "")
+        pre_cred = "" if pre is None else (_header(pre.trace, "access-control-allow-credentials") or "")
+        upper_methods = pre_methods.upper()
+        wide = "*" in upper_methods or any(m in upper_methods for m in _WRITE_METHODS)
+        preflight_open = bool(
+            pre is not None and pre.trace.error is None and pre_acao and wide
+        )
+
         assertion = {
             "kind": "cors_misconfig",
             "statement": "外部 Origin 被回显到 Access-Control-Allow-Origin",
@@ -223,12 +244,24 @@ class CorsMisconfig(BaseOracle):
                 "allow_credentials": credentials,
                 "control_acao": control_acao,
                 "wildcard": star,
+                "preflight_allow_origin": pre_acao,
+                "preflight_allow_methods": pre_methods,
+                "preflight_allow_headers": pre_headers,
+                "preflight_allow_credentials": pre_cred,
             },
             "fingerprint": {
                 "origin_reflected": bool(reflected),
                 "credentials_with_reflect": bool(reflected) and credentials,
+                "preflight_wide_open": preflight_open,
             },
         }
+        if preflight_open:
+            # 预检成立优先级最高：浏览器真会跨域写，比单纯反射严重
+            cred = (pre_cred or "").lower() == "true"
+            return self.verified(
+                "preflight_wide_open" + ("_with_credentials" if cred else ""),
+                assertion, 0.9 if cred else 0.8,
+            )
         if not reflected:
             return self.refuted("origin_not_reflected", assertion)
         if star and not credentials:

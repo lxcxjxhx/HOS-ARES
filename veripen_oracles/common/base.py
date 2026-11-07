@@ -130,6 +130,7 @@ def variant(
     account: str = "",
     binding_tag: str = "",
     extra_params: dict[str, str] | None = None,
+    method: str = "",
 ) -> Variant:
     return Variant(
         name=name,
@@ -140,4 +141,5 @@ def variant(
         account=account,
         binding_tag=binding_tag,
         extra_params=extra_params or {},
+        method=method,
     )

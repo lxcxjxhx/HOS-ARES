@@ -35,6 +35,7 @@ class WsgiTransport:
         params: Mapping[str, str],
         role: str,
         headers: Mapping[str, str] | None = None,
+        method: str = "",
     ) -> Trace:
         values = {k: str(v) for k, v in params.items()}
         account = values.pop("__role__", None) or ("primary" if role == "baseline" else "secondary")
@@ -44,7 +45,7 @@ class WsgiTransport:
         tail = "&".join(f"{k}={v}" for k, v in rest.items())
 
         environ: dict[str, Any] = {
-            "REQUEST_METHOD": getattr(binding, "method", "GET"),
+            "REQUEST_METHOD": (method or getattr(binding, "method", "GET")).upper(),
             "PATH_INFO": path,
             "QUERY_STRING": "&".join(p for p in (fixed_query, tail) if p),
         }

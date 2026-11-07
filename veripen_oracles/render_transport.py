@@ -71,7 +71,18 @@ class RenderTransport:
         params: Mapping[str, str],
         role: str,
         headers: Mapping[str, str] | None = None,
+        method: str = "",
     ) -> Trace:
+        if method and method.upper() != "GET":
+            # 浏览器只做导航（GET）。要发 OPTIONS 得走 HTTP 传输——
+            # 这里如实说"不支持"，不假装发过了。
+            return Trace(
+                route_ref=str(getattr(binding, "ref", "")),
+                status=0,
+                body=b"",
+                error=f"method_unsupported:{method.upper()}",
+            )
+
         ctx = http_tool.installed_guard()
         if ctx is None:
             raise GuardMissing("未安装 GuardContext：任何出网都要先过闸门")

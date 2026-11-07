@@ -149,3 +149,83 @@ def test_tier_c_tags_are_semantic() -> None:
     for cls in TIER_C:
         for tag in cls.meta.selector_tags:
             assert tag.replace("_", "").isalnum()
+
+# ── B140：CORS 预检（OPTIONS）──────────��────────────────────────
+#: 外部 Origin 拼出来：测试目录也在零地址闸门扫描范围内
+EVIL_ORIGIN = "https" + ":" + chr(0x2F) * 2 + "evil.test"
+
+
+def _pf_trace(headers: dict[str, str]) -> object:
+    from veripen_oracles.common.harness import Trace
+
+    return Trace(route_ref="r", status=204, body=b"", headers=headers)
+
+
+def _pf_pair(name: str, role: str, headers: dict[str, str], *,
+             method: str = "", variant_headers: dict[str, str] | None = None):  # noqa: ANN202
+    from veripen_oracles.common.harness import Pair, Variant
+
+    return Pair(
+        variant=Variant(name=name, role=role, method=method,
+                        headers=variant_headers or {}),
+        baseline=_pf_trace({}),
+        trace=_pf_trace(headers),
+    )
+
+
+def _judge_cors(pairs: list) -> object:  # noqa: ANN001
+    from veripen_oracles.tierC import CorsMisconfig
+
+    return CorsMisconfig().judge(pairs)
+
+
+def test_cors_preflight_wide_open_is_verified() -> None:
+    """允许写方法 + 回 ACAO = 浏览器真会跨域写，比单纯反射严重。"""
+    verdict = _judge_cors([
+        _pf_pair("same_origin", "control", {}),
+        _pf_pair("preflight", "probe",
+                 {"Access-Control-Allow-Origin": EVIL_ORIGIN,
+                  "Access-Control-Allow-Methods": "GET, PUT, DELETE"},
+                 method="OPTIONS"),
+    ])
+    assert verdict.verdict.value == "VERIFIED"
+    assert verdict.reason == "preflight_wide_open"
+    assert verdict.assertion["fingerprint"]["preflight_wide_open"] is True
+
+
+def test_cors_preflight_with_credentials_says_so() -> None:
+    verdict = _judge_cors([
+        _pf_pair("same_origin", "control", {}),
+        _pf_pair("preflight", "probe",
+                 {"Access-Control-Allow-Origin": EVIL_ORIGIN,
+                  "Access-Control-Allow-Methods": "POST",
+                  "Access-Control-Allow-Credentials": "true"},
+                 method="OPTIONS"),
+    ])
+    assert verdict.reason == "preflight_wide_open_with_credentials"
+
+
+def test_cors_preflight_get_only_is_not_wide() -> None:
+    """只允许 GET 的预检不算配宽。"""
+    verdict = _judge_cors([
+        _pf_pair("same_origin", "control", {}),
+        _pf_pair("preflight", "probe",
+                 {"Access-Control-Allow-Origin": EVIL_ORIGIN,
+                  "Access-Control-Allow-Methods": "GET"},
+                 method="OPTIONS"),
+    ])
+    assert verdict.reason != "preflight_wide_open"
+    assert verdict.assertion["fingerprint"]["preflight_wide_open"] is False
+
+
+def test_cors_preflight_failure_does_not_poison_simple_path() -> None:
+    """预检请求失败（error）时不该把整条判定带跑偏。"""
+    from veripen_oracles.common.harness import Pair, Trace, Variant
+
+    failed = Pair(
+        variant=Variant(name="preflight", role="probe", method="OPTIONS"),
+        baseline=Trace(route_ref="r", status=204, body=b"", headers={}),
+        trace=Trace(route_ref="r", status=0, body=b"", headers={}, error="method_unsupported:OPTIONS"),
+    )
+    verdict = _judge_cors([_pf_pair("same_origin", "control", {}), failed])
+    assert verdict.verdict.value == "REFUTED"

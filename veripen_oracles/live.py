@@ -70,6 +70,7 @@ class CoreTransport:
         params: Mapping[str, str],
         role: str,
         headers: Mapping[str, str] | None = None,
+        method: str = "",
     ) -> Trace:
 
         ctx = http_tool.installed_guard()
@@ -81,6 +82,11 @@ class CoreTransport:
         ctx.preflight()             # ③ 预算 / 令牌桶 / 审批
 
         r: RenderResult = render(binding, dict(params))
+        if method:
+            # 只改请求行里的方法名：地址仍是 resolver 产出的那一个
+            from dataclasses import replace as _replace
+
+            r = _replace(r, method=method.upper())
 
         # ── 未消费的参数走 query ────────────────────────────────────
         #
