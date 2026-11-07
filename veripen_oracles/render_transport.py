@@ -51,6 +51,20 @@ class RenderTransport:
         self.timeout_s = timeout_s
         self.sent: list[dict[str, object]] = []
 
+    @staticmethod
+    def _with_query(binding: RouteBinding, params: dict[str, str], path: str) -> str:
+        """模板没消费的参数补成 query——否则载荷发不出去，判定会假 REFUTED。"""
+        template = str(getattr(binding, "template", "") or "")
+        rest = {k: v for k, v in params.items() if "{" + k + "}" not in template}
+        if not rest:
+            return path
+        sep = "&" if "?" in path else "?"
+        # quote 而不是 urlencode：后者把空格编成 +，前端 decodeURIComponent 不会还原，
+        # 载荷里的空格会变成字面量 +（属性名损坏 -> 永不执行 -> 假 REFUTED）
+        from urllib.parse import quote
+        pair = "&".join(f"{k}={quote(str(v), safe="")}" for k, v in rest.items())
+        return path + sep + pair
+
     def send(
         self,
         binding: RouteBinding,
@@ -69,10 +83,11 @@ class RenderTransport:
         from veripen_core.tools.transport import render
 
         r = render(binding, dict(params))
+        path = self._with_query(binding, dict(params), r.path)
         netloc = r.host if r.port == _DEFAULT_PORTS.get(r.scheme, r.port) else f"{r.host}:{r.port}"
-        url = f"{r.scheme}://{netloc}{r.path}"
+        url = f"{r.scheme}://{netloc}{path}"
 
-        self.sent.append({"role": role, "path": r.path})
+        self.sent.append({"role": role, "path": path})
         cap = self.renderer.capture(url=url, marker=self.marker, timeout_s=int(self.timeout_s))
 
         body = json.dumps(
@@ -81,7 +96,7 @@ class RenderTransport:
                 "outcome": cap.outcome,
                 "reason": cap.reason,
                 "dom_sha256": hashlib.sha256(cap.html.encode("utf-8")).hexdigest()[:16],
-                "path": r.path,
+                "path": path,
                 "channel": cap.channel,
             },
             ensure_ascii=False,
