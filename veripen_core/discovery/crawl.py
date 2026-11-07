@@ -164,6 +164,7 @@ class Crawler:
         max_records: int = MAX_RECORDS_PER_ROUND,
         renderer: Any = None,
         max_renders: int = 5,
+        ignore_params: Sequence[str] = (),
     ) -> None:
         self._fetch = fetch
         self._max_pages = max_pages
@@ -172,6 +173,9 @@ class Crawler:
         self._renderer = renderer
         self._max_renders = max_renders
         self._renders = 0
+        #: 模板里的**符号名**（如 ``base``）不是参数：不滤掉的话每条面都会
+        #: 凭空多出 param_injectable，标签与覆盖率一起失真。
+        self._ignore = set(ignore_params)
         self._seen: set[str] = set()
 
     def step(self, seeds: Sequence[RouteBinding]) -> CrawlRound:
@@ -235,7 +239,13 @@ class Crawler:
             raw_identity = binding.identity_template or _page_path(binding)
             identity_path, _, query = raw_identity.partition("?")
             identity, path_params = templatize(identity_path)
-            param_names = path_params + query_names(query)
+            # 表单字段名在候选上（candidate_of 从 <form> 的 name 收来）。
+            # 只 templatize 路径会把它整段丢掉，GET 表单就永远是无参静态页。
+            extra = tuple(
+                name for name in binding.param_names
+                if name and name not in self._ignore
+            )
+            param_names = tuple(dict.fromkeys(path_params + query_names(query) + extra))
             if identity in seen_templates:
                 continue
             seen_templates.add(identity)
@@ -261,13 +271,13 @@ class Crawler:
                 rendered = 1
                 capture = self._renderer.capture(url=binding.template)
                 if capture.outcome == "ok":
-                    for extra in extract(capture.html[:BODY_LIMIT],
-                                         base_path=_page_path(binding)):
-                        template, _p = templatize(extra.path)
+                    for rendered_link in extract(capture.html[:BODY_LIMIT],
+                                                 base_path=_page_path(binding)):
+                        template, _p = templatize(rendered_link.path)
                         if template in seen_templates:
                             continue
                         seen_templates.add(template)
-                        pending.append(extra)
+                        pending.append(rendered_link)
                     for path in capture.paths:
                         parsed = normalize_href(path)
                         if parsed is None:

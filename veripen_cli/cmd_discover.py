@@ -97,7 +97,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         from veripen_core.render.browser import BrowserRenderer
 
         renderer = stack.enter_context(BrowserRenderer())
-    crawl = Crawler(transport_fetcher(), max_pages=args.max_pages, renderer=renderer)
+    crawl = Crawler(transport_fetcher(), max_pages=args.max_pages, renderer=renderer,
+            ignore_params=(BASE_SYMBOL,))
 
     known: set[str] = set()
     #: 看见了但还没抓的入口。它们不是"面"（没有形状），但确实是候选——
