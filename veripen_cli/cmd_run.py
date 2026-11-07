@@ -422,7 +422,31 @@ def main(argv: list[str] | None = None) -> int:
                     # 渲染请求也要计入请求数：报告里的 requests 是"真的发出去多少"
                     render_state["sent"].extend(getattr(active, "sent", []))
                 except Exception as exc:  # noqa: BLE001 —— 目标上什么都可能发生，如实记
-                    print(f"  {oracle_id:<24} 执行异常：{type(exc).__name__}: {str(exc)[:60]}")
+                    # 缺输入（符号没注入）是**明确的 BLOCKED**，不是"没跑"：
+                    # 记成 not_run 会让账本看起来像我们跳过了它（D1）。
+                    from veripen_core.models import Verdict as _V
+                    from veripen_oracles.common.harness import RunResult as _Run
+                    from veripen_oracles.common.harness import SymbolMissing as _Missing
+
+                    reason = (
+                        f"symbol_missing:{exc}"
+                        if isinstance(exc, _Missing)
+                        else f"{type(exc).__name__}: {str(exc)[:80]}"
+                    )
+                    print(f"  {oracle_id:<24} {'BLOCKED':<14} {reason[:60]}")
+                    blocked = _Run(_V.BLOCKED, reason, None, (), {})
+                    results.append((oracle_id, oracle.meta, blocked, primary))
+                    from veripen_core.coverage import FaceRun as _Face
+
+                    face_runs.append(_Face(
+                        oracle_id=oracle_id,
+                        route_ref=str(getattr(primary, "ref", "")),
+                        template=str(getattr(primary, "template", "")),
+                        verdict="BLOCKED",
+                        reason=reason,
+                        face_index=faces.index(primary) + 1,
+                        faces_total=len(faces),
+                    ))
                     continue
                 verdict = str(getattr(result.verdict, "value", result.verdict))
                 face = str(getattr(primary, "template", ""))[:44]
