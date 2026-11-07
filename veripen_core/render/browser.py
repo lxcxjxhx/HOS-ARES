@@ -52,6 +52,10 @@ def _blocked(reason: str, *, isolation: str = "host") -> RenderResult:
     return RenderResult(outcome="blocked", reason=reason, isolation=isolation)
 
 
+#: 原始响应体只留这么多：判定只需要"载荷有没有原样出现"。
+RAW_LIMIT = 256 * 1024
+
+
 @dataclass(frozen=True)
 class CaptureResult:
     """渲染一页的结果，供**发现**用（不是证据）。
@@ -68,6 +72,9 @@ class CaptureResult:
     #: ``marker`` 表达式的求值结果（空串 = 没有标记 / 没取到）。
     #: 判定 DOM XSS 只用这个信号：**只有真执行才会写值**。
     marker: str = ""
+    #: 网络原始响应体（**未经脚本加工**）。用来区分"服务端回显"与"客户端拼接"。
+    #: 只保留长度上限内的前缀，判定只需要"载荷是否原样出现"。
+    raw_html: str = ""
 
 
 def _same_origin_path(url: str, origin: str) -> str | None:
@@ -175,18 +182,31 @@ class BrowserRenderer:
                     seen.append(path)
 
             page.on("request", _on_request)
-            page.goto(url, wait_until=wait)
+            raw = ""
+            try:
+                response = page.goto(url, wait_until=wait)
+                if response is not None:
+                    raw = response.text()[:RAW_LIMIT]
+            except (NameError, AttributeError, TypeError):
+                # 代码错误不许被当成"取不到"：那会让整批判定静默变味（本批踩过）
+                raise
+            except Exception:  # noqa: BLE001 - 真·网络/渲染异常才降级
+                raw = ""
             # 标记位必须在页面脚本跑完之后取：它是"执行过"的唯一证据。
             value = ""
             if marker:
+                # onload/onerror 这类回调是异步的：goto 返回时它可能还没跑。
+                # 不 settle 就会把"执行了"读成"没执行"（假阴性，B119 踩过）。
+                page.wait_for_timeout(200)
                 try:
-                    raw = page.evaluate(marker)
-                    value = "" if raw is None else str(raw)
+                    probed = page.evaluate(marker)
+                    value = "" if probed is None else str(probed)
                 except Exception:  # noqa: BLE001 - 取不到就当没有，不猜
                     value = ""
             html = page.content()
             return CaptureResult(
-                html=html, paths=tuple(seen), channel=self.channel, marker=value
+                html=html, paths=tuple(seen), channel=self.channel,
+                marker=value, raw_html=raw,
             )
         except Exception as exc:  # noqa: BLE001
             name = type(exc).__name__

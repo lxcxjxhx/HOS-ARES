@@ -98,6 +98,11 @@ class RenderTransport:
                 "dom_sha256": hashlib.sha256(cap.html.encode("utf-8")).hexdigest()[:16],
                 "path": path,
                 "channel": cap.channel,
+                # 逐参数：这个值有没有**原样**出现在网络原始响应里。
+                # 传输层只知道"发了什么、回来什么"，不猜它意味着什么。
+                "echoed": {
+                    k: bool(v) and (v in cap.raw_html) for k, v in params.items()
+                },
             },
             ensure_ascii=False,
             sort_keys=True,
