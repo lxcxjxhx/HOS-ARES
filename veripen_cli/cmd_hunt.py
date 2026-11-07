@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
+from ._discover_args import add_discovery_args
 from ._io import setup_stdout  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -275,16 +276,7 @@ def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(prog="veripen hunt")
     ap.add_argument("--target", required=True, help="真实目标根地址（scheme + host[:port]）")
     ap.add_argument("--openapi", default="", help="OpenAPI/Swagger 文档路径（与 --discover 二选一）")
-    ap.add_argument(
-        "--discover", action="store_true",
-        help="无契约：先从目标攒面再跑（与 --openapi 二选一）",
-    )
-    ap.add_argument("--discover-rounds", type=int, default=2, help="发现最多几轮")
-    ap.add_argument("--discover-pages", type=int, default=20, help="每轮最多抓几页")
-    ap.add_argument(
-        "--render", action="store_true",
-        help="发现时渲染 HTML（补 JS 生成的入口与同源 XHR；慢，默认关）",
-    )
+    add_discovery_args(ap, include_enable=True, legacy_aliases=False)
     ap.add_argument("--model", choices=("scripted", "live"), default="scripted")
     ap.add_argument("--token", default="",
                     help="[兼容] 主身份 Bearer token。会进 shell 历史与进程列表，优先用 --token-file")

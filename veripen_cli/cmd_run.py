@@ -39,6 +39,7 @@ from veripen_oracles.common.harness import SymbolTable  # noqa: E402
 from veripen_oracles.common.harness import run as run_oracle  # noqa: E402
 from veripen_oracles.live import CoreTransport  # noqa: E402
 
+from ._discover_args import add_discovery_args
 from ._io import setup_stdout  # noqa: E402
 from .cmd_hunt import _build_routeset, _host_of, _oracles_for, build_guard  # noqa: E402
 
@@ -251,21 +252,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="veripen run", description="端到端渗透：跑完给交付物")
     ap.add_argument("--target", required=True, help="目标根地址（scheme + host[:port]）")
     ap.add_argument("--openapi", default="", help="OpenAPI/Swagger 文档路径（与 --discover 二选一）")
-    ap.add_argument(
-        "--discover",
-        action="store_true",
-        help="无契约：先从目标攒面再跑（与 --openapi 二选一）",
-    )
-    ap.add_argument("--discover-rounds", type=int, default=2, help="发现最多几轮")
-    ap.add_argument("--discover-pages", type=int, default=20, help="每轮最多抓几页")
-    ap.add_argument(
-        "--render", action="store_true",
-        help="发现时渲染 HTML（补 JS 生成的入口与同源 XHR；慢，默认关）",
-    )
-    ap.add_argument(
-        "--submit-forms", action="store_true",
-        help="提交无副作用的 GET 表单（探针值 1），看响应里还有什么",
-    )
+    add_discovery_args(ap, include_enable=True, legacy_aliases=False)
     ap.add_argument("--out", default=str(ROOT / "out" / "run"))
     ap.add_argument("--exclude", default=DEFAULT_EXCLUDE, help="逗号分隔的 oracle 黑名单")
     ap.add_argument("--token", default="", help="主身份 token（可空；空则相关 oracle 落 BLOCKED）")
