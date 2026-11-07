@@ -65,6 +65,9 @@ class CaptureResult:
     outcome: str = "ok"
     reason: str = ""
     channel: str = ""
+    #: ``marker`` 表达式的求值结果（空串 = 没有标记 / 没取到）。
+    #: 判定 DOM XSS 只用这个信号：**只有真执行才会写值**。
+    marker: str = ""
 
 
 def _same_origin_path(url: str, origin: str) -> str | None:
@@ -137,7 +140,14 @@ class BrowserRenderer:
             self._playwright = None
 
     # ── 渲染 ───────────────────────────────────────────────────
-    def capture(self, *, url: str, wait: str = "networkidle", timeout_s: int = 30) -> CaptureResult:
+    def capture(
+        self,
+        *,
+        url: str,
+        wait: str = "networkidle",
+        timeout_s: int = 30,
+        marker: str = "",
+    ) -> CaptureResult:
         """渲染一页，返回渲染后 HTML + 同源请求路径。**只用于发现，不进证据。**
 
         为什么不能用 ``render()``：那返回的是 DOM 大纲（去属性、脱敏），
@@ -166,8 +176,18 @@ class BrowserRenderer:
 
             page.on("request", _on_request)
             page.goto(url, wait_until=wait)
+            # 标记位必须在页面脚本跑完之后取：它是"执行过"的唯一证据。
+            value = ""
+            if marker:
+                try:
+                    raw = page.evaluate(marker)
+                    value = "" if raw is None else str(raw)
+                except Exception:  # noqa: BLE001 - 取不到就当没有，不猜
+                    value = ""
             html = page.content()
-            return CaptureResult(html=html, paths=tuple(seen), channel=self.channel)
+            return CaptureResult(
+                html=html, paths=tuple(seen), channel=self.channel, marker=value
+            )
         except Exception as exc:  # noqa: BLE001
             name = type(exc).__name__
             reason = "render_timeout" if "Timeout" in name else f"render_error:{name}"
