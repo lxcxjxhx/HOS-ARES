@@ -56,7 +56,11 @@ TIER_C: tuple[type[BaseOracle], ...] = (
 TIER_DOM: tuple[type[BaseOracle], ...] = (tier_dom.XssDom,)
 
 #: 响应头型（只看头，不需要载荷，也不需要浏览器）
-TIER_HEADERS: tuple[type[BaseOracle], ...] = (tier_headers.CspAbsent,)
+TIER_HEADERS: tuple[type[BaseOracle], ...] = (
+    tier_headers.CspAbsent,
+    tier_headers.FrameOptAbsent,
+    tier_headers.NosniffAbsent,
+)
 
 ALL_ORACLES: tuple[type[BaseOracle], ...] = (
     TIER_A + TIER_B + AUTH + TIER_C + TIER_DOM + TIER_HEADERS
