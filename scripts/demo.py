@@ -132,7 +132,9 @@ class DemoRuntime:
             "verdict": result.verdict.value,
             "reason": result.reason,
             "route_strength": "contract",
-            "capsule_id": f"sha256:{oracle_id}",
+            # 不编证据指针（B152）：真 capsule 在步骤 5 统一 seal，此刻还没有哈希可给。
+            "capsule_id": None,
+            "evidence": "pending_seal",
         }
 
     def rediscover(self, reason: str):
