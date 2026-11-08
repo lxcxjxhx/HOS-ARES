@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -291,6 +292,60 @@ def _resolve_artifact(path: Path) -> Path:
     return path / ARTIFACT_NAMES[0]
 
 
+def _platform_assets(path: Path) -> list[Path]:
+    """平台产物目录的形状：`<root>/asset-N/findings.json`（B167）。
+
+    只认"子目录里有 findings.json"，不认名字——`asset-1` 是 cmd_platform 的约定，
+    但控制台不该因为有人改了目录名就整页空白。
+    """
+    if not path.is_dir():
+        return []
+    found = [
+        d for d in path.iterdir()
+        if d.is_dir() and (d / "findings.json").is_file()
+    ]
+
+    def order(d: Path) -> tuple[int, int | str]:
+        match = re.fullmatch(r"asset-(\d+)", d.name)
+        return (0, int(match.group(1))) if match else (1, d.name)
+
+    return sorted(found, key=order)
+
+
+def load_platform(path: Path) -> ConsoleState:
+    """把一次 `veripen platform` 的多个资产合成一个控制台状态（B167）。
+
+    控制台原来只能打开单资产目录：把 `out/platform` 指给它，页面是空的——
+    而平台恰恰是"多资产"那个出口。这里逐资产复用 `load_file`
+    （账本、证据路径、自述都按各自的目录算），再给行加资产前缀：
+
+    * `finding_id` 前缀 `asset-N/`：否则两个资产撞 id，详情页会串；
+    * `asset_id` 换成目录名：结论表里才看得出是哪台。
+    """
+    assets = _platform_assets(path)
+    rows: list[Row] = []
+    for sub in assets:
+        state = load_file(sub)
+        for row in state.findings:
+            rows.append(
+                replace(row, finding_id=f"{sub.name}/{row.finding_id}", asset_id=sub.name)
+            )
+    confirmed = sum(1 for r in rows if r.outcome == "reported")
+    return ConsoleState(
+        findings=tuple(rows),
+        engagement={
+            "id": "platform",
+            "asset": f"{len(assets)} 个资产",
+            "scope": "平台汇总（逐资产产物的合并视图；口径与数字以各资产自己的报告为准）",
+            "confirmed": confirmed,
+            "total": len(rows),
+            "decision": None,
+            "reason": None,
+            "bindings": None,
+        },
+    )
+
+
 def load_file(path: str | Path) -> ConsoleState:
     """读产物文件**或目录**；不存在/空/坏 JSON 都退化成空状态。
 
@@ -298,8 +353,13 @@ def load_file(path: str | Path) -> ConsoleState:
     同时尝试同目录的 ``coverage.json``：账本是独立产物，缺它不影响结论页，
     但覆盖页会少掉"哪条面根本没判定"那一段。
     """
-    p = _resolve_artifact(Path(path))
+    raw = Path(path)
+    p = _resolve_artifact(raw)
     if not p.is_file():
+        # 单资产目录里没有顶层产物时，可能是平台目录（`asset-N/findings.json`）
+        assets = _platform_assets(raw)
+        if assets:
+            return load_platform(raw)
         return ConsoleState()
     try:
         record = json.loads(p.read_text(encoding="utf-8"))
