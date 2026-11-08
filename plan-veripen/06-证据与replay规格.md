@@ -208,8 +208,11 @@ capsule_i.chain.self_sha256 = sha256( canonical_json(capsule_i 去掉 chain.self
 反而逼迫人们去篡改它。用 `path_rendered_sha256` + `route.template_sha256` 双锚点足够防篡改。
 
 - 规范化 JSON：键排序、无空白、浮点统一 6 位、时间统一 UTC RFC3339。
-- `make verify-chain` 顺序校验整份报告的证据链，任何一条被改即断链并定位。
-- 报告头部写 `root_sha256`（首条 capsule 的 prev），等价于"报告指纹"。
+- `make verify-chain` 顺序校验整份报告的证据链，任何一条被改即断链并定位；
+  **删掉链头**同样断链（整条链的链头 `prev` 必须是全零，只剩中间几环不算"完整"）。
+- 报告头部写 `root_sha256`（首条 capsule 的 `self_sha256`，即链头），等价于"报告指纹"；
+  `verify-chain` 输出的 `head=` 应与它逐字相同。链尾由 `tip=` 给出——只有 capsule 文件时
+  删链尾无法自证，靠报告列出的证据全集（`findings[].evidence.capsule_id`）对账。
 - 部署到客户侧时建议落 WORM 桶（对象锁）/ 只追加文件卷 —— 本期用文件 + 校验脚本模拟该语义。
 
 ## 4. 脱敏策略（`pii-min`）

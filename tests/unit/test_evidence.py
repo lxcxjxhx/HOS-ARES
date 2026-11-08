@@ -151,6 +151,31 @@ def test_chain_detects_reordered_capsules() -> None:
     assert any("链断" in b for b in report.breaks)
 
 
+def test_chain_rejects_truncated_head() -> None:
+    """删掉链头（=删掉一份证据）必须红。
+
+    剩下的条 `prev` 彼此仍然对得上——只查"中间没断"的话，整根链会自己自洽，
+    于是"删了一份证据"被判成 ok。链头 prev 必须是全零才叫"整条链"。
+    """
+    caps = chain_capsules([F.capsule(probe_body=f"h{i}") for i in range(3)])
+    report = verify_chain(caps[1:])
+    assert report.ok is False
+    assert any(b.startswith("[0] 链头 prev=") for b in report.breaks)
+    with pytest.raises(ChainBroken):
+        report.raise_if_broken()
+
+
+def test_chain_reports_length_and_tip() -> None:
+    """链多长、头尾是谁要能读出来：多面之后"证据 7 份"得对得上 7 环。"""
+    caps = chain_capsules([F.capsule(probe_body=f"t{i}") for i in range(3)])
+    report = verify_chain(caps)
+    assert report.ok is True
+    assert report.length == 3
+    assert report.head_sha256 == caps[0].chain.self_sha256
+    assert report.tip_sha256 == caps[-1].chain.self_sha256
+    assert report.root_sha256 == "0" * 64
+
+
 # ── 6 脱敏与可分享性（06 §4 / 28 断言 7）───────────────────────────
 def test_headers_redacted_at_build_time() -> None:
     cap = F.capsule()

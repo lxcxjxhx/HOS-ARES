@@ -134,6 +134,20 @@ def test_missing_route_ref_raises() -> None:
         render_sarif(report)
 
 
+def test_markdown_replay_path_points_at_real_file() -> None:
+    """复现命令必须指到真实文件名（裸 hex）：`save_capsule` 用 ``self_sha256`` 命名。
+
+    B149：这里原来用 ``capsule_id``（``sha256:<hex>``）拼路径，报告给出的是
+    ``out/capsules/sha256:<hex>.json``——一条谁也跑不通的命令。报告自称可复核，
+    复现命令却指向不存在的文件，等于把"你自己去验"变成空话。
+    """
+    sha = "a" * 64
+    md = render_markdown(_report(findings=[_f(capsule_id=f"sha256:{sha}", self_sha256=sha)]))
+    line = next(ln for ln in md.splitlines() if "veripen replay --capsule" in ln)
+    assert f"out/capsules/{sha}.json" in line
+    assert "sha256:" not in line
+
+
 # ── 3 弱绑定 + high → 抛错 ────────────────────────────────────────
 @pytest.mark.parametrize("strength", ["crawl", "probe"])
 def test_weak_binding_with_high_raises(strength: str) -> None:
