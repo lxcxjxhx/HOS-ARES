@@ -57,13 +57,13 @@ def safe_lab():  # noqa: ANN201
         srv.stop()
 
 
-def _run(lab: Any, tmp_path: Path, *extra: str) -> int:
+def _run(lab: Any, tmp_path: Path, *extra: str, out: str = "run") -> int:
     from veripen_cli.cmd_run import main
 
     spec = tmp_path / "spec.json"
     spec.write_text(_spec(lab.base_url), encoding="utf-8")
     return main(["--target", lab.base_url, "--openapi", str(spec),
-                 "--out", str(tmp_path / "run"), *extra])
+                 "--out", str(tmp_path / out), *extra])
 
 
 # ── A：跑完给交付物 ────────────────────────────────────────────
@@ -73,7 +73,7 @@ def test_run_produces_deliverables(vuln_lab: Any, tmp_path: Path) -> None:
     assert rc == 0
     assert (out / "report.md").exists(), "缺报告"
     assert (out / "findings.json").exists(), "缺机器可读结论"
-    caps = list((out / "capsules").glob("*.json"))
+    caps = list((out / "capsules").rglob("*.json"))
     assert caps, "VERIFIED 结论必须落 capsule"
     assert len(caps) == len({p.name for p in caps})
 
@@ -139,3 +139,39 @@ def test_no_oracles_exits_nonzero(tmp_path: Path) -> None:
     rc = main(["--target", DEAD_BASE,
                "--openapi", str(spec), "--out", str(tmp_path / "o")])
     assert rc != 0, "空契约必须非 0，不许静默成功"
+
+
+# ── F：同一个 --out 跑第二次必须被拒（B153）────────────────────
+def test_second_run_into_same_out_is_refused(
+    vuln_lab: Any, tmp_path: Path, capsys: Any
+) -> None:
+    """证据目录只属于一轮：再跑会把两轮 capsule 混成两条链。
+
+    修前实测：同一 out 跑两次，`capsules/` 从 2 份变 4 份，`verify_chain` 返回 False，
+    而报告仍写"2 份"——盘上是 4 份。默认 `--out` 是固定路径，第二次跑必然踩到。
+    """
+    from veripen_core.evidence import load_capsule, order_chain, verify_chain
+
+    out = tmp_path / "run"
+    assert _run(vuln_lab, tmp_path) == 0
+    before = sorted(p.name for p in (out / "capsules").glob("*.json"))
+    assert before, "这一轮没有落任何 capsule，用例失去意义"
+    findings_before = (out / "findings.json").read_text(encoding="utf-8")
+    md_before = (out / "report.md").read_text(encoding="utf-8")
+    report = verify_chain(order_chain([
+        load_capsule(str(p)) for p in sorted((out / "capsules").glob("*.json"))
+    ]))
+    assert report.ok, report.breaks
+
+    assert _run(vuln_lab, tmp_path) == 2, "第二次运行必须被拒"
+    err = capsys.readouterr().err
+    assert "拒绝重跑" in err and "--out" in err, err
+
+    # 被拒之后，上一轮的证据与产物一个字节都不许动
+    assert sorted(p.name for p in (out / "capsules").glob("*.json")) == before
+    assert (out / "findings.json").read_text(encoding="utf-8") == findings_before
+    assert (out / "report.md").read_text(encoding="utf-8") == md_before
+
+    # 换个 --out 就能继续
+    assert _run(vuln_lab, tmp_path, out="run-2") == 0
+    assert list((tmp_path / "run-2" / "capsules").glob("*.json"))

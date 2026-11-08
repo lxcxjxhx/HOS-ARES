@@ -68,7 +68,7 @@ def test_discover_run_verifies_dom_xss(tmp_path) -> None:  # noqa: ANN001
     assert dom[0]["outcome"] == "reported", dom[0]
     assert dom[0]["cwe"] == "CWE-79"
     # 证据必须跟着结论一起落地
-    assert list((tmp_path / "run" / "capsules").glob("*.json"))
+    assert list((tmp_path / "run" / "capsules").rglob("*.json"))
 
 # ── B119：同一个"执行了"，反射型与客户端型要判得不一样 ─────────────
 ECHO_PAGE = None  # 服务端把 q 原样回显进 HTML（反射型）

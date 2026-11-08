@@ -254,7 +254,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--target", required=True, help="目标根地址（scheme + host[:port]）")
     ap.add_argument("--openapi", default="", help="OpenAPI/Swagger 文档路径（与 --discover 二选一）")
     add_discovery_args(ap, include_enable=True, legacy_aliases=False)
-    ap.add_argument("--out", default=str(ROOT / "out" / "run"))
+    ap.add_argument("--out", default=str(ROOT / "out" / "run"),
+                    help="产物目录。证据目录只属于一轮：已有 capsule 的目录会被拒绝（B153）")
     ap.add_argument("--exclude", default=DEFAULT_EXCLUDE, help="逗号分隔的 oracle 黑名单")
     ap.add_argument("--token", default="", help="主身份 token（可空；空则相关 oracle 落 BLOCKED）")
     ap.add_argument("--max-oracles", type=int, default=0, help="0 = 全跑")
@@ -279,6 +280,19 @@ def main(argv: list[str] | None = None) -> int:
     host = _host_of(args.target)
     if bool(args.openapi) == bool(args.discover):
         print("--openapi 与 --discover 必须二选一", file=sys.stderr)
+        return 2
+
+    # 证据目录只属于一轮（B153）：capsule 是内容寻址的，同一目录跑第二次，
+    # 上一轮的几份会和这一轮的混成两条链——`verify-chain` 全红，报告说"2 份"
+    # 时盘上却是 4 份。与其事后猜哪份属于哪轮，不如在花掉一轮时间**之前**就拒绝。
+    stale = sorted((Path(args.out) / CAPSULE_DIR).glob("*.json"))
+    if stale:
+        print(
+            f"拒绝重跑：{Path(args.out) / CAPSULE_DIR} 里已有 {len(stale)} 份 capsule。\n"
+            "  证据是内容寻址的：同一目录跑两次会变成两条链，报告里的份数也对不上盘上。\n"
+            "  换个 --out（例如 out/run-2），或先把上一轮移走（mv out/run out/run-1）。",
+            file=sys.stderr,
+        )
         return 2
 
     planned = None
@@ -569,6 +583,8 @@ def main(argv: list[str] | None = None) -> int:
             if args.discover else {}
         ),
         render_time=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        # 报告里的复现命令要指到**这一轮**的证据目录
+        capsule_dir=str(capsules_dir).replace("\\", "/"),
     )
 
     (out / "findings.json").write_text(

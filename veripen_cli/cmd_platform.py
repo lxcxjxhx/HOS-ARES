@@ -222,10 +222,16 @@ def main(argv: list[str] | None = None) -> int:
         if findings_file.exists():
             data = json.loads(findings_file.read_text(encoding="utf-8"))
             found = list(data.get("findings", []))
-        caps = list((sub / "capsules").glob("*.json")) if (sub / "capsules").exists() else []
+        # 证据份数按**结论引用的** capsule 算（B153）：证据目录里可能躺着上一轮的文件
+        # （每轮一个 run 子目录），数文件会把两轮算成一份报告的证据。
+        cap_ids = {
+            str((f.get("evidence") or {}).get("capsule_id"))
+            for f in found
+            if (f.get("evidence") or {}).get("capsule_id")
+        }
         per_asset.append({
             "target": target, "rc": rc, "dir": sub.name,
-            "findings": found, "capsules": len(caps),
+            "findings": found, "capsules": len(cap_ids),
         })
 
     # ── 汇总报告 ────────────────────────────────────────────────
