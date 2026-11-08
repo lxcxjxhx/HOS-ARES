@@ -69,7 +69,7 @@ def run_dir(tmp_path_factory: pytest.TempPathFactory):  # noqa: ANN201
 def _chain(run_dir) -> list:  # noqa: ANN001
     from veripen_core.evidence import load_capsule
 
-    caps = [load_capsule(str(f)) for f in sorted((run_dir / "capsules").glob("*.json"))]
+    caps = [load_capsule(str(f)) for f in sorted((run_dir / "capsules").rglob("*.json"))]
     by_self = {c.chain.self_sha256: c for c in caps}
     genesis = [c for c in caps if c.chain.prev_sha256 in ("", ZERO)]
     assert len(genesis) == 1, f"genesis 应唯一，实际 {len(genesis)}"

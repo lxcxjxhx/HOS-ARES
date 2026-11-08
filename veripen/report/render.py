@@ -140,6 +140,8 @@ class ReportInput:
     leads_section: str = ""
     #: 死信章节（B13）：同上，由调用方从 deadletter.column 生成。
     dead_section: str = ""
+    #: 证据目录（复现命令里用）。每轮一个子目录，路径由调用方给——报告层不猜盘上布局。
+    capsule_dir: str = "out/capsules"
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -487,7 +489,7 @@ def render_markdown(report: ReportInput) -> str:
         # 用 `sha256:<hex>` 拼路径会得到一份不存在的文件，命令看着能跑、其实是死链（B149）。
         # `--mode offline` 必须写上：默认是 live，而 live 缺 RouteSet/transport 就拒跑，
         # 照抄默认值只会得到 exit=1 的"需要注入"（B151）。
-        w(f"- 复现（离线重判）：`veripen replay --capsule out/capsules/{f.self_sha256}.json"
+        w(f"- 复现（离线重判）：`veripen replay --capsule {report.capsule_dir}/{f.self_sha256}.json"
           f" --mode offline` —— 判定能否由证据重算；**不重发请求**，不能读成「洞还在」")
         if f.impact:
             w(f"- 影响：{f.impact}")

@@ -310,6 +310,8 @@ def step4_report(profile, sealed, out: Path, *, ledger=None, store=None) -> Path
         frameworks=list(profile.frameworks),
         distribution="internal",  # 报告分发级别，与客户档名无关
         render_time="demo",
+        # 复现命令要指到演示自己落证据的地方（B153）：默认值 "out/capsules" 在这里是死路径
+        capsule_dir=str(out / "capsules").replace("\\", "/"),
         leads_section=leads_md,
         dead_section=dead_md,
     )

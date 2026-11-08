@@ -111,6 +111,8 @@ def test_each_face_gets_its_own_capsule(tmp_path) -> None:  # noqa: ANN001
 
     for f in reported:
         cid = str((f.get("evidence") or {}).get("capsule_id"))
-        path = out / "capsules" / (cid.split(":")[-1] + ".json")
-        cap = load_capsule(str(path))
+        # 证据按运行分子目录（B153）：按文件名找，别假设是平的
+        matches = list((out / "capsules").rglob(cid.split(":")[-1] + ".json"))
+        assert matches, f"{f['id']} 的 capsule 在盘上找不到"
+        cap = load_capsule(str(matches[0]))
         assert str(cap.route.ref) == str((f.get("route") or {}).get("ref")), f["id"]
