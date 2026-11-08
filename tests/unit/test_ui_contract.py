@@ -19,7 +19,7 @@ UI = SLASH + "ui" + SLASH
 
 #: 每页的最小契约（与 view 函数同源；改 view 必须同步这里，否则红）
 EXPECTED: dict[str, set[str]] = {
-    "overview": {"engagements", "findings", "unverified", "queues", "coverage"},
+    "overview": {"engagements", "findings", "unverified", "queues", "coverage", "agent_claim"},
     "engagement": set(),
     "findings": {"total", "shown", "collapsed_low", "unverified", "queues", "rows"},
     "finding": {"id", "selected_by", "requested", "title", "assertion", "repro", "traces",
@@ -102,6 +102,17 @@ def test_contract_audit_declares_its_source() -> None:
     wired = _client(ConsoleState(audit=[{"at": "2026-11-03", "who": "reviewer",
                                          "what": "approve", "asset": "web-01"}])).get(UI + "audit").json()["data"]
     assert wired["source"] == "state" and wired["count"] == 1
+
+
+def test_contract_overview_carries_agent_claim() -> None:
+    """B161：自述恒在、可为空——空就是空，不是"没这个字段"。"""
+    assert _client().get(UI + "overview").json()["data"]["agent_claim"] == {
+        "summary": "", "unresolved": []}
+    state = ConsoleState(findings=[_row()],
+                         agent_claim={"summary": "找到 1 条", "unresolved": ["rate_limit_absent"]})
+    data = TestClient(build_app(state)).get(UI + "overview").json()["data"]
+    assert data["agent_claim"]["summary"] == "找到 1 条"
+    assert data["agent_claim"]["unresolved"] == ["rate_limit_absent"]
 
 
 def test_contract_overview_never_reports_percentage_without_denominator() -> None:

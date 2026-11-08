@@ -204,6 +204,18 @@ def _from_faces_run(record: Mapping[str, Any], faces: Sequence[Any]) -> ConsoleS
 
 def load_record(record: Mapping[str, Any]) -> ConsoleState:
     """把一轮运行的 JSON 记录映射成控制台状态（纯函数，无 IO）。"""
+    state = _load_record(record)
+    # 模型自述（B161）：hunt.json 的 `agent_claim`。**只展示**，不进 verdicts/覆盖。
+    claim = record.get("agent_claim")
+    if isinstance(claim, Mapping):
+        state.agent_claim = {
+            "summary": str(claim.get("summary") or ""),
+            "unresolved": [str(x) for x in (claim.get("unresolved") or [])],
+        }
+    return state
+
+
+def _load_record(record: Mapping[str, Any]) -> ConsoleState:
     asset = str(record.get("target_host") or "unknown")
     rows: list[Row] = []
     seq = 0
