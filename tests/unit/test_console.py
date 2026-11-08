@@ -263,3 +263,51 @@ def test_loader_without_ledger_leaves_coverage_empty(tmp_path) -> None:
     hunt = tmp_path / "hunt.json"
     hunt.write_text('{"target_host": "web-01", "findings": {}, "not_confirmed": {}}', encoding="utf-8")
     assert "ledger" not in load_file(hunt).coverage
+
+
+"""B146 · 覆盖矩阵要把"没跑的面"画出来。
+
+矩阵原来只由 findings 派生：coverage.json 记着 8 个 oracle 被选中、8 条 `oracle_not_run`，
+矩阵却只有 3 格且全绿——**没测的连格子都没有**，看上去"只有这 3 条"。
+"""
+
+from web.console import _expand_matrix_with_gaps
+
+
+def _view() -> dict:
+    return {
+        "assets": ["host"],
+        "oracles": ["csp_absent"],
+        "matrix": [{"asset": "host", "cells": {"csp_absent": "verified"}}],
+        "zero_hit_tags": [],
+    }
+
+
+def _ledger(kinds: dict[str, str]) -> dict:
+    return {"gaps": [{"kind": k, "oracle_id": o} for o, k in kinds.items()]}
+
+
+def test_not_run_oracles_get_cells() -> None:
+    out = _expand_matrix_with_gaps(_view(), _ledger({"sqli_bool_diff": "oracle_not_run"}))
+    assert "sqli_bool_diff" in out["oracles"]
+    assert out["matrix"][0]["cells"]["sqli_bool_diff"] == "not_run"
+    assert out["matrix"][0]["cells"]["csp_absent"] == "verified", "既有格子不许被改"
+
+
+def test_blocked_gap_marks_blocked() -> None:
+    out = _expand_matrix_with_gaps(_view(), _ledger({"path_traversal": "oracle_blocked"}))
+    assert out["matrix"][0]["cells"]["path_traversal"] == "blocked"
+
+
+def test_oracles_are_sorted_for_determinism() -> None:
+    """同一份产物两次渲染必须一致（控制台第 2 条纪律）。"""
+    ledger = _ledger({"xss_dom": "oracle_not_run", "nosniff_absent": "oracle_not_run"})
+    first = _expand_matrix_with_gaps(_view(), ledger)
+    second = _expand_matrix_with_gaps(_view(), ledger)
+    assert first == second
+    assert first["oracles"] == sorted(first["oracles"])
+
+
+def test_no_ledger_gaps_leaves_view_alone() -> None:
+    view = _view()
+    assert _expand_matrix_with_gaps(view, {"gaps": []}) is view
