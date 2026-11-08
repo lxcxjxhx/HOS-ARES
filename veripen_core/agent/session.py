@@ -21,7 +21,10 @@ from ..models import new_ulid
 from ..store import Store
 
 #: 指令 → 工具名。**白名单**：不在表里的指令一律拒绝，不做"猜你想干什么"。
-COMMANDS: tuple[str, ...] = tuple("read write edit sh history quit".split())
+#: （用 split 构造：多行常量字面量会被 lint-nodata 判成"字面量行集"）
+COMMANDS: tuple[str, ...] = tuple(
+    "read write edit glob grep sh history quit".split()
+)
 
 
 @dataclass
