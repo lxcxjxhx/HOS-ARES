@@ -128,8 +128,10 @@ class HuntRuntime:
         #: 于是工具结果拿到的是**终值**（不需要 B150 那种事后回填）。
         self._prev: str = ZERO_SHA
         self.sealed: list[str] = []
-        #: oracle_id → 它刚落的那份 capsule（同一 oracle 多个面时是最新一份）
-        self.capsule_ids: dict[str, str] = {}
+        #: 逐面证据：`{"oracle", "route_ref", "capsule_id"}`。
+        #: **不能只按 oracle 记**——同一个 oracle 的多个面各有一份，按 oracle 存
+        #: 最后一份会把"面 A 的发现"指到"面 B 的证据"（B148 的老坑，B155 修）。
+        self.evidence: list[dict[str, str]] = []
         #: oracle_id → 它实际打的那条面。覆盖账本要按面归口，
         #: 而"挑了哪条绑定"这段逻辑只在这里发生过一次——不要在外面重算一遍。
         self.binding_refs: dict[str, str] = {}
@@ -198,7 +200,11 @@ class HuntRuntime:
             return None, f"build_failed:{kind}"
         self._prev = doc.chain.self_sha256
         self.sealed.append(doc.chain.self_sha256)
-        self.capsule_ids[str(oracle.meta.id)] = doc.capsule_id
+        self.evidence.append({
+            "oracle": str(oracle.meta.id),
+            "route_ref": str(chosen.ref),
+            "capsule_id": doc.capsule_id,
+        })
         return doc.capsule_id, "sealed"
 
     def run_oracle(self, oracle_id: str, route_ref: str, params: Any) -> dict[str, Any]:
@@ -649,8 +655,9 @@ def main(argv: list[str]) -> int:
         "findings": findings,
         # 证据：这一轮**真的落盘**的 capsule（B154）。空列表 = 没有一份证据，
         # 不是"证据被省略"——报告读者据此就知道哪些结论能被重放。
+        # `evidence` 是**逐面**的（同一 oracle 不同面各一份）；`capsules` 只是自哈希清单。
         "capsules": list(runtime.sealed),
-        "capsule_ids": dict(runtime.capsule_ids),
+        "evidence": list(runtime.evidence),
         # 逐面运行记录：多面执行时"一个 oracle 一条"已经不够描述
         "faces_run": [row.as_dict() for row in runtime.faces_run],
         "not_confirmed": blocked,

@@ -124,13 +124,35 @@ def _from_report_findings(record: Mapping[str, Any], findings: Sequence[Any]) ->
 
 
 
+def _evidence_index(record: Mapping[str, Any]) -> dict[tuple[str, str], str]:
+    """hunt.json 的逐面证据：``(oracle, route_ref) → capsule_id``（B155）。
+
+    **不能只按 oracle 建索引**：同一个 oracle 的多个面各有一份 capsule，
+    按 oracle 存最后一份会把"面 A 的发现"指到"面 B 的证据"——B148 的老坑。
+    """
+    index: dict[tuple[str, str], str] = {}
+    raw = record.get("evidence")
+    if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
+        return index
+    for item in raw:
+        if not isinstance(item, Mapping):
+            continue
+        oracle = str(item.get("oracle") or "")
+        ref = str(item.get("route_ref") or "")
+        cid = str(item.get("capsule_id") or "")
+        if oracle and cid:
+            index[(oracle, ref)] = cid
+    return index
+
+
 def _from_faces_run(record: Mapping[str, Any], faces: Sequence[Any]) -> ConsoleState:
     """用 `faces_run`（逐面权威记录）建行。
 
-    hunt 的 `findings` 只是 `{oracle: verdict}`，没有面、没有证据；
-    逐面事实在 `faces_run` 里，**那才是能说清依据的那一层**。
+    hunt 的 `findings` 只是 `{oracle: verdict}`，没有面；逐面事实在 `faces_run` 里，
+    **那才是能说清依据的那一层**。证据按面索引（B154 之后 hunt 真的封 capsule）。
     """
     asset = str(record.get("target_host") or "unknown")
+    evidence = _evidence_index(record)
     rows: list[Row] = []
     for raw in faces:
         if not isinstance(raw, Mapping):
@@ -161,7 +183,8 @@ def _from_faces_run(record: Mapping[str, Any], faces: Sequence[Any]) -> ConsoleS
                 outcome=outcome,
                 reason_code=str(raw.get("reason") or verdict.upper()),
                 hits=_HITS[outcome],
-                capsule_id=None,   # hunt 不封 capsule：不编
+                # 有证据就显示真的那份；没有才是 None（不编，也不瞒）
+                capsule_id=evidence.get((oracle, route_ref)) or None,
             )
         )
     verified = sum(1 for r in rows if r.outcome == "reported")
