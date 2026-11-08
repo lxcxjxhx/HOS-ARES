@@ -420,7 +420,9 @@ def score(*, precision: float, recall: float, cost_ratio: float, report_quality:
 # 输出（10 §8）
 # ══════════════════════════════════════════════════════════════════
 def render_bench_md(rounds: Sequence[RoundResult], *, gates: GateResult,
-                    case_fp: str, missed: Sequence[str] = ()) -> str:
+                    case_fp: str, missed: Sequence[str] = (),
+                    capsules_dir: str = "",
+                    unreproduced: Sequence[str] = ()) -> str:
     lines: list[str] = []
     w = lines.append
     first = rounds[0] if rounds else None
@@ -481,6 +483,16 @@ def render_bench_md(rounds: Sequence[RoundResult], *, gates: GateResult,
           f" · 未复现 {sum(1 for r in sealed if r.replay_status not in ('OK', 'NEVER'))}"
           f" · 未重放 {sum(1 for r in sealed if r.replay_status == 'NEVER')}"
           f"（未重放 = INCONCLUSIVE/BLOCKED：没有结论可复现）")
+    if capsules_dir:
+        # 只给数量不给位置 = 读者拿不到证据；"sealed" 不等于"存过"。
+        root = capsules_dir.replace("\\", "/").rstrip("/")
+        w(f"证据落盘：`{root}/r<轮次>/` · 每轮一条链（链头 prev 为全零）"
+          f" · `veripen evidence --verify-chain {root}/r1/*.json` 可验"
+          f" · 单份重放：`veripen replay --capsule <该文件>`")
+    if unreproduced:
+        # "未复现 6" 不点名等于把 6 条证据变成噪声：哪几条、卡在哪，得读得出来。
+        w("未复现用例：" + "、".join(unreproduced)
+          + "（证据在盘上，重放对不上；逐条看 capsule 里的步骤与 headers）")
     total_tokens = sum(r.tokens for r in rounds)
     if total_tokens == 0:
         # 0 不等于"没测"。不写这一行，读者会以为 token 列漏了数据；

@@ -7,6 +7,11 @@
 用 ``NetTransport`` 真发包，逐例用 oracle 骨架真跑，收集 verdict / capsule / replay /
 渲染哈希，最后过五条硬门槛并输出 bench.md + bench.json。
 
+**证据真的落盘**（B150）：每轮的 capsule 串成一条链写进 ``<out>/capsules/<run>/r<N>/``
+（``<run>`` 是本次运行的 UTC 时刻，重跑不会和上一轮混轮），bench.md 里写明路径。
+此前只在内存里 seal、算个 ``capsule_id`` 就完事——报告说"证据 123 份"，盘上一份也没有，
+读者无从重放（B149 的"指针指向不存在的文件"，换到 bench 又犯一次）。
+
 **为什么每例一个新实例而不是共享服务**：``App`` 有 callbacks / log / state 三处可变字段，
 共享方案必须逐字段重置，漏一个就让上一例副作用渗到下一例——那是最难查的一类假绿。
 代价已量过（``tests/lab/bench_cost.py``）：单次起停 ~64ms，44 例 ~2.8s。可测的代价 vs 不可测的渗漏。
@@ -62,10 +67,17 @@ from veripen_core.routes.sources.symbols import SymbolTable as RouteSymbols  # n
 from veripen.bench.capsule import (  # noqa: E402
     StepParamsTransport,
     build_capsule,
+    save_round_chain,
     step_params,
 )
 from veripen.bench.faces import extra_tags  # noqa: E402
-from veripen_core.evidence import ReplayEnv, ReplayMode, replay, seal_capsule_doc  # noqa: E402
+from veripen_core.evidence import (  # noqa: E402
+    CapsuleDoc,
+    ReplayEnv,
+    ReplayMode,
+    replay,
+    seal_capsule_doc,
+)
 from veripen_oracles import ALL_ORACLES  # noqa: E402
 from veripen_oracles.common.harness import SymbolTable, run as run_oracle  # noqa: E402
 from veripen_oracles.oob import LabOob  # noqa: E402
@@ -144,6 +156,10 @@ PROFILE_HASH = "scripted"
 #: 用**真时钟**：证据上的时间必须是它产生的时间。三轮各不同没关系——
 #: 没有任何地方比较跨轮的 capsule_id（findings_fingerprint 不含它）。
 ROUND_CLOCK: list[str] = ["1970-01-01T00:00:00Z"]
+
+#: 本轮造出的 capsule（**封印前**）。整轮跑完才串链，所以先攒着，由 main() 落盘。
+#: 必须每轮清空：三个链头混在一个目录里，"整轮一条链"就没了。
+ROUND_DOCS: list[CapsuleDoc] = []
 
 
 def _replay_state(
@@ -268,6 +284,8 @@ def run_case(case) -> CaseResult:  # noqa: ANN001
                 )
             )
             capsule_id = cap.capsule_id
+            # 整轮结束后才串链落盘（见 main）：先攒着，报告指针最后由封印后的 id 回填。
+            ROUND_DOCS.append(cap)
             # VERIFIED 与 REFUTED 都要重放：「找到洞」和「查过没洞」都是结论，
             # 后者占交付多数，不能因为它是"没有"就不给证据。
             if result.verdict.value in ("VERIFIED", "REFUTED"):
@@ -347,6 +365,25 @@ def run_case(case) -> CaseResult:  # noqa: ANN001
     )
 
 
+def _seal_round(results: list[CaseResult], directory: Path) -> list[CaseResult]:
+    """一轮跑完：把攒下的 capsule 串成一条链落盘，并用**封印后**的 id 回填结论。
+
+    为什么回填：``save_round_chain`` 会写 ``prev``，哈希随之改变；报告里若留着
+    封印前的 ``capsule_id``，那条指针指向的文件在盘上不存在（B148 同款）。
+    ``case_id`` 与 ``finding_id`` 的对应关系由 ``build_capsule`` 定死（``bench-{case}``），
+    这里只照抄，不另造映射。
+    """
+    if not ROUND_DOCS:
+        return results
+    sealed = save_round_chain(ROUND_DOCS, directory)
+    by_finding = {cap.finding_id: cap for cap in sealed}
+    out: list[CaseResult] = []
+    for r in results:
+        cap = by_finding.get(f"bench-{r.case_id}")
+        out.append(replace(r, capsule_id=cap.capsule_id) if cap is not None and r.capsule_id else r)
+    return out
+
+
 def findings_snapshot(rounds: list[RoundResult]) -> list[str]:
     """旧格式快照：向后再比一轮才叫"前后为空"。"""
     return findings_fingerprint(rounds)
@@ -390,11 +427,20 @@ def main(argv: list[str]) -> int:
     fps = case_fingerprint(cases)
     rounds: list[RoundResult] = []
     template_hashes: dict[str, str] = {}
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    # **每次运行一个证据目录**：capsule 是内容寻址的，同一个 r1/ 里跑第二次，
+    # 上一轮的 41 份会和这一轮的混在一起——三份链头、验不过，而且报告说"123 份"
+    # 时盘上可能是 369 份。目录带上本次运行的 id，报告里的份数才真的是盘上的份数。
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    capsules_root = out / "capsules" / run_id
 
     for n in range(1, args.rounds + 1):
         LAST_PARAMS.clear()  # 每轮重算：上一轮的参数不能冒充这一轮的
+        ROUND_DOCS.clear()   # 每轮一条链：清空，别把上轮的文档接进这一轮的链
         ROUND_CLOCK[0] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         results = [run_case(c) for c in cases]
+        results = _seal_round(results, capsules_root / f"r{n}")
         if args.agent_reported:
             # 显式声明：前 N 条覆盖记录按 agent 自述记账 → 硬门槛立刻红（不静默忽略）
             # CaseResult 是 frozen：用 replace 造新对象，别原地改
@@ -427,10 +473,16 @@ def main(argv: list[str]) -> int:
         for r in rounds[0].results
         if r.outcome in (Outcome.NOT_RUN, Outcome.ERROR)
     ]
+    #: 有证据但重放对不上的用例：**点名**。只报一个数，那 6 条证据就成了噪声。
+    unreproduced = [
+        f"{r.case_id}（{r.replay_status}）"
+        for r in rounds[0].results
+        if r.capsule_id and r.replay_status not in ("OK", "NEVER")
+    ]
 
-    out = Path(args.out)
-    out.mkdir(parents=True, exist_ok=True)
-    md = render_bench_md(rounds, gates=gates, case_fp=fps, missed=missed)
+    md = render_bench_md(rounds, gates=gates, case_fp=fps, missed=missed,
+                         capsules_dir=str(capsules_root),
+                         unreproduced=unreproduced)
     (out / "bench.md").write_text(md, encoding="utf-8")
     (out / "bench.json").write_text(
         json.dumps(to_json(rounds, gates=gates, case_fp=fps), ensure_ascii=False, indent=2),

@@ -310,3 +310,60 @@ def test_real_leads_are_measured_normally() -> None:
     md = render_bench_md([r], gates=check_hard_gates([r]), case_fp="f" * 64)
     assert "占位口径" not in md
     assert "0.80" in md
+
+
+# ── 3 证据落盘：sealed ≠ stored（B150）────────────────────────────
+def test_bench_md_points_at_capsule_dir() -> None:
+    """只报"证据 41 份（sealed）"不给位置，读者一份也拿不到。
+
+    B150：bench 的 capsule 直到这一版才真的写盘。报告要写明目录；没给目录时
+    **不得**出现这一行——没有位置却声称"可验"是另一种谎。
+    """
+    r = _round([_ok("P-01", "positive", "VERIFIED")])
+    with_dir = render_bench_md(
+        [r], gates=check_hard_gates([r]), case_fp="f" * 64,
+        capsules_dir="out/x/capsules",
+    )
+    assert "证据落盘" in with_dir
+    assert "out/x/capsules/r1/*.json" in with_dir
+    without = render_bench_md([r], gates=check_hard_gates([r]), case_fp="f" * 64)
+    assert "证据落盘" not in without
+
+
+def test_bench_md_names_unreproduced_cases() -> None:
+    """只报"未复现 6"等于把 6 条证据变成噪声：要点名，读者才查得到。"""
+    r = _round([_ok("P-01", "positive", "VERIFIED")])
+    md = render_bench_md([r], gates=check_hard_gates([r]), case_fp="f" * 64,
+                         unreproduced=["P-07（PARTIAL）"])
+    assert "未复现用例" in md
+    assert "P-07（PARTIAL）" in md
+
+
+def test_save_round_chain_writes_one_verifiable_chain(tmp_path) -> None:  # noqa: ANN001
+    """一轮 N 份 → 盘上 N 个文件、一条链、一串能验的 prev。
+
+    两个坑各钉一下：
+    - 文件名字典序 ≠ 链序（拿 glob 顺序直接 verify 会假红），必须 order_chain；
+    - 串链会改 self_sha256，调用方要用**返回值**回填，不能留着封印前的 id。
+    """
+    import capsule_fixture as F
+
+    from veripen.bench.capsule import save_round_chain
+    from veripen_core.evidence import load_capsule, order_chain, verify_chain
+
+    docs = [F.capsule(probe_body=f"chain-{i}") for i in range(3)]
+    sealed = save_round_chain(docs, tmp_path)
+    files = sorted(tmp_path.glob("*.json"))
+    assert len(files) == 3
+
+    order = order_chain([load_capsule(p) for p in files])
+    report = verify_chain(order)
+    assert report.ok, report.breaks
+    assert report.length == 3
+    assert sealed[0].chain.prev_sha256 == "0" * 64
+    # 落盘的是**封印后**的字节：调用方必须用返回值里的 id
+    assert [c.chain.self_sha256 for c in sealed] == [c.chain.self_sha256 for c in order]
+
+    # 同一批重写：同哈希同字节，不产生第二份证据
+    save_round_chain(docs, tmp_path)
+    assert len(sorted(tmp_path.glob("*.json"))) == 3
