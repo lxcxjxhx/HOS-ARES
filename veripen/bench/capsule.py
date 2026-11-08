@@ -20,7 +20,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+from pathlib import Path
+from typing import Any, Mapping, Sequence
 
 from veripen_core.evidence import (
     AssertionBlock,
@@ -35,6 +36,8 @@ from veripen_core.evidence import (
     build_request,
     build_response,
     build_step,
+    chain_capsules,
+    save_capsule,
 )
 
 #: **仅测试夹具**用的占位时刻。真实运行时调用方必须传运行时钟（见 run_bench）。
@@ -91,6 +94,16 @@ def build_capsule(
         tag = str(getattr(getattr(pair, "variant", None), "binding_tag", "") or "")
         return ref_of_tag.get(tag, route_ref)
 
+    def _method_for(pair: Any) -> str:
+        """这一步**实际用的方法**：变体覆盖优先（CORS 预检是 OPTIONS）。
+
+        早先每步都写 binding 的 GET，于是 capsule 声称"那一步是 GET"，
+        而实际发的是 OPTIONS——重放照着 GET 打，501 变成 200，落 PARTIAL。
+        证据记错方法，等于把"复现不了"伪装成"判定不稳"。
+        """
+        override = str(getattr(getattr(pair, "variant", None), "method", "") or "")
+        return (override or str(getattr(binding, "method", "GET"))).upper()
+
     steps: list[Any] = []
 
     if pairs:
@@ -122,7 +135,7 @@ def build_capsule(
                 account="",
                 route_ref=_ref_for(pair),
                 request=build_request(
-                    method=str(getattr(binding, "method", "GET")),
+                    method=_method_for(pair),
                     path_rendered=_render_path(binding.template, pair.sent),
                     # header 也要进证据：graphql 的载荷在 x-vp-gql、JWT 在 Authorization。
                     # redact_headers 会把凭据类值换成 <redacted>，所以不会泄密；
@@ -224,16 +237,38 @@ class StepParamsTransport:
         # header 从证据里取（已脱敏）。凭据类值是 <redacted>，原样发出去只会得到 401——
         # 那是"证据不足以重放"的正确表现，不该用别的值兜底。
         headers = dict(getattr(step.request, "headers", {}) or {})
+        # 方法也要照证据发（CORS 预检是 OPTIONS）。这里曾固定用 binding 的方法，
+        # 于是「证据说 GET、当时发的是 OPTIONS」这种情形，重放永远对不上。
+        method = str(getattr(step.request, "method", "") or "")
         try:
-            trace = self.inner.send(binding, params, step.role, headers or None)
+            trace = self.inner.send(binding, params, step.role, headers or None, method=method)
         except Exception as exc:  # 传输层是插件边界：失败必须留痕，不许吞
             return TraceResult(status=0, body_sha256="", error=type(exc).__name__)
         return TraceResult(status=int(trace.status), body_sha256=trace.body_sha256)
+
+
+def save_round_chain(docs: Sequence[CapsuleDoc], directory: str | Path) -> list[CapsuleDoc]:
+    """把一轮的 capsule 串成**一条链**再落盘，返回封印后的文档。
+
+    为什么要串链再落盘：``build_capsule`` 产出的文档 ``chain.prev = None``，
+    单份自证够用，"整轮没被抽走一份"却无从谈起。B149 之后 ``verify_chain``
+    要求链头 ``prev`` 是全零，所以"每轮一条链"才是能过 ``--verify-chain`` 的最小单位；
+    三轮共用目录会得到三个链头，反而被判成断链。
+
+    为什么必须用返回值回填：seal 会把 ``prev`` 写进哈希，`self_sha256` 随之改变。
+    调用方若继续持有封印前的 ``capsule_id``，报告里的指针就指向一份盘上不存在的文件
+    ——B148 那类"证据指到别处"，换了个位置再犯一次。
+    """
+    sealed = chain_capsules(list(docs))
+    for cap in sealed:
+        save_capsule(cap, directory)
+    return sealed
 
 
 __all__ = [
     "DEFAULT_CREATED_AT",
     "StepParamsTransport",
     "build_capsule",
+    "save_round_chain",
     "step_params",
 ]
