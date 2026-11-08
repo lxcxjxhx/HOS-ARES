@@ -422,6 +422,41 @@ def _path_for(op_id: str) -> str:
     return UI_PREFIX + op_id.split(".", 1)[-1]
 
 
+
+def _expand_matrix_with_gaps(view: dict[str, Any], ledger: Mapping[str, Any]) -> dict[str, Any]:
+    """把账本里"选中但没跑"的 oracle 补进矩阵，标成 not_run / blocked。
+
+    矩阵原来只由 findings 派生 → **没跑的面连格子都没有**，看上去"只有这 3 条、全绿"。
+    账本里明明记着 `oracle_not_run`，那就画出来：让"没测"可见。
+    """
+    extra: dict[str, str] = {}
+    for gap in ledger.get("gaps") or ():
+        if not isinstance(gap, Mapping):
+            continue
+        oracle = str(gap.get("oracle_id") or "")
+        kind = str(gap.get("kind") or "")
+        if not oracle or oracle in extra:
+            continue
+        if kind == "oracle_not_run":
+            extra[oracle] = "not_run"
+        elif kind == "oracle_blocked":
+            extra[oracle] = "blocked"
+
+    if not extra:
+        return view
+
+    oracles = sorted(set(view.get("oracles") or ()) | set(extra))
+    rows = []
+    for row in view.get("matrix") or ():
+        if not isinstance(row, Mapping):
+            continue
+        cells = dict(row.get("cells") or {})
+        for oracle, cell in extra.items():
+            cells.setdefault(oracle, cell)
+        rows.append({**row, "cells": {o: cells.get(o, "not_run") for o in oracles}})
+    return {**view, "oracles": oracles, "matrix": rows}
+
+
 def build_app(
     state: ConsoleState,
     *,
@@ -454,6 +489,8 @@ def build_app(
             # B97：有账本就把"哪条面根本没判定"一起给出（六类缺口 + 完整度）。
             ledger = state.coverage.get("ledger") or {}
             if ledger:
+                # B146：账本里没跑的 oracle 也要画进矩阵，否则"没测"看不见
+                view = _expand_matrix_with_gaps(view, ledger)
                 view["ledger"] = {
                     "summary": ledger.get("summary") or {},
                     "completeness": ledger.get("completeness") or {},
