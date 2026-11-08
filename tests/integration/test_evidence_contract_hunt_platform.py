@@ -84,6 +84,15 @@ def test_hunt_evidence_is_replayable(tmp_path: Path) -> None:
     assert report.ok, report.breaks
     assert report.length == len(evidence)
 
+    # 报告与 JSON 同源（B166）：链长、证据 id、未确认原因都要对得上
+    md = (out / "hunt.md").read_text(encoding="utf-8")
+    assert f"链长 {len(evidence)}" in md
+    for item in evidence:
+        assert str(item["capsule_id"]) in md, "报告里缺一份证据"
+    for oracle, entry in (record.get("not_confirmed") or {}).items():
+        assert f"`{oracle}`" in md
+        assert str((entry or {}).get("reason") or "-") in md, f"{oracle} 的报告行没有原因"
+
 
 # ── platform：每个资产的证据自洽，报告里的份数不多不少 ──────────
 def test_platform_evidence_is_self_contained(tmp_path: Path) -> None:

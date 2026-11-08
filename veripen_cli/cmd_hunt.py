@@ -685,8 +685,22 @@ def main(argv: list[str]) -> int:
         "summary": coverage["summary"],
         "gaps": len(coverage["gaps"]),
         "complete": coverage["completeness"]["complete"],
+        # 为什么"不完整"要跟着走：报告里只写"完整：否"而不给原因，读者会以为还有面没跑（B166）
+        "caveats": list(coverage["completeness"]["caveats"]),
     }
     (out / "hunt.json").write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
+    # 可交付报告（B166）：与 hunt.json **同源渲染**，同一个 dict 进两份产物
+    from veripen.report.hunt import render_hunt_markdown
+
+    report_path = out / "hunt.md"
+    report_path.write_text(
+        render_hunt_markdown(
+            record,
+            capsules_dir=str(capsules_dir).replace("\\", "/"),
+            generated_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        ),
+        encoding="utf-8",
+    )
     cov_path = write_coverage(out, coverage)
     print()
     cov_summary = coverage["summary"]
@@ -700,6 +714,7 @@ def main(argv: list[str]) -> int:
             print(f"  注意：{caveat}")
     print(f"证据：{len(runtime.sealed)} 份 capsule → {capsules_dir}")
     print(f"产物：{out / 'hunt.json'}")
+    print(f"报告：{report_path}")
     return 0
 
 
