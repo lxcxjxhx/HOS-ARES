@@ -47,6 +47,8 @@ from veripen_contract.planner import plan  # noqa: E402
 from veripen_contract.spec_detect import SpecFormatError, as_openapi_text  # noqa: E402
 from veripen_core.agent import AgentState, Loop, build_decider  # noqa: E402
 from veripen_core.agent.client import from_env  # noqa: E402
+from veripen.bench.capsule import build_capsule  # noqa: E402
+from veripen_core.evidence import ZERO_SHA, save_capsule, seal_capsule_doc  # noqa: E402
 from veripen_core.blackboard import AssetFacts  # noqa: E402
 from veripen_core.briefing import build_knowledge, build_l1a, knowledge_text  # noqa: E402
 from veripen_core.context import load_dir  # noqa: E402
@@ -86,17 +88,48 @@ def _strength_of(binding: Any) -> str:
     return strength_of(binding)
 
 
+def _ref_tail(binding: Any, length: int = 8) -> str:
+    """面标识的尾巴：``route://crawl/abcd1234…`` → ``abcd1234``。
+
+    与 `cmd_run` 同口径：题头 ``route://`` 恰好 8 个字符，`ref[:8]` 会让
+    同一个 oracle 的所有面拿到同一个 id。
+    """
+    tail = str(getattr(binding, "ref", "") or "").rsplit(chr(0x2F), 1)[-1]
+    return tail[:length] or "noref"
+
+
+#: 证据状态的一句话说明（进模型上下文）。只解释"为什么没有 id"，不替结论背书。
+_EVIDENCE_NOTE = {
+    "not_sealed": "这个 runtime 没接证据目录：这条结论没有可重放证据",
+    "not_verified": "结论不是 VERIFIED，不落证据",
+    "build_failed": "证据构造失败（原因见 reason），没有可重放证据",
+}
+
+
 class HuntRuntime:
     """给 `Loop` 用的最小 runtime：只做 oracle 执行与重发现。"""
 
     def __init__(
-        self, routeset: RouteSet, transport: CoreTransport, symbols: SymbolTable
+        self,
+        routeset: RouteSet,
+        transport: CoreTransport,
+        symbols: SymbolTable,
+        capsules_dir: Path | None = None,
     ) -> None:
         self.routeset = routeset
         self.transport = transport
         self.symbols = symbols
         self.calls: list[str] = []
         self.reasons: dict[str, str] = {}
+        #: 证据落盘目录。**None = 不封 capsule**（测试与演示的默认）：
+        #: 不封就明说，绝不给一个盘上不存在的 id（B152/B154）。
+        self.capsules_dir = capsules_dir
+        #: 本轮的链：第 i 条的 prev 是第 i-1 条的 self。增量封印，
+        #: 于是工具结果拿到的是**终值**（不需要 B150 那种事后回填）。
+        self._prev: str = ZERO_SHA
+        self.sealed: list[str] = []
+        #: oracle_id → 它刚落的那份 capsule（同一 oracle 多个面时是最新一份）
+        self.capsule_ids: dict[str, str] = {}
         #: oracle_id → 它实际打的那条面。覆盖账本要按面归口，
         #: 而"挑了哪条绑定"这段逻辑只在这里发生过一次——不要在外面重算一遍。
         self.binding_refs: dict[str, str] = {}
@@ -121,6 +154,52 @@ class HuntRuntime:
             for b in self.routeset.bindings
             if selector is None or selector in b.semantic_tags
         ]
+
+    def _seal_capsule(
+        self, oracle: Any, chosen: Any, bindings: dict[str, Any], result: Any
+    ) -> tuple[str | None, str]:
+        """给 VERIFIED 结果落一份真证据；落不了就**明说**，绝不编 id（B154）。
+
+        返回 ``(capsule_id, evidence_state)``：
+
+        - ``("sha256:…", "sealed")``——盘上真的有一份，id 是终值（增量串链）
+        - ``(None, "not_sealed")``——这个 runtime 没接证据目录（测试/演示）
+        - ``(None, "build_failed:<kind>")``——证据造不出来，原因记进 ``reasons``
+        """
+        if self.capsules_dir is None:
+            return None, "not_sealed"
+        if result.judgement is None:
+            return None, "build_failed:no_judgement"
+        if not result.pairs:
+            return None, "build_failed:no_pairs"
+        try:
+            doc = build_capsule(
+                case_id=f"hunt-{oracle.meta.id}-{_ref_tail(chosen)}",
+                oracle_id=str(oracle.meta.id),
+                oracle_version=str(getattr(oracle.meta, "version", "1")),
+                verdict=result.verdict,
+                judgement=result.judgement,
+                pairs=result.pairs,
+                baseline_params=result.baseline_params,
+                routeset=self.routeset,
+                route_ref=str(chosen.ref),
+                binding=chosen,
+                bindings_by_tag=bindings,
+                profile_name="hunt",
+                created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                cwe=str(getattr(oracle.meta, "cwe", "")),
+            )
+            # 增量封印：prev 用上一条的 self，于是**这次返回的 id 不会再变**
+            doc = seal_capsule_doc(doc, prev_sha256=self._prev)
+            save_capsule(doc, self.capsules_dir)
+        except Exception as exc:  # noqa: BLE001 —— 造不出来就如实记，换成假 id 才是事故
+            kind = f"{type(exc).__name__}"
+            self.reasons[str(oracle.meta.id)] = f"capsule_failed:{kind}:{str(exc)[:80]}"
+            return None, f"build_failed:{kind}"
+        self._prev = doc.chain.self_sha256
+        self.sealed.append(doc.chain.self_sha256)
+        self.capsule_ids[str(oracle.meta.id)] = doc.capsule_id
+        return doc.capsule_id, "sealed"
 
     def run_oracle(self, oracle_id: str, route_ref: str, params: Any) -> dict[str, Any]:
         self.calls.append(oracle_id)
@@ -189,6 +268,10 @@ class HuntRuntime:
             face_index=face_index,
             faces_total=len(faces),
         ))
+        capsule_id: str | None = None
+        evidence = "not_verified"
+        if result.verdict.value == "VERIFIED":
+            capsule_id, evidence = self._seal_capsule(oracle, chosen, bindings, result)
         return {
             "verdict": result.verdict.value,
             "reason": result.reason,
@@ -197,12 +280,14 @@ class HuntRuntime:
             "faces_total": len(faces),
             # 面强度由置信档推：发现来的面是 crawl，不能跟着契约面一起写 contract
             "route_strength": _strength_of(bindings[tags[0]]),
-            # **证据指针只能来自真的落盘的 capsule**（B152）。`run`/`bench` 会 seal 并写盘，
-            # `hunt` 不写——于是这里没有 id 可给。早先给的是 `f"sha256:{oracle_id}"`：
-            # 一个「sha256:csp_absent」式的假号，模型会把它当证据引用，盘上却没有那份文件。
-            "capsule_id": None,
-            "evidence": "not_sealed",
-            "evidence_note": "hunt 不封 capsule：这条结论没有可重放证据；要证据请用 veripen run",
+            # **证据指针只能来自真的落盘的 capsule**（B152/B154）。封上了就是终值；
+            # 封不上就说清是哪一步没成，不再有 `sha256:<oracle_id>` 那种假号。
+            "capsule_id": capsule_id,
+            "evidence": evidence,
+            "evidence_note": _EVIDENCE_NOTE.get(
+                "not_sealed" if evidence == "not_sealed" else evidence.split(":")[0],
+                "",
+            ),
         }
 
     def rediscover(self, reason: str) -> dict[str, Any]:
@@ -349,7 +434,8 @@ def main(argv: list[str]) -> int:
         default="rate_limit_absent,mass_assignment,xss_stored_probe",
         help="逗号分隔的 oracle 黑名单；默认排除写类与压力类",
     )
-    ap.add_argument("--out", default=str(ROOT / "out" / "hunt"))
+    ap.add_argument("--out", default=str(ROOT / "out" / "hunt"),
+                    help="产物目录。证据目录只属于一轮：已有 capsule 的目录会被拒绝（B154）")
     ap.add_argument(
         "--db",
         default="",
@@ -368,6 +454,21 @@ def main(argv: list[str]) -> int:
         print("--openapi 与 --discover 必须二选一", file=sys.stderr)
         return 2
     excluded = {x.strip() for x in args.exclude.split(",") if x.strip()}
+
+    # 证据目录只属于一轮（B154）：hunt 现在会给 VERIFIED 封 capsule，
+    # 同一目录跑第二次会把两轮的 capsule 混成两条链（B153 在 run 上修过的同一件事）。
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    capsules_dir = out / "capsules"
+    stale = sorted(capsules_dir.glob("*.json"))
+    if stale:
+        print(
+            f"拒绝重跑：{capsules_dir} 里已有 {len(stale)} 份 capsule。\n"
+            "  证据是内容寻址的：同一目录跑两次会变成两条链，报告里的份数也对不上盘上。\n"
+            "  换个 --out（例如 out/hunt-2），或先把上一轮移走（mv out/hunt out/hunt-1）。",
+            file=sys.stderr,
+        )
+        return 2
 
     planned = None
     if args.discover:
@@ -430,7 +531,8 @@ def main(argv: list[str]) -> int:
         token_for=lambda account: tokens.get(account, ""),
         timeout_s=10.0,
     )
-    runtime = HuntRuntime(routeset, transport, SymbolTable(symbols_map))
+    runtime = HuntRuntime(routeset, transport, SymbolTable(symbols_map),
+                          capsules_dir=capsules_dir)
 
     resolved = _resolve_ips(host)
     if resolved:
@@ -545,6 +647,10 @@ def main(argv: list[str]) -> int:
         "decision": result.decision.value,
         "reason": result.reason,
         "findings": findings,
+        # 证据：这一轮**真的落盘**的 capsule（B154）。空列表 = 没有一份证据，
+        # 不是"证据被省略"——报告读者据此就知道哪些结论能被重放。
+        "capsules": list(runtime.sealed),
+        "capsule_ids": dict(runtime.capsule_ids),
         # 逐面运行记录：多面执行时"一个 oracle 一条"已经不够描述
         "faces_run": [row.as_dict() for row in runtime.faces_run],
         "not_confirmed": blocked,
@@ -573,7 +679,8 @@ def main(argv: list[str]) -> int:
     if not coverage["completeness"]["complete"]:
         for caveat in coverage["completeness"]["caveats"]:
             print(f"  注意：{caveat}")
-    print(f"证据：{out / 'hunt.json'}")
+    print(f"证据：{len(runtime.sealed)} 份 capsule → {capsules_dir}")
+    print(f"产物：{out / 'hunt.json'}")
     return 0
 
 
