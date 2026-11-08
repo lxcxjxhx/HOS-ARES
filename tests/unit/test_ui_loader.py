@@ -212,3 +212,62 @@ def test_coverage_only_artifact_takes_asset_from_ledger(tmp_path: object) -> Non
 def test_empty_directory_is_empty_state_not_a_crash(tmp_path: object) -> None:
     state = load_file(tmp_path)  # type: ignore[arg-type]
     assert state.findings == ()
+
+# ── B145：hunt 的逐面记录才是权威，不许编 id / 证据 ─────────────
+def _hunt(faces: list | None = None, findings: dict | None = None) -> dict:
+    return {
+        "target_host": "host",
+        "findings": findings if findings is not None else {"csp_absent": "VERIFIED"},
+        "not_confirmed": {},
+        "faces_run": faces or [],
+    }
+
+
+def _face(oracle: str, verdict: str, tail: str, *, reason: str = "") -> dict:
+    return {
+        "oracle_id": oracle,
+        "route_ref": "route://crawl/" + tail,
+        "template": "https" + ":" + chr(0x2F) * 2 + "host" + chr(0x2F) + "x",
+        "verdict": verdict,
+        "reason": reason,
+        "face_index": 1,
+        "faces_total": 2,
+    }
+
+
+def test_faces_run_drives_ids_and_routes() -> None:
+    from web.loader import load_record
+
+    state = load_record(_hunt([_face("csp_absent", "VERIFIED", "aa" * 8, reason="csp_header_absent")]))
+    row = state.findings[0]
+    assert row.finding_id == "F-csp_absent-" + "aa" * 4, "id 要稳定（oracle + 面尾），不能是序号"
+    assert row.route_ref == "route://crawl/" + "aa" * 8, "面里的真实 ref 不许丢"
+    assert row.outcome == "reported"
+
+
+def test_same_oracle_on_two_faces_gets_two_ids() -> None:
+    """多面时同一 oracle 会出两条——按序号生成的 id 会撞。"""
+    from web.loader import load_record
+
+    state = load_record(_hunt([
+        _face("csp_absent", "VERIFIED", "aa" * 8),
+        _face("csp_absent", "VERIFIED", "bb" * 8),
+    ]))
+    ids = [r.finding_id for r in state.findings]
+    assert len(set(ids)) == 2, ids
+
+
+def test_no_fabricated_capsule_id() -> None:
+    """hunt 不封 capsule，控制台就不能给出一个指向不存在 capsule 的 id。"""
+    from web.loader import load_record
+
+    state = load_record(_hunt([_face("csp_absent", "VERIFIED", "aa" * 8)]))
+    assert state.findings[0].capsule_id is None
+
+
+def test_legacy_dict_still_loads_without_fabricated_evidence() -> None:
+    """老产物没有 faces_run：仍能打开，但同样不许编证据指针。"""
+    from web.loader import load_record
+
+    state = load_record(_hunt([], findings={"csp_absent": "VERIFIED"}))
+    assert state.findings and state.findings[0].capsule_id is None

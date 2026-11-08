@@ -47,6 +47,14 @@ _HITS: Mapping[str, int | None] = {
 }
 
 
+
+def _ref_tail(ref: str) -> str:
+    """`route://crawl/abc123` → `abc123`（与 run 侧 finding id 的取尾口径一致）。"""
+    if not ref:
+        return "00000000"
+    return ref.rsplit(chr(0x2F), 1)[-1][:8]
+
+
 def _row(oracle: str, verdict: str, *, reason: str, seq: int, asset: str) -> Row:
     outcome = _OUTCOME.get(verdict.upper(), "undetermined")
     reason_code = f"{verdict.upper()}: {reason}" if reason else verdict.upper()
@@ -63,7 +71,8 @@ def _row(oracle: str, verdict: str, *, reason: str, seq: int, asset: str) -> Row
         outcome=outcome,
         reason_code=reason_code,
         hits=_HITS[outcome],
-        capsule_id=f"sha256:{oracle}" if outcome == "reported" else None,
+        # 不编 capsule：产物里没有证据指针时就是 None，编一个等于给假证据
+        capsule_id=None,
     )
 
 
@@ -114,6 +123,61 @@ def _from_report_findings(record: Mapping[str, Any], findings: Sequence[Any]) ->
     return ConsoleState(findings=rows, engagement=engagement)
 
 
+
+def _from_faces_run(record: Mapping[str, Any], faces: Sequence[Any]) -> ConsoleState:
+    """用 `faces_run`（逐面权威记录）建行。
+
+    hunt 的 `findings` 只是 `{oracle: verdict}`，没有面、没有证据；
+    逐面事实在 `faces_run` 里，**那才是能说清依据的那一层**。
+    """
+    asset = str(record.get("target_host") or "unknown")
+    rows: list[Row] = []
+    for raw in faces:
+        if not isinstance(raw, Mapping):
+            continue
+        oracle = str(raw.get("oracle_id") or "")
+        if not oracle:
+            continue
+        verdict = str(raw.get("verdict") or "INCONCLUSIVE")
+        route_ref = str(raw.get("route_ref") or "")
+        outcome = _OUTCOME.get(verdict.upper(), "undetermined")
+        template = str(raw.get("template") or "")
+        face_no = raw.get("face_index")
+        face_total = raw.get("faces_total")
+        title = f"{oracle} {'在 ' + template if outcome == 'reported' and template else '未确认'}"
+        if face_no and face_total:
+            title += f"（面 {face_no}/{face_total}）"
+        rows.append(
+            Row(
+                finding_id=f"F-{oracle}-{_ref_tail(route_ref)}",
+                title=title,
+                severity=SEVERITY.get(oracle, "medium") if outcome == "reported" else None,
+                oracle_id=oracle,
+                asset_id=asset,
+                confidence=1.0 if outcome == "reported" else 0.0,
+                route_strength=str(raw.get("strength") or "observed"),
+                route_ref=route_ref or None,
+                replay_status="NEVER",
+                outcome=outcome,
+                reason_code=str(raw.get("reason") or verdict.upper()),
+                hits=_HITS[outcome],
+                capsule_id=None,   # hunt 不封 capsule：不编
+            )
+        )
+    verified = sum(1 for r in rows if r.outcome == "reported")
+    engagement = {
+        "id": str(record.get("engagement_id") or "ENG-ARTIFACT"),
+        "asset": asset,
+        "scope": "只读验证（来自运行产物 · 逐面）",
+        "confirmed": verified,
+        "total": len(rows),
+        "decision": record.get("decision"),
+        "reason": record.get("reason"),
+        "bindings": record.get("bindings"),
+    }
+    return ConsoleState(findings=rows, engagement=engagement)
+
+
 def load_record(record: Mapping[str, Any]) -> ConsoleState:
     """把一轮运行的 JSON 记录映射成控制台状态（纯函数，无 IO）。"""
     asset = str(record.get("target_host") or "unknown")
@@ -123,6 +187,11 @@ def load_record(record: Mapping[str, Any]) -> ConsoleState:
     confirmed = record.get("findings") or {}
     if isinstance(confirmed, Sequence) and not isinstance(confirmed, (str, bytes)):
         return _from_report_findings(record, confirmed)
+
+    # hunt 的逐面记录：比 `{oracle: verdict}` 更能说清依据（B145）
+    faces = record.get("faces_run") or []
+    if isinstance(faces, Sequence) and not isinstance(faces, (str, bytes)) and faces:
+        return _from_faces_run(record, faces)
     if isinstance(confirmed, Mapping):
         for oracle in sorted(confirmed):
             seq += 1
