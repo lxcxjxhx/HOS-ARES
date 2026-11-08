@@ -120,6 +120,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--require-approval", action="store_true", help="批量动作需人工放行")
     ap.add_argument("--approve", action="store_true", help="模拟 operator 立即签字")
     ap.add_argument("--exclude", default="", help="透传给单资产链路的 oracle 黑名单")
+    ap.add_argument(
+        "--token", default="",
+        help="主身份 token（透传给每个资产；空则 auth 相关 oracle 落 BLOCKED）",
+    )
     # 无契约的资产（B162）：参数只在 `_discover_args` 定义一次，透传给每个资产
     add_discovery_args(ap)
     args = ap.parse_args(sys.argv[1:] if argv is None else argv)
@@ -225,6 +229,9 @@ def main(argv: list[str] | None = None) -> int:
         extra_args: list[str] = []
         if args.exclude:
             extra_args += ["--exclude", args.exclude]
+        if args.token:
+            # 平台原来不传 token：带鉴权的资产在平台里永远只能落 BLOCKED（B163）
+            extra_args += ["--token", args.token]
         if profile is not None:
             # 档的 selectors 就是 operator 的确认（`19 §3.1` 的出口）：
             # 只采纳这些标签，不是"全部结构推断"。
@@ -303,6 +310,11 @@ def main(argv: list[str] | None = None) -> int:
         (
             f"- 路由来源：主动探测（无契约，{args.discover_rounds} 轮 / 每轮 {args.discover_pages} 页）"
             if args.discover else f"- 路由来源：契约 `{args.openapi}`"
+        ),
+        # 凭据只记"有没有"，**不落原文**：报告是要发给客户的（B163）
+        (
+            "- 凭据：主身份 token 已注入（不落原文）"
+            if args.token else "- 凭据：未提供——auth 相关 oracle 会落 BLOCKED"
         ),
         "",
         "## 1. 逐资产结论",
