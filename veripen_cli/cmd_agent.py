@@ -70,6 +70,31 @@ def _do_edit(wb: Workbench, arg: str) -> tuple[bool, str]:
     return True, f"{res.path} 替换 {res.replacements} 处"
 
 
+def _do_glob(wb: Workbench, arg: str) -> tuple[bool, str]:
+    """找文件（B171）：工作台早就有 `glob`，REPL 却没暴露——
+    于是想定位文件只能 `sh dir /s`，那正是工作台该替人做的事。"""
+    pattern = arg.strip() or "**/*"
+    paths = wb.glob(pattern)
+    if not paths:
+        return True, f"0 个文件（pattern={pattern}）"
+    head = "、".join(paths[:5]) + ("…" if len(paths) > 5 else "")
+    return True, f"{len(paths)} 个文件 :: {head}"
+
+
+def _do_grep(wb: Workbench, arg: str) -> tuple[bool, str]:
+    """搜内容：返回**行号与原文**，不返回文件全量。"""
+    pattern = arg.strip()
+    if not pattern:
+        return False, "用法：grep <正则>"
+    matches = wb.grep(pattern)
+    if not matches:
+        return True, f"0 处匹配（pattern={pattern}）"
+    first = matches[0]
+    # BOM 要去掉：Windows 上带 BOM 的文件会把 \ufeff 送到摘要里（实测过）
+    text = first.text.strip().lstrip("\ufeff")
+    return True, f"{len(matches)} 处 :: {first.path}:{first.line} {text[:60]}"
+
+
 def _do_sh(root: Path, arg: str) -> tuple[bool, str]:
     if not arg:
         return False, "用法：sh <命令>"
@@ -138,6 +163,10 @@ def main(argv: list[str] | None = None) -> int:
                     ok, summary = _do_write(wb, arg)
                 elif cmd == "edit":
                     ok, summary = _do_edit(wb, arg)
+                elif cmd == "glob":
+                    ok, summary = _do_glob(wb, arg)
+                elif cmd == "grep":
+                    ok, summary = _do_grep(wb, arg)
                 elif cmd == "sh":
                     ok, summary = _do_sh(root, arg)
                 else:
