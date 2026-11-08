@@ -353,6 +353,13 @@ class ChainReport:
     ok: bool
     root_sha256: str
     breaks: tuple[str, ...]
+    #: 链上真的串起来多少条。报告说"证据 N 份"，这里就该是 N（多面之后会变长）。
+    length: int = 0
+    #: 链头（第一环）的自哈希。报告头部的 ``root_sha256`` 就是这个值——
+    #: 名字撞了：本结构的 ``root_sha256`` 是**链头的 prev**（合法链恒为全零）。
+    head_sha256: str = ""
+    #: 链尾（最后一环）的自哈希：报告侧只钉了链头，链尾得自己露出来。
+    tip_sha256: str = ""
 
     def raise_if_broken(self) -> None:
         if not self.ok:
@@ -380,9 +387,26 @@ def order_chain(caps: Sequence[CapsuleDoc]) -> list[CapsuleDoc]:
 
 
 def verify_chain(caps: Sequence[CapsuleDoc], *, root_sha256: str | None = None) -> ChainReport:
-    """顺序校验；**定位到下标**，不只给一个布尔。"""
+    """顺序校验；**定位到下标**，不只给一个布尔。
+
+    默认（``root_sha256 is None``）要求这批 capsule **自己就是整条链**：
+    链头的 ``prev`` 必须是全零。否则只校验"中间没断"，删掉链头（=删掉一份证据）
+    也会被判成 ok——`prev` 只在剩下的条之间对得上，链条照样"自洽"。
+
+    给了 ``root_sha256``（显式锚点）则不再要求全零：那是"只校一段子链"的场景。
+    链尾被删在只有 capsule 文件时**无法**证明（没有外部锚点），所以报告侧按
+    ``findings.evidence.capsule_id`` 列出证据全集——链尾缺口由那个集合对账，不在这儿猜。
+    """
     breaks: list[str] = []
-    expected_prev = root_sha256 if root_sha256 is not None else (caps[0].chain.prev_sha256 if caps else None)
+    if root_sha256 is not None:
+        expected_prev: str | None = root_sha256
+    else:
+        expected_prev = caps[0].chain.prev_sha256 if caps else None
+        if caps and expected_prev not in (None, "", ZERO_SHA):
+            breaks.append(
+                f"[0] 链头 prev={expected_prev} 不是全零：这一批不是从 genesis 开始的"
+                "（前面的 capsule 不在本次校验里，或顺序不对）"
+            )
     for i, cap in enumerate(caps):
         if cap.capsule_version != LEGACY_VERSION and cap.route is None:
             breaks.append(f"[{i}] 缺 route 块（schema 1.1 必含）")
@@ -394,7 +418,16 @@ def verify_chain(caps: Sequence[CapsuleDoc], *, root_sha256: str | None = None) 
             )
         expected_prev = cap.chain.self_sha256
     root = caps[0].chain.prev_sha256 if caps else (root_sha256 or "")
-    return ChainReport(ok=not breaks, root_sha256=root or "", breaks=tuple(breaks))
+    head = caps[0].chain.self_sha256 if caps else ""
+    tip = caps[-1].chain.self_sha256 if caps else ""
+    return ChainReport(
+        ok=not breaks,
+        root_sha256=root or "",
+        breaks=tuple(breaks),
+        length=len(caps),
+        head_sha256=head,
+        tip_sha256=tip,
+    )
 
 
 # ── 序列化（canonical 字节，因此"同输入两次生成字节相同"）──────────
@@ -819,7 +852,11 @@ def main(argv: Sequence[str]) -> int:
 
     if verify:
         report = verify_chain(order_chain(docs))
-        print(f"chain ok={report.ok} root={report.root_sha256[:16]}")
+        # head= 就是报告里的 root_sha256：两个出口能逐字对上；tip= 是链尾。
+        print(
+            f"chain ok={report.ok} links={report.length}"
+            f" head={report.head_sha256[:16]} tip={report.tip_sha256[:16]}"
+        )
         for line in report.breaks:
             print(f"  BREAK {line}")
         if not report.ok:

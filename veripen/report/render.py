@@ -483,7 +483,9 @@ def render_markdown(report: ReportInput) -> str:
             w(f"- 现象：{f.situation}")
         sha_short = (f.self_sha256 or "")[:16]
         w(f"- 证据：`capsule {f.capsule_id}` · `self_sha256 {sha_short}…` · replay `{f.replay_status}`")
-        w(f"- 复现：`veripen replay --capsule out/capsules/{f.capsule_id}.json`")
+        # 落盘文件名是**裸 hex**（`save_capsule` 用 self_sha256 命名），不是 `capsule_id`：
+        # 用 `sha256:<hex>` 拼路径会得到一份不存在的文件，命令看着能跑、其实是死链（B149）。
+        w(f"- 复现：`veripen replay --capsule out/capsules/{f.self_sha256}.json`")
         if f.impact:
             w(f"- 影响：{f.impact}")
         if f.advice:
