@@ -497,6 +497,8 @@ def build_app(
                 # B146：账本里没跑的 oracle 也要画进矩阵，否则"没测"看不见
                 view = _expand_matrix_with_gaps(view, ledger)
                 view["ledger"] = {
+                    # 口径要跟着走（B168）：平台合计与单资产账本长得一样，不标就分不清
+                    "scope": ledger.get("scope") or "",
                     "summary": ledger.get("summary") or {},
                     "completeness": ledger.get("completeness") or {},
                     "gaps": list(ledger.get("gaps") or ())[:50],

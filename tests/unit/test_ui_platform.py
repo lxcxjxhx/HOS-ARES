@@ -100,3 +100,64 @@ def test_plain_run_dir_is_not_mistaken_for_platform(tmp_path: Path) -> None:
     )
     state = load_file(tmp_path / "run")
     assert [r.finding_id for r in state.findings] == ["F-1"], "顶层产物优先，不该被合并"
+
+
+# ── B168：平台合计账本（不是"随便加一加"）──────────────────────
+def _ledger(sub: Path, *, faces: int, covered: int, gaps: int, complete: bool,
+            oracle: str) -> None:
+    doc = {
+        "schema_version": "1",
+        "asset_id": sub.name,
+        "summary": {
+            "faces": faces, "faces_covered": covered, "oracles_selected": 1,
+            "applicable_pairs": faces, "executed": covered, "gaps": gaps,
+            "outcomes": {"reported": covered},
+        },
+        "completeness": {"complete": complete, "caveats": [] if complete else ["提前停"]},
+        "gaps": [{"kind": "oracle_blocked", "severity": "warn", "oracle_id": oracle}],
+    }
+    (sub / "coverage.json").write_text(json.dumps(doc), encoding="utf-8")
+
+
+def test_platform_merges_ledgers_with_an_explicit_scope(tmp_path: Path) -> None:
+    """合计必须自报口径：否则读者会把它当成某一个资产的面数。"""
+    import capsule_fixture as F  # noqa: F401
+
+    from web.loader import load_file
+
+    _asset(tmp_path / "pf", "asset-1", "csp_absent", with_capsule=False)
+    _asset(tmp_path / "pf", "asset-2", "xss_dom", with_capsule=False)
+    _ledger(tmp_path / "pf" / "asset-1", faces=2, covered=2, gaps=1, complete=True,
+            oracle="csp_absent")
+    _ledger(tmp_path / "pf" / "asset-2", faces=4, covered=3, gaps=2, complete=False,
+            oracle="xss_dom")
+
+    state = load_file(tmp_path / "pf")
+    ledger = state.coverage.get("ledger") or {}
+    assert ledger.get("scope") == "platform", "合计口径要写在数据里"
+    s = ledger["summary"]
+    assert (s["faces"], s["faces_covered"], s["gaps"]) == (6, 5, 3)
+    assert s["outcomes"]["reported"] == 5
+    assert ledger["completeness"]["complete"] is False, "一个资产不完整，合计就不完整"
+    assert any("asset-2：" in c for c in ledger["completeness"]["caveats"])
+    assert {g["asset"] for g in ledger["gaps"]} == {"asset-1", "asset-2"}, "缺口要带资产标签"
+
+    # 口径必须一路传到页面 payload：`ui.coverage` 会把 ledger 过滤成三键，漏了 scope
+    from fastapi.testclient import TestClient
+
+    from web import build_app
+
+    url = chr(0x2F) + "ui" + chr(0x2F) + "coverage"
+    data = TestClient(build_app(state)).get(url).json()["data"]
+    assert data["ledger"]["scope"] == "platform"
+    assert data["ledger"]["summary"]["faces"] == 6
+
+
+def test_platform_without_ledgers_keeps_coverage_empty(tmp_path: Path) -> None:
+    import capsule_fixture as F  # noqa: F401
+
+    from web.loader import load_file
+
+    _asset(tmp_path / "pf", "asset-1", "csp_absent", with_capsule=False)
+    state = load_file(tmp_path / "pf")
+    assert state.coverage == {}, "没账本就不编一份合计"
