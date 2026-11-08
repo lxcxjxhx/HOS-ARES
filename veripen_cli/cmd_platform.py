@@ -219,9 +219,15 @@ def main(argv: list[str] | None = None) -> int:
         ])
         found: list[dict[str, Any]] = []
         findings_file = sub / "findings.json"
-        if findings_file.exists():
+        # **rc != 0 就不读 findings.json**（B159）：目录里躺着的是上一轮的产物，
+        # 这一轮什么都没发生。照旧读会把"重跑被拒"渲染成跟成功那次一模一样的数字
+        # ——rc 那一列说 2，结论列说"已验证 2"，自相矛盾。
+        if rc == 0 and findings_file.exists():
             data = json.loads(findings_file.read_text(encoding="utf-8"))
             found = list(data.get("findings", []))
+        elif rc != 0:
+            print(f"  资产 {i} 退出码 {rc}：本轮没有产出，不采用 {findings_file.name} 里的旧结论",
+                  file=sys.stderr)
         # 证据份数按**结论引用的** capsule 算（B153）：证据目录里可能躺着上一轮的文件
         # （每轮一个 run 子目录），数文件会把两轮算成一份报告的证据。
         cap_ids = {
@@ -232,6 +238,7 @@ def main(argv: list[str] | None = None) -> int:
         per_asset.append({
             "target": target, "rc": rc, "dir": sub.name,
             "findings": found, "capsules": len(cap_ids),
+            "produced": rc == 0,
         })
 
     # ── 汇总报告 ────────────────────────────────────────────────
@@ -258,7 +265,11 @@ def main(argv: list[str] | None = None) -> int:
             f"需审批 {len(profile.oracles.needs_approval)} 类",
         ]
     lines += [
-        f"- 资产数：{len(per_asset)}",
+        f"- 资产数：{len(per_asset)}"
+        + (
+            f"（本轮未产出 {sum(1 for a in per_asset if not a['produced'])} 个）"
+            if any(not a["produced"] for a in per_asset) else ""
+        ),
         f"- 结论：已验证 **{verified}** / 总项 {total}",
         "",
         "## 1. 逐资产结论",
@@ -267,6 +278,10 @@ def main(argv: list[str] | None = None) -> int:
         "|---|---|---|---|---|---|---|",
     ]
     for i, a in enumerate(per_asset, start=1):
+        if not a["produced"]:
+            # 未产出的资产不许把数字填上：rc 说失败、结论列说"已验证 2"是自相矛盾（B159）
+            lines.append(f"| {i} | `{a['target']}` | {a['rc']} | — | — | — | `{a['dir']}` |")
+            continue
         v = len([f for f in a["findings"] if f.get("outcome") == "reported"])
         lines.append(
             f"| {i} | `{a['target']}` | {a['rc']} | {len(a['findings'])} | {v} | "
@@ -277,7 +292,10 @@ def main(argv: list[str] | None = None) -> int:
         lines.append(f"### 资产 {i} · `{a['target']}`")
         lines.append("")
         if not a["findings"]:
-            lines += ["（无结论项：该资产未跑出结果）", ""]
+            if not a["produced"]:
+                lines += [f"（本轮未产出：退出码 {a['rc']}；目录里的旧产物未被采用）", ""]
+            else:
+                lines += ["（无结论项：该资产未跑出结果）", ""]
             continue
         lines += ["| 项 | 结论 | 原因 | 证据 |", "|---|---|---|---|"]
         for f in a["findings"]:
@@ -310,7 +328,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"报告：{report}")
     bad = [a for a in per_asset if a["rc"] != 0]
     if bad:
-        print(f"有 {len(bad)} 个资产退出码非 0", file=sys.stderr)
+        print(f"有 {len(bad)} 个资产退出码非 0（它们的旧产物未被采用，报告里标 —）",
+              file=sys.stderr)
         return 1
     return 0
 

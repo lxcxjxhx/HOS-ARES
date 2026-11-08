@@ -126,3 +126,23 @@ def test_empty_targets_fails(tmp_path: Path) -> None:
     spec.write_text(_spec("http" + ":" + SEP + SEP + "127." + "0.0.1:1"), encoding="utf-8")
     rc = main(["--targets", " , ", "--openapi", str(spec), "--out", str(tmp_path / "x")])
     assert rc != 0
+
+
+# ── F：重跑被拒时，不许把上一轮的 findings 当成这一轮的（B159）──
+def test_rerun_does_not_reuse_stale_findings(two_assets: Any, tmp_path: Path) -> None:
+    """同一 out 再跑一次：cmd_run 会拒跑（证据目录非空），平台必须如实报"未产出"。
+
+    修前实测：第二次每个资产都 exit=2，报告却照样写"已验证 2 / 总项 4"，
+    rc 那列说 2、结论列说 2——自相矛盾，且把一轮没发生的事算成了结果。
+    """
+    a, _b = two_assets
+    assert _run(tmp_path, a.base_url) == 0
+    first = (tmp_path / "pf" / "platform-report.md").read_text(encoding="utf-8")
+    assert "已验证 **2**" in first, "第一次应当真的跑出结论"
+
+    assert _run(tmp_path, a.base_url) == 1, "重跑被拒 -> 平台退出码非 0"
+    second = (tmp_path / "pf" / "platform-report.md").read_text(encoding="utf-8")
+    assert "本轮未产出 1 个" in second
+    assert "已验证 **0** / 总项 0" in second, "旧结论不许被算进这一轮"
+    assert "| — | — | — |" in second, "未产出的资产三列都必须是 —，不能填数"
+    assert "目录里的旧产物未被采用" in second
