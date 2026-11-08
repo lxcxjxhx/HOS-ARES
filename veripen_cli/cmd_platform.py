@@ -263,6 +263,17 @@ def main(argv: list[str] | None = None) -> int:
         elif rc != 0:
             print(f"  资产 {i} 退出码 {rc}：本轮没有产出，不采用 {findings_file.name} 里的旧结论",
                   file=sys.stderr)
+        # 覆盖账本（B164）：单资产报告有"覆盖"一节，平台汇总里原来没有——
+        # 于是"2 条结论"看上去像"只测了 2 项"，读者看不到分母。
+        coverage: dict[str, Any] | None = None
+        cov_file = sub / "coverage.json"
+        if rc == 0 and cov_file.exists():
+            try:
+                loaded = json.loads(cov_file.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                loaded = None
+            if isinstance(loaded, dict):
+                coverage = loaded
         # 证据份数按**结论引用的** capsule 算（B153）：证据目录里可能躺着上一轮的文件
         # （每轮一个 run 子目录），数文件会把两轮算成一份报告的证据。
         cap_ids = {
@@ -273,7 +284,7 @@ def main(argv: list[str] | None = None) -> int:
         per_asset.append({
             "target": target, "rc": rc, "dir": sub.name,
             "findings": found, "capsules": len(cap_ids),
-            "produced": rc == 0,
+            "produced": rc == 0, "coverage": coverage,
         })
 
     # ── 汇总报告 ────────────────────────────────────────────────
@@ -283,6 +294,16 @@ def main(argv: list[str] | None = None) -> int:
     verified = sum(
         len([f for f in a["findings"] if f.get("outcome") == "reported"]) for a in per_asset
     )
+    faces_total = faces_covered = gaps_total = 0
+    gaps_critical = gaps_warn = 0
+    for a in per_asset:
+        s = (a.get("coverage") or {}).get("summary") or {}
+        faces_total += int(s.get("faces") or 0)
+        faces_covered += int(s.get("faces_covered") or 0)
+        gaps_total += int(s.get("gaps") or 0)
+        sev = s.get("gaps_by_severity") or {}
+        gaps_critical += int(sev.get("critical") or 0)
+        gaps_warn += int(sev.get("warn") or 0)
     events = _events_as_dicts(store, TASK_ID)
     audit_text = render_audit_section(AuditInput(task_id=TASK_ID, events=events))
 
@@ -306,6 +327,12 @@ def main(argv: list[str] | None = None) -> int:
             if any(not a["produced"] for a in per_asset) else ""
         ),
         f"- 结论：已验证 **{verified}** / 总项 {total}",
+        # 覆盖率必须带分母（D3）：只写"2 条结论"会被读成"只测了 2 项"（B164）
+        (
+            f"- 覆盖合计：已判定 **{faces_covered}**/{faces_total} 面 · "
+            f"缺口 {gaps_total}（critical {gaps_critical} / warn {gaps_warn}）"
+            if faces_total else "- 覆盖合计：—（本轮没有覆盖账本）"
+        ),
         # 路由来源必须写进报告（B162）：契约面与探测面的证据强度不同，读者要知道。
         (
             f"- 路由来源：主动探测（无契约，{args.discover_rounds} 轮 / 每轮 {args.discover_pages} 页）"
@@ -319,18 +346,26 @@ def main(argv: list[str] | None = None) -> int:
         "",
         "## 1. 逐资产结论",
         "",
-        "| # | 目标 | 退出码 | 结论项 | 已验证 | capsule | 证据目录 |",
-        "|---|---|---|---|---|---|---|",
+        "| # | 目标 | 退出码 | 结论项 | 已验证 | capsule | 覆盖（面） | 缺口 | 证据目录 |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     for i, a in enumerate(per_asset, start=1):
         if not a["produced"]:
             # 未产出的资产不许把数字填上：rc 说失败、结论列说"已验证 2"是自相矛盾（B159）
-            lines.append(f"| {i} | `{a['target']}` | {a['rc']} | — | — | — | `{a['dir']}` |")
+            lines.append(
+                f"| {i} | `{a['target']}` | {a['rc']} | — | — | — | — | — | `{a['dir']}` |"
+            )
             continue
         v = len([f for f in a["findings"] if f.get("outcome") == "reported"])
+        summary = (a.get("coverage") or {}).get("summary") or {}
+        cov_cell = (
+            f"{int(summary.get('faces_covered') or 0)}/{int(summary.get('faces') or 0)}"
+            if summary else "—"
+        )
+        gap_cell = str(int(summary.get("gaps") or 0)) if summary else "—"
         lines.append(
             f"| {i} | `{a['target']}` | {a['rc']} | {len(a['findings'])} | {v} | "
-            f"{a['capsules']} | `{a['dir']}` |"
+            f"{a['capsules']} | {cov_cell} | {gap_cell} | `{a['dir']}` |"
         )
     lines += ["", "## 2. 资产面明细", ""]
     for i, a in enumerate(per_asset, start=1):
@@ -349,6 +384,23 @@ def main(argv: list[str] | None = None) -> int:
                 f"{f.get('reason_code') or '-'} | "
                 f"{(f.get('evidence') or {}).get('capsule_id') or '-'} |"
             )
+        lines.append("")
+        summary = (a.get("coverage") or {}).get("summary") or {}
+        if summary:
+            sev = summary.get("gaps_by_severity") or {}
+            comp = (a.get("coverage") or {}).get("completeness") or {}
+            lines.append(
+                f"覆盖：{int(summary.get('faces_covered') or 0)}/{int(summary.get('faces') or 0)} 面 · "
+                f"适用 {int(summary.get('applicable_pairs') or 0)} 对 · "
+                f"执行 {int(summary.get('executed') or 0)} · "
+                f"缺口 {int(summary.get('gaps') or 0)}"
+                f"（critical {int(sev.get('critical') or 0)} / warn {int(sev.get('warn') or 0)}） · "
+                f"完整：{'是' if comp.get('complete') else '否'}"
+            )
+            for caveat in (comp.get("caveats") or [])[:3]:
+                lines.append(f"  - {str(caveat).replace('**', '')}")
+        else:
+            lines.append("覆盖：缺 coverage.json（该资产这一轮没有账本）")
         lines.append("")
 
     lines += [
