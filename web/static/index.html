@@ -291,6 +291,17 @@ function renderOverview(d) {
       el("p", { class: "muted" },
         (cov.zero_hit_tags || []).length ? `零命中标签：${(cov.zero_hit_tags || []).join(", ")}` : "零命中标签：无"))));
 
+  // B161：模型自述单独一块，**标清不计入判定**——它是"模型自己怎么说"，
+  // 结论仍只认 findings。没有自述（无模型/未 finish）就不显示这一块。
+  const claim = d.agent_claim || {};
+  const unresolved = claim.unresolved || [];
+  if (claim.summary || unresolved.length) {
+    wrap.append(card("本轮模型自述（不计入判定）",
+      el("p", {}, String(claim.summary || "（未提供）")),
+      el("p", { class: "muted" },
+        unresolved.length ? `自述未解决：${unresolved.join("、")}` : "自述未解决：无")));
+  }
+
   return wrap;
 }
 

@@ -417,6 +417,9 @@ class ConsoleState:
     audit: Sequence[Mapping[str, Any]] = ()
     traces: Mapping[str, Sequence[Mapping[str, Any]]] = field(default_factory=dict)
     approvals: Sequence[Approval] = ()
+    #: 模型在 `finish` 里的自述（B158/B161）。**只展示，不计入判定**：
+    #: verdicts 与覆盖账本都不读它——这里给的是"模型自己怎么说"。
+    agent_claim: Mapping[str, Any] = field(default_factory=dict)
 
 
 def _path_for(op_id: str) -> str:
@@ -514,6 +517,11 @@ def build_app(
                 # 概览卡 3 的数据源：覆盖率必须带分母，否则不许显示（D3）
                 "coverage": {"tested": tested, "blocked": blocked, "total": total,
                              "zero_hit_tags": cov["zero_hit_tags"]},
+                # 模型自述：恒在，空就是空（与其它"未提供"字段同口径）
+                "agent_claim": {
+                    "summary": str(state.agent_claim.get("summary") or ""),
+                    "unresolved": [str(x) for x in (state.agent_claim.get("unresolved") or [])],
+                },
             }
         if op == "ui.engagement":
             return dict(state.engagement)

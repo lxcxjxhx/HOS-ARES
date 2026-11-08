@@ -299,6 +299,30 @@ def test_hunt_without_evidence_stays_none() -> None:
     assert state.findings[0].capsule_id is None
 
 
+# ── B161：模型自述进控制台，但**不改变任何判定** ─────────────────
+def test_agent_claim_is_surfaced_but_changes_no_verdict() -> None:
+    from web.loader import load_record
+
+    record = _hunt([_face("csp_absent", "VERIFIED", "aa" * 8)])
+    record["agent_claim"] = {
+        "summary": "找到 1 条；rate limit 没测",
+        "unresolved": ["rate_limit_absent"],
+    }
+    state = load_record(record)
+    assert state.agent_claim["summary"].startswith("找到 1 条")
+    assert state.agent_claim["unresolved"] == ["rate_limit_absent"]
+    # 自述不进判定：行状态与确认数都还是账本说的那个
+    assert state.findings[0].outcome == "reported"
+    assert state.engagement["confirmed"] == 1
+
+
+def test_agent_claim_defaults_to_empty() -> None:
+    from web.loader import load_record
+
+    state = load_record(_hunt([_face("csp_absent", "VERIFIED", "aa" * 8)]))
+    assert state.agent_claim == {}, "没有自述就是空，不造一句"
+
+
 def test_legacy_dict_still_loads_without_fabricated_evidence() -> None:
     """老产物没有 faces_run：仍能打开，但同样不许编证据指针。"""
     from web.loader import load_record
