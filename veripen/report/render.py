@@ -86,6 +86,9 @@ class FindingView:
     impact: str = ""
     advice: str = ""
     outcome: Outcome = Outcome.REPORTED
+    #: 这一条是"跑过、判否"。四态里没有"已判否"这一格，所以它落进 not_run；
+    #: 但要显式标出来——`not_run` 表头写的是"未执行"，把判否混进去等于说假话。
+    refuted: bool = False
     reason_code: str = ""        # undetermined / error / not_run 的原因码
     wording_key: str = ""        # 直接指定措辞档（默认按 state 推）
 
@@ -441,7 +444,17 @@ def render_markdown(report: ReportInput) -> str:
     w(f"| reported | {counts['reported']} | 已验证并出报告 |")
     w(f"| undetermined | {counts['undetermined']} | 跑了但判不了 |")
     w(f"| error | {counts['error']} | 执行失败 |")
-    w(f"| not_run | {counts['not_run']} | 未执行（授权/预算/跳过） |")
+    refuted_in_not_run = sum(
+        1 for f in report.findings if f.outcome is Outcome.NOT_RUN and f.refuted
+    )
+    actually_not_run = counts["not_run"] - refuted_in_not_run
+    not_run_why = f"真正未执行 {actually_not_run} 条（授权/预算/跳过）"
+    if refuted_in_not_run:
+        not_run_why += (
+            f"；另 {refuted_in_not_run} 条为**已判否**（跑过、无该问题）——"
+            "四态里没有独立一格，故并入此行"
+        )
+    w(f"| not_run | {counts['not_run']} | {not_run_why} |")
     w("")
     w("> 禁止把 `error` / `not_run` 写进「未发现」或「安全」的表述附近。")
     w("")

@@ -95,6 +95,7 @@ def _findings_view(
         replay_status="NEVER",
         situation=_situation(meta, oracle_id, binding, result),
         outcome=outcome,
+        refuted=verdict == "REFUTED",
         reason_code=str(getattr(result, "reason", "") or "")[:60],
     )
 
