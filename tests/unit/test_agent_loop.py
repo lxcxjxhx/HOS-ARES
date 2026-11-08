@@ -89,7 +89,9 @@ class LabRuntime:
             "verdict": result.verdict.value,
             "reason": result.reason,
             "route_strength": "contract",
-            "capsule_id": f"sha256:{oracle_id}" if result.verdict.value == "VERIFIED" else None,
+            # 与真实 runtime 一致（B152）：不封 capsule 就没有 id 可给，别编一个
+            "capsule_id": None,
+            "evidence": "not_sealed",
         }
 
     def rediscover(self, reason: str):

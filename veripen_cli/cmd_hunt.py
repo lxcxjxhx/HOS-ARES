@@ -197,7 +197,12 @@ class HuntRuntime:
             "faces_total": len(faces),
             # 面强度由置信档推：发现来的面是 crawl，不能跟着契约面一起写 contract
             "route_strength": _strength_of(bindings[tags[0]]),
-            "capsule_id": f"sha256:{oracle_id}" if result.verdict.value == "VERIFIED" else None,
+            # **证据指针只能来自真的落盘的 capsule**（B152）。`run`/`bench` 会 seal 并写盘，
+            # `hunt` 不写——于是这里没有 id 可给。早先给的是 `f"sha256:{oracle_id}"`：
+            # 一个「sha256:csp_absent」式的假号，模型会把它当证据引用，盘上却没有那份文件。
+            "capsule_id": None,
+            "evidence": "not_sealed",
+            "evidence_note": "hunt 不封 capsule：这条结论没有可重放证据；要证据请用 veripen run",
         }
 
     def rediscover(self, reason: str) -> dict[str, Any]:
