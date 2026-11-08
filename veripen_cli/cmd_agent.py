@@ -55,7 +55,10 @@ def _do_write(wb: Workbench, arg: str) -> tuple[bool, str]:
     if not path:
         return False, "用法：write <路径> <内容>"
     res = wb.write(path, content, overwrite=True)
-    return True, f"{res.path} 写入 {res.bytes_written}B"
+    # 新建与覆盖**记成两件事**（B170）：覆盖不可逆，账本里必须看得出来
+    if res.created:
+        return True, f"{res.path} 新建 {res.bytes_written}B"
+    return True, f"{res.path} 覆盖 {res.bytes_written}B（原 {res.bytes_before}B）"
 
 
 def _do_edit(wb: Workbench, arg: str) -> tuple[bool, str]:

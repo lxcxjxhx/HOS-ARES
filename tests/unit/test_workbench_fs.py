@@ -113,7 +113,12 @@ def test_write_with_explicit_overwrite_works(wb: Workbench) -> None:
     wb.write("out.txt", "first")
     r = wb.write("out.txt", "second", overwrite=True)
     assert r.created is False
+    assert r.bytes_before == 5, "覆盖前的大小要记下来：账本据此才说得清换掉了什么"
     assert wb.read("out.txt").text == "second"
+
+
+def test_write_created_has_no_bytes_before(wb: Workbench) -> None:
+    assert wb.write("new.txt", "abc").bytes_before is None
 
 
 def test_write_creates_parent_dirs(wb: Workbench) -> None:
