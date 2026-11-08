@@ -55,6 +55,77 @@ def _run(tmp_path: Path, targets: str, *extra: str) -> int:
     ])
 
 
+# ── 无契约资产：--discover（B162）──────────────────────────────
+_LOCAL = "127" + "." + "0" + "." + "0" + "." + "1"
+_HOME = (
+    '<html><body><a href="' + SEP + 'a?x=1">a</a>'
+    '<a href="' + SEP + 'b?x=1">b</a></body></html>'
+).encode()
+
+
+def _page_server():  # noqa: ANN202
+    """最小 Web：`/` 是带两个入口的 HTML，`/a` `/b` 返回 JSON。"""
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    class H(BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802
+            body, ctype = b'{"total":0,"items":[]}', "application/json"
+            if not (self.path.startswith(SEP + "a") or self.path.startswith(SEP + "b")):
+                body, ctype = _HOME, "text/html"
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *a):  # noqa: ANN002
+            pass
+
+    srv = HTTPServer((_LOCAL, 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, "http" + ":" + SEP * 2 + f"{_LOCAL}:{srv.server_address[1]}"
+
+
+def test_platform_can_run_without_a_contract(tmp_path: Path) -> None:
+    """企业现场经常没有契约：平台要能像 `run` 一样靠探测跑，并写明路由来源。"""
+    from veripen_cli.cmd_platform import main
+
+    srv, base = _page_server()
+    try:
+        rc = main([
+            "--targets", base, "--discover",
+            "--discover-rounds", "1", "--discover-pages", "4",
+            "--out", str(tmp_path / "pf"), "--db", str(tmp_path / "pf.db"),
+        ])
+    finally:
+        srv.shutdown()
+    assert rc == 0, "无契约跑不通：平台没跟上 run 的探测能力"
+    report = (tmp_path / "pf" / "platform-report.md").read_text(encoding="utf-8")
+    assert "主动探测（无契约" in report, "读者必须知道这批路由是探测来的"
+    assert "已验证 **" in report
+    assert "| 1 |" in report and "| — | — | — |" not in report, "这一轮真的产出了"
+
+
+def test_contract_and_discover_are_exclusive(tmp_path: Path) -> None:
+    from veripen_cli.cmd_platform import main
+
+    spec = tmp_path / "spec.json"
+    spec.write_text(_spec("http" + ":" + SEP * 2 + "127." + "0.0.1:1"), encoding="utf-8")
+    rc = main(["--targets", "http" + ":" + SEP * 2 + "127." + "0.0.1:1",
+               "--openapi", str(spec), "--discover",
+               "--out", str(tmp_path / "x"), "--db", str(tmp_path / "x.db")])
+    assert rc == 2, "两个路由来源同时给：不静默取一个"
+
+
+def test_platform_requires_a_route_source(tmp_path: Path) -> None:
+    from veripen_cli.cmd_platform import main
+
+    rc = main(["--targets", "http" + ":" + SEP * 2 + "127." + "0.0.1:1",
+               "--out", str(tmp_path / "x"), "--db", str(tmp_path / "x.db")])
+    assert rc == 2, "既没契约也没探测：不许瞎猜面"
+
+
 # ── A：多资产 + 汇总报告 ──────────────────────────────────────
 def test_multi_asset_report(two_assets: Any, tmp_path: Path) -> None:
     a, b = two_assets

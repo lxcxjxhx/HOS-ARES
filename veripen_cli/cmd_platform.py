@@ -6,10 +6,15 @@
 四件事：
 
 1. **多资产**：逐资产跑同一条 `run` 链路，各自落独立证据目录；
+   路由来源二选一：`--openapi <契约>` 或 `--discover`（无契约，现场常这样，B162）；
 2. **审批阻断**：`--require-approval` 时动作停在 `PENDING`，落 `approvals` 与 `task_events`；
    `--approve` 才是人工放行（模拟 operator 签字），否则退出码 3；
 3. **汇总报告**：逐资产结论 + 总计 + 审计节（`B53` 五表，空表也显式）；
+   报告里写明**这一批的路由是契约给的还是探测来的**——两者证据强度不同；
 4. **Playbook**：命中率写进报告，没命中也要写原因。
+
+用法：`veripen platform --targets a,b --openapi spec.json`
+　　　`veripen platform --targets a,b --discover`
 
 **不在这里做的事**：不判断结论对不对（oracle 的事），不重新封存证据（run 的事）。
 """
@@ -34,6 +39,7 @@ from veripen_core.guard.approval import (  # noqa: E402
 )
 from veripen_core.store import Store  # noqa: E402
 
+from ._discover_args import add_discovery_args  # noqa: E402
 from ._io import setup_stdout  # noqa: E402
 
 SEP = chr(0x2F)
@@ -108,12 +114,14 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="veripen platform", description="企业级编排")
     ap.add_argument("--targets", default="", help="逗号分隔的多个目标（与 --profile 二选一）")
     ap.add_argument("--profile", default="", help="客户档路径（与 --targets 二选一）")
-    ap.add_argument("--openapi", required=True, help="各目标共用的 OpenAPI 文档路径")
+    ap.add_argument("--openapi", default="", help="各目标共用的 OpenAPI 文档路径（与 --discover 二选一）")
     ap.add_argument("--out", default=str(ROOT / "out" / "platform"))
     ap.add_argument("--db", default=str(ROOT / "out" / "platform.db"))
     ap.add_argument("--require-approval", action="store_true", help="批量动作需人工放行")
     ap.add_argument("--approve", action="store_true", help="模拟 operator 立即签字")
     ap.add_argument("--exclude", default="", help="透传给单资产链路的 oracle 黑名单")
+    # 无契约的资产（B162）：参数只在 `_discover_args` 定义一次，透传给每个资产
+    add_discovery_args(ap)
     args = ap.parse_args(sys.argv[1:] if argv is None else argv)
     setup_stdout()
 
@@ -175,10 +183,19 @@ def main(argv: list[str] | None = None) -> int:
     if not targets:
         print("没有目标", file=sys.stderr)
         return 2
-    spec_path = Path(args.openapi)
-    if not spec_path.exists():
-        print(f"契约不存在：{spec_path}", file=sys.stderr)
+    # 路由来源二选一（B162）：企业现场经常没有契约，`run` 早就支持探测，平台没跟上。
+    if args.discover and args.openapi:
+        print("--openapi 与 --discover 二选一：有契约就别猜面", file=sys.stderr)
         return 2
+    if not args.discover and not args.openapi:
+        print("需要 --openapi <契约> 或 --discover（不替你猜）", file=sys.stderr)
+        return 2
+    spec_path: Path | None = None
+    if not args.discover:
+        spec_path = Path(args.openapi)
+        if not spec_path.exists():
+            print(f"契约不存在：{spec_path}", file=sys.stderr)
+            return 2
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -214,9 +231,20 @@ def main(argv: list[str] | None = None) -> int:
             tags = ",".join(sorted({s.semantic_tag for s in profile.selectors}))
             if tags:
                 extra_args += ["--confirm-tags", tags]
-        rc = cmd_run.main([
-            "--target", target, "--openapi", str(spec_path), "--out", str(sub), *extra_args,
-        ])
+        route_args: list[str]
+        if args.discover:
+            route_args = [
+                "--discover",
+                "--discover-rounds", str(args.discover_rounds),
+                "--discover-pages", str(args.discover_pages),
+            ]
+            if args.render:
+                route_args.append("--render")
+            if args.submit_forms:
+                route_args.append("--submit-forms")
+        else:
+            route_args = ["--openapi", str(spec_path)]
+        rc = cmd_run.main(["--target", target, *route_args, "--out", str(sub), *extra_args])
         found: list[dict[str, Any]] = []
         findings_file = sub / "findings.json"
         # **rc != 0 就不读 findings.json**（B159）：目录里躺着的是上一轮的产物，
@@ -271,6 +299,11 @@ def main(argv: list[str] | None = None) -> int:
             if any(not a["produced"] for a in per_asset) else ""
         ),
         f"- 结论：已验证 **{verified}** / 总项 {total}",
+        # 路由来源必须写进报告（B162）：契约面与探测面的证据强度不同，读者要知道。
+        (
+            f"- 路由来源：主动探测（无契约，{args.discover_rounds} 轮 / 每轮 {args.discover_pages} 页）"
+            if args.discover else f"- 路由来源：契约 `{args.openapi}`"
+        ),
         "",
         "## 1. 逐资产结论",
         "",
