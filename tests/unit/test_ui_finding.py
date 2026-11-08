@@ -81,7 +81,11 @@ def test_finding_capsule_absence_is_explicit() -> None:
 def test_finding_missing_pieces_are_present_but_empty() -> None:
     data = _data(_client().get(UI + "finding"))
     assert data["traces"] == [], "没有 trace 就给空列表，前端显示「未提供」"
-    assert data["repro"].startswith("make replay ID=")
+    # B157：没有证据文件就不给复现命令。旧契约的 `make replay ID=<finding_id>`
+    # 把 finding_id 当 capsule 路径，拷出去必然"载入失败"——给了等于没给。
+    assert data["capsule_path"] is None
+    assert data["repro"] == ""
+    assert data["repro_ok"] is False
 
 
 def test_finding_injects_traces_from_state() -> None:
