@@ -126,6 +126,55 @@ def test_platform_requires_a_route_source(tmp_path: Path) -> None:
     assert rc == 2, "既没契约也没探测：不许瞎猜面"
 
 
+# ── G：凭据透传，且不落报告（B163）──────────────────────────────
+_TARGET = "http" + ":" + SEP * 2 + "127." + "0.0.1:1"
+
+
+def _capture(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
+    from veripen_cli import cmd_run
+
+    seen: list[list[str]] = []
+
+    def fake_run(argv: list[str]) -> int:
+        seen.append(list(argv))
+        return 1  # 走"未产出"分支：不写 findings，报告仍会生成
+
+    monkeypatch.setattr(cmd_run, "main", fake_run)
+    return seen
+
+
+def test_token_reaches_each_asset_and_never_enters_the_report(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """平台原来不传 token：带鉴权的资产在平台里永远只能落 BLOCKED。"""
+    from veripen_cli.cmd_platform import main
+
+    seen = _capture(monkeypatch)
+    spec = tmp_path / "spec.json"
+    spec.write_text(_spec(_TARGET), encoding="utf-8")
+    rc = main(["--targets", _TARGET, "--openapi", str(spec), "--token", "SECRET-TOKEN",
+               "--out", str(tmp_path / "pf"), "--db", str(tmp_path / "pf.db")])
+    assert rc == 1
+    assert seen, "逐资产链路没被调用"
+    assert ["--token", "SECRET-TOKEN"] == seen[0][seen[0].index("--token"):][:2]
+
+    report = (tmp_path / "pf" / "platform-report.md").read_text(encoding="utf-8")
+    assert "主身份 token 已注入" in report
+    assert "SECRET-TOKEN" not in report, "报告是要发给客户的：凭据原文不许进报告"
+
+
+def test_report_says_when_no_credential(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from veripen_cli.cmd_platform import main
+
+    _capture(monkeypatch)
+    spec = tmp_path / "spec.json"
+    spec.write_text(_spec(_TARGET), encoding="utf-8")
+    main(["--targets", _TARGET, "--openapi", str(spec),
+          "--out", str(tmp_path / "pf"), "--db", str(tmp_path / "pf.db")])
+    report = (tmp_path / "pf" / "platform-report.md").read_text(encoding="utf-8")
+    assert "凭据：未提供" in report, "没凭据要说出来，否则读者不知道为什么一堆 BLOCKED"
+
+
 # ── A：多资产 + 汇总报告 ──────────────────────────────────────
 def test_multi_asset_report(two_assets: Any, tmp_path: Path) -> None:
     a, b = two_assets
