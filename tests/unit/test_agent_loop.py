@@ -360,3 +360,49 @@ def test_later_verified_still_wins() -> None:
 def test_refuted_then_blocked_still_reports_blocked() -> None:
     """只有 VERIFIED 是粘的：没成立的结论仍按后一条面记（不替它升级）。"""
     assert _run_two_faces(["REFUTED", "BLOCKED"])["sqli_bool_diff"] == "BLOCKED"
+
+
+# ── 9 finish 的自述要留下来，但不能变成结论（B158）──────────────
+class _FinishDecider:
+    name = "finish-only"
+
+    def __init__(self, summary: str, unresolved: list[str]) -> None:
+        self.summary = summary
+        self.unresolved = unresolved
+
+    def decide(self, goal: str, state: object, tools: object) -> ToolCall:
+        return ToolCall("finish", {"summary": self.summary, "unresolved": self.unresolved})
+
+
+def _finish_once(summary: str, unresolved: list[str]) -> object:
+    state = AgentState(pending=["sqli_bool_diff"], strong=(), wave_order=["sqli_bool_diff"])
+    loop = Loop(
+        runtime=_VerdictRuntime([]),
+        decider=_FinishDecider(summary, unresolved),  # type: ignore[arg-type]
+        goal="g",
+        max_steps=3,
+    )
+    return loop.run(state)
+
+
+def test_finish_summary_and_unresolved_are_kept() -> None:
+    """模型最后说的话要留在结果里：早先被 `_finish` 整个丢掉。"""
+    result = _finish_once("找到 2 条，rate limit 没测", ["rate_limit_absent"])
+    assert result.decision is Decision.CONVERGED
+    assert result.agent_summary == "找到 2 条，rate limit 没测"
+    assert result.agent_unresolved == ("rate_limit_absent",)
+
+
+def test_finish_summary_is_not_a_verdict() -> None:
+    """自述**不能**产生结论：verdicts 仍为空，覆盖账本照旧按逐面记录算。"""
+    result = _finish_once("我确认了 sqli_bool_diff 成立", [])
+    assert result.verdicts == {}, "模型说成立不算成立"
+    assert result.step_entries, "步骤要留痕"
+    assert result.step_entries[-1].tool == "finish"
+
+
+def test_finish_summary_is_capped() -> None:
+    """自述再长也不能变成一份没上限的附件。"""
+    result = _finish_once("x" * 5000, [f"u{i}" for i in range(50)])
+    assert len(result.agent_summary) <= 500
+    assert len(result.agent_unresolved) <= 20

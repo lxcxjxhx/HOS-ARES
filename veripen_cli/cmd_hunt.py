@@ -592,6 +592,12 @@ def main(argv: list[str]) -> int:
         print(f"  {e.step:>2} {flag} {e.tool:<20} facts+{e.new_facts}{verdict}")
     print("-" * 78)
     print(f"决策：{result.decision.value}（{result.reason}）")
+    # 模型自述：**展示，但不计入判定**（B158）。早先这段文本被整个丢掉，
+    # 于是"我说了三条没测"和"我什么都没说"在产物里一模一样。
+    if result.agent_summary:
+        print(f"自述（不计入判定）：{result.agent_summary[:160]}")
+    if result.agent_unresolved:
+        print(f"自述未解决：{'、'.join(result.agent_unresolved[:8])}")
 
     findings = {k: v for k, v in result.verdicts.items() if v == "VERIFIED"}
     # 未确认的必须带 reason：只写 BLOCKED 等于说"没验出来"却不说为什么，
@@ -653,6 +659,12 @@ def main(argv: list[str]) -> int:
         "decision": result.decision.value,
         "reason": result.reason,
         "findings": findings,
+        # 模型自述（B158）：与 findings/faces_run 分列——自述**不能**算覆盖，
+        # 但把它丢掉等于让模型白说。两者并列，读者自己判断。
+        "agent_claim": {
+            "summary": result.agent_summary,
+            "unresolved": list(result.agent_unresolved),
+        },
         # 证据：这一轮**真的落盘**的 capsule（B154）。空列表 = 没有一份证据，
         # 不是"证据被省略"——报告读者据此就知道哪些结论能被重放。
         # `evidence` 是**逐面**的（同一 oracle 不同面各一份）；`capsules` 只是自哈希清单。

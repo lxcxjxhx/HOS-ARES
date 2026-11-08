@@ -261,6 +261,11 @@ class LoopResult:
     blocked: dict[str, str] = field(default_factory=dict)
     budget: dict[str, Any] = field(default_factory=dict)
     reason: str = ""
+    #: 模型在 `finish` 里说的话（B158）。**只是自述**：不进 verdicts、不进覆盖账本，
+    #: 由调用方以"自述"名义展示——早先这段文本被直接丢掉，模型说没说完都没人看见。
+    agent_summary: str = ""
+    #: 模型自己列的"没解决"清单。它可能比账本更诚实，也可能漏；两者并列展示，不互相替代。
+    agent_unresolved: tuple[str, ...] = ()
 
     @property
     def new_facts(self) -> int:
@@ -292,6 +297,9 @@ class Loop:
         self.store_dir = store_dir
         self.entries: list[LedgerEntry] = []
         self.verdicts: dict[str, str] = {}
+        #: `finish` 的自述（见 LoopResult.agent_summary 的说明）
+        self.agent_summary = ""
+        self.agent_unresolved: list[str] = []
         self._idle_streak = 0
         #: `_decide` 捕获的模型异常，`_dispatch` 消费一次后清空。
         self._pending_error: ModelClientError | None = None
@@ -390,6 +398,13 @@ class Loop:
             store_dir=self.store_dir,
             plan_gate=self.plan_gate,
         )
+        if result.ok and call.name == "finish":
+            # 模型最后说的话：**只记录，不参与判定**（B158）。
+            # 早先这段文本被 `_finish` 直接丢掉——模型说"有三条没测"跟没说一样。
+            self.agent_summary = str(result.data.get("summary") or "")
+            raw_unresolved = result.data.get("unresolved") or []
+            if isinstance(raw_unresolved, (list, tuple)):
+                self.agent_unresolved = [str(x)[:200] for x in raw_unresolved][:20]
         if result.ok and call.name == "run_oracle":
             verdict = str(result.data.get("verdict") or "")
             oracle_id = str(call.args.get("oracle_id") or "")
@@ -446,6 +461,8 @@ class Loop:
             blocked=blocked,
             budget=self.budget.as_dict(),
             reason=reason,
+            agent_summary=self.agent_summary,
+            agent_unresolved=tuple(self.agent_unresolved),
         )
 
     def _remaining(self) -> list[str]:
