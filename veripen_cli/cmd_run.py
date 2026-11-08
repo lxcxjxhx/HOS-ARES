@@ -258,6 +258,10 @@ def main(argv: list[str] | None = None) -> int:
                     help="产物目录。证据目录只属于一轮：已有 capsule 的目录会被拒绝（B153）")
     ap.add_argument("--exclude", default=DEFAULT_EXCLUDE, help="逗号分隔的 oracle 黑名单")
     ap.add_argument("--token", default="", help="主身份 token（可空；空则相关 oracle 落 BLOCKED）")
+    ap.add_argument(
+        "--strict-requires", action="store_true",
+        help="按 07 §321 执行 requires：缺输入即 BLOCKED，且一个请求都不发（默认关，见账本 B163/B173）",
+    )
     ap.add_argument("--max-oracles", type=int, default=0, help="0 = 全跑")
     ap.add_argument(
         "--max-faces", type=int, default=5,
@@ -433,6 +437,9 @@ def main(argv: list[str] | None = None) -> int:
                         oracle, primary, active,
                         symbols=SymbolTable(), nonce=f"run-{oracle_id}",
                         token=args.token or None, bindings=bindings,
+                        # 严格模式（B173）：缺 requires 就 BLOCKED。`run` 没有 OOB 通道、
+                        # 也没有审批句柄，所以这两类在严格模式下会如实 BLOCKED。
+                        strict_requires=args.strict_requires,
                     )
                     # 渲染请求也要计入请求数：报告里的 requests 是"真的发出去多少"
                     render_state["sent"].extend(getattr(active, "sent", []))
