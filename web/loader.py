@@ -312,6 +312,46 @@ def _platform_assets(path: Path) -> list[Path]:
     return sorted(found, key=order)
 
 
+def _merge_ledgers(items: Sequence[tuple[str, Mapping[str, Any]]]) -> dict[str, Any]:
+    """把各资产的覆盖账本合成一份**平台合计**（B168）。
+
+    口径写在 `scope` 里：面/适用对/执行/缺口**全部相加**，缺口保留资产标签，
+    完整性取"所有资产都完整"。这样控制台说的数字与平台报告里的
+    `覆盖合计：已判定 X/Y 面` 是同一口径，不会一个说合计、一个说单资产。
+    """
+    summary: dict[str, Any] = {
+        "faces": 0, "faces_covered": 0, "oracles_selected": 0,
+        "applicable_pairs": 0, "executed": 0, "gaps": 0,
+    }
+    outcomes: dict[str, int] = {}
+    gaps: list[dict[str, Any]] = []
+    caveats: list[str] = []
+    complete = True
+    for name, ledger in items:
+        single = ledger.get("summary") or {}
+        for key in summary:
+            if key == "outcomes":
+                continue
+            summary[key] += int(single.get(key) or 0)
+        for key, value in (single.get("outcomes") or {}).items():
+            outcomes[str(key)] = outcomes.get(str(key), 0) + int(value or 0)
+        for gap in ledger.get("gaps") or ():
+            if isinstance(gap, Mapping):
+                gaps.append({**gap, "asset": name})
+        comp = ledger.get("completeness") or {}
+        if comp.get("complete") is False:
+            complete = False
+        for caveat in comp.get("caveats") or ():
+            caveats.append(f"{name}：{caveat}")
+    summary["outcomes"] = outcomes
+    return {
+        "scope": "platform",
+        "summary": summary,
+        "completeness": {"complete": complete, "caveats": caveats[:8]},
+        "gaps": gaps[:50],
+    }
+
+
 def load_platform(path: Path) -> ConsoleState:
     """把一次 `veripen platform` 的多个资产合成一个控制台状态（B167）。
 
@@ -324,15 +364,21 @@ def load_platform(path: Path) -> ConsoleState:
     """
     assets = _platform_assets(path)
     rows: list[Row] = []
+    ledgers: list[tuple[str, Mapping[str, Any]]] = []
     for sub in assets:
         state = load_file(sub)
+        ledger = state.coverage.get("ledger")
+        if isinstance(ledger, Mapping) and ledger:
+            ledgers.append((sub.name, ledger))
         for row in state.findings:
             rows.append(
                 replace(row, finding_id=f"{sub.name}/{row.finding_id}", asset_id=sub.name)
             )
+    merged_ledger = _merge_ledgers(ledgers) if ledgers else {}
     confirmed = sum(1 for r in rows if r.outcome == "reported")
     return ConsoleState(
         findings=tuple(rows),
+        coverage={"ledger": merged_ledger} if merged_ledger else {},
         engagement={
             "id": "platform",
             "asset": f"{len(assets)} 个资产",

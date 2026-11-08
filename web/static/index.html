@@ -328,7 +328,7 @@ function renderCoverage(d) {
     const s = L.summary || {};
     const done = (L.completeness || {}).complete;
     wrap.append(el("p", {},
-      `账本：面 ${s.faces || 0}（有判定 ${s.faces_covered || 0}）· 适用 ${s.applicable_pairs || 0} 对`
+      `${L.scope === "platform" ? "平台合计账本" : "账本"}：面 ${s.faces || 0}（有判定 ${s.faces_covered || 0}）· 适用 ${s.applicable_pairs || 0} 对`
       + ` · 执行 ${s.executed || 0} · 缺口 ${s.gaps || 0} · 完整：${done ? "是" : "否"}`));
     // 账本里的话是给 markdown 报告写的，控制台是纯文本：把 **强调** 去掉再显示
     const plain = (s0) => String(s0).replace(/\*\*/g, "");
