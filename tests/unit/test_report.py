@@ -315,3 +315,44 @@ def test_json_env_carries_discovery() -> None:
     env = render_json(_report_with({"mode": "discover", "rounds": 1, "pages": 4}))["env"]
     assert env["discovery"]["mode"] == "discover"
     assert env["discovery"]["pages"] == 4
+
+# ── B144：`not_run` 行要区分"没跑"与"跑过判否"───────────��─────────
+def _report_with_outcomes(outcomes: list) -> object:  # noqa: ANN001
+    from veripen.report.render import FindingView, ReportInput
+
+    views = [
+        FindingView(
+            finding_id=f"F-{i}", title="t", asset_id="a", oracle_id="o",
+            cwe="CWE-1", severity="medium", confidence=0.0,
+            route_strength="contract", route_ref=None,
+            capsule_id=None, self_sha256=None, outcome=oc, refuted=ref,
+        )
+        for i, (oc, ref) in enumerate(outcomes)
+    ]
+    return ReportInput(
+        engagement="e", profile_hash="", image_digest="", root_sha256="", findings=views
+    )
+
+
+def test_refuted_is_named_in_not_run_row() -> None:
+    from veripen.report.render import Outcome, render_markdown
+
+    md = render_markdown(_report_with_outcomes([(Outcome.NOT_RUN, True), (Outcome.NOT_RUN, True)]))
+    assert "真正未执行 0 条" in md
+    assert "已判否" in md, "跑过判否不能静默混进'未执行'"
+
+
+def test_truly_not_run_is_still_counted() -> None:
+    from veripen.report.render import Outcome, render_markdown
+
+    md = render_markdown(_report_with_outcomes([(Outcome.NOT_RUN, True), (Outcome.NOT_RUN, False)]))
+    assert "真正未执行 1 条" in md
+    assert "另 1 条为" in md
+
+
+def test_no_refuted_keeps_plain_row() -> None:
+    from veripen.report.render import Outcome, render_markdown
+
+    md = render_markdown(_report_with_outcomes([(Outcome.NOT_RUN, False)]))
+    assert "真正未执行 1 条" in md
+    assert "已判否" not in md
