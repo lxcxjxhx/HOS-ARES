@@ -229,3 +229,55 @@ def test_budget_exhaustion_makes_the_ledger_incomplete() -> None:
     doc = _doc(bindings, [], run_status="budget", exit_reason="budget_exhausted:steps")
     assert doc["completeness"]["complete"] is False
     assert any("budget" in c for c in doc["completeness"]["caveats"])
+
+# ── B143：缺口数要对得上（summary.gaps vs caveat）──────────────��──
+def _run(kind_counts: dict[str, int]) -> dict:
+    """造一个 gaps 分档分布确定的账本。"""
+    from veripen_core.coverage import (
+        Observation,
+        build_coverage,
+    )
+    from veripen_core.routes import (
+        AssetRef,
+        Resolver,
+        RouteCandidate,
+        RouteHints,
+        RouteProvenance,
+        RouteQuery,
+    )
+    from veripen_core.routes.sources import StaticSource
+    import time
+
+    cands = [
+        RouteCandidate(method="GET", template=chr(0x2F) + "f" + str(i), param_names=("x",),
+                       source=RouteProvenance.CRAWL,
+                       response_shape={"semantic_tags": ["param_injectable"]})
+        for i in range(kind_counts.get("faces", 1))
+    ]
+    rs = Resolver(sources=[StaticSource("crawl", RouteProvenance.CRAWL, cands)]).resolve(
+        RouteQuery(asset=AssetRef(id="a"), hints=RouteHints(), min_confidence=0.0),
+        now=int(time.time()),
+    )
+    return build_coverage(
+        asset_id="a",
+        bindings=rs.bindings,
+        oracle_tags={"sqli_bool_diff": ("param_injectable",)},
+        selected=("sqli_bool_diff",),
+        observations=[Observation("sqli_bool_diff", rs.bindings[0].ref, "BLOCKED", "x")],
+    )
+
+
+def test_caveat_states_both_counts() -> None:
+    """caveat 要写 `阻断/全部`，不能只写一个数——否则和 summary.gaps 并排放着像算错。"""
+    doc = _run({"faces": 2})
+    gaps = doc["summary"]["gaps"]
+    blocking = doc["summary"]["gaps_by_severity"]["critical"] + doc["summary"]["gaps_by_severity"]["warn"]
+    text = " ".join(doc["completeness"]["caveats"])
+    assert f"{blocking}/{gaps}" in text, text
+
+
+def test_gaps_by_severity_adds_up() -> None:
+    doc = _run({"faces": 3})
+    counts = doc["summary"]["gaps_by_severity"]
+    assert sum(counts.values()) == doc["summary"]["gaps"]
+    assert set(counts) == {"critical", "warn", "info"}

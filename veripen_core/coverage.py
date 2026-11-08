@@ -280,7 +280,14 @@ def build_coverage(
     if run_status != "completed":
         caveats.append(f"本轮以 '{run_status}' 结束，覆盖只反映停下之前做完的部分。")
     if blocking:
-        caveats.append(f"{len(blocking)} 项缺口使得本账本**不能**读作完整覆盖。")
+        # 两个数都要写：summary.gaps 是全部缺口，caveat 只数阻断性的。
+        # 只写"3 项缺口"会和 summary 里的 5 条并排放着，读者会以为有一处算错。
+        rest = len(gaps) - len(blocking)
+        tail = f"；其余 {rest} 条仅提示，不影响完整性判断" if rest else ""
+        caveats.append(
+            f"{len(blocking)}/{len(gaps)} 项缺口（critical+warn）使得本账本**不能**"
+            f"读作完整覆盖{tail}。"
+        )
 
     return {
         "schema_version": COVERAGE_SCHEMA_VERSION,
@@ -293,6 +300,11 @@ def build_coverage(
             "executed": len(observations),
             "outcomes": {k: outcome_counts[k] for k in OUTCOME_LABELS if k in outcome_counts},
             "gaps": len(gaps),
+            # 分档：机器读者不用自己再数一遍 severity
+            "gaps_by_severity": {
+                level: sum(1 for g in gaps if g["severity"] == level)
+                for level in ("critical", "warn", "info")
+            },
         },
         "machine_observed": {
             "source": "runtime",
