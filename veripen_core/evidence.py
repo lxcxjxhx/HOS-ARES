@@ -628,26 +628,35 @@ def _conclusion_keys(cap: CapsuleDoc) -> set[str]:
 DETAIL_KEYS = ("probe_body_eq_baseline",)
 
 
-def _fingerprint_holds(cap: CapsuleDoc, live: Mapping[str, bool]) -> bool:
-    """三条件（状态类）必须逐条为真。
+def _fingerprint_verdict(
+    cap: CapsuleDoc, live: Mapping[str, bool]
+) -> tuple[bool, tuple[str, ...]]:
+    """结论谓词是否成立，并报出**重算不了**的键。
 
-    ``expected`` 没声明状态谓词时退回"按 fingerprint 全量比对"（fail-closed），
-    但已声明的细节谓词（body 等）永不参与结论——它只区分 OK / PARTIAL。
+    两类"不成立"必须分开：
+    - 算出来是 False —— 证据与结论矛盾（``assertion_not_reproduced``）；
+    - 根本没算 —— 证据里没有这一项，或 replay 不知道怎么从证据重算。
+
+    早先两者都落 ``assertion_not_reproduced``。于是 header 类 oracle
+    （csp/frame/hsts/nosniff：``fingerprint={"absent": true}``）的**每一份** run 证据
+    都被读成"结论被推翻"——其实只是"没法从证据重算"（B151）。
+
+    第三类仍然 fail-closed：``expected`` 没声明状态谓词、``fingerprint`` 也空 → 不许默认成立。
     """
     conclusion = _conclusion_keys(cap)
     if conclusion:
-        for key in sorted(conclusion):
-            if live.get(key) is not True:
-                return False
-        return True
+        missing = tuple(sorted(k for k in conclusion if k not in live))
+        if missing:
+            return False, missing
+        return all(live[k] is True for k in conclusion), ()
 
     required = {k: v for k, v in cap.assertion.fingerprint.items() if k not in DETAIL_KEYS}
     if not required:
-        return False  # 什么都没声明：不许默认成立
-    for key, want in required.items():
-        if live.get(key) is not bool(want):
-            return False
-    return True
+        return False, ()
+    missing = tuple(sorted(k for k in required if k not in live))
+    if missing:
+        return False, missing
+    return all(live.get(k) is bool(want) for k, want in required.items()), ()
 
 
 def _details_equal(cap: CapsuleDoc, traces: Sequence[TraceResult]) -> bool:
@@ -677,6 +686,8 @@ def _classify(cap: CapsuleDoc, traces: Sequence[TraceResult], *, stale: bool) ->
 
     要根治得让 capsule 存正文或让 replay 能调 oracle 的指纹逻辑——两者都会
     推翻 06 §7 的存储红线或引入 core→oracles 的依赖，属设计改动，未做。
+    目前只把"算不了"与"算出来是假"分开：算不了的给
+    ``predicate_not_recomputable:<keys>``（仍 FAILED），不会被读成"结论被推翻"。
     """
     if cap.verdict not in (Verdict.VERIFIED, Verdict.REFUTED):
         # INCONCLUSIVE / BLOCKED 没有结论可复现：重放它们属于重新判定，不在此处。
@@ -685,7 +696,7 @@ def _classify(cap: CapsuleDoc, traces: Sequence[TraceResult], *, stale: bool) ->
         # 不放行的话，"我们验证过你的接口是安全的"这句话永远无法被审计。
         return ReplayResult(ReplayStatus.FAILED, "verdict_not_reproducible", tuple(traces), {}, stale)
     live = _live_fingerprint(cap, traces)
-    holds = _fingerprint_holds(cap, live)
+    holds, missing = _fingerprint_verdict(cap, live)
 
     control = next((t for s, t in zip(cap.steps, traces) if s.role == "control"), None)
     if control is not None and (
@@ -693,6 +704,16 @@ def _classify(cap: CapsuleDoc, traces: Sequence[TraceResult], *, stale: bool) ->
     ):
         # 对照没跑成 = 结论未经检验，不能算 PARTIAL（06 §5.1.2 末两行）
         return ReplayResult(ReplayStatus.FAILED, "control_missing", tuple(traces), live, stale)
+    if missing:
+        # 重算不了 ≠ 被推翻。两者都还是 FAILED（六态是冻结的），但 reason 必须分开：
+        # 把"没算"读成"算出来是假的"，等于替证据背一个它没做过的判断。
+        return ReplayResult(
+            ReplayStatus.FAILED,
+            "predicate_not_recomputable:" + ",".join(missing),
+            tuple(traces),
+            live,
+            stale,
+        )
     if not holds:
         return ReplayResult(ReplayStatus.FAILED, "assertion_not_reproduced", tuple(traces), live, stale)
 

@@ -15,14 +15,18 @@ import pytest
 
 import capsule_fixture as F
 from veripen_core.evidence import (
+    AssertionBlock,
     CapsuleIncomplete,
     CapsuleTampered,
     ChainBroken,
+    ReplayEnv,
+    ReplayMode,
     assert_self_sha,
     chain_capsules,
     dumps_capsule,
     load_capsule,
     loads_capsule,
+    replay,
     route_block,
     save_capsule,
     seal_capsule_doc,
@@ -31,6 +35,7 @@ from veripen_core.evidence import (
     verify_self_sha,
 )
 from veripen_core.evidence import main as evidence_main
+from veripen_core.models import ReplayStatus
 
 
 # ── 1 内容寻址 ──────────────────────────────────────────────────────
@@ -174,6 +179,49 @@ def test_chain_reports_length_and_tip() -> None:
     assert report.head_sha256 == caps[0].chain.self_sha256
     assert report.tip_sha256 == caps[-1].chain.self_sha256
     assert report.root_sha256 == "0" * 64
+
+
+# ── 5b 重算不了 ≠ 被推翻（B151）────────────────────────────────────
+def _offline(cap):  # noqa: ANN001, ANN202
+    return replay(cap, ReplayEnv(now=0, mode=ReplayMode.OFFLINE))
+
+
+def test_replay_separates_not_recomputable_from_refuted() -> None:
+    """header 类断言（``fingerprint={"absent": true}``）重算不了。
+
+    早先它落 ``assertion_not_reproduced``——"断言未被复现"，读起来就是"结论被推翻"。
+    其实 replay 根本算不出 ``absent``（capsule 不存正文与响应头）。
+    现在两者分开：``predicate_not_recomputable:absent`` vs 算出来是假。
+    """
+    cap = F.capsule().model_copy(update={"assertion": AssertionBlock(
+        kind="csp_absent",
+        statement="响应里没有 CSP 头",
+        expected={"has_protection": [1]},
+        observed={"probe_has": False, "control_has": False},
+        fingerprint={"absent": True},
+    )})
+    result = _offline(seal_capsule_doc(cap))
+    assert result.state is ReplayStatus.FAILED
+    assert result.reason == "predicate_not_recomputable:absent"
+    assert result.fingerprint["probe_status_ok"] is True, "算得了的要算出来"
+
+
+def test_replay_still_reports_contradiction() -> None:
+    """算得出来的谓词为假 → 仍然是 ``assertion_not_reproduced``（不能被放宽）。
+
+    用 ``control_denied``：证据里对照是 403，而断言写着"对照**不该**被拒"——
+    这是真矛盾。离线重判必须红，且不能借用"重算不了"这个借口。
+    """
+    cap = F.capsule().model_copy(update={"assertion": AssertionBlock(
+        kind="idor_cross_account",
+        statement="对照不该被拒",
+        expected={},
+        observed={"control_status": 403},
+        fingerprint={"control_denied": False},
+    )})
+    result = _offline(seal_capsule_doc(cap))
+    assert result.state is ReplayStatus.FAILED
+    assert result.reason == "assertion_not_reproduced"
 
 
 # ── 6 脱敏与可分享性（06 §4 / 28 断言 7）───────────────────────────
