@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -295,6 +296,7 @@ def load_file(path: str | Path) -> ConsoleState:
     if not isinstance(record, Mapping):
         return ConsoleState()
     state = load_record(record)
+    _attach_capsule_paths(state, p.parent)
     ledger = _load_ledger(p.parent / LEDGER_NAME)
     if ledger:
         state.coverage = {**state.coverage, "ledger": ledger}
@@ -304,6 +306,29 @@ def load_file(path: str | Path) -> ConsoleState:
             if asset:
                 state.engagement = {**state.engagement, "asset": asset}
     return state
+
+
+def _attach_capsule_paths(state: ConsoleState, root: Path) -> None:
+    """把每行的证据文件路径补上（B157）。
+
+    控制台原来只显示 `capsule_id`，复现命令写成 `make replay ID=<finding_id>`——
+    而 `make replay` 要的是 **capsule 文件路径**，所以那条命令照抄必然报"载入失败"。
+    文件名来自内容寻址（`<self_sha256>.json`），所以这里只做**查找**，不做推断：
+    找不到就是 None，界面如实说"盘上没有"。
+    """
+    base = root / "capsules"
+    if not base.is_dir():
+        return
+    by_stem = {p.stem: p for p in base.rglob("*.json")}
+    if not by_stem:
+        return
+    rows = []
+    for row in state.findings:
+        stem = row.capsule_id.split(":")[-1] if row.capsule_id else ""
+        found = by_stem.get(stem)
+        # 正斜杠：命令要能跨 shell 粘（与报告里的路径口径一致，B153）
+        rows.append(replace(row, capsule_path=found.as_posix()) if found else row)
+    state.findings = tuple(rows)
 
 
 def summarize(state: ConsoleState) -> dict[str, Any]:

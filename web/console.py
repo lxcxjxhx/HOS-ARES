@@ -74,6 +74,8 @@ class Row:
     outcome: str = "reported"
     reason_code: str = ""
     capsule_id: str | None = None
+    #: 证据文件的实际路径（由 loader 解析；控制台只读它，不猜）。None = 盘上找不到。
+    capsule_path: str | None = None
 
     @property
     def route_short(self) -> str:
@@ -548,6 +550,14 @@ def build_app(
                 # 五段之五：capsule（有没有、能不能下）
                 "capsule": picked.capsule_id,
                 "capsule_present": picked.capsule_id is not None,
+                "capsule_path": picked.capsule_path,
+                # 复现命令必须**跑得通**（B157）：`make replay ID=` 要的是 capsule 文件，
+                # 而这里原来塞的是 finding_id——那条命令照抄必然报"载入失败"。
+                "repro": (
+                    f"veripen replay --capsule {picked.capsule_path} --mode offline"
+                    if picked.capsule_path else ""
+                ),
+                "repro_ok": picked.capsule_path is not None,
                 "replay": picked.replay_status,
             }
         if op == "ui.approvals":

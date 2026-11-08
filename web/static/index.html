@@ -459,7 +459,10 @@ function renderFinding(d) {
 
   wrap.append(section("⑤ 证据包 capsule",
     d.capsule_present
-      ? el("p", {}, el("code", {}, d.capsule), " ", el("span", { class: "muted" }, "（下载未接线）"))
+      ? el("p", {}, el("code", {}, d.capsule), " ",
+          d.repro_ok
+            ? el("code", {}, d.repro)
+            : el("span", { class: "muted" }, "（盘上找不到这份证据）"))
       : el("p", { class: "alert-red" }, "无证据包 —— 该结论不可复现")));
 
   return wrap;
