@@ -485,7 +485,10 @@ def render_markdown(report: ReportInput) -> str:
         w(f"- 证据：`capsule {f.capsule_id}` · `self_sha256 {sha_short}…` · replay `{f.replay_status}`")
         # 落盘文件名是**裸 hex**（`save_capsule` 用 self_sha256 命名），不是 `capsule_id`：
         # 用 `sha256:<hex>` 拼路径会得到一份不存在的文件，命令看着能跑、其实是死链（B149）。
-        w(f"- 复现：`veripen replay --capsule out/capsules/{f.self_sha256}.json`")
+        # `--mode offline` 必须写上：默认是 live，而 live 缺 RouteSet/transport 就拒跑，
+        # 照抄默认值只会得到 exit=1 的"需要注入"（B151）。
+        w(f"- 复现（离线重判）：`veripen replay --capsule out/capsules/{f.self_sha256}.json"
+          f" --mode offline` —— 判定能否由证据重算；**不重发请求**，不能读成「洞还在」")
         if f.impact:
             w(f"- 影响：{f.impact}")
         if f.advice:
@@ -506,6 +509,11 @@ def render_markdown(report: ReportInput) -> str:
     w("## 6. 附录")
     w("")
     w(f"`root_sha256[:12]` · {report.engagement} · {report.render_time} · {report.distribution}")
+    w("")
+    # 复现口径要写死：把"离线重判"当成"洞还在"是这类报告最常见的误读。
+    w("复现口径：`--mode offline` 只用证据里存的状态与 body 哈希重算判定（不重发请求）；"
+      "谓词重算不了时会明说 `predicate_not_recomputable`，那不是「结论被推翻」。"
+      "`--mode live` 需要注入 RouteSet 与 transport，缺件即拒（不假装跑过）。")
     return "\n".join(lines) + "\n"
 
 

@@ -135,17 +135,23 @@ def test_missing_route_ref_raises() -> None:
 
 
 def test_markdown_replay_path_points_at_real_file() -> None:
-    """复现命令必须指到真实文件名（裸 hex）：`save_capsule` 用 ``self_sha256`` 命名。
+    """复现命令必须**跑得通**：真实文件名（裸 hex）+ 能跑的模式。
 
     B149：这里原来用 ``capsule_id``（``sha256:<hex>``）拼路径，报告给出的是
-    ``out/capsules/sha256:<hex>.json``——一条谁也跑不通的命令。报告自称可复核，
-    复现命令却指向不存在的文件，等于把"你自己去验"变成空话。
+    ``out/capsules/sha256:<hex>.json``——一条谁也跑不通的命令。
+    B151：默认 ``--mode live`` 在 CLI 里是 fail-closed（要注入 RouteSet/transport），
+    照抄同样 exit=1。所以命令必须带 ``--mode offline``，并说明它不重发请求。
     """
     sha = "a" * 64
     md = render_markdown(_report(findings=[_f(capsule_id=f"sha256:{sha}", self_sha256=sha)]))
     line = next(ln for ln in md.splitlines() if "veripen replay --capsule" in ln)
     assert f"out/capsules/{sha}.json" in line
+    assert "--mode offline" in line
+    assert "不重发请求" in line
     assert "sha256:" not in line
+    # 附录写清两种模式各自能说什么，避免把离线重判读成"洞还在"
+    assert "--mode live" in md
+    assert "predicate_not_recomputable" in md
 
 
 # ── 3 弱绑定 + high → 抛错 ────────────────────────────────────────
