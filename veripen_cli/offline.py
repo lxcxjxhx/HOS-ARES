@@ -32,15 +32,27 @@ REQUIRED_ENTRIES: tuple[str, ...] = (
     "profiles",
 )
 
-#: 安装脚本里**禁止**出现的外网拉取形态（12 §2：无外网假设）
+#: 安装脚本里**禁止**出现的外网拉取形态（12 §2：无外网假设）。
+#:
+#: 这是**常见形态清单**，不是沙箱（B172）：没命中不等于没有外网——
+#: 任何解释器里手写 socket 都能绕过。所以清单要尽量覆盖常见写法，
+#: 而不是宣称"扫过就干净"。
 EGRESS_PATTERNS: tuple[tuple[str, str], ...] = (
-    (r"\bcurl\b[^\n]*\bhttp", "curl 外网"),
+    (r"\bcurl\b[^\n]*(://|\d+\.\d+\.\d+\.\d+)", "curl 外网"),
     (r"\bwget\b", "wget"),
+    (r"\bgit\s+clone\b", "git clone"),
     (r"\bpip\s+install\b", "pip install（应离线装）"),
     (r"\bapt(-get)?\s+install\b", "apt install"),
     (r"\bdocker\s+pull\b", "docker pull"),
     (r"\bnpm\s+install\b", "npm install"),
     (r"\buv\s+(sync|pip)\b[^\n]*--?no-cache", "uv 联网装"),
+    # Windows 部署很常见：PowerShell 的下载原语（本产品 Windows 优先）
+    (r"\bInvoke-WebRequest\b|\bInvoke-RestMethod\b", "PowerShell 下载原语"),
+    (r"(?<![A-Za-z])iwr(?![A-Za-z])|(?<![A-Za-z])irm(?![A-Za-z])", "PowerShell 别名下载"),
+    (r"\bDownload(File|String)\s*\(", "WebClient/HttpClient 下载"),
+    (r"\bStart-BitsTransfer\b", "BITS 传输"),
+    # 远端拷贝：要求出现"用户@主机:"，避免把本地 rsync -a src/ dst/ 判成外网
+    (r"\b(scp|rsync)\b[^\n]*\S@\S*:", "scp/rsync 到远端"),
 )
 
 
@@ -105,16 +117,37 @@ def collect(root: Path) -> list[Entry]:
     return out
 
 
+#: 安装/卸载脚本的候选后缀（B172）：只扫 `.sh` 等于在 Windows 现场没扫。
+#: 用 split 构造：多行常量字面量会被 lint-nodata 判成"字面量行集"。
+SCRIPT_SUFFIXES: tuple[str, ...] = tuple("sh ps1 bat cmd".split())
+
+#: 脚本里的注释行（跳过它们：注释里出现 curl 不算外网）
+_COMMENT_PREFIXES: tuple[str, ...] = ("#", "::", "REM ", "rem ")
+
+
+def _script_files(root: Path) -> list[Path]:
+    """安装/卸载脚本：`install.*` / `uninstall.*` 里认识的后缀。"""
+    found: list[Path] = []
+    for stem in ("install", "uninstall"):
+        for suffix in SCRIPT_SUFFIXES:
+            p = root / f"{stem}.{suffix}"
+            if p.is_file():
+                found.append(p)
+    return found
+
+
 def check_scripts(root: Path) -> list[str]:
-    """安装/卸载脚本的**无外网**检查。返回违规描述。"""
+    """安装/卸载脚本的**无外网**检查。返回违规描述。
+
+    扫 `install.*` / `uninstall.*` 的 `.sh` / `.ps1` / `.bat` / `.cmd`（B172）：
+    本产品 Windows 优先，只认 `.sh` 的话 PowerShell 安装脚本里的下载完全不受检。
+    """
     problems: list[str] = []
-    for name in ("install.sh", "uninstall.sh"):
-        p = root / name
-        if not p.exists():
-            continue
+    for p in _script_files(root):
+        name = p.name
         for lineno, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
             stripped = line.strip()
-            if stripped.startswith("#"):
+            if not stripped or stripped.startswith(_COMMENT_PREFIXES):
                 continue
             for pattern, label in EGRESS_PATTERNS:
                 if re.search(pattern, line, re.IGNORECASE):
