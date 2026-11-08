@@ -318,6 +318,43 @@ class RunResult:
         return {} if self.judgement is None else dict(self.judgement.assertion)
 
 
+def unmet_requirements(
+    oracle: Any, *, token: str | None = None, oob: Any = None, approval: Any = None
+) -> list[str]:
+    """oracle 声明的 `requires` 里，这一轮**满足不了**的那些（B173）。
+
+    规格三处写着"缺 requires 则 BLOCKED"（07 §300/§321、01 §140、18 §107），
+    但仓里从来没有执行点——于是缺第二身份时 oracle 照样跑，最后落
+    `baseline_abnormal` 之类的 reason，读者分不清"目标没问题"与"我缺输入"。
+
+    这里只做**判定**，不决定要不要 BLOCKED：是否执行由调用方给
+    `strict_requires`。默认关，所以行为不变（bench 的 44 个用例不受影响）。
+
+    满足表（保守）：
+      * `auth:primary` / `token:real` —— 有主身份 token
+      * `auth:secondary` —— 当前 CLI 没有第二身份入口，一律不满足
+      * `oob:listener` —— 调用方给了 OOB 通道
+      * `approval:*` —— 调用方给了审批句柄
+      * **未知前缀一律按不满足处理**（fail-closed）：宁可少判，不可假判
+    """
+    have = {
+        "auth:primary": token is not None,
+        "auth:secondary": False,
+        "token:real": token is not None,
+        "oob:listener": oob is not None,
+    }
+    declared = list(getattr(getattr(oracle, "meta", None), "requires", ()) or ())
+    missing: list[str] = []
+    for req in declared:
+        if req.startswith("approval:"):
+            ok = approval is not None
+        else:
+            ok = bool(have.get(req, False))
+        if not ok:
+            missing.append(str(req))
+    return missing
+
+
 def run(
     oracle: Any,
     binding: Any,
@@ -328,8 +365,19 @@ def run(
     repeat: int | None = None,
     token: str | None = None,
     bindings: Mapping[str, Any] | None = None,
+    strict_requires: bool = False,
+    oob: Any = None,
+    approval: Any = None,
 ) -> RunResult:
-    """14 类共用的流程。五处由框架做，oracle 不许绕过。"""
+    """14 类共用的流程。五处由框架做，oracle 不许绕过。
+
+    ``strict_requires=True`` 时，缺 `requires` 的 oracle **一个请求都不发**就返回
+    BLOCKED（reason ``missing_input:<req>``）。默认关：默认不变，bench 不受影响。
+    """
+    if strict_requires:
+        missing = unmet_requirements(oracle, token=token, oob=oob, approval=approval)
+        if missing:
+            return RunResult(Verdict.BLOCKED, f"missing_input:{missing[0]}", None, ())
     symbols = symbols or SymbolTable()
     nonce_obj = Nonce(nonce)
     # tag → binding；主绑定是 oracle 第一个 selector 标签
