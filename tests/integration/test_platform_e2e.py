@@ -175,6 +175,25 @@ def test_report_says_when_no_credential(monkeypatch: pytest.MonkeyPatch, tmp_pat
     assert "凭据：未提供" in report, "没凭据要说出来，否则读者不知道为什么一堆 BLOCKED"
 
 
+# ── H：汇总里必须有覆盖分母（B164）──────────────────────────────
+def test_report_shows_coverage_with_denominator(two_assets: Any, tmp_path: Path) -> None:
+    """单资产报告有覆盖一节，平台汇总原来没有——"2 条结论"会被读成"只测了 2 项"。"""
+    a, b = two_assets
+    assert _run(tmp_path, f"{a.base_url},{b.base_url}") == 0
+    report = (tmp_path / "pf" / "platform-report.md").read_text(encoding="utf-8")
+    assert "- 覆盖合计：已判定 **" in report
+    assert "| 覆盖（面） | 缺口 |" in report
+
+    covs = [json.loads((tmp_path / "pf" / f"asset-{i}" / "coverage.json")
+                       .read_text(encoding="utf-8")) for i in (1, 2)]
+    faces = sum(int(c["summary"]["faces"]) for c in covs)
+    covered = sum(int(c["summary"]["faces_covered"]) for c in covs)
+    assert f"- 覆盖合计：已判定 **{covered}**/{faces} 面" in report
+    s = covs[0]["summary"]
+    assert f"覆盖：{s['faces_covered']}/{s['faces']} 面" in report
+    assert f"缺口 {s['gaps']}（critical" in report, "缺口要带分档"
+
+
 # ── A：多资产 + 汇总报告 ──────────────────────────────────────
 def test_multi_asset_report(two_assets: Any, tmp_path: Path) -> None:
     a, b = two_assets
