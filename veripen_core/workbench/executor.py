@@ -33,7 +33,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from ..tools.registry import bound_and_store
 
@@ -71,19 +71,26 @@ def make_subprocess_executor(
     """
 
     def _run(script: str, interp: str, cwd: str, timeout_s: int, env: Mapping[str, str]) -> tuple[int, str, str]:
+        shell_run = False
         if interp in ("python", "python3"):
             argv = [interp, "-c", script]
         elif sys.platform == "win32" and interp in ("cmd", "cmd.exe"):
             # Windows 的 cmd 没有 -lc：只认 /c。不特判会让 "执行 python -V"
             # 这类命令在 Windows 上永远 exit=1（B77 实测）。
-            argv = ["cmd", chr(0x2F) + "c", script]
+            #
+            # 而且必须**整行交给 shell**（B169）：用 argv 形式（cmd 加开关再加脚本）时
+            # Python 的 list2cmdline 会把内层引号转成反斜杠形式，cmd 不认这种转义——
+            # `python -c "print(1)"` 会**静默返回 exit=0 且空输出**。shell 形式把整行
+            # 原样交给 cmd，引号语义与用户手敲一致。
+            argv = [script]
+            shell_run = True
         else:
             argv = [interp, "-lc", script]
         proc_env = dict(base_env or {})
         proc_env.update({k: v for k, v in env.items() if v})
         try:
             code, out_s, err_s = _popen_run(
-                argv, cwd=cwd, env=proc_env or None, timeout_s=timeout_s
+                argv, cwd=cwd, env=proc_env or None, timeout_s=timeout_s, shell=shell_run
             )
             return code, out_s[:max_output_bytes], err_s[:max_output_bytes]
         except FileNotFoundError as exc:
@@ -93,7 +100,8 @@ def make_subprocess_executor(
 
 
 def _popen_run(
-    argv: Sequence[str], *, cwd: str | None, env: Mapping[str, str] | None, timeout_s: int
+    argv: Sequence[str], *, cwd: str | None, env: Mapping[str, str] | None, timeout_s: int,
+    shell: bool = False,
 ) -> tuple[int, str, str]:
     """起子进程并等待；超时时**整组回收**。
 
@@ -104,14 +112,16 @@ def _popen_run(
     **这不是沙箱隔离。** 进程组只解决"杀不干净"，不解决"能访问什么"——
     容器/命名空间隔离需要 docker 或 WSL，本机都没有（见账本 B20 open）。
     """
-    args = list(argv)
+    # shell 形式必须传**字符串**：传 `["python -V"]` 会被 list2cmdline 整体加引号，
+    # cmd 于是去找一个叫 `python -V` 的程序（B169 实测）。
+    args: Any = argv[0] if shell else list(argv)
     cwd_v = cwd or None
     env_v = dict(env) if env else None
 
     if sys.platform == "win32":
         flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         proc = subprocess.Popen(  # noqa: S603 - argv 数组，无 shell
-            args, cwd=cwd_v, env=env_v,
+            args, cwd=cwd_v, env=env_v, shell=shell,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             creationflags=flags,
         )

@@ -70,9 +70,10 @@ def _do_edit(wb: Workbench, arg: str) -> tuple[bool, str]:
 def _do_sh(root: Path, arg: str) -> tuple[bool, str]:
     if not arg:
         return False, "用法：sh <命令>"
-    interp = "python" if "python" in arg.split(" ")[0] else (
-        "cmd" if sys.platform == "win32" else "sh"
-    )
+    # `sh` 就是"跑一条命令"：解释器由系统 shell 决定，**不按首词猜**（B169）。
+    # 早先首词含 python 就把整行塞进 `python -c`，于是 `sh python -V` 变成
+    # `python -c "python -V"`，必然 SyntaxError——工具看着能跑，其实跑不了。
+    interp = "cmd" if sys.platform == "win32" else "sh"
     runner = make_subprocess_executor()
     code, out, err = runner(arg, interp, str(root), 30, {})
     text = (out or err or "").strip().replace("\n", " ⏎ ")[:200]
