@@ -485,13 +485,16 @@ def main(argv: list[str] | None = None) -> int:
     from veripen.bench.capsule import build_capsule
 
     docs: list[CapsuleDoc] = []
-    index_of: dict[str, CapsuleDoc] = {}
+    #: 键是 `(oracle, 面)`：只按 oracle 记会让后一个面覆盖前一个，
+    #: 结果是"面 A 的发现引用面 B 的证据"（B148）。
+    index_of: dict[tuple[str, str], CapsuleDoc] = {}
     for oracle_id, meta, result, binding in results:
         if str(getattr(result.verdict, "value", result.verdict)) != "VERIFIED":
             continue
+        face_ref = str(getattr(binding, "ref", ""))
         try:
             doc = build_capsule(
-                case_id=f"run-{oracle_id}",
+                case_id=f"run-{oracle_id}-{_ref_tail(binding)}",
                 oracle_id=oracle_id,
                 oracle_version=str(_meta(meta, "version", "1")),
                 verdict=result.verdict,
@@ -499,7 +502,7 @@ def main(argv: list[str] | None = None) -> int:
                 pairs=result.pairs,
                 baseline_params=result.baseline_params,
                 routeset=routeset,
-                route_ref=str(getattr(binding, "ref", "")),
+                route_ref=face_ref,
                 binding=binding,
                 cwe=str(_meta(meta, "cwe", "")),
                 created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -508,12 +511,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  证据构造失败 {oracle_id}：{type(exc).__name__}: {str(exc)[:60]}")
             continue
         docs.append(doc)
-        index_of[oracle_id] = doc
+        index_of[(oracle_id, face_ref)] = doc
 
     sealed = chain_capsules(docs) if docs else []
     for cap in sealed:
         save_capsule(cap, capsules_dir)
-        index_of[cap.oracle.id] = cap
+        # 用**封印后 capsule 自己的** `route.ref` 回填：它记录的就是这一面的路由
+        cap_ref = str(getattr(getattr(cap, "route", None), "ref", ""))
+        index_of[(cap.oracle.id, cap_ref)] = cap
 
     # ── 报告 ────────────────────────────────────────────────────
     from veripen.report.render import ReportInput, render_json, render_markdown
@@ -521,7 +526,8 @@ def main(argv: list[str] | None = None) -> int:
     views = [
         _findings_view(
             asset_id=host, oracle_id=oid, meta=meta, result=res,
-            binding=binding, capsule=index_of.get(oid),
+            binding=binding,
+            capsule=index_of.get((oid, str(getattr(binding, "ref", "")))),
         )
         for oid, meta, res, binding in results
     ]

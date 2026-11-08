@@ -61,3 +61,56 @@ def test_every_applicable_face_is_run(tmp_path) -> None:  # noqa: ANN001
     cov = json.loads((tmp_path / "run" / "coverage.json").read_text(encoding="utf-8"))
     assert cov["summary"]["executed"] >= 4, cov["summary"]
     assert cov["summary"]["faces_covered"] >= 2, cov["summary"]
+
+
+# ── B148：证据必须绑面，不许两个面共用一份 capsule ────────────────
+def test_each_face_gets_its_own_capsule(tmp_path) -> None:  # noqa: ANN001
+    """同一 oracle 在多个面上 VERIFIED 时，每条都要有自己的 capsule。
+
+    修前 `index_of` 只按 oracle 建索引，后一个面覆盖前一个，
+    于是"面 A 的发现"引用了"面 B 的证据"——replay 会验到错的那一面。
+    """
+    srv = HTTPServer((LOOPBACK, 0), _H)
+    port = srv.server_address[1]
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    out = tmp_path / "run"
+    try:
+        from veripen_cli.cmd_run import main
+
+        main([
+            "--target", HTTP + f"{LOOPBACK}:{port}",
+            "--discover", "--discover-rounds", "2", "--discover-pages", "8",
+            "--out", str(out),
+        ])
+    finally:
+        srv.shutdown()
+
+    doc = json.loads((out / "findings.json").read_text(encoding="utf-8"))
+    reported = [f for f in doc["findings"] if f.get("outcome") == "reported"]
+    assert len(reported) >= 2, "这条用例要至少两个面才有意义"
+
+    pairs = {}
+    for f in reported:
+        ev = f.get("evidence") or {}
+        cid = ev.get("capsule_id")
+        assert cid, f"{f['id']} 没有 capsule"
+        pairs[f["id"]] = cid
+
+    # 同一 oracle 的两个面：capsule 必须不同
+    by_oracle: dict[str, set[str]] = {}
+    for f in reported:
+        by_oracle.setdefault(str(f["oracle"]), set()).add(
+            str((f.get("evidence") or {}).get("capsule_id"))
+        )
+    for oracle, ids in by_oracle.items():
+        faces = sum(1 for f in reported if f["oracle"] == oracle)
+        assert len(ids) == faces, f"{oracle} 有 {faces} 个面却只有 {len(ids)} 份 capsule"
+
+    # 并且每份 capsule 的 route.ref 要与它自己的面一致
+    from veripen_core.evidence import load_capsule
+
+    for f in reported:
+        cid = str((f.get("evidence") or {}).get("capsule_id"))
+        path = out / "capsules" / (cid.split(":")[-1] + ".json")
+        cap = load_capsule(str(path))
+        assert str(cap.route.ref) == str((f.get("route") or {}).get("ref")), f["id"]
