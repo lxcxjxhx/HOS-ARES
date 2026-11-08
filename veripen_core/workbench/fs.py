@@ -97,6 +97,8 @@ class WriteResult:
     path: str
     bytes_written: int
     created: bool
+    #: 覆盖前的字节数；新建时为 None（B170）。账本据此能说清"换掉了多大的文件"。
+    bytes_before: int | None = None
 
 
 @dataclass(frozen=True)
@@ -142,9 +144,12 @@ class Workbench:
         data = content.encode("utf-8")
         if len(data) > MAX_WRITE_BYTES:
             raise FsError(f"内容 {len(data)} 字节 > 上限 {MAX_WRITE_BYTES}")
+        before = p.stat().st_size if exists else None
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes(data)
-        return WriteResult(path=rel, bytes_written=len(data), created=not exists)
+        return WriteResult(
+            path=rel, bytes_written=len(data), created=not exists, bytes_before=before
+        )
 
     # ── 改 ──────────────────────────────────────────────────────
     def edit(self, rel: str, *, old: str, new: str, expect_count: int = 1) -> EditResult:
