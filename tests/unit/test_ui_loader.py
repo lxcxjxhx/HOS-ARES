@@ -258,7 +258,41 @@ def test_same_oracle_on_two_faces_gets_two_ids() -> None:
 
 
 def test_no_fabricated_capsule_id() -> None:
-    """hunt 不封 capsule，控制台就不能给出一个指向不存在 capsule 的 id。"""
+    """没有证据列表时，控制台不许给出一个指向不存在 capsule 的 id。"""
+    from web.loader import load_record
+
+    state = load_record(_hunt([_face("csp_absent", "VERIFIED", "aa" * 8)]))
+    assert state.findings[0].capsule_id is None
+
+
+# ── B155：hunt 真的封了 capsule 之后，控制台要显示**那一面**的那份 ──
+def _evidence(oracle: str, tail: str, cid: str) -> dict:
+    return {"oracle": oracle, "route_ref": "route://crawl/" + tail, "capsule_id": cid}
+
+
+def test_hunt_evidence_shows_up_on_the_right_face() -> None:
+    """同一个 oracle 两个面各有一份：按面取，别按 oracle 取最后一份。
+
+    按 oracle 建索引会让两条 finding 都显示后一份——"面 A 的发现引用面 B 的证据"，
+    B148 在报告侧修过，这里在控制台侧再钉一次。
+    """
+    from web.loader import load_record
+
+    record = _hunt(
+        [_face("csp_absent", "VERIFIED", "aa" * 8), _face("csp_absent", "VERIFIED", "bb" * 8)],
+    )
+    record["evidence"] = [
+        _evidence("csp_absent", "aa" * 8, "sha256:" + "1" * 64),
+        _evidence("csp_absent", "bb" * 8, "sha256:" + "2" * 64),
+    ]
+    state = load_record(record)
+    by_ref = {r.route_ref: r.capsule_id for r in state.findings}
+    assert by_ref["route://crawl/" + "aa" * 8] == "sha256:" + "1" * 64
+    assert by_ref["route://crawl/" + "bb" * 8] == "sha256:" + "2" * 64
+
+
+def test_hunt_without_evidence_stays_none() -> None:
+    """`evidence` 为空（老产物 / 全 BLOCKED）→ 仍然是 None，不编。"""
     from web.loader import load_record
 
     state = load_record(_hunt([_face("csp_absent", "VERIFIED", "aa" * 8)]))
