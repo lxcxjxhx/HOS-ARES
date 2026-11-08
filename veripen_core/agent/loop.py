@@ -394,7 +394,14 @@ class Loop:
             verdict = str(result.data.get("verdict") or "")
             oracle_id = str(call.args.get("oracle_id") or "")
             if oracle_id and verdict:
-                self.verdicts[oracle_id] = verdict
+                # 一个 oracle 可能跑多条面：**任何一条面 VERIFIED，这个 oracle 就是 VERIFIED**（B156）。
+                # 早先是后一条面直接覆盖，于是"A 面判成立、B 面判否"之后汇总里这条洞就没了——
+                # 而控制台按面看仍然显示 1 条 reported，两个出口对不上。
+                # 反向（先否后成立）本来就对，不必改。
+                if self.verdicts.get(oracle_id) != Verdict.VERIFIED.value or (
+                    verdict == Verdict.VERIFIED.value
+                ):
+                    self.verdicts[oracle_id] = verdict
         return result
 
     def _facts_from(self, call: ToolCall, result: ToolResult) -> int:

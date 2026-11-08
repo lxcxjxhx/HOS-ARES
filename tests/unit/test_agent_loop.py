@@ -309,3 +309,54 @@ def test_tool_calls_per_step_is_one() -> None:
 def test_disabled_oracle_blocked_at_startup() -> None:
     decision = policy.check_enabled(list(ORACLE_MAP))
     assert "mass_assignment" in decision.blocked
+
+
+# ── 8 多面结论合并：任何一面成立，这个 oracle 就成立（B156）──────────
+class _VerdictRuntime:
+    """按预设顺序回 verdict 的最小 runtime：只测合并，不跑判定。"""
+
+    def __init__(self, verdicts: list[str]) -> None:
+        self.queue = list(verdicts)
+        self.calls = 0
+
+    def run_oracle(self, oracle_id: str, route_ref: str, params: object) -> dict[str, object]:
+        self.calls += 1
+        return {"verdict": self.queue.pop(0), "reason": "test", "route_strength": "contract"}
+
+    def list_assets(self) -> list[dict[str, str]]:
+        return []
+
+    def list_routes(self, selector: str | None) -> list[dict[str, str]]:
+        return []
+
+
+def _run_two_faces(verdicts: list[str]) -> dict[str, str]:
+    from veripen_core.tools.registry import ToolCall
+
+    loop = Loop(runtime=_VerdictRuntime(verdicts), decider=object(), goal="g", max_steps=5)
+    call = ToolCall("run_oracle", {"oracle_id": "sqli_bool_diff", "route_ref": ""})
+    loop._dispatch(call)  # noqa: SLF001 —— 合并逻辑就在这里，直接测它
+    loop._dispatch(call)  # noqa: SLF001
+    return loop.verdicts
+
+
+def test_verified_face_is_not_erased_by_a_later_refuted_face() -> None:
+    """A 面判成立、B 面判否 → 这个 oracle 仍然成立。
+
+    修前是"后一条面说了算"：B 面判否之后，hunt 汇总里的这条洞消失，
+    而控制台按面看仍显示 1 条 reported——同一份数据两个出口对不上。
+    """
+    assert _run_two_faces(["VERIFIED", "REFUTED"])["sqli_bool_diff"] == "VERIFIED"
+
+
+def test_verified_face_survives_a_later_blocked_face() -> None:
+    assert _run_two_faces(["VERIFIED", "BLOCKED"])["sqli_bool_diff"] == "VERIFIED"
+
+
+def test_later_verified_still_wins() -> None:
+    assert _run_two_faces(["REFUTED", "VERIFIED"])["sqli_bool_diff"] == "VERIFIED"
+
+
+def test_refuted_then_blocked_still_reports_blocked() -> None:
+    """只有 VERIFIED 是粘的：没成立的结论仍按后一条面记（不替它升级）。"""
+    assert _run_two_faces(["REFUTED", "BLOCKED"])["sqli_bool_diff"] == "BLOCKED"
