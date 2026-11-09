@@ -159,6 +159,21 @@ def compress(
     text = NL.join(part for part in parts if part)
     after = estimate_tokens(text) if text.strip() else 0
 
+    if summarize and before and after >= before:
+        # 压不动就别压（B177）：小输入摊成带表头的摘要只会更贵。
+        # 原样返回并如实标 passthrough——"压缩"交出比输入更大的东西，不是压缩。
+        return Compressed(
+            facts=fact_lines,
+            steps=step_lines,
+            evidence=capsule_list,
+            text=before_text,
+            tokens_before=before,
+            tokens_after=before,
+            verdicts_fingerprint=verdict_fingerprint(verdicts),
+            mode="passthrough",
+            dropped={},
+        )
+
     return Compressed(
         facts=fact_lines,
         steps=step_lines,
