@@ -26,6 +26,7 @@ python scripts/verify.py --only mypy,lint-noroute
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -33,8 +34,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
+#: 控制台不一定是 UTF-8（GitHub 的 Windows runner 是 cp1252）：先钉死编码，
+#: 否则打印中文本身就是一次崩溃（CI 实跑抓到）。
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+    except (AttributeError, ValueError):  # pragma: no cover - 老 Python/被重定向
+        pass
+
 ROOT = Path(__file__).resolve().parents[1]
 PY = sys.executable
+
+MYPP_TARGETS = ("veripen_core/", "worker/", "veripen_oracles/", "veripen/", "veripen_cli/", "web/")
 
 
 @dataclass(frozen=True)
@@ -51,10 +62,14 @@ def _py(*args: str) -> tuple[str, ...]:
     return (PY, *args)
 
 
+def _mypy_argv() -> tuple[str, ...]:
+    """mypy 命令。**不按平台裁剪**：CI 就是为了看两边是否一致（B200）。"""
+    return (PY, "-m", "mypy", "--strict", *MYPP_TARGETS)
+
+
 #: 闸门清单。**加一道闸门就加一行**——CI 与本地都从这里读。
 GATES: tuple[Gate, ...] = (
-    Gate("mypy", _py("-m", "mypy", "--strict", "veripen_core/", "worker/",
-                     "veripen_oracles/", "veripen/", "veripen_cli/", "web/")),
+    Gate("mypy", _mypy_argv()),
     Gate("lint-noroute", _py("scripts/lint/noroute.py")),
     Gate("lint-nodata", _py("scripts/lint/nodata_stub.py")),
     Gate("lint-ui", _py("scripts/lint/ui_zero_address.py")),
@@ -91,13 +106,20 @@ def run_gate(gate: Gate, *, runner=None) -> tuple[str, str]:
 
 
 def _default_runner(argv: Sequence[str]) -> tuple[int, str]:
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
     proc = subprocess.run(  # noqa: S603 - 命令来自上面的常量清单
         list(argv), cwd=str(ROOT), capture_output=True, text=True,
-        encoding="utf-8", errors="replace",
+        encoding="utf-8", errors="replace", env=env,
     )
     out = (proc.stdout or "") + (proc.stderr or "")
     lines = [ln for ln in out.strip().splitlines() if ln.strip()]
-    return proc.returncode, lines[-1][:160] if lines else ""
+    if not lines:
+        return proc.returncode, ""
+    if proc.returncode == 0:
+        return proc.returncode, lines[-1][:160]
+    # 失败时末行往往只是汇总（"Found 12 errors"）：前几行才是可行动的信息
+    head = [ln[:200] for ln in lines[:6]]
+    return proc.returncode, " ⏎ ".join(head)
 
 
 def select(only: str, with_tests: bool) -> list[Gate]:
