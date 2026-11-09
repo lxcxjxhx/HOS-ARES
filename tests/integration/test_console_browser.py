@@ -100,7 +100,7 @@ def test_console_page_runs_in_a_real_browser(tmp_path: Path) -> None:
 
 
 # ── 平台（多资产）页面也在真浏览器里跑一遍（B182）───────────────
-def _asset_dir(root: Path, name: str, oracle: str) -> None:
+def _asset_dir(root: Path, name: str, oracle: str, *, outcome: str = "reported") -> None:
     sub = root / name
     sub.mkdir(parents=True, exist_ok=True)
     doc = {
@@ -114,12 +114,13 @@ def _asset_dir(root: Path, name: str, oracle: str) -> None:
                 "oracle": oracle,
                 "asset": name,
                 "verdict": "VERIFIED",
-                "outcome": "reported",
+                "outcome": outcome,
                 "severity": "high",
                 "title": f"{name} 的发现",
                 "route_ref": "route-" + name,
                 "route_strength": "strong",
                 "confidence": 0.95,
+                "reason_code": "" if outcome == "reported" else "missing_input:auth:secondary",
                 "capsule_id": "cap-" + name,
             }
         ],
@@ -178,3 +179,26 @@ def test_findings_page_filters_by_asset(tmp_path: Path) -> None:
     # 平台加载器会把 id 改成 `asset-N/F-00k`（撞 id 就串页，B160）
     assert 'data-id="asset-2/F-001"' in page, "筛到 asset-2 后它自己的行必须还在"
     assert 'data-id="asset-1/F-001"' not in page, "筛到 asset-2 后别的资产的行不该出现"
+
+
+def test_unverified_page_scopes_counts_to_the_asset(tmp_path: Path) -> None:
+    """筛到某个资产后，"未验证几条"必须按本资产说，并同时给出全局数（B184）。"""
+    root = tmp_path / "pf"
+    _asset_dir(root, "asset-1", "csp_absent", outcome="undetermined")
+    _asset_dir(root, "asset-2", "xss_dom", outcome="undetermined")
+
+    proc = subprocess.run(
+        [sys.executable, str(DRIVER), str(root), "unverified?asset=asset-1"],
+        capture_output=True, text=True, encoding="utf-8", timeout=300,
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+    )
+    out = proc.stdout or ""
+    assert proc.returncode == 0, (out + (proc.stderr or ""))[-1500:]
+
+    marker = "===== page unverified?asset=asset-1 ====="
+    assert marker in out, out[:400]
+    page = out.split(marker, 1)[1].split("----- overview -----", 1)[0]
+    assert 'id="asset"' in page, "多资产时该画出资产筛选器"
+    assert "本资产 1 条 / 全局 2 条" in page, page[-1500:]
+    assert "asset-1/F-001" in page, "筛到 asset-1 后它自己的未验证行必须还在"
+    assert "asset-2/F-001" not in page, "筛到 asset-1 后别的资产的行不该出现"
