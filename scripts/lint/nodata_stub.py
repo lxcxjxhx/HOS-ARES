@@ -18,7 +18,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SCAN_DIRS = ("veripen_core", "veripen_oracles", "veripen_contract", "api", "worker", "web", "tests")
 CFG_EXT = {".py", ".yaml", ".yml", ".json"}
-BANNED = re.compile(r"\b(mock|stub|fake|dummy)\b", re.IGNORECASE)
+#: 产品代码里的禁用词：标识符里**出现即算**（`FakeTransport` / `fake_runner` 都要抓）。
+#: 原来用 `\b(mock|stub|fake|dummy)\b`——它只匹配**独立整词**，而真实命名几乎
+#: 都是 `FakeXxx` / `xxx_stub` 这种复合形式，于是一条都没抓到过（B194）。
+BANNED = re.compile(r"(?<![A-Za-z])(mock|stub|fake|dummy)", re.IGNORECASE)
+#: 测试代码只在**整词**时算问题：`_fake_run` 这种测试替身名字是本任务的一部分，
+#: 而 `def fake(...)` 那种遮掩式命名仍然拦。
 RANDOM = re.compile(r"random\.(choice|randint|random)\(")
 MIN_ROWS = 5
 
@@ -32,14 +37,29 @@ def _files() -> list[Path]:
     return sorted(out)
 
 
+#: 这些目录算"产品代码"，用严格口径（复合标识符也算）
+PRODUCT_DIRS = ("veripen_core", "veripen_oracles", "veripen_contract", "api", "worker", "web")
+#: 测试代码的整词口径
+BANNED_WORD = re.compile(r"\b(mock|stub|fake|dummy)\b", re.IGNORECASE)
+
+
+def _is_product_file(p: Path) -> bool:
+    try:
+        rel = p.resolve().relative_to(ROOT).as_posix()
+    except ValueError:
+        return False
+    return any(rel.startswith(d + "/") for d in PRODUCT_DIRS)
+
+
 def _check_banned(files: list[Path]) -> list[str]:
     problems: list[str] = []
     me = Path(__file__).resolve()
     for p in files:
         if p.suffix not in CFG_EXT or p.resolve() == me:
             continue
+        pattern = BANNED if _is_product_file(p) else BANNED_WORD
         for i, line in enumerate(p.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
-            if BANNED.search(line):
+            if pattern.search(line):
                 problems.append(f"{p.relative_to(ROOT).as_posix()}:{i}: 禁用词: {line.strip()[:100]}")
     return problems
 
