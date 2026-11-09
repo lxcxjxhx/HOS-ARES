@@ -66,6 +66,8 @@ class Profile:
     qps: float
     concurrency: int
     frameworks: tuple[str, ...]
+    #: 报告分发级别（B197）：档里写了 `report.distribution`，原来**根本不解析**
+    distribution: str = "internal"
     #: 影响顶棚（B187）：档里写 `policy.max_impact_class`，原来根本没人读
     max_impact: str = "read_only"
     deny: tuple[str, ...] = ()
@@ -103,7 +105,8 @@ class Profile:
             },
             "policy": {"qps": self.qps, "concurrency": self.concurrency,
                        "max_impact_class": self.max_impact},
-            "report": {"frameworks": sorted(self.frameworks)},
+            "report": {"frameworks": sorted(self.frameworks),
+                       "distribution": self.distribution},
         }
         assets = sorted(
             a.resolved_hash((resolved or {}).get(a.id, a.symbol)) for a in self.assets
@@ -195,6 +198,7 @@ def load_profile(path: str | Path) -> Profile:
         concurrency=int(policy.get("concurrency") or 1),
         max_impact=str(policy.get("max_impact_class") or "read_only"),
         frameworks=tuple(report.get("frameworks") or ()),
+        distribution=str(report.get("distribution") or "internal"),
         deny=tuple(scope.get("deny") or ()),
         asset_env={a.id: f"VP_ASSET_{a.id.upper().replace('-', '_')}" for a in assets},
     )
@@ -229,6 +233,11 @@ def validate_profile(
     if bad_tags:
         issues.append(ValidationIssue("fail", "unknown_tag", f"标签不在字典里：{bad_tags}"))
 
+    if profile.distribution not in ("internal", "partner", "customer"):
+        issues.append(ValidationIssue(
+            "fail", "distribution_unknown",
+            f"report.distribution 只能是 internal / partner / customer，收到 {profile.distribution!r}",
+        ))
     if profile.max_impact not in ("read_only", "reversible_write"):
         issues.append(ValidationIssue(
             "fail", "max_impact_unknown",
