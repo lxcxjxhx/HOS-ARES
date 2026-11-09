@@ -190,13 +190,24 @@ def rollup(rows: Sequence[Row]) -> list[Row]:
 # ══════════════════════════════════════════════════════════════════
 # 视图投影
 # ══════════════════════════════════════════════════════════════════
-def findings_view(rows: Sequence[Row], *, include_low: bool = False) -> dict[str, Any]:
+def findings_view(rows: Sequence[Row], *, include_low: bool = False,
+                  asset: str = "") -> dict[str, Any]:
+    """结论表（B183：平台多资产时按资产筛）。
+
+    `asset` 为空 = 不限。返回里带 `assets`（本数据集里出现过的资产名），
+    页面据此决定要不要画筛选器——**没有第二个资产时不该画**，那只是噪声。
+    """
     ordered = order_rows(rollup(rows))
     verified = [r for r in ordered if r.verdict == "verified"]
     visible = [r for r in verified if include_low or r.queue is not Queue.LOW]
+    assets = sorted({r.asset_id for r in ordered if r.asset_id})
+    if asset:
+        visible = [r for r in visible if r.asset_id == asset]
     return {
         "total": len(rows),
         "shown": len(visible),
+        "asset": asset,
+        "assets": assets,
         "collapsed_low": sum(1 for r in verified if r.queue is Queue.LOW and not include_low),
         "unverified": sum(1 for r in ordered if r.verdict != "verified"),
         "queues": {q.value: sum(1 for r in ordered if r.queue is q) for q in Queue},
@@ -476,7 +487,9 @@ def build_app(
     def _payload(op: str, query: Mapping[str, str] | None = None) -> Any:
         if op == "ui.findings":
             # low=1 才把"低优先"展开（默认折叠，22 §3）；未验证行怎么都不会出现在这里
-            return findings_view(state.findings, include_low=(query or {}).get("low") == "1")
+            q = query or {}
+            return findings_view(state.findings, include_low=q.get("low") == "1",
+                                 asset=q.get("asset", ""))
         if op == "ui.routes":
             return routes_view(state.bindings)
         if op == "ui.bounds":

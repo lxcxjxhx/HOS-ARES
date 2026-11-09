@@ -117,6 +117,9 @@ def _asset_dir(root: Path, name: str, oracle: str) -> None:
                 "outcome": "reported",
                 "severity": "high",
                 "title": f"{name} 的发现",
+                "route_ref": "route-" + name,
+                "route_strength": "strong",
+                "confidence": 0.95,
                 "capsule_id": "cap-" + name,
             }
         ],
@@ -141,7 +144,7 @@ def test_platform_console_renders_the_merged_ledger(tmp_path: Path) -> None:
     _asset_dir(root, "asset-2", "xss_dom")
 
     proc = subprocess.run(
-        [sys.executable, str(DRIVER), str(root), "coverage"],
+        [sys.executable, str(DRIVER), str(root), "coverage", "findings?asset=asset-2"],
         capture_output=True, text=True, encoding="utf-8", timeout=300,
         env={**os.environ, "PYTHONIOENCODING": "utf-8"},
     )
@@ -152,3 +155,26 @@ def test_platform_console_renders_the_merged_ledger(tmp_path: Path) -> None:
     page = out.split("===== page coverage =====", 1)[1].split("----- overview -----", 1)[0]
     assert "平台合计账本" in page, page[-1200:]
     assert "asset-1" in page and "asset-2" in page, "两个资产都得出现在合计里"
+
+
+def test_findings_page_filters_by_asset(tmp_path: Path) -> None:
+    """多资产时页面上该有筛选器；选中 asset-2 后，asset-1 的行不该还在表里（B183）。"""
+    root = tmp_path / "pf"
+    _asset_dir(root, "asset-1", "csp_absent")
+    _asset_dir(root, "asset-2", "xss_dom")
+
+    proc = subprocess.run(
+        [sys.executable, str(DRIVER), str(root), "findings?asset=asset-2"],
+        capture_output=True, text=True, encoding="utf-8", timeout=300,
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+    )
+    out = proc.stdout or ""
+    assert proc.returncode == 0, (out + (proc.stderr or ""))[-1500:]
+
+    marker = "===== page findings?asset=asset-2 ====="
+    assert marker in out, out[:400]
+    page = out.split(marker, 1)[1].split("----- overview -----", 1)[0]
+    assert 'id="asset"' in page, "多资产时该画出资产筛选器"
+    # 平台加载器会把 id 改成 `asset-N/F-00k`（撞 id 就串页，B160）
+    assert 'data-id="asset-2/F-001"' in page, "筛到 asset-2 后它自己的行必须还在"
+    assert 'data-id="asset-1/F-001"' not in page, "筛到 asset-2 后别的资产的行不该出现"
