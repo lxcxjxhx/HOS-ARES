@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import sys
 import tempfile
@@ -220,15 +221,37 @@ def _blackboard() -> tuple[str, str]:
 
 
 def _compression() -> tuple[str, str]:
+    """P3 平台：**真的比压缩前后**（B177）。
+
+    旧探针只看 `tokens_after > 0`——压不动（甚至变大）也会绿。
+    现在两段：小输入必须**不放大**（压不动就原样返回），真实规模必须真的变小。
+    """
     from veripen_core.blackboard import Fact
     from veripen_core.compression import compress
 
     fact = Fact(id="f-1", task_id="t", subject="a", predicate="p", value="v",
                 origin="observed", from_target=False, evidence_id="ev-1",
                 supersedes=None, ttl_s=None, created_at=1)
-    out = compress(facts=[fact], events=[{"kind": "http", "ok": True}],
-                   capsule_ids=["c-1"], verdicts={"o": "VERIFIED"})
-    return (GREEN, f"缩到 {out.tokens_after} token") if out.tokens_after > 0 else (RED, "压缩失败")
+    tiny = compress(facts=[fact], events=[{"kind": "http", "ok": True}],
+                    capsule_ids=["c-1"], verdicts={"o": "VERIFIED"})
+    if tiny.tokens_after > tiny.tokens_before:
+        return RED, f"小输入被放大：{tiny.tokens_before} -> {tiny.tokens_after}"
+
+    facts = [
+        Fact(id=f"f-{i}", task_id="t", subject=f"s{i}", predicate="p", value=f"v{i}",
+             origin="observed", from_target=False, evidence_id=f"ev-{i}",
+             supersedes=None, ttl_s=None, created_at=i)
+        for i in range(25)
+    ]
+    events = [{"kind": "http", "ok": True, "status": 200} for _ in range(60)]
+    big = compress(facts=facts, events=events, capsule_ids=["c-1", "c-2"],
+                   verdicts={"o": "VERIFIED"})
+    if big.tokens_after >= big.tokens_before:
+        return RED, f"真实规模压不动：{big.tokens_before} -> {big.tokens_after}"
+    return GREEN, (
+        f"真实规模 {big.tokens_before} → {big.tokens_after} token（省 {big.reduction:.0%}）"
+        f" · 小输入原样返回（{tiny.mode}）"
+    )
 
 
 def _playbooks() -> tuple[str, str]:
@@ -322,9 +345,19 @@ def _delivery() -> tuple[str, str]:
 
 
 def _assertions() -> tuple[str, str]:
+    """G3 产品：**数行**，不是看正文里有没有出现字符串 `A20`（B177）。
+
+    旧写法 `if "A20" in text` 会被任何一处提到 A20 的段落骗过——
+    连"正文里说了一句 A20 还没做"都能让它绿。
+    """
     text = (ROOT / "plan-veripen" / "16-完整范围与交付地图.md").read_text(encoding="utf-8")
-    count = text.count("| **A") + text.count("| A")
-    return (GREEN, "断言表已扩到 20 条") if "A20" in text else (RED, "断言表未含 A20")
+    ids = {int(m) for m in re.findall(r"^\|\s*\*{0,2}A(\d+)\b", text, re.M)}
+    missing = [f"A{i}" for i in range(1, 21) if i not in ids]
+    if missing:
+        return RED, f"断言表缺：{', '.join(missing)}"
+    extra = sorted(i for i in ids if i > 20)
+    tail = f"；另有 A{extra[0]}–A{extra[-1]} 扩展" if extra else ""
+    return GREEN, f"A1–A20 齐全（表内共 {len(ids)} 条）{tail}"
 
 
 ITEMS: tuple[Item, ...] = (

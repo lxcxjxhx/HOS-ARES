@@ -79,3 +79,48 @@ def test_p1_goes_red_on_an_empty_workflow(monkeypatch) -> None:  # noqa: ANN001
     monkeypatch.setattr(workflow, "load", lambda _p: workflow.Workflow(version=1))
     status, detail = parity._control_plane()
     assert status == RED and "为空" in detail
+
+
+# ── B177：P3 压缩 / G3 断言表，也都改成"能红"的探针 ─────────────
+def test_p3_compression_probe_reports_real_numbers() -> None:
+    from veripen_cli.cmd_parity import _compression
+
+    status, detail = _compression()
+    assert status == GREEN, detail
+    assert "token" in detail and "省" in detail, detail
+
+
+def test_p3_goes_red_when_compression_inflates(monkeypatch) -> None:  # noqa: ANN001
+    import veripen_core.compression as compression
+    import veripen_cli.cmd_parity as parity
+
+    class _Out:
+        tokens_before = 10
+        tokens_after = 99
+        reduction = 0.0
+        mode = "summarized"
+
+    monkeypatch.setattr(compression, "compress", lambda **_kw: _Out())
+    status, detail = parity._compression()
+    assert status == RED and "放大" in detail
+
+
+def test_g3_assertion_table_rows_are_counted() -> None:
+    from veripen_cli.cmd_parity import _assertions
+
+    status, detail = _assertions()
+    assert status == GREEN, detail
+    assert "A1–A20" in detail
+
+
+def test_g3_goes_red_on_a_truncated_table(monkeypatch, tmp_path) -> None:  # noqa: ANN001
+    import veripen_cli.cmd_parity as parity
+
+    plan = tmp_path / "plan-veripen"
+    plan.mkdir()
+    (plan / "16-完整范围与交付地图.md").write_text(
+        "| A1 | x |\n| A2 | y |\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(parity, "ROOT", tmp_path)
+    status, detail = parity._assertions()
+    assert status == RED and "缺" in detail and "A3" in detail
