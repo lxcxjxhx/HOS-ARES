@@ -28,7 +28,9 @@ veripen = "veripen_cli.__main__:main"
 # 它**不进运行期依赖**：产品代码走 stdlib ssl，不需要它；
 # 但测试里必须声明清楚，否则本地碰巧装了就能过、CI 干净环境就红。
 # tests/routes/test_l0.py 会在子进程里跑 mypy；缺 mypy 或类型桩，CI 干净环境就红（B200）。
-dev = ["pytest>=8.0", "cryptography>=42", "mypy>=1.8", "types-PyYAML>=6"]
+# playwright 是**产品代码**里的可选渲染后端（`veripen_core/render/browser.py` 直接 import），
+# 不进运行期依赖；但 mypy 查产品代码时需要它在位，否则 import-not-found。
+dev = ["pytest>=8.0", "cryptography>=42", "mypy>=1.8", "types-PyYAML>=6", "playwright>=1.40"]
 
 [tool.setuptools]
 packages = ["veripen_core", "api"]

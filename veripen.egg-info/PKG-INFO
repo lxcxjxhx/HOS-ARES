@@ -1,0 +1,15 @@
+Metadata-Version: 2.4
+Name: veripen
+Version: 0.1.0
+Summary: 可验证渗透验证内核：判定纯函数、地址零常量、证据六态可 replay
+Requires-Python: >=3.11
+Requires-Dist: pydantic>=2.7
+Requires-Dist: PyYAML>=6.0
+Requires-Dist: fastapi>=0.111
+Requires-Dist: uvicorn>=0.30
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0; extra == "dev"
+Requires-Dist: cryptography>=42; extra == "dev"
+Requires-Dist: mypy>=1.8; extra == "dev"
+Requires-Dist: types-PyYAML>=6; extra == "dev"
+Requires-Dist: playwright>=1.40; extra == "dev"
