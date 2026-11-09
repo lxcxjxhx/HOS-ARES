@@ -29,3 +29,11 @@ Thumbs.db
 
 # 逆向样本（体积大，按需本地放置；652MB 二进制不进版本库）
 /samples/
+# 打包产物（B198）：不入库，由 .github/workflows/build-exe.yml 生成
+/build/
+/dist/
+*.spec.bak
+exe.out.log
+exe.err.log
+# 安装包输出（B199）：由 packaging/HOS-ARES.iss 生成，不入库
+/packaging/out/

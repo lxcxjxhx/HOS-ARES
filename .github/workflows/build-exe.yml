@@ -1,0 +1,148 @@
+name: build-exe
+
+# 交付物（两级，按"拿到就能用"排序）：
+#   1) HOS-ARES-Setup-<版本>.exe —— 安装包：装完有开始菜单/桌面快捷方式，双击就是控制台界面；
+#   2) HOS-ARES.exe             —— 免安装单文件：不想装的人直接跑。
+#
+# 口径：
+# * 只在 **Windows** 上构建（产物是 .exe 与安装包；跨平台各自打包不在本 workflow 范围）；
+# * 依赖只用 `requirements.lock` 里那几条运行期库 + PyInstaller + Inno Setup，
+#   装全套开发依赖会把 playwright 之类扯进来，构建时间翻几倍而产物用不上；
+# * **构建即自检**：先跑免安装 exe（起服务 → 请求页面 → 断言 200 且有 title/nav），
+#   再**真的装一遍**安装包（静默安装 → 跑装出来的 exe → 断言页面 → 静默卸载 → 断言无残留）。
+#   跑不通就不上传——"打出来了"不等于"装了能打开"；
+# * tag 推送时把两个产物都附到 Release。
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+  pull_request:
+    paths:
+      - "veripen_cli/desktop.py"
+      - "packaging/HOS-ARES.spec"
+      - "packaging/HOS-ARES.iss"
+      - ".github/workflows/build-exe.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  windows-exe:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      APP_PORT: "18125"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 安装构建依赖（只装运行期需要的）
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pydantic==2.13.0 PyYAML==6.0.2 fastapi==0.115.0 uvicorn==0.30.6 pyinstaller
+
+      - name: 安装 Inno Setup（打安装包）
+        run: choco install innosetup --no-progress -y
+
+      - name: 取版本号
+        id: ver
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if ($tag -match '^v(?<v>.+)$') { $v = $Matches.v } else { $v = "0.1.0" }
+          "version=$v" >> $env:GITHUB_OUTPUT
+          Write-Host "版本：$v"
+
+      - name: 打包单文件
+        run: |
+          python -m PyInstaller packaging/HOS-ARES.spec --noconfirm --distpath dist --workpath build/pyi
+
+      - name: 自检单文件（起服务 → 取页面 → 断言）
+        shell: pwsh
+        run: |
+          $proc = Start-Process -FilePath ".\dist\HOS-ARES.exe" `
+            -ArgumentList "--no-browser", "--wait-s", "10", "--port", "$env:APP_PORT" `
+            -PassThru -RedirectStandardOutput "exe.out.log" -RedirectStandardError "exe.err.log"
+          Start-Sleep -Seconds 5
+          try {
+            $resp = Invoke-WebRequest -Uri "http://127.0.0.1:$env:APP_PORT/ui/app" -UseBasicParsing -TimeoutSec 15
+          } catch {
+            Write-Host "== 请求失败 =="; Get-Content exe.out.log -ErrorAction SilentlyContinue
+            Get-Content exe.err.log -ErrorAction SilentlyContinue; throw
+          }
+          if ($resp.StatusCode -ne 200) { throw "状态码 $($resp.StatusCode)" }
+          if ($resp.Content -notmatch "<title>") { throw "返回的不是控制台页面" }
+          if ($resp.Content -notmatch 'id="nav"') { throw "页面外壳没出来" }
+          Write-Host "单文件自检通过：HTTP 200 · $($resp.Content.Length) 字节"
+          $proc | Wait-Process -Timeout 30 -ErrorAction SilentlyContinue
+
+      - name: 打安装包
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { throw "找不到 ISCC：$iscc" }
+          & $iscc "/DMyAppVersion=${{ steps.ver.outputs.version }}" "packaging\HOS-ARES.iss"
+          if ($LASTEXITCODE -ne 0) { throw "安装包编译失败（exit $LASTEXITCODE）" }
+          Get-ChildItem packaging\out | Format-Table Name, Length
+
+      - name: 自检安装包（静默装 → 跑装出来的 → 断言 → 卸载 → 断言无残留）
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem "packaging\out\HOS-ARES-Setup-*.exe" | Select-Object -First 1
+          if (-not $setup) { throw "没有安装包产物" }
+          $target = Join-Path $env:RUNNER_TEMP "hos-ares-install"
+
+          Start-Process -FilePath $setup.FullName -Wait -ArgumentList @(
+            "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-",
+            "/LOG=`"$env:RUNNER_TEMP\install.log`"", "/DIR=`"$target`""
+          )
+          if (-not (Test-Path (Join-Path $target "HOS-ARES.exe"))) {
+            Get-Content "$env:RUNNER_TEMP\install.log" -ErrorAction SilentlyContinue
+            throw "安装后没有 HOS-ARES.exe"
+          }
+
+          $port = 18126
+          $proc = Start-Process -FilePath (Join-Path $target "HOS-ARES.exe") `
+            -ArgumentList "--no-browser", "--wait-s", "8", "--port", "$port" -PassThru
+          Start-Sleep -Seconds 5
+          $resp = Invoke-WebRequest -Uri "http://127.0.0.1:$port/ui/app" -UseBasicParsing -TimeoutSec 15
+          if ($resp.StatusCode -ne 200 -or $resp.Content -notmatch 'id="nav"') {
+            throw "装出来的程序打不开界面"
+          }
+          Write-Host "安装自检通过：装出来的 exe 打开就是界面（$($resp.Content.Length) 字节）"
+          $proc | Wait-Process -Timeout 30 -ErrorAction SilentlyContinue
+
+          Start-Process -FilePath (Join-Path $target "unins000.exe") -Wait `
+            -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART")
+          Start-Sleep -Seconds 2
+          if (Test-Path (Join-Path $target "HOS-ARES.exe")) { throw "卸载后还有残留" }
+          Write-Host "卸载自检通过：无残留"
+
+      - name: 上传产物（单文件 + 安装包）
+        uses: actions/upload-artifact@v4
+        with:
+          name: HOS-ARES-windows
+          path: |
+            dist/HOS-ARES.exe
+            packaging/out/HOS-ARES-Setup-*.exe
+          if-no-files-found: error
+
+      - name: 附到 Release（仅 tag）
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/HOS-ARES.exe
+            packaging/out/HOS-ARES-Setup-*.exe
+          body: |
+            **推荐：下载 `HOS-ARES-Setup-*.exe` 安装**——装完开始菜单/桌面有快捷方式，双击直接是控制台界面。
+
+            `HOS-ARES.exe` 是免安装单文件，双击同样直接打开界面。
+
+            参数：`--record <path>` 指定产物（hunt.json / findings.json）、`--port <n>` 固定端口、
+            `--no-browser` 不自动开浏览器。详见安装目录里的 `快速开始.txt`。
