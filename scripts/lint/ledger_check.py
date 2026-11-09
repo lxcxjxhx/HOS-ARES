@@ -31,20 +31,33 @@ MISSING_MARKERS = ("不存在", "not implemented", "未实现", "尚未实现", 
 STATES = {"todo", "doing", "done", "done(legacy-scope)", "scaffolded", "blocked", "planned"}
 
 
-def main(argv: list[str]) -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--json", action="store_true")
-    args = ap.parse_args(argv)
+def check(rows: list[dict], root: Path) -> tuple[list[str], list[str]]:
+    """返回 (problems, stale)。**problems 是硬错，stale 只是提醒**（B178）。
 
-    rows = [json.loads(line) for line in LEDGER.read_text(encoding="utf-8").splitlines() if line.strip()]
+    stale = 历史条目引用的文件现在不存在。它**不**说明那条记录写错了：
+    后续批次可能删/改名了它（实测：B123 的 `test_csp_oracle.py` 被后来的
+    "响应头三件套"批次删掉）。所以只提醒，不算错。
+    """
     problems: list[str] = []
+    stale: list[str] = []
+    #: 批次号唯一；唯一例外是"补记"行——它必须同时带 supersedes_state 与 correction
+    seen: set[str] = set()
 
     for row in rows:
         batch, state = row.get("batch", "?"), row.get("state", "")
+        if batch in seen:
+            if not (row.get("supersedes_state") and row.get("correction")):
+                problems.append(
+                    f"{batch}: 批次号重复且不是补记行（补记要带 supersedes_state + correction）"
+                )
+        seen.add(batch)
         if state not in STATES:
             problems.append(f"{batch}: 未知状态 {state!r}")
         if state.startswith("done") and not row.get("dod"):
             problems.append(f"{batch}: done 但没有 DoD 证据")
+        for name in row.get("files") or []:
+            if not (root / str(name)).exists():
+                stale.append(f"{batch}: {name}")
         # 缺件描述只在 **done** 类状态里算问题：done 却写着"不存在/未实现"，
         # 说明它没做完。blocked / scaffolded 本来就是要写"缺什么"的状态，
         # 对它们检查这条等于禁止记录阻塞原因。
@@ -63,12 +76,34 @@ def main(argv: list[str]) -> int:
             if not row.get("owner_batch"):
                 problems.append(f"{batch}: scaffolded 缺 owner_batch（谁接回 done，不许悬空）")
 
+    return problems, stale
+
+
+def main(argv: list[str]) -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--json", action="store_true")
+    args = ap.parse_args(argv)
+
+    rows = [
+        json.loads(line)
+        for line in LEDGER.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    problems, stale = check(rows, ROOT)
+
     if args.json:
-        print(json.dumps({"total": len(rows), "problems": problems}, ensure_ascii=False, indent=2))
+        print(json.dumps(
+            {"total": len(rows), "problems": problems, "stale": stale},
+            ensure_ascii=False, indent=2,
+        ))
     else:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
         for p in problems:
             print(f"LEDGER {p}")
+        if stale:
+            print(f"提醒：{len(stale)} 条历史条目引用的文件现在不存在（可能被后续批次删/改名）")
+            for s in stale[:10]:
+                print(f"  · {s}")
         print(f"ledger-check: batches={len(rows)} problems={len(problems)}")
     return 0 if not problems else 1
 
