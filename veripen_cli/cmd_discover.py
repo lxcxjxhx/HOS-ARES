@@ -132,7 +132,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         note = "（本轮触到页数/记录上限）" if result.truncated else ""
         if result.rendered:
             note += f"（渲染 {result.rendered} 页）"
-        print(f"第 {round_no} 轮：抓 {result.fetched} 页 / 新面 {len(fresh)} 条{note}")
+        print(f"第 {round_no} 轮：抓取成功 {result.fetched} 页 / 新面 {len(fresh)} 条{note}")
         if not result.next:
             break
         for sighting in result.next:
@@ -145,14 +145,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"目标：{host}")
     print(
         f"发现：已抓面 {len(faces)} 条 / 待抓候选 {len(candidates_left)} 条"
-        f" / 抓 {pages} 页 / 置信 0.70（crawl，未验证）"
+        f" / 抓取成功 {pages} 页 / 置信 0.70（crawl，未验证）"
     )
     for template in faces[:40]:
         print(f"  · {template}")
     if len(faces) > 40:
         print(f"  … 其余 {len(faces) - 40} 条见 --out")
     if skipped_all:
-        print(f"跳过：{len(skipped_all)} 条（{skipped_all[0][1]} 等）")
+        reasons: dict[str, int] = {}
+        for _tpl, why in skipped_all:
+            reasons[why] = reasons.get(why, 0) + 1
+        detail = "、".join(f"{k}×{v}" for k, v in sorted(reasons.items(), key=lambda kv: -kv[1]))
+        print(f"跳过 {len(skipped_all)} 条：{detail}")
 
     if args.out:
         out = Path(args.out)
