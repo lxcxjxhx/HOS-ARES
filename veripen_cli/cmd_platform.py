@@ -57,6 +57,21 @@ def _events_as_dicts(store: Store, task_id: str) -> list[dict[str, Any]]:
     ]
 
 
+def _credential_line(
+    token_by_asset: dict[str, str], shared: str, assets: int,
+) -> str:
+    """凭据怎么给的——三种情形分开写，都不落原文（B185）。"""
+    if token_by_asset:
+        return (f"- 凭据：按资产注入 {len(token_by_asset)} 项"
+                f"（{', '.join(sorted(token_by_asset))}；不落原文）")
+    if shared and assets > 1:
+        return (f"- 凭据：**同一 token 注入 {assets} 个资产**"
+                "（已显式 --allow-shared-token；跨资产复用凭据）")
+    if shared:
+        return "- 凭据：主身份 token 已注入（不落原文）"
+    return "- 凭据：未提供——auth 相关 oracle 会落 BLOCKED"
+
+
 def _approve_or_block(store: Store, *, approve: bool, now: int, by: str = "operator") -> int:
     """判据 B：审批阻断。返回 0 表示放行，3 表示停在 PENDING。
 
@@ -130,7 +145,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--exclude", default="", help="透传给单资产链路的 oracle 黑名单")
     ap.add_argument(
         "--token", default="",
-        help="主身份 token（透传给每个资产；空则 auth 相关 oracle 落 BLOCKED）",
+        help="主身份 token（**单资产**用；多资产默认拒绝透传，见 --token-for）",
+    )
+    ap.add_argument(
+        "--token-for", action="append", default=[], metavar="资产=token",
+        help="按资产给凭据（可重复）：多资产时唯一被接受的给法",
+    )
+    ap.add_argument(
+        "--allow-shared-token", action="store_true",
+        help="显式确认：多个资产共用同一个 token（跨资产复用凭据，风险自负）",
     )
     # 无契约的资产（B162）：参数只在 `_discover_args` 定义一次，透传给每个资产
     add_discovery_args(ap)
@@ -170,6 +193,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{exc}（需要注入：{names}）", file=sys.stderr)
             return 2
 
+        asset_ids = [a.id for a in profile.assets]
         targets = [resolved[a.id] for a in profile.assets]
         profile_hash = profile.profile_hash(resolved)
 
@@ -191,9 +215,39 @@ def main(argv: list[str] | None = None) -> int:
                   f"（{', '.join(profile.oracles.needs_approval)}）")
     else:
         targets = [t.strip() for t in args.targets.split(",") if t.strip()]
+        asset_ids = [f"asset-{i}" for i in range(1, len(targets) + 1)]
 
     if not targets:
         print("没有目标", file=sys.stderr)
+        return 2
+
+    # ── 凭据：多资产默认不许一个 token 打通（B185）──────────────────
+    # 一个 token 发给三个资产 = 把 A 的凭据递给 B 和 C。企业现场每个资产一份凭据，
+    # 这里默认拒绝透传，要复用必须显式 --allow-shared-token。
+    token_by_asset: dict[str, str] = {}
+    for item in args.token_for:
+        name, sep, value = item.partition("=")
+        name, value = name.strip(), value.strip()
+        if not sep or not name or not value:
+            print(f"--token-for 要写成 资产=token：{item!r}", file=sys.stderr)
+            return 2
+        if name not in asset_ids:
+            print(f"--token-for 里的资产未知：{name!r}（可选：{', '.join(asset_ids)}）",
+                  file=sys.stderr)
+            return 2
+        token_by_asset[name] = value
+    if args.token and args.token_for:
+        print("--token 与 --token-for 二选一：前者是单资产快捷方式，后者按资产给",
+              file=sys.stderr)
+        return 2
+    shared_token = args.token
+    if shared_token and len(targets) > 1 and not args.allow_shared_token:
+        print(
+            f"拒绝把同一个 token 发给 {len(targets)} 个资产（跨资产复用凭据）。\n"
+            "  按资产给：--token-for " + " --token-for ".join(f"{a}=<token>" for a in asset_ids)
+            + "\n  确实共用同一凭据再加 --allow-shared-token",
+            file=sys.stderr,
+        )
         return 2
     # 路由来源二选一（B162）：企业现场经常没有契约，`run` 早就支持探测，平台没跟上。
     if args.discover and args.openapi:
@@ -238,9 +292,10 @@ def main(argv: list[str] | None = None) -> int:
         extra_args: list[str] = []
         if args.exclude:
             extra_args += ["--exclude", args.exclude]
-        if args.token:
+        asset_token = token_by_asset.get(asset_ids[i - 1], "") or shared_token
+        if asset_token:
             # 平台原来不传 token：带鉴权的资产在平台里永远只能落 BLOCKED（B163）
-            extra_args += ["--token", args.token]
+            extra_args += ["--token", asset_token]
         if profile is not None:
             # 档的 selectors 就是 operator 的确认（`19 §3.1` 的出口）：
             # 只采纳这些标签，不是"全部结构推断"。
@@ -347,11 +402,8 @@ def main(argv: list[str] | None = None) -> int:
             f"- 路由来源：主动探测（无契约，{args.discover_rounds} 轮 / 每轮 {args.discover_pages} 页）"
             if args.discover else f"- 路由来源：契约 `{args.openapi}`"
         ),
-        # 凭据只记"有没有"，**不落原文**：报告是要发给客户的（B163）
-        (
-            "- 凭据：主身份 token 已注入（不落原文）"
-            if args.token else "- 凭据：未提供——auth 相关 oracle 会落 BLOCKED"
-        ),
+        # 凭据只记"有没有 / 怎么给的"，**不落原文**：报告是要发给客户的（B163/B185）
+        _credential_line(token_by_asset, shared_token, len(targets)),
         "",
         "## 1. 逐资产结论",
         "",
