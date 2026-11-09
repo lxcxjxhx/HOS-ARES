@@ -117,9 +117,11 @@ def _default_runner(argv: Sequence[str]) -> tuple[int, str]:
         return proc.returncode, ""
     if proc.returncode == 0:
         return proc.returncode, lines[-1][:160]
-    # 失败时末行往往只是汇总（"Found 12 errors"）：前几行才是可行动的信息
-    head = [ln[:200] for ln in lines[:6]]
-    return proc.returncode, " ⏎ ".join(head)
+    # 失败时：**头尾都要**。头几行常是第一条错因，尾部才是 FAILED 列表与断言；
+    # 只给头（或只给尾）都会让 CI 日志失去可行动性（B200 已踩一次）。
+    head = [ln[:200] for ln in lines[:3]]
+    tail = [ln[:200] for ln in lines[-14:]]
+    return proc.returncode, " ⏎ ".join(head + ["…"] + tail)
 
 
 def select(only: str, with_tests: bool) -> list[Gate]:
