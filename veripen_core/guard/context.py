@@ -47,12 +47,15 @@ class GuardContext:
             raise ScopeDenied("plan_denied", oracle=self.oracle_id)
         self.budget.check()
         self.bucket.acquire()
-        if self.approval_action is not None:
+        # 审批门（B188）：`approval_action` 由调用方（oracle 传输层）按影响级别设置——
+        # core 不引 oracles，层次规则由 `test_core_does_not_import_oracles` 盯着。
+        action = self.approval_action
+        if action is not None:
             if self.approval is None:
                 from .errors import NoApprovalGate
 
-                raise NoApprovalGate(self.approval_action)
-            self.approval.require(self.approval_action, now=self.now)
+                raise NoApprovalGate(action)
+            self.approval.require(action, now=self.now)
         self.budget.spend_request()
 
     def events(self) -> list[dict[str, object]]:

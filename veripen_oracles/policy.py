@@ -139,3 +139,16 @@ __all__ = [
     "severity_for",
     "check_enabled",
 ]
+
+
+def approval_for(oracle_id: str) -> str | None:
+    """这个 oracle 需要哪类审批（B188）：写类要 `reversible_write`，其余不加门。"""
+    from veripen_core.models import ImpactClass
+
+    from . import ALL_ORACLES
+
+    for cls in ALL_ORACLES:
+        if cls.meta.id == oracle_id:
+            return ("reversible_write"
+                    if cls.meta.impact is ImpactClass.REVERSIBLE_WRITE else None)
+    return None

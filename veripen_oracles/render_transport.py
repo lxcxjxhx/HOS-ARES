@@ -88,6 +88,9 @@ class RenderTransport:
             raise GuardMissing("未安装 GuardContext：任何出网都要先过闸门")
 
         ctx.oracle_id = self.oracle_id or ctx.oracle_id
+        # B188：审批按影响级别自动生效（写类必须有门），由这里告诉闸门
+        from veripen_oracles.policy import approval_for
+        ctx.approval_action = approval_for(ctx.oracle_id)
         ctx.binding_gate(binding)   # ← 资源越界就此拒绝
         ctx.preflight()             # ← 预算 / 令牌桶 / 方法
 
