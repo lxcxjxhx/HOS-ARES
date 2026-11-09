@@ -57,8 +57,12 @@ def _events_as_dicts(store: Store, task_id: str) -> list[dict[str, Any]]:
     ]
 
 
-def _approve_or_block(store: Store, *, approve: bool, now: int) -> int:
-    """判据 B：审批阻断。返回 0 表示放行，3 表示停在 PENDING。"""
+def _approve_or_block(store: Store, *, approve: bool, now: int, by: str = "operator") -> int:
+    """判据 B：审批阻断。返回 0 表示放行，3 表示停在 PENDING。
+
+    `by` 是**签字人**（B174）：聊天入口代签时必须写 chat，不能一律记 operator——
+    否则审计里"谁批的"这一栏是编的。
+    """
     gate = ApprovalGate.from_spec(
         [{"action_class": "scope_expand"}],
         store=store, events=EventLog(store), task_id=TASK_ID,
@@ -70,12 +74,12 @@ def _approve_or_block(store: Store, *, approve: bool, now: int) -> int:
             print("审批：PENDING —— 批量动作需人工放行（--approve 模拟签字）")
             return 3
         try:
-            gate.decide("scope_expand", approved=True, by="operator",
+            gate.decide("scope_expand", approved=True, by=by,
                         lease_owner="agent", now=now + 1, reason="批量验证放行")
         except (PermissionError, ApprovalTTLExpired, KeyError) as exc:
             print(f"审批失败：{type(exc).__name__}: {exc}", file=sys.stderr)
             return 3
-        print("审批：APPROVED（operator 签字）")
+        print(f"审批：APPROVED（{by} 签字）")
         return 0
     return 0
 
@@ -119,6 +123,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--db", default=str(ROOT / "out" / "platform.db"))
     ap.add_argument("--require-approval", action="store_true", help="批量动作需人工放行")
     ap.add_argument("--approve", action="store_true", help="模拟 operator 立即签字")
+    ap.add_argument(
+        "--approve-by", default="operator",
+        help="签字人（聊天入口代签时传 chat；审计里\"谁批的\"这一栏据实写）",
+    )
     ap.add_argument("--exclude", default="", help="透传给单资产链路的 oracle 黑名单")
     ap.add_argument(
         "--token", default="",
@@ -209,7 +217,8 @@ def main(argv: list[str] | None = None) -> int:
 
     started = time.time()
     if args.require_approval:
-        rc = _approve_or_block(store, approve=args.approve, now=int(started))
+        rc = _approve_or_block(store, approve=args.approve, now=int(started),
+                               by=args.approve_by)
         if rc != 0:
             (out / "platform-report.md").write_text(
                 "# 平台运行报告\n\n| 项 | 值 |\n|---|---|\n"
@@ -408,7 +417,7 @@ def main(argv: list[str] | None = None) -> int:
         "",
         "| 项 | 值 |",
         "|---|---|",
-        f"| 审批 | {'已签（operator）' if args.require_approval and args.approve else ('PENDING' if args.require_approval else '未启用')} |",
+        f"| 审批 | {'已签（' + args.approve_by + '）' if args.require_approval and args.approve else ('PENDING' if args.require_approval else '未启用')} |",
         f"| 事件数 | {len(events)} |",
         _playbook_line(),
         f"| 耗时 | {time.time() - started:.1f}s |",

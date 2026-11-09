@@ -86,3 +86,17 @@ def test_run_phrase_without_contract_or_discover_is_rejected() -> None:
     assert p.ok  # 解析成功，但要由执行层拒绝"既无契约也无 discover"
     assert p.steps[0].tool == "run"
     assert "openapi" not in p.steps[0].args and "discover" not in p.steps[0].args
+
+
+# ── B174：平台意图必须能带上契约 ────────────────────────────────
+def test_platform_phrase_carries_openapi() -> None:
+    """档只给资产与策略，契约要单独给：规则层不抓 openapi 就永远跑不起来。"""
+    p = parse("用 demo-a 跑 openapi=profiles/demo-a/spec.json")
+    assert p.ok and p.steps[0].tool == "platform"
+    assert p.steps[0].args["openapi"] == "profiles/demo-a/spec.json"
+
+
+def test_platform_phrase_without_contract_still_parses() -> None:
+    """没写契约也照实解析——由执行层说"需要契约"，不在这里猜。"""
+    p = parse("按 demo-a 档跑")
+    assert p.ok and "openapi" not in p.steps[0].args

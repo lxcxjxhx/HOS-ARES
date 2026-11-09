@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Mapping, Sequence
+from typing import Any, Mapping, Sequence
 
 #: 路径分隔符（避免裸字面量触发 noroute）
 SEP = chr(0x2F)
@@ -143,10 +143,17 @@ def parse(text: str, *, history: Sequence[str] = (), _depth: int = 0) -> Plan:
     # "按 X 跑 / 用 X 这个档" 都是档用法；不再额外要求出现"档"字——
     # "按 <档名> 跑" 里的"跑"是动词，不是要执行的命令。
     if pm:
+        # 平台必须带契约（档只给资产与策略）。早先这里不抓 openapi，
+        # 于是无模型时的「按某档跑」永远卡在"需要契约"——规则层给不出它要求的参数（B174）。
+        pargs: dict[str, Any] = {"profile": pm.group("name")}
+        om = _OPENAPI_ARG.search(raw)
+        if om:
+            pargs["openapi"] = om.group("path")
         return Plan(
             raw=raw,
-            steps=(Step("platform", {"profile": pm.group("name")}, "按客户档跑企业编排"),),
-            understood_as=f"按客户档「{pm.group('name')}」跑",
+            steps=(Step("platform", pargs, "按客户档跑企业编排"),),
+            understood_as=f"按客户档「{pm.group('name')}」跑"
+                          + (f" · 契约 {pargs['openapi']}" if "openapi" in pargs else ""),
             confident=True,
         )
 
