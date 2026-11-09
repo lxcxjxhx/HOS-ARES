@@ -197,7 +197,9 @@ def _exec_step(step: Any, *, wb: Workbench, root: Path) -> tuple[bool, str]:
             try:
                 rc = cmd_platform.main(["--profile", str(prof), "--openapi", openapi,
                                         "--out", str(out_dir), "--db", str(out_dir / "pf.db"),
-                                        "--approve"])
+                                        # 代签要写清楚是谁签的（B174）：这里签字的其实是
+                                        # 聊天里点了 y 的那个人，不是「operator」
+                                        "--approve", "--approve-by", "chat"])
             except SystemExit as exc:
                 rc = int(exc.code or 0)
         full = buf.getvalue()

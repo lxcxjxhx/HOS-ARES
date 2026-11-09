@@ -120,3 +120,18 @@ def test_summary_recorded_in_events(lab: Any, tmp_path: Path,
     tools = {r[0] for r in rows}
     assert "run" in tools, f"run 没落库：{tools}"
     assert any("exit=" in str(r[1]) for r in rows), "摘要在事件里"
+
+
+# ── 代签要写清楚是谁签的（B174）──────────────────────────────────
+def test_chat_signs_platform_as_chat(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+                                     capsys: pytest.CaptureFixture[str]) -> None:
+    from veripen_cli import cmd_platform
+
+    seen: list[list[str]] = []
+    monkeypatch.setattr(cmd_platform, "main", lambda argv: seen.append(list(argv)) or 0)
+    _chat(tmp_path, monkeypatch, "用 demo-a 跑 openapi=profiles/demo-a/spec.json\nquit\n")
+    capsys.readouterr()
+    assert seen, "语法没走到 platform 工具"
+    argv = seen[0]
+    assert "--approve-by" in argv, "代签没写签字人"
+    assert argv[argv.index("--approve-by") + 1] == "chat", argv

@@ -285,3 +285,20 @@ def test_rerun_does_not_reuse_stale_findings(two_assets: Any, tmp_path: Path) ->
     assert "已验证 **0** / 总项 0" in second, "旧结论不许被算进这一轮"
     assert "| — | — | — |" in second, "未产出的资产三列都必须是 —，不能填数"
     assert "目录里的旧产物未被采用" in second
+
+
+# ── I：签字人要据实写（B174）────────────────────────────────────
+def test_report_records_the_actual_signer(monkeypatch: pytest.MonkeyPatch,
+                                          tmp_path: Path) -> None:
+    """聊天入口代签时，审计里不能一律写 operator。"""
+    from veripen_cli.cmd_platform import main
+
+    _capture(monkeypatch)
+    spec = tmp_path / "spec.json"
+    spec.write_text(_spec(_TARGET), encoding="utf-8")
+    main(["--targets", _TARGET, "--openapi", str(spec),
+          "--require-approval", "--approve", "--approve-by", "chat",
+          "--out", str(tmp_path / "pf"), "--db", str(tmp_path / "pf.db")])
+    report = (tmp_path / "pf" / "platform-report.md").read_text(encoding="utf-8")
+    assert "已签（chat）" in report, report[:400]
+    assert "已签（operator）" not in report
