@@ -39,3 +39,6 @@ exe.err.log
 /packaging/out/
 /ci_gates.log
 /ci*.log
+/veripen.egg-info/
+/ci*.log
+/ci*.txt
