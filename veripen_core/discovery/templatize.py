@@ -10,7 +10,7 @@
 参数名按出现顺序给 ``p1..pn``——与 ``veripen_contract.parser.normalize_template``
 的 ``{p}`` 归一配套：模板里保留真名，结构身份仍由归一模板算。
 
-ponytail: 三条启发式的天花板是"语义 id"（``user-alice``、``order_2024_x``）不归一，
+ponytail: 三条启发式的天花板是"语义 id"（``user-<name>``、``order_2024_x``）不归一，
 它们会各占一条面。真实目标上出现面数爆炸时，再按"同前缀段数 ≥N 且值各不相同"补规则。
 """
 
