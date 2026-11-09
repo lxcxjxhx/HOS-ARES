@@ -96,22 +96,34 @@ def available(gate: Gate) -> bool:
     return not gate.needs or shutil.which(gate.needs) is not None
 
 
-def run_gate(gate: Gate, *, runner=None) -> tuple[str, str]:
+def run_gate(gate: Gate, *, runner=None, name: str = "") -> tuple[str, str]:
     """跑一道闸门，返回 (状态, 摘要)。runner 可注入，便于自测。"""
     if not available(gate):
         return SKIP, f"缺 {gate.needs}（本机没装，记 skip）"
-    call = runner or _default_runner
+    call = runner or (lambda argv: _default_runner(argv, name or gate.name))
     code, tail = call(gate.argv)
     return (PASS if code == 0 else FAIL), tail
 
 
-def _default_runner(argv: Sequence[str]) -> tuple[int, str]:
+#: 每道闸门的完整输出落在这里：CI 日志会被截断，文件不会（B200）
+LOG_DIR = ROOT / "out" / "verify"
+
+
+def _dump(name: str, text: str) -> str:
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    path = LOG_DIR / f"{name}.log"
+    path.write_text(text, encoding="utf-8", errors="replace")
+    return path.relative_to(ROOT).as_posix()
+
+
+def _default_runner(argv: Sequence[str], name: str = "gate") -> tuple[int, str]:
     env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
     proc = subprocess.run(  # noqa: S603 - 命令来自上面的常量清单
         list(argv), cwd=str(ROOT), capture_output=True, text=True,
         encoding="utf-8", errors="replace", env=env,
     )
     out = (proc.stdout or "") + (proc.stderr or "")
+    saved = _dump(name, out)
     lines = [ln for ln in out.strip().splitlines() if ln.strip()]
     if not lines:
         return proc.returncode, ""
@@ -119,9 +131,9 @@ def _default_runner(argv: Sequence[str]) -> tuple[int, str]:
         return proc.returncode, lines[-1][:160]
     # 失败时：**头尾都要**。头几行常是第一条错因，尾部才是 FAILED 列表与断言；
     # 只给头（或只给尾）都会让 CI 日志失去可行动性（B200 已踩一次）。
-    head = [ln[:200] for ln in lines[:3]]
-    tail = [ln[:200] for ln in lines[-14:]]
-    return proc.returncode, " ⏎ ".join(head + ["…"] + tail)
+    head = [ln[:160] for ln in lines[:2]]
+    tail = [ln[:160] for ln in lines[-10:]]
+    return proc.returncode, " ⏎ ".join(head + ["…"] + tail + [f"完整输出：{saved}"])
 
 
 def select(only: str, with_tests: bool) -> list[Gate]:
@@ -152,7 +164,7 @@ def main(argv: list[str] | None = None, *, runner=None) -> int:
     results: list[tuple[Gate, str, str]] = []
     for g in gates:
         print(f"[{g.name}] 跑…", flush=True)
-        status, note = run_gate(g, runner=runner)
+        status, note = run_gate(g, runner=runner, name=g.name)
         results.append((g, status, note))
         print(f"[{g.name}] {status}" + (f" · {note}" if note else ""), flush=True)
 

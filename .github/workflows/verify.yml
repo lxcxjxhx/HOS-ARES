@@ -70,4 +70,11 @@ jobs:
           $map = @{ "unit" = "tests-unit"; "integration" = "tests-integration"; "rest" = "tests-rest" }
           python scripts/verify.py --with-tests --only $($map["${{ matrix.chunk }}"])
           $code = $LASTEXITCODE
-          if ($code -ne 0) { throw "verify 退出码 $code（0=全绿 / 1=有失败 / 2=有跳过）" }
+          if ($code -ne 0) {
+            Write-Host "== 完整输出（每道闸门一份，日志被截断时看这里）=="
+            Get-ChildItem out/verify -ErrorAction SilentlyContinue | ForEach-Object {
+              Write-Host "---- $($_.Name) ----"
+              Get-Content $_.FullName -Tail 60
+            }
+            throw "verify 退出码 $code（0=全绿 / 1=有失败 / 2=有跳过）"
+          }
