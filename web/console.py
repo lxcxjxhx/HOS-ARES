@@ -192,15 +192,20 @@ def rollup(rows: Sequence[Row]) -> list[Row]:
 # ══════════════════════════════════════════════════════════════════
 def findings_view(rows: Sequence[Row], *, include_low: bool = False,
                   asset: str = "") -> dict[str, Any]:
-    """结论表（B183：平台多资产时按资产筛）。
+    """结论表（B183：平台多资产时按资产筛；B184：数字跟着筛走）。
 
     `asset` 为空 = 不限。返回里带 `assets`（本数据集里出现过的资产名），
     页面据此决定要不要画筛选器——**没有第二个资产时不该画**，那只是噪声。
+
+    计数分两个口径：`shown`/`unverified_scoped` 是**筛选后**的，
+    `total`/`unverified` 是**全局**的。两个数摆在一起读，读者才不会把
+    "本资产没有未验证" 误读成 "整批没有未验证"。
     """
     ordered = order_rows(rollup(rows))
     verified = [r for r in ordered if r.verdict == "verified"]
     visible = [r for r in verified if include_low or r.queue is not Queue.LOW]
     assets = sorted({r.asset_id for r in ordered if r.asset_id})
+    scoped = [r for r in ordered if not asset or r.asset_id == asset]
     if asset:
         visible = [r for r in visible if r.asset_id == asset]
     return {
@@ -208,8 +213,10 @@ def findings_view(rows: Sequence[Row], *, include_low: bool = False,
         "shown": len(visible),
         "asset": asset,
         "assets": assets,
+        "scoped": bool(asset),
         "collapsed_low": sum(1 for r in verified if r.queue is Queue.LOW and not include_low),
         "unverified": sum(1 for r in ordered if r.verdict != "verified"),
+        "unverified_scoped": sum(1 for r in scoped if r.verdict != "verified"),
         "queues": {q.value: sum(1 for r in ordered if r.queue is q) for q in Queue},
         "rows": [
             {
@@ -276,8 +283,19 @@ def bounds_view(events: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     }
 
 
-def unverified_view(rows: Sequence[Row]) -> dict[str, Any]:
-    """未能验证单列：按 outcome 分组，SKIPPED 两类分列（措辞中性）。"""
+def unverified_view(rows: Sequence[Row], *, asset: str = "") -> dict[str, Any]:
+    """未能验证单列：按 outcome 分组，SKIPPED 两类分列（措辞中性）。
+
+    `asset` 非空时只装这个资产的行（B184：平台多资产时结论页能筛，这页也要能筛），
+    并把**全局**数量一起给出——筛选后 `counts` 是筛选后的，`totals` 是全量的。
+    """
+    totals = {
+        "total": len(rows),
+        "unverified": len([r for r in rows if r.verdict != "verified"]),
+    }
+    assets = sorted({r.asset_id for r in rows if r.asset_id})
+    if asset:
+        rows = [r for r in rows if r.asset_id == asset]
     groups: dict[str, list[dict[str, Any]]] = {"undetermined": [], "error": [], "not_run": []}
     for row in rows:
         if row.outcome in groups:
@@ -305,6 +323,10 @@ def unverified_view(rows: Sequence[Row]) -> dict[str, Any]:
         "by_verdict": by_verdict,
         "by_verdict_counts": {k: len(v) for k, v in by_verdict.items()},
         "entries": entries,   # 一行一条，前端不必再回查 groups（blocked 在旧三组里没有位置）
+        "asset": asset,
+        "assets": assets,
+        "scoped": bool(asset),
+        "totals": totals,
     }
 
 
@@ -495,7 +517,10 @@ def build_app(
         if op == "ui.bounds":
             return bounds_view(state.bounds)
         if op == "ui.unverified":
-            return unverified_view([r for r in state.findings if r.outcome != "reported"])
+            return unverified_view(
+                [r for r in state.findings if r.outcome != "reported"],
+                asset=(query or {}).get("asset", ""),
+            )
         if op == "ui.coverage":
             if "matrix" in state.coverage:          # 调用方已给矩阵：直接用
                 view = dict(state.coverage)

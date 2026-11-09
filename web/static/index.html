@@ -139,7 +139,7 @@ function el(tag, attrs = {}, ...kids) {
 }
 
 //: 后端接受的查询参数（只这些，不转发整个 hash —— 前端不是代理）
-const QUERY = { findings: ["low", "asset"], finding: ["id"] };
+const QUERY = { findings: ["low", "asset"], finding: ["id"], unverified: ["asset"] };
 
 async function fetchOp(name, params = {}) {
   const allowed = QUERY[name] || [];
@@ -176,6 +176,22 @@ const VERDICT_FIX = {
   error: "环境错误：重跑或查网络",
 };
 
+/** 资产筛选器（B183/B184）：超过一个资产才画；选中态写回 hash。
+ *  两个列表页共用——同一个控件在两页长得不一样，读者会以为是两件事。 */
+function assetPicker(data, params, op) {
+  const assets = data.assets || [];
+  if (assets.length < 2) return null;
+  const sel = el("select", { id: "asset", "aria-label": "资产" },
+    el("option", { value: "" }, `全部资产（${assets.length}）`),
+    ...assets.map((a) => el("option", { value: a }, a)));
+  sel.value = params?.asset || "";
+  sel.addEventListener("change", () => setHash({
+    op,
+    params: { ...(params || {}), asset: sel.value },
+  }));
+  return sel;
+}
+
 function renderFindings(data, params) {
   const wrap = el("div");
   const unv = data.unverified || 0;
@@ -191,19 +207,16 @@ function renderFindings(data, params) {
       el("option", { value: s }, s)));
 
   // 平台多资产才画筛选器：只有一个资产时它只是噪声（B183）
-  const assets = data.assets || [];
-  const assetSel = assets.length > 1
-    ? el("select", { id: "asset", "aria-label": "资产" },
-        el("option", { value: "" }, `全部资产（${assets.length}）`),
-        ...assets.map((a) => el("option", { value: a }, a)))
-    : null;
+  const assetSel = assetPicker(data, params, "findings");
 
   const toolbar = el("div", { class: "toolbar" },
     search, sev, ...(assetSel ? [assetSel] : []),
     el("span", { class: "hint" }, "j / k 移动 · Enter 打开 · Esc 返回"),
     el("span", { class: "muted" },
       `共 ${data.total} 条 · 已确认 ${data.shown} 条 · 本页 ${rows.length} 条`
-      + (unv ? ` · 未验证 ${unv} 条` : "")));
+      + (data.scoped
+        ? ` · 未验证 ${data.unverified_scoped ?? 0} 条（全局 ${unv} 条）`
+        : (unv ? ` · 未验证 ${unv} 条` : ""))));
   wrap.append(toolbar);
 
   if (!rows.length) {
@@ -238,24 +251,22 @@ function renderFindings(data, params) {
   search.value = params?.q || "";
   sev.value = params?.sev || "";
   search.addEventListener("input", () => setHash({ op: "findings", params: { ...(state.params || {}), q: search.value, sev: sev.value } }));
-  if (assetSel) {
-    assetSel.value = params?.asset || "";
-    assetSel.addEventListener("change", () => setHash({
-      op: "findings",
-      params: { ...(state.params || {}), asset: assetSel.value },
-    }));
-  }
   sev.addEventListener("change", () => setHash({ op: "findings", params: { ...(state.params || {}), sev: sev.value, q: search.value } }));
   return wrap;
 }
 
-function renderUnverified(data) {
+function renderUnverified(data, params) {
   const wrap = el("div");
   const counts = data.by_verdict_counts || {};
   const groups = data.by_verdict || {};
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
-  wrap.append(el("p", { class: "muted" },
-    `未验证 ${total} 条 —— 缺输入不是没漏洞（D1）；每条都写清"补什么能测"`));
+  const picker = assetPicker(data, params, "unverified");
+  const glob = data.totals?.unverified ?? total;
+  // 筛选后这两个数是**不同口径**：本资产多少条 / 整批多少条。混着写等于报错数。
+  const scope = data.scoped ? `（本资产 ${total} 条 / 全局 ${glob} 条）` : "";
+  wrap.append(el("div", { class: "toolbar" }, ...(picker ? [picker] : []),
+    el("span", { class: "muted" },
+      `未验证 ${total} 条${scope} —— 缺输入不是没漏洞（D1）；每条都写清"补什么能测"`)));
   for (const key of Object.keys(VERDICT_LABEL)) {
     const ids = groups[key] || [];
     wrap.append(el("h2", {}, `${VERDICT_LABEL[key]} · ${ids.length}`));
@@ -585,7 +596,7 @@ async function render() {
   else if (state.op === "findings") view = renderFindings(data, state.params);
   else if (state.op === "finding") view = renderFinding(data);
   else if (state.op === "approvals") view = renderApprovals(data);
-  else if (state.op === "unverified") view = renderUnverified(data);
+  else if (state.op === "unverified") view = renderUnverified(data, state.params);
   else if (state.op === "routes") view = renderRoutes(data);
   else if (state.op === "audit") view = renderAudit(data);
   else if (state.op === "bounds") view = renderBounds(data);

@@ -77,3 +77,48 @@ def test_page_forwards_asset_in_the_query_map() -> None:
     html = (ROOT / "web" / "static" / "index.html").read_text(encoding="utf-8")
     assert 'findings: ["low", "asset"]' in html
     assert 'id: "asset"' in html, "筛选器控件没画出来"
+
+
+# ── B184：筛选之后，数字要跟着筛 ────────────────────────────────
+def _mixed():  # noqa: ANN202
+    """asset-1：一条未验证；asset-2：一条未验证；asset-1：一条已确认。"""
+    from web.console import Row
+
+    def row(fid: str, asset: str, outcome: str):  # noqa: ANN202
+        return Row(finding_id=fid, title="t", severity="high", oracle_id="csp_absent",
+                   asset_id=asset, confidence=0.9, route_strength="strong",
+                   route_ref="r", replay_status="OK", outcome=outcome,
+                   reason_code="" if outcome == "reported" else "missing_input:auth:secondary")
+
+    return [row("a1", "asset-1", "undetermined"), row("a2", "asset-2", "undetermined"),
+            row("a3", "asset-1", "reported")]
+
+
+def test_findings_counts_are_scoped_and_keep_the_global_figure() -> None:
+    from web.console import findings_view
+
+    view = findings_view(_mixed(), asset="asset-1")
+    assert view["scoped"] is True
+    assert view["shown"] == 1, "只算本资产的已确认行"
+    assert view["unverified_scoped"] == 1, "本资产未验证 1 条"
+    assert view["unverified"] == 2, "全局仍是 2 条——两个口径都要给"
+    assert view["total"] == 3
+
+
+def test_unverified_page_filters_and_reports_both_scopes() -> None:
+    from web.console import unverified_view
+
+    rows = [r for r in _mixed() if r.outcome != "reported"]
+    view = unverified_view(rows, asset="asset-1")
+    assert view["scoped"] is True
+    assert view["counts"] == {"undetermined": 1, "error": 0, "not_run": 0}
+    assert view["totals"] == {"total": 2, "unverified": 2}
+    assert view["assets"] == ["asset-1", "asset-2"], "资产清单不随筛选变"
+
+
+def test_unverified_page_without_filter_lists_everything() -> None:
+    from web.console import unverified_view
+
+    rows = [r for r in _mixed() if r.outcome != "reported"]
+    view = unverified_view(rows)
+    assert view["scoped"] is False and view["counts"]["undetermined"] == 2
