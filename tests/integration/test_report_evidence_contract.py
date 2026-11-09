@@ -88,7 +88,10 @@ def test_every_command_in_the_report_resolves(run_dir) -> None:  # noqa: ANN001
 
     evidence = {str((f.get("evidence") or {}).get("capsule_id")): f for f in reported}
     for path in commands:
+        # 报告里的路径是**相对报告所在目录**的（B189）：交付物换机器也能读
         p = Path(path)
+        if not p.is_absolute():
+            p = run_dir / p
         assert p.is_file(), f"报告指向一份不存在的证据：{path}"
         cap = load_capsule(p)
         assert cap.capsule_id in evidence, f"{path} 不是任何一条结论的证据"

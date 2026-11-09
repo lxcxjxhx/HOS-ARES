@@ -238,6 +238,8 @@ def render_json(report: ReportInput) -> dict[str, Any]:
                     "template_sha256": f.template_sha256[:12],
                 },
                 "evidence": {
+                    # 证据指针（B189）：相对 `--out` 的路径，机器消费者不必猜命名约定
+                    "capsule_path": f"{report.capsule_dir}/{f.self_sha256}.json",
                     "capsule_id": f.capsule_id,
                     "self_sha256": f.self_sha256,
                     "replay_status": f.replay_status,
@@ -489,7 +491,7 @@ def render_markdown(report: ReportInput) -> str:
         # 用 `sha256:<hex>` 拼路径会得到一份不存在的文件，命令看着能跑、其实是死链（B149）。
         # `--mode offline` 必须写上：默认是 live，而 live 缺 RouteSet/transport 就拒跑，
         # 照抄默认值只会得到 exit=1 的"需要注入"（B151）。
-        w(f"- 复现（离线重判）：`veripen replay --capsule {report.capsule_dir}/{f.self_sha256}.json"
+        w(f"- 复现（离线重判，在报告所在目录执行）：`veripen replay --capsule {report.capsule_dir}/{f.self_sha256}.json"
           f" --mode offline` —— 判定能否由证据重算；**不重发请求**，不能读成「洞还在」")
         if f.impact:
             w(f"- 影响：{f.impact}")
