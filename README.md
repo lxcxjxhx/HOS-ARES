@@ -12,7 +12,7 @@
 # 1. 装依赖（Python 3.11+）
 pip install -e ".[dev]"
 
-# 2. 环境自检（19 项，缺条件的记 skip 不记 fail）
+# 2. 环境自检（20 项，缺条件的记 skip 不记 fail）
 veripen doctor
 
 # 3. 坐下干活
@@ -43,7 +43,7 @@ veripen chat
 配合：
 
 ```bash
-veripen console             # 只读控制台（10 页）
+veripen console             # 只读控制台（10 个只读操作）
 veripen tui                 # 终端三面板
 veripen hunt --target …     # 边跑边打印
 veripen parity              # 三对标总验收（5 面 × 22 项）
@@ -72,7 +72,7 @@ make demo                   # → out/demo/hos-ares-tour.mp4
 | 插件装→用→升级回滚→卸 | ✅ | `tests/unit/test_plugin_lifecycle.py` |
 | 审批落库 + 事件留痕 | ✅ | `tests/unit/test_approval_persistence.py` |
 | 交互式会话（说人话 / 计划 / diff / 多步） | ✅ | `tests/integration/test_chat_*.py` |
-| 统一 CLI（11 个子命令） | ✅ | `veripen --help` |
+| 统一 CLI（12 个子命令） | ✅ | `veripen --help` |
 
 ## 现在**不**能做什么
 

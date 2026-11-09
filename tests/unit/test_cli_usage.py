@@ -75,3 +75,32 @@ def test_every_subcommand_has_a_loadable_main() -> None:
     for name, module, _desc in COMMANDS:
         mod = importlib.import_module(module)
         assert callable(getattr(mod, "main", None)), f"{name}: {module} 没有 main"
+
+
+# ── README 里的数字也得是真数字（B181）─────────────────────────
+def _readme() -> str:
+    return (ROOT / "README.md").read_text(encoding="utf-8")
+
+
+def test_readme_doctor_count_matches() -> None:
+    from veripen_cli.cmd_doctor import CHECKS
+
+    match = re.search(r"环境自检（(\d+) 项", _readme())
+    assert match, "README 里没有「环境自检（N 项」"
+    assert int(match.group(1)) == len(CHECKS), f"README 写 {match.group(1)}，实际 {len(CHECKS)}"
+
+
+def test_readme_subcommand_count_matches() -> None:
+    from veripen_cli.__main__ import COMMANDS
+
+    match = re.search(r"统一 CLI（(\d+) 个子命令）", _readme())
+    assert match, "README 里没有「统一 CLI（N 个子命令）}"
+    assert int(match.group(1)) == len(COMMANDS), f"README 写 {match.group(1)}，实际 {len(COMMANDS)}"
+
+
+def test_readme_console_count_matches() -> None:
+    from web.console import UI_OPS
+
+    match = re.search(r"只读控制台（(\d+) 个只读操作）", _readme())
+    assert match, "README 里没有「只读控制台（N 个只读操作）}"
+    assert int(match.group(1)) == len(UI_OPS)
