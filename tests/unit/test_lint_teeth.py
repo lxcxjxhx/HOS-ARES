@@ -133,3 +133,68 @@ def test_spec_drift_flags_a_missing_file_and_a_missing_symbol() -> None:
     )
     # DDL: 标记只校验文件存在
     assert spec_drift.evidence_problem("veripen_core/store.py::DDL:blackboard_facts") == ""
+
+
+# ── B196：lint-ui 也要能红 ─────────────────────────────────────
+def _ui_root(tmp_path: Path) -> Path:
+    web = tmp_path / "web"
+    (web / "static").mkdir(parents=True)
+    return web
+
+
+def test_ui_zero_address_flags_an_address(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+                                          capsys: pytest.CaptureFixture[str]) -> None:
+    import ui_zero_address
+
+    web = _ui_root(tmp_path)
+    (web / "static" / "index.html").write_text(
+        '<a href="http' + ":" + SEP + SEP + 'evil.example">x</a>\n', encoding="utf-8"
+    )
+    monkeypatch.setattr(ui_zero_address, "WEB_DIR", web)
+    monkeypatch.setattr(ui_zero_address, "ROOT", tmp_path)
+    assert ui_zero_address.main() == 1, "页面里写死地址居然不红"
+    assert "地址" in capsys.readouterr().out
+
+
+def test_ui_zero_address_flags_a_loopback_and_a_port(tmp_path: Path,
+                                                     monkeypatch: pytest.MonkeyPatch) -> None:
+    import ui_zero_address
+
+    web = _ui_root(tmp_path)
+    loop = "local" + "host"
+    (web / "static" / "app.js").write_text(
+        f'const host = "{loop}' + ':8080";\n', encoding="utf-8"
+    )
+    monkeypatch.setattr(ui_zero_address, "WEB_DIR", web)
+    monkeypatch.setattr(ui_zero_address, "ROOT", tmp_path)
+    assert ui_zero_address.main() == 1
+
+
+def test_ui_zero_address_flags_clipboard_and_selectable(tmp_path: Path,
+                                                        monkeypatch: pytest.MonkeyPatch) -> None:
+    """能复制就等于能把地址带走（34 §3）：剪贴板 API 与可选中文本都算问题。"""
+    import ui_zero_address
+
+    web = _ui_root(tmp_path)
+    (web / "static" / "app.js").write_text(
+        "navigator.clipboard.writeText(x);\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(ui_zero_address, "WEB_DIR", web)
+    monkeypatch.setattr(ui_zero_address, "ROOT", tmp_path)
+    assert ui_zero_address.main() == 1
+
+    (web / "static" / "app.js").write_text("td { user-select: text; }\n", encoding="utf-8")
+    assert ui_zero_address.main() == 1
+
+
+def test_ui_zero_address_passes_route_refs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+                                           capsys: pytest.CaptureFixture[str]) -> None:
+    import ui_zero_address
+
+    web = _ui_root(tmp_path)
+    (web / "static" / "index.html").write_text(
+        '<span data-ref="route' + ":" + SEP + SEP + 'contract/0a1b">x</span>\n', encoding="utf-8"
+    )
+    monkeypatch.setattr(ui_zero_address, "WEB_DIR", web)
+    monkeypatch.setattr(ui_zero_address, "ROOT", tmp_path)
+    assert ui_zero_address.main() == 0, capsys.readouterr().out
