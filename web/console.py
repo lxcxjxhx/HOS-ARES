@@ -16,7 +16,7 @@ import time
 from veripen_core.routes.types import short_ref
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from pathlib import Path
 
@@ -500,6 +500,7 @@ def build_app(
     *,
     op_paths: Mapping[str, str] | None = None,
     serve_static: bool = True,
+    record_decision: Callable[[Mapping[str, Any]], str] | None = None,
 ) -> FastAPI:
     app = FastAPI(title="veripen console", docs_url=None, redoc_url=None)
     paths = {op: (op_paths or {}).get(op) or _path_for(op) for op in UI_OPS}
@@ -613,7 +614,9 @@ def build_app(
             merged = [decided.get(a.id, a) for a in state.approvals]
             rows = [a.as_dict(now) for a in merged]
             return {"count": len(rows), "rows": rows,
-                    "pending": sum(1 for r in rows if r["status"] == "pending")}
+                    "pending": sum(1 for r in rows if r["status"] == "pending"),
+                    # 决定会不会被记下来：页面必须能说出来（B193）
+                    "records": record_decision is not None}
         if op == "ui.audit":
             # 恒空的页签不允许留：有事件源就报 state，没有就显式 source=unavailable
             return {
@@ -640,7 +643,23 @@ def build_app(
             raise HTTPException(status_code=code.get(exc.code, 400),
                                 detail={"error": exc.code, "detail": exc.detail}) from exc
         decided[updated.id] = updated
-        return JSONResponse({"ok": True, "approval": updated.as_dict(time.time())})
+        # 落库（B193）：控制台的决定原来只在本进程内存里，重启即失、审计无痕。
+        # 有记账回调就写一条 approval 事件；没有就明说"只在本进程有效"。
+        persisted, why = False, "未接库：决定只在本进程有效"
+        if record_decision is not None:
+            try:
+                where = record_decision(updated.as_dict(time.time()))
+                persisted, why = True, f"已落库（{where}）"
+            except Exception as exc:  # noqa: BLE001 - 落库失败要说出来，不许静默
+                why = f"落库失败：{type(exc).__name__}: {exc}"
+        else:
+            where = ""
+        return JSONResponse({
+            "ok": True,
+            "approval": updated.as_dict(time.time()),
+            "persisted": persisted,
+            "persist_note": why,
+        })
 
     @app.post(paths["ui.approvals"], include_in_schema=False)
     async def post_approvals(request: Request) -> JSONResponse:
