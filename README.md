@@ -32,6 +32,49 @@ veripen chat
 
 ---
 
+## 双击就能看（安装包 / 免安装 exe）
+
+不想装 Python 的人走这条路：从 [Releases](../../releases) 下载 **`HOS-ARES-Setup-<版本>.exe`**，
+装完开始菜单与桌面就有快捷方式，双击直接是控制台界面。
+
+```
+安装包装完后：开始菜单 / 桌面 "HOS-ARES" → 起只读控制台 → 自动开浏览器
+免安装单文件：HOS-ARES.exe            → 同上，不需要安装
+```
+
+界面就是三支柱的出口（覆盖 / 发现 / 未验证 / 路由 / 审计 / 审批 / 边界）：
+它**只读**，唯一的写入是审批决定（有 `--db` 时落进 `task_events`）。
+
+```text
+HOS-ARES.exe                        # 默认向系统要空端口，自动开浏览器
+HOS-ARES.exe --record out/hunt.json # 指定运行产物（hunt.json 或 findings.json）
+HOS-ARES.exe --port 18080           # 固定端口
+HOS-ARES.exe --no-browser           # 不自动开浏览器（无头/调试）
+```
+
+安装包里还带一份 `快速开始.txt`（装到安装目录与开始菜单）。
+
+产物由 [`.github/workflows/build-exe.yml`](.github/workflows/build-exe.yml) 自动构建，
+**构建即自检**：
+
+```text
+1) PyInstaller 打单文件
+2) 起服务 → GET /ui/app → 断言 200 + <title> + id="nav"
+3) Inno Setup 打安装包
+4) 静默装一遍 → 跑装出来的 exe → 断言页面 → 静默卸载 → 断言无残留
+5) 上传 artifact；推 tag 时两个产物都附到 Release
+```
+
+本地复现：
+
+```bash
+pip install pyinstaller
+python -m PyInstaller packaging/HOS-ARES.spec --noconfirm      # dist/HOS-ARES.exe
+ISCC.exe /DMyAppVersion=0.1.0 packaging/HOS-ARES.iss           # packaging/out/HOS-ARES-Setup-*.exe
+```
+
+---
+
 ## 三条主线
 
 | 面 | 命令 | 产物 |
