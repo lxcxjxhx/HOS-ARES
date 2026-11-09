@@ -25,6 +25,7 @@ import json
 import sys
 from collections import Counter
 from pathlib import Path
+from typing import Any, Sequence
 
 from ._io import setup_stdout  # noqa: E402
 
@@ -58,14 +59,11 @@ SPEC_14: tuple[str, ...] = (
 ALIASES = {"jwt_suite": "jwt_replay"}
 
 
-def main(argv: list[str]) -> int:
-    ap = argparse.ArgumentParser(prog="veripen coverage-matrix")
-    ap.add_argument("--cases", default=str(ROOT / "tests" / "bench" / "cases.yaml"))
-    ap.add_argument("--out", default=str(ROOT / "out" / "coverage"))
-    ap.add_argument("--json", action="store_true")
-    args = ap.parse_args(argv)
+def build_report(cases: Sequence[Any]) -> dict[str, Any]:
+    """14 类 × 用例的矩阵（B176：从 `main` 里抽出来，parity 与人都用同一份算法）。
 
-    cases = load_cases(args.cases)
+    只算不写：`main` 负责落盘，探针负责判断。
+    """
     registered = {c.meta.id: c.meta for c in ALL_ORACLES}
 
     # 规格 14 类必须全部注册——这是 spec_drift 的另一面，这里顺带查，
@@ -101,10 +99,7 @@ def main(argv: list[str]) -> int:
     uncovered = [str(r["oracle"]) for r in rows if not r["covered"]]
     # 反向：用例里出现了不在 14 类里的 oracle（拼错或新增未登记）
     unknown_in_cases = sorted(set(by_oracle) - set(SPEC_14))
-
-    out_dir = Path(args.out)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    report = {
+    return {
         "denominator": len(SPEC_14),
         "cases_total": len(cases),
         "covered": len(SPEC_14) - len(uncovered),
@@ -114,6 +109,24 @@ def main(argv: list[str]) -> int:
         "rows": rows,
         "by_tag": dict(sorted(by_tag.items())),
     }
+
+
+def main(argv: list[str]) -> int:
+    ap = argparse.ArgumentParser(prog="veripen coverage-matrix")
+    ap.add_argument("--cases", default=str(ROOT / "tests" / "bench" / "cases.yaml"))
+    ap.add_argument("--out", default=str(ROOT / "out" / "coverage"))
+    ap.add_argument("--json", action="store_true")
+    args = ap.parse_args(argv)
+
+    cases = load_cases(args.cases)
+    report = build_report(cases)
+    rows = report["rows"]
+    uncovered = report["uncovered"]
+    missing_impl = report["missing_impl"]
+    unknown_in_cases = report["unknown_in_cases"]
+
+    out_dir = Path(args.out)
+    out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "coverage.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
     )
