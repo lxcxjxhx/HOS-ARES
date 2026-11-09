@@ -53,6 +53,14 @@ class DoctorReport:
     def warnings(self) -> list[Check]:
         return [c for c in self.checks if c.level is Level.WARN]
 
+    def verdict(self) -> str:
+        """三档话术（B190）：失败才叫"不可交付"；只有 warn 时叫"有告警"。"""
+        if self.failures:
+            return f"不可交付（{len(self.failures)} 项失败）"
+        if self.warnings:
+            return f"可交付但有告警（{len(self.warnings)} 项）"
+        return "全绿"
+
     def as_text(self) -> str:
         return "\n".join(c.line() for c in self.checks)
 
@@ -60,6 +68,7 @@ class DoctorReport:
         return {
             "schema": "veripen.doctor/v1",
             "ok": not self.failures,
+            "verdict": self.verdict(),
             "counts": {
                 "ok": sum(1 for c in self.checks if c.level is Level.OK),
                 "warn": len(self.warnings),
@@ -75,7 +84,8 @@ class DoctorReport:
 def _run(cmd: Sequence[str], *, timeout: int = 120) -> tuple[int, str]:
     try:
         proc = subprocess.run(
-            list(cmd), capture_output=True, text=True, timeout=timeout, cwd=ROOT
+            list(cmd), capture_output=True, text=True, timeout=timeout, cwd=ROOT,
+            encoding="utf-8", errors="replace",
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return 127, f"{type(exc).__name__}: {exc}"

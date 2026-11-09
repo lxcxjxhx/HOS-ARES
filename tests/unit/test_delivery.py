@@ -150,3 +150,37 @@ def test_package_offline_script_exists() -> None:
     script = Path(__file__).resolve().parents[2] / "scripts" / "package-offline.sh"
     assert script.exists(), "离线包必须有脚本入口（12 §3）"
     assert "pip download" in script.read_text(encoding="utf-8")
+
+
+# ── B190：判定三档，别把"未验"说成"不可交付" ──────────────────
+# 仓库里有**两份** doctor（H31 B180 已登记）：这份用例把两边的判定口径都钉住，
+# 它们的枚举不同（CLI 有 skip，库这份只有 warn），但都不许把"没失败"说成"不可交付"。
+def test_cli_doctor_verdict_distinguishes_failure_from_unverified() -> None:
+    from veripen_cli.cmd_doctor import CheckResult, DoctorReport, Status
+
+    failed = DoctorReport(results=[CheckResult("x", Status.FAIL, "坏了", "改它")])
+    assert "不可交付" in failed.verdict() and "1 项失败" in failed.verdict()
+
+    unverified = DoctorReport(results=[CheckResult("y", Status.SKIP, "缺 docker")])
+    assert "不可交付" not in unverified.verdict(), "没失败就不许说不可交付"
+    assert "未全绿" in unverified.verdict() and "不算通过" in unverified.verdict()
+
+    green = DoctorReport(results=[CheckResult("z", Status.OK, "fine")])
+    assert green.verdict() == "全绿"
+
+
+def test_library_doctor_verdict_has_three_levels() -> None:
+    from veripen.doctor import Check, DoctorReport, Level
+
+    failed = DoctorReport()
+    failed.add(Check("x", Level.FAIL, "坏了", fix="改它"))
+    assert "不可交付" in failed.verdict()
+
+    warned = DoctorReport()
+    warned.add(Check("y", Level.WARN, "QPS 偏高"))
+    assert "不可交付" not in warned.verdict(), "告警不是失败"
+    assert "有告警" in warned.verdict()
+
+    green = DoctorReport()
+    green.add(Check("z", Level.OK, "fine"))
+    assert green.verdict() == "全绿"

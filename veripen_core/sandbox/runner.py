@@ -115,6 +115,7 @@ class DockerRunner:
         cmd = self.build_argv(argv, image=image, mounts=mounts, env=env, **kwargs)  # type: ignore[arg-type]
         try:
             proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s,
+                          encoding="utf-8", errors="replace",
                                   check=False)
         except FileNotFoundError as exc:          # 二进制在、但执行失败
             return ExecResult(None, outcome="blocked", reason=f"runtime_unavailable: {exc}")
