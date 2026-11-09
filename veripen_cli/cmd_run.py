@@ -611,8 +611,10 @@ def main(argv: list[str] | None = None) -> int:
             if args.discover else {}
         ),
         render_time=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        # 报告里的复现命令要指到**这一轮**的证据目录
-        capsule_dir=str(capsules_dir).replace("\\", "/"),
+        # 报告里的复现命令要指到**这一轮**的证据目录。
+        # 用**相对**形式（B189）：绝对路径会把操作员的机器布局写进交付物，
+        # 换台机器/换个目录就读不出来——报告和证据本来就是一起发出去的。
+        capsule_dir=CAPSULE_DIR,
     )
 
     (out / "findings.json").write_text(
