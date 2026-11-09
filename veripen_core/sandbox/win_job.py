@@ -20,7 +20,7 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Any, Sequence
 
 # ── Win32 常量 ────────────────────────────────────────────────────
 JOB_OBJECT_LIMIT_PROCESS_MEMORY = 0x00000100
@@ -70,7 +70,25 @@ class _ExtendedLimits(ctypes.Structure):
     ]
 
 
-kernel32 = ctypes.WinDLL("kernel32", use_last_error=True) if sys.platform == "win32" else None
+def _last_error() -> int:
+    """`ctypes.get_last_error` 只在 Windows 上存在；取不到就当 0（B200）。"""
+    fn = getattr(ctypes, "get_last_error", None)
+    return int(fn()) if callable(fn) else 0
+
+
+#: `ctypes.WinDLL` 也只在 Windows 上有：用 getattr 取，避免非 Windows 上做类型检查就报
+#: `Module has no attribute "WinDLL"`（CI 的 Linux runner 实跑抓到，B200）。
+def _load_kernel32() -> Any:
+    """Windows 上取 kernel32 句柄；别的平台上返回 None（不 import 就失败）。"""
+    if sys.platform != "win32":
+        return None
+    loader = getattr(ctypes, "WinDLL", None)
+    if loader is None:          # pragma: no cover - Windows 上必然有
+        return None
+    return loader("kernel32", use_last_error=True)
+
+
+kernel32: Any = _load_kernel32()
 
 
 def available() -> bool:
@@ -117,7 +135,7 @@ class WinJobRunner:
         assert kernel32 is not None
         job = kernel32.CreateJobObjectW(None, None)
         if not job:
-            raise OSError(ctypes.get_last_error(), "CreateJobObject 失败")
+            raise OSError(_last_error(), "CreateJobObject 失败")
         info = _ExtendedLimits()
         info.BasicLimitInformation.LimitFlags = (
             JOB_OBJECT_LIMIT_ACTIVE_PROCESS
@@ -134,7 +152,7 @@ class WinJobRunner:
         )
         if not ok:
             kernel32.CloseHandle(job)
-            raise OSError(ctypes.get_last_error(), "SetInformationJobObject 失败")
+            raise OSError(_last_error(), "SetInformationJobObject 失败")
         return int(job)
 
     @staticmethod
@@ -176,7 +194,7 @@ class WinJobRunner:
                 assigned = bool(kernel32.AssignProcessToJobObject(job, wt.HANDLE(handle)))
             if not assigned:
                 # 没进 job 就别假装受限：明确报出来，由调用方决定
-                last_error = ctypes.get_last_error()
+                last_error = _last_error()
                 out, errb = proc.communicate(timeout=timeout_s)
                 return JobExecResult(
                     proc.returncode or 1, out or b"", errb or b"",

@@ -27,7 +27,8 @@ veripen = "veripen_cli.__main__:main"
 # cryptography 只被 tests/lab/tls.py 用来现场签发证书（https 分支的夹具）。
 # 它**不进运行期依赖**：产品代码走 stdlib ssl，不需要它；
 # 但测试里必须声明清楚，否则本地碰巧装了就能过、CI 干净环境就红。
-dev = ["pytest>=8.0", "cryptography>=42"]
+# tests/routes/test_l0.py 会在子进程里跑 mypy；缺 mypy 或类型桩，CI 干净环境就红（B200）。
+dev = ["pytest>=8.0", "cryptography>=42", "mypy>=1.8", "types-PyYAML>=6"]
 
 [tool.setuptools]
 packages = ["veripen_core", "api"]
