@@ -173,7 +173,7 @@ def test_l0_06_mypy_strict_clean() -> None:
         proc = subprocess.run(
             [sys.executable, "-m", "mypy", "--strict", "--no-error-summary", str(CORE)],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
             cwd=str(ROOT),
         )
     except FileNotFoundError:  # pragma: no cover
@@ -483,7 +483,7 @@ def test_l0_35_gate_really_reddens(tmp_path: Path) -> None:
     proc = subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "lint" / "noroute.py"), "--root", str(tmp_path)],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8", errors="replace",
     )
     assert proc.returncode == 1, proc.stdout
     assert "R-PATH" in proc.stdout and "R-URL" in proc.stdout and "R-PORT" in proc.stdout
