@@ -32,7 +32,7 @@ import socket
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 from urllib.parse import urlsplit
 
 from ._discover_args import add_discovery_args
@@ -384,6 +384,27 @@ def _load_l1a(args: Any, asset_id: str) -> Any:
     return build_l1a(AssetFacts(store), asset_id)
 
 
+def _plan_decision(scope: ScopeGuard, oracles: Iterable[str],
+                   ceiling: str) -> PlanDecision:
+    """把 oracle 列表**过一遍闸门的 plan**（B187）。
+
+    原先是 `PlanDecision(allowed_oracles=oracles)` 直接造出来——等于"我自己批准自己"：
+    scope_in / deny / 影响顶棚 / 时间窗这几条判定从来没被调用过，
+    于是 deny 配了也没用，`preflight()` 看到的永远是"全允许"。
+    """
+    from veripen_core.models import ImpactClass
+    from veripen_oracles import ALL_ORACLES
+
+    impact = {c.meta.id: c.meta.impact for c in ALL_ORACLES}
+    return scope.plan(
+        oracles,
+        enabled_oracles=frozenset(oracles),
+        impact_by_oracle=impact,
+        asset_ceiling=ImpactClass(ceiling),
+        in_window=True,
+    )
+
+
 def build_guard(
     host: str,
     routeset: Any,
@@ -391,6 +412,8 @@ def build_guard(
     *,
     rate: float = 1.0,
     burst: float = 2.0,
+    deny: Iterable[str] = (),
+    ceiling: str = "read_only",
 ) -> GuardContext:
     """装配出网闸门（`hunt` 与 `run` 共用）。
 
@@ -401,14 +424,14 @@ def build_guard(
     scope = ScopeGuard(
         asset=AssetScope(id=host, host_keys=frozenset({host}), resolved_ips=resolved),
         scope_in=frozenset({host}),
-        deny=frozenset(),
+        deny=frozenset(deny),
         min_confidence=0.0,
         now=int(time.time()),
     )
     return GuardContext(
         scope=scope,
         routeset=routeset,
-        plan=PlanDecision(allowed_oracles=oracles),
+        plan=_plan_decision(scope, oracles, ceiling),
         bucket=TokenBucket(ThrottleConfig(rate_per_s=rate, burst=burst)),
         budget=Budget(),
         now=int(time.time()),
@@ -433,6 +456,10 @@ def main(argv: list[str]) -> int:
     #: 而这条命令的定位是"验证"，不是"压测"。
     ap.add_argument("--rate", type=float, default=1.0, help="每秒请求上限（默认 1）")
     ap.add_argument("--burst", type=float, default=2.0, help="突发桶容量（默认 2）")
+    ap.add_argument("--deny", default="",
+                    help="禁止触碰的主机（逗号分隔）；命中即整任务 BLOCKED，不发包")
+    ap.add_argument("--max-impact", choices=("read_only", "reversible_write"),
+                    default="read_only", help="影响顶棚（默认 read_only）")
     #: 默认排掉三类：写操作、压力类。它们对真实目标有副作用或构成压测，
     #: 要开必须显式给 --exclude "" 并在报告里写清为什么。
     ap.add_argument(
@@ -546,14 +573,14 @@ def main(argv: list[str]) -> int:
     scope = ScopeGuard(
         asset=AssetScope(id=host, host_keys=frozenset({host}), resolved_ips=resolved),
         scope_in=frozenset({host}),
-        deny=frozenset(),
+        deny=frozenset(x.strip() for x in args.deny.split(",") if x.strip()),
         min_confidence=0.0,
         now=int(time.time()),
     )
     ctx = GuardContext(
         scope=scope,
         routeset=routeset,
-        plan=PlanDecision(allowed_oracles=oracles),
+        plan=_plan_decision(scope, oracles, args.max_impact),
         bucket=TokenBucket(ThrottleConfig(rate_per_s=args.rate, burst=args.burst)),
         budget=Budget(),
         now=int(time.time()),

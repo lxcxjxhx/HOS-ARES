@@ -53,7 +53,8 @@ def test_run_passes_qps_into_the_guard(monkeypatch: pytest.MonkeyPatch,
     seen: dict[str, Any] = {}
 
     def record_guard(host: str, routeset: Any, oracles: Any, *, rate: float = 1.0,
-                     burst: float = 2.0) -> Any:  # noqa: ANN401
+                     burst: float = 2.0, deny: Any = (),
+                     ceiling: str = "read_only") -> Any:  # noqa: ANN401
         seen["rate"] = rate
         seen["burst"] = burst
         raise SystemExit(0)          # 到闸门就够了，后面的出网不跑
@@ -72,7 +73,8 @@ def test_run_default_qps_is_unchanged(monkeypatch: pytest.MonkeyPatch,
     seen: dict[str, Any] = {}
 
     def record_guard(host: str, routeset: Any, oracles: Any, *, rate: float = 1.0,
-                     burst: float = 2.0) -> Any:  # noqa: ANN401
+                     burst: float = 2.0, deny: Any = (),
+                     ceiling: str = "read_only") -> Any:  # noqa: ANN401
         seen["rate"] = rate
         seen["burst"] = burst
         raise SystemExit(0)
