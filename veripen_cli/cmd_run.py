@@ -46,8 +46,12 @@ from .cmd_hunt import _build_routeset, _host_of, _oracles_for, build_guard  # no
 #: 证据目录名（相对 --out）
 CAPSULE_DIR = "capsules"
 
-#: 默认排除：写类与压力类（与 hunt 同口径）
-DEFAULT_EXCLUDE = "rate_limit_missing,mass_assignment,xss_stored_probe"
+#: 默认排除：写类与压力类（与 hunt 同口径）。
+#:
+#: 原来是 `rate_limit_missing`——**没有这个 oracle**（真名 `rate_limit_absent`）。
+#: 于是一条 DEFAULT_OFF 的类从来没被默认排除：只要某条面被打上 `rate_sensitive`
+#: 标签，它就会被默认跑起来（那是压力类动作，正是默认关闭要拦的）。B179。
+DEFAULT_EXCLUDE = "rate_limit_absent,mass_assignment,xss_stored_probe"
 
 
 def _meta(oracle: Any, key: str, default: Any = "") -> Any:
