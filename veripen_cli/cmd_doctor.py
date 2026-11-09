@@ -59,6 +59,21 @@ class DoctorReport:
         """**只有全 ok 才叫绿。skip 也算不绿**——没检查过的不算通过。"""
         return not self.failed and not self.skipped
 
+    def verdict(self) -> str:
+        """三档话术（B190）：失败才叫"不可交付"，未验只叫"未全绿"。
+
+        原来 skip 也归进"不可交付"——那是**没失败**却被判了死刑：
+        一台没装 docker 的机器跑 `make doctor` 会永远红，
+        读者分不清"产品有问题"和"这台机器缺条件"。
+        """
+        counts = self.by_status()
+        if counts["fail"]:
+            return f"不可交付（{counts['fail']} 项失败）"
+        if counts["skip"]:
+            return (f"未全绿（{counts['skip']} 项未验，不算通过）"
+                    "—— 在具备条件的环境复验后才谈交付")
+        return "全绿"
+
     def by_status(self) -> dict[str, int]:
         return {s.value: sum(1 for r in self.results if r.status is s) for s in Status}
 
@@ -73,7 +88,7 @@ class DoctorReport:
         lines += [
             "",
             f"ok {counts['ok']} / fail {counts['fail']} / skip {counts['skip']}"
-            f"  → {'全绿' if self.green else '不可交付'}",
+            f"  → {self.verdict()}",
         ]
         return "\n".join(lines) + "\n"
 
@@ -423,7 +438,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         reconfigure(encoding="utf-8", errors="replace")
     if args.json:
         print(json.dumps({"results": [r.as_dict() for r in report.results],
-                          "green": report.green, "counts": report.by_status()},
+                          "green": report.green, "counts": report.by_status(),
+                          "verdict": report.verdict(),
+                          "exit": 0 if report.green else 1},
                          ensure_ascii=False, indent=2))
     else:
         print(report.render())
