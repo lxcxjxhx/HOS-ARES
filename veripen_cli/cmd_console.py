@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import sys
 from dataclasses import replace
+from typing import Any, Mapping
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -50,7 +51,34 @@ def main(argv: list[str] | None = None) -> int:
         state = replace(state, audit=audit_rows)
 
     stats = summarize(state)
-    app = build_app(state)
+
+    # 审批决定落库（B193）：控制台是驭智面的审批入口，决定不能只活在本进程里。
+    record = None
+    if args.db and Path(args.db).exists():
+        from veripen_core.blackboard import EventLog
+
+        def record(approval: Mapping[str, Any]) -> str:
+            store = Store(str(Path(args.db)))
+            try:
+                EventLog(store).record(
+                    task_id="console",
+                    kind="approval",
+                    ok=str(approval.get("status")) == "approved",
+                    detail={
+                        # `by` 是审计页 `who` 列的来源（audit_source.to_row）
+                        "by": approval.get("decided_by") or "-",
+                        "approval_id": approval.get("id"),
+                        "action_class": approval.get("action_class"),
+                        "asset": approval.get("asset"),
+                        "decision": approval.get("status"),
+                        "reason": approval.get("reason"),
+                    },
+                )
+            finally:
+                store.close()
+            return "task_events(kind=approval)"
+
+    app = build_app(state, record_decision=record)
 
     print(f"控制台：http://{args.host}:{args.port}" + chr(0x2F) + "ui" + chr(0x2F) + "app")
     print(f"数据：{stats['total']} 条（{stats['verified']} 已确认 / "

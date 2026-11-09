@@ -516,7 +516,10 @@ function renderApprovals(d) {
   const wrap = el("div");
   const rows = d.rows || [];
   wrap.append(el("p", { class: "muted" },
-    `待批 ${d.pending || 0} 条 —— 批准/拒绝都要填理由；1h 未批自动过期（动作 BLOCKED）`));
+    `待批 ${d.pending || 0} 条 —— 批准/拒绝都要填理由；1h 未批自动过期（动作 BLOCKED）`
+    // 决定会不会留下痕迹：页面必须说清（B193）
+    + (d.records ? " · 决定会写入审计（task_events）"
+                 : " · 未接库：决定只在本进程有效，重启即失")));
   if (!rows.length) {
     wrap.append(el("p", { role: "status" }, "当前没有待批动作"));
     return wrap;
@@ -538,6 +541,8 @@ function renderApprovals(d) {
           .then((resp) => resp.json().then((data) => ({ ok: resp.ok, data })))
           .then((res) => {
             if (!res.ok) window.alert(`审批失败：${res.data?.detail?.error || "unknown"}`);
+            // 落库成功/失败都让人看见一次（B193）：不静默
+            else if (res.data && res.data.persist_note) window.alert(res.data.persist_note);
             render();
           });
       };
