@@ -38,3 +38,4 @@ exe.err.log
 # 安装包输出（B199）：由 packaging/HOS-ARES.iss 生成，不入库
 /packaging/out/
 /ci_gates.log
+/ci*.log
