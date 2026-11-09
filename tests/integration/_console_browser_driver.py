@@ -51,7 +51,9 @@ def _wait_ready(port: int, timeout_s: float = 20.0) -> None:
 
 
 def main(argv: list[str]) -> int:
-    record = argv[0]
+    source = argv[0]
+    # 第二个参数可选：要额外渲染的页面（hash 路由的 op 名）
+    extra_ops = [a for a in argv[1:] if a]
     # 输出里既有中文也有 DOM：统一按 UTF-8 写，别让父进程按本地码页解
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -71,7 +73,7 @@ def main(argv: list[str]) -> int:
         print("SKIP 浏览器不可用")
         return 0
 
-    app = build_app(load_file(record))
+    app = build_app(load_file(source))
     port = _free_port()
     server = uvicorn.Server(
         uvicorn.Config(app, host=HOST, port=port, log_level="error")
@@ -85,6 +87,11 @@ def main(argv: list[str]) -> int:
                                         timeout_s=30)
             findings = renderer.capture(url=_base(port) + UI_APP + "#/findings",
                                         wait="networkidle", timeout_s=30)
+            pages: dict[str, str] = {}
+            for op in extra_ops:
+                got = renderer.capture(url=_base(port) + UI_APP + "#/" + op,
+                                       wait="networkidle", timeout_s=30)
+                pages[op] = got.html
     finally:
         server.should_exit = True
         thread.join(timeout=10)
@@ -93,6 +100,9 @@ def main(argv: list[str]) -> int:
     print(f"OUTCOME {overview.outcome} {findings.outcome}")
     print("PATHS " + ",".join(overview.paths))
     print("PATHS2 " + ",".join(findings.paths))
+    for op, html in pages.items():
+        print(f"===== page {op} =====")
+        print(html)
     print("----- overview -----")
     print(overview.html)
     print("----- findings -----")

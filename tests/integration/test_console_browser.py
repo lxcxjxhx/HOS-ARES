@@ -97,3 +97,58 @@ def test_console_page_runs_in_a_real_browser(tmp_path: Path) -> None:
     # 切到发现页：载荷里的资产名必须真的进到 DOM（表格由 JS 渲染）
     assert "asset-b181" in out, out[-1200:]
     assert "<td>undefined</td>" not in out, "表格里出现 undefined：取数没取到"
+
+
+# ── 平台（多资产）页面也在真浏览器里跑一遍（B182）───────────────
+def _asset_dir(root: Path, name: str, oracle: str) -> None:
+    sub = root / name
+    sub.mkdir(parents=True, exist_ok=True)
+    doc = {
+        "schema": "veripen.report/v1",
+        "engagement": name,
+        "root_sha256": "0" * 64,
+        "counts": {"total": 1, "by_outcome": {"reported": 1}},
+        "findings": [
+            {
+                "finding_id": f"{name}-F1",
+                "oracle": oracle,
+                "asset": name,
+                "verdict": "VERIFIED",
+                "outcome": "reported",
+                "severity": "high",
+                "title": f"{name} 的发现",
+                "capsule_id": "cap-" + name,
+            }
+        ],
+    }
+    (sub / "findings.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    ledger = {
+        "schema_version": "1",
+        "asset_id": name,
+        "summary": {"faces": 2, "faces_covered": 2, "oracles_selected": 1,
+                    "applicable_pairs": 2, "executed": 2, "gaps": 1,
+                    "outcomes": {"reported": 1}},
+        "completeness": {"complete": True, "caveats": []},
+        "gaps": [{"kind": "oracle_blocked", "severity": "warn", "oracle_id": oracle}],
+    }
+    (sub / "coverage.json").write_text(json.dumps(ledger), encoding="utf-8")
+
+
+def test_platform_console_renders_the_merged_ledger(tmp_path: Path) -> None:
+    """多资产合计在页面上必须自报口径（"平台合计账本"），而不是某个资产的面数。"""
+    root = tmp_path / "pf"
+    _asset_dir(root, "asset-1", "csp_absent")
+    _asset_dir(root, "asset-2", "xss_dom")
+
+    proc = subprocess.run(
+        [sys.executable, str(DRIVER), str(root), "coverage"],
+        capture_output=True, text=True, encoding="utf-8", timeout=300,
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+    )
+    out = proc.stdout or ""
+    assert proc.returncode == 0, (out + (proc.stderr or ""))[-1500:]
+    assert "===== page coverage =====" in out, out[:400]
+
+    page = out.split("===== page coverage =====", 1)[1].split("----- overview -----", 1)[0]
+    assert "平台合计账本" in page, page[-1200:]
+    assert "asset-1" in page and "asset-2" in page, "两个资产都得出现在合计里"
