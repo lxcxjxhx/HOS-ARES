@@ -57,6 +57,14 @@ def _events_as_dicts(store: Store, task_id: str) -> list[dict[str, Any]]:
     ]
 
 
+def _report_line(profile: Any) -> str:
+    """报告口径如实写（B197）：框架与分发级别要么来自档，要么是默认值。"""
+    if profile is None:
+        return "- 报告口径：未指定档（默认分发 internal、不出合规映射）"
+    fw = ", ".join(sorted(profile.frameworks)) or "未指定"
+    return f"- 报告口径：分发 {profile.distribution} · 框架 {fw}"
+
+
 def _rate_line(profile_qps: float, effective_qps: float, concurrency: int) -> str:
     """限速如实写（B186）：档里写着 qps，就得说清这一轮到底按多少跑。"""
     if not effective_qps:
@@ -340,6 +348,12 @@ def main(argv: list[str] | None = None) -> int:
             extra_args += ["--qps", f"{effective_qps:g}"]
         if deny_hosts:
             extra_args += ["--deny", ",".join(deny_hosts)]
+        if profile is not None:
+            # 档里写的报告偏好（B197）：原来一条都不往下传，于是报告永远用默认值
+            if profile.frameworks:
+                extra_args += ["--frameworks", ",".join(sorted(profile.frameworks))]
+            if profile.distribution and profile.distribution != "internal":
+                extra_args += ["--distribution", profile.distribution]
         asset_token = token_by_asset.get(asset_ids[i - 1], "") or shared_token
         if asset_token:
             # 平台原来不传 token：带鉴权的资产在平台里永远只能落 BLOCKED（B163）
@@ -452,6 +466,7 @@ def main(argv: list[str] | None = None) -> int:
         ),
         # 凭据只记"有没有 / 怎么给的"，**不落原文**：报告是要发给客户的（B163/B185）
         _credential_line(token_by_asset, shared_token, len(targets)),
+        _report_line(profile),
         _rate_line(profile_qps, effective_qps,
                    int(profile.concurrency) if profile is not None else 1),
         "",

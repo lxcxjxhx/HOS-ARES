@@ -268,6 +268,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("--max-oracles", type=int, default=0, help="0 = 全跑")
     ap.add_argument(
+        "--frameworks", default="",
+        help="合规框架（逗号分隔，如 owasp_wstg,cwe）；给了才出「合规映射」一节",
+    )
+    ap.add_argument(
+        "--distribution", choices=("internal", "partner", "customer"),
+        default="internal", help="报告分发级别（决定报告给谁看）",
+    )
+    ap.add_argument(
         "--max-impact", choices=("read_only", "reversible_write"),
         default="read_only", help="影响顶棚（默认 read_only；写类 oracle 需显式抬高）",
     )
@@ -615,6 +623,8 @@ def main(argv: list[str] | None = None) -> int:
         # 用**相对**形式（B189）：绝对路径会把操作员的机器布局写进交付物，
         # 换台机器/换个目录就读不出来——报告和证据本来就是一起发出去的。
         capsule_dir=CAPSULE_DIR,
+        frameworks=[x.strip() for x in args.frameworks.split(",") if x.strip()],
+        distribution=args.distribution,
     )
 
     (out / "findings.json").write_text(
