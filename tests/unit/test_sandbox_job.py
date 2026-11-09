@@ -56,7 +56,8 @@ def test_no_orphan_after_timeout() -> None:
     _runner().run([sys.executable, "-c", script], timeout_s=2)
     time.sleep(1)
     out = subprocess.run(
-        ["tasklist", SL + "fo", "csv", SL + "v"], capture_output=True, text=True, errors="replace"
+        ["tasklist", SL + "fo", "csv", SL + "v"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
     ).stdout
     assert marker not in out, "超时后仍有残留进程"
 

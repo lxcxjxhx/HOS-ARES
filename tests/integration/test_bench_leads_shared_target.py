@@ -39,6 +39,9 @@ def record(tmp_path_factory: pytest.TempPathFactory) -> dict[str, object]:
         cwd=ROOT,
         capture_output=True,
         text=True,
+        # 子进程吐 UTF-8，Windows 上按 GBK 解会炸读线程（B199）：钉死编码
+        encoding="utf-8",
+        errors="replace",
         timeout=300,
     )
     payload = proc.stdout[proc.stdout.index("{") :]
