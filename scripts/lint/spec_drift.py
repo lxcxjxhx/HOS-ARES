@@ -143,8 +143,31 @@ def actual_oracles() -> set[str]:
 
 
 #: I1–I12 的机械保证（每条的"证据在哪"）。缺了就说明这条不变量只是墙上标语。
+def evidence_problem(pointer: str, root: Path = ROOT) -> str:
+    """证据指针指向真东西吗（B195）。
+
+    原来只判断"字典里有没有写一个字符串"，于是
+    `tests/unit/test_contracts.py::test_pure_judge`（真名是 `test_judge_is_pure`）
+    也一路绿灯——**证据指向不存在的用例**，和不写证据是同一种谎。
+    返回空串 = 没问题，否则返回人话原因。
+    """
+    path_part, _, symbol = pointer.partition("::")
+    if not path_part:
+        return "证据为空"
+    target = root / path_part
+    if not target.exists():
+        return f"证据文件不存在：{path_part}"
+    if not symbol or symbol.startswith("DDL:"):
+        return ""
+    text = target.read_text(encoding="utf-8", errors="ignore")
+    bare = symbol.split(":")[0]
+    if bare and bare not in text:
+        return f"证据里的用例/符号不在该文件：{symbol}"
+    return ""
+
+
 INVARIANT_EVIDENCE: dict[str, str] = {
-    "I1": "tests/unit/test_contracts.py::test_pure_judge",
+    "I1": "tests/unit/test_contracts.py::test_judge_is_pure",
     "I2": "tests/unit/test_oracle_framework.py::test_three_way_is_independent_implementation",
     "I3": "tests/unit/test_profiles.py::test_profile_only_differs_in_yaml",
     "I4": "tests/unit/test_agent_loop.py::test_no_tool_can_take_an_address",
@@ -155,7 +178,7 @@ INVARIANT_EVIDENCE: dict[str, str] = {
     "I9": "scripts/lint/nodata_stub.py",
     "I10": "veripen_core/store.py::DDL:blackboard_facts",
     "I11": "veripen_core/store.py::DDL:asset_facts",
-    "I12": "tests/unit/test_leads.py::test_action_cannot_produce_verdict",
+    "I12": "tests/unit/test_actions.py::test_actions_cannot_import_verdict",
 }
 
 
@@ -190,8 +213,9 @@ def collect() -> list[Drift]:
 
     for inv in planned_invariants():
         evidence = INVARIANT_EVIDENCE.get(inv)
-        ok = bool(evidence)
-        drifts.append(Drift("invariant", inv, "ok" if ok else "missing", evidence or "无机械保证"))
+        problem = evidence_problem(evidence) if evidence else "无机械保证"
+        drifts.append(Drift("invariant", inv, "missing" if problem else "ok",
+                            problem or evidence))
 
     want_oracles, have_oracles = set(planned_oracles()), actual_oracles()
     for name in want_oracles:

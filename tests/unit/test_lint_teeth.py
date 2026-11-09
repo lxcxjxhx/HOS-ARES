@@ -111,3 +111,25 @@ def test_netimports_passes_stdlib_only(tmp_path: Path) -> None:
     good = tmp_path / "good.py"
     good.write_text("import json\nimport socket\n", encoding="utf-8")
     assert netimports.forbidden_imports_in(good) == []
+
+
+# ── B195：spec_drift 的证据指针必须指向真东西 ──────────────────
+def test_spec_drift_evidence_points_at_a_real_test() -> None:
+    """I1/I12 原来指向不存在的用例名，而闸门只查"有没有写"。（已修）"""
+    import spec_drift
+
+    problems = {inv: spec_drift.evidence_problem(ptr)
+                for inv, ptr in spec_drift.INVARIANT_EVIDENCE.items()}
+    broken = {k: v for k, v in problems.items() if v}
+    assert not broken, f"证据指向不存在的东西：{broken}"
+
+
+def test_spec_drift_flags_a_missing_file_and_a_missing_symbol() -> None:
+    import spec_drift
+
+    assert "不存在" in spec_drift.evidence_problem("tests/unit/no_such_file.py")
+    assert "不在该文件" in spec_drift.evidence_problem(
+        "tests/unit/test_contracts.py::no_such_test"
+    )
+    # DDL: 标记只校验文件存在
+    assert spec_drift.evidence_problem("veripen_core/store.py::DDL:blackboard_facts") == ""
