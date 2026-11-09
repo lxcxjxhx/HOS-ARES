@@ -68,9 +68,25 @@ def _routes() -> tuple[str, str]:
 
 
 def _coverage() -> tuple[str, str]:
-    from veripen_cli.cmd_coverage import main  # noqa: F401
+    """V4 覆盖：**真的算一遍矩阵**，不再只看"命令能 import"（B176）。
 
-    return GREEN, "覆盖矩阵命令存在"
+    import 成功 ≠ 可用：用例库空了、oracle 拼错了、规格 14 类缺实现——
+    这些都会被旧探针放过去。
+    """
+    from veripen.bench.core import load_cases
+    from veripen_cli.cmd_coverage import build_report
+
+    cases = load_cases(ROOT / "tests" / "bench" / "cases.yaml")
+    rep = build_report(cases)
+    if rep["cases_total"] == 0:
+        return RED, "用例库为空：矩阵无从算起"
+    if rep["missing_impl"]:
+        return RED, f"规格有但代码无实现：{rep['missing_impl']}"
+    if rep["unknown_in_cases"]:
+        return RED, f"用例里的 oracle 不在 14 类内：{rep['unknown_in_cases']}"
+    return GREEN, (
+        f"{rep['covered']}/{rep['denominator']} 类有用例 · 共 {rep['cases_total']} 条"
+    )
 
 
 def _sandbox() -> tuple[str, str]:
@@ -140,15 +156,50 @@ def _discovery() -> tuple[str, str]:
 
 
 def _parallel() -> tuple[str, str]:
-    if not (ROOT / "veripen_core" / "parallel.py").exists():
-        return UNVERIFIED, "任务级并行未做（B49）"
-    return GREEN, "进程内 3 任务并行（并发==串行、跨任务读即事故）；容器级并行未验"
+    """E5 执行：**真跑三个任务**，比并发与串行的结果指纹（B176）。
+
+    旧探针只看 `parallel.py` 在不在文件系统里——那连"能不能跑"都没验。
+    """
+    from veripen_core.parallel import TaskResult, merge_sha, run_parallel
+
+    def runner(tid: str) -> TaskResult:
+        return TaskResult(
+            task_id=tid,
+            findings=({"oracle": "probe", "asset": tid, "verdict": "VERIFIED"},),
+            steps=1,
+        )
+
+    ids = ["t3", "t1", "t2"]
+    parallel = run_parallel({t: runner for t in ids}, limit=3)
+    serial = tuple(runner(t) for t in sorted(ids))
+    if [r.task_id for r in parallel] != sorted(ids):
+        return RED, "并发结果没有按 task_id 排序（可复现性就靠这个）"
+    if merge_sha(parallel) != merge_sha(serial):
+        return RED, "并发与串行的结果指纹不一致"
+    return GREEN, (
+        f"3 任务并行 · 与串行同指纹（{merge_sha(parallel)[:8]}…）；容器级并行未验"
+    )
 
 
 def _control_plane() -> tuple[str, str]:
-    from veripen_core.workflow import __name__ as _m  # noqa: F401
+    """P1 平台：**真跑一遍 DAG**（B176）——排序 + 依赖未满足集，而不是只看 import。
 
-    return GREEN, "workflow 阶段推进模块可用"
+    "import 成功就算可用"是这一批统一清掉的口径：它永远绿。
+    """
+    from veripen_core.workflow import load, unmet
+
+    wf = load(ROOT / "config" / "workflow.yaml")
+    order = wf.order()
+    if not order:
+        return RED, "工作流为空：阶段推进无从谈起"
+    first = order[0].id
+    missing = unmet({first}, wf, set())
+    if not missing:
+        return RED, "只完成第一阶段却认为依赖全满足——DAG 依赖没生效"
+    waves = [w for w, ids in wf.by_wave().items() if ids]
+    return GREEN, (
+        f"{len(order)} 阶段 / {len(waves)} 个波次 · 只做首阶段仍缺 {len(missing)} 个"
+    )
 
 
 def _blackboard() -> tuple[str, str]:
