@@ -719,11 +719,14 @@ def main(argv: list[str]) -> int:
     # 可交付报告（B166）：与 hunt.json **同源渲染**，同一个 dict 进两份产物
     from veripen.report.hunt import render_hunt_markdown
 
+    # 报告里的证据路径用**相对 `--out`** 的形式（B191）：与 run 的报告同口径
+    cap_rel = "capsules"
     report_path = out / "hunt.md"
     report_path.write_text(
         render_hunt_markdown(
             record,
-            capsules_dir=str(capsules_dir).replace("\\", "/"),
+            # 相对 `--out`（B191）：与 run 的报告同口径，绝对路径换台机器就读不出来
+            capsules_dir=cap_rel,
             generated_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         ),
         encoding="utf-8",

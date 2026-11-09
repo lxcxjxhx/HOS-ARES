@@ -106,3 +106,13 @@ def test_report_never_prints_the_full_route_ref() -> None:
     """路由引用只给尾 8 位：报告要能贴给客户。"""
     md = _render(_record())
     assert "route://contract/" not in md
+
+
+# ── B191：hunt.md 的证据路径也要可移植 ─────────────────────────
+def test_hunt_md_capsule_paths_are_relative() -> None:
+    """报告要发出去：命令里的证据路径不许带操作员的绝对路径。"""
+    from veripen.report.hunt import render_hunt_markdown
+
+    md = render_hunt_markdown(_record(), capsules_dir="capsules", generated_at="t")
+    assert "--capsule capsules/" + SHA + ".json" in md
+    assert "相对报告所在目录" in md
