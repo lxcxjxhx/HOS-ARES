@@ -25,13 +25,16 @@ class Heartbeat(threading.Thread):
         self.task_id = task_id
         self.worker_id = worker_id
         self.on_lost = on_lost
-        self._stop = threading.Event()
+        # 不能叫 `_stop`：`threading.Thread._stop` 是 CPython 的内部方法，
+        # 同名覆盖会让 join()/内部状态机在 `'Event' object is not callable` 上炸
+        # （3.12 的 runner 实跑抓到，本地 3.13 不炸——B200）。
+        self._stop_event = threading.Event()
         self.misses = 0
         self.beats = 0
 
     def run(self) -> None:
         interval = self.lease.cfg.heartbeat_s
-        while not self._stop.wait(interval):
+        while not self._stop_event.wait(interval):
             if self.lease.renew(self.task_id, self.worker_id):
                 self.beats += 1
                 self.misses = 0
@@ -45,4 +48,4 @@ class Heartbeat(threading.Thread):
                 return
 
     def stop(self) -> None:
-        self._stop.set()
+        self._stop_event.set()
