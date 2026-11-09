@@ -57,6 +57,21 @@ def _events_as_dicts(store: Store, task_id: str) -> list[dict[str, Any]]:
     ]
 
 
+def _rate_line(profile_qps: float, effective_qps: float, concurrency: int) -> str:
+    """限速如实写（B186）：档里写着 qps，就得说清这一轮到底按多少跑。"""
+    if not effective_qps:
+        return "- 限速：未指定（按 run 默认 1 qps 执行）"
+    if profile_qps and abs(effective_qps - profile_qps) < 1e-9:
+        base = f"{effective_qps:g} qps（档 policy.qps）"
+    elif profile_qps:
+        base = f"{effective_qps:g} qps（命令行覆盖档里的 {profile_qps:g}）"
+    else:
+        base = f"{effective_qps:g} qps（命令行）"
+    if concurrency > 1:
+        base += f"；并发：档要求 {concurrency} —— 平台按资产串行执行，该值未使用"
+    return f"- 限速：{base}"
+
+
 def _credential_line(
     token_by_asset: dict[str, str], shared: str, assets: int,
 ) -> str:
@@ -154,6 +169,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--allow-shared-token", action="store_true",
         help="显式确认：多个资产共用同一个 token（跨资产复用凭据，风险自负）",
+    )
+    ap.add_argument(
+        "--qps", type=float, default=0.0,
+        help="出网限速（请求/秒）。0 = 用档的 policy.qps；档没写就用 run 的默认 1.0",
     )
     # 无契约的资产（B162）：参数只在 `_discover_args` 定义一次，透传给每个资产
     add_discovery_args(ap)
@@ -263,6 +282,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"契约不存在：{spec_path}", file=sys.stderr)
             return 2
 
+    # 限速：命令行 --qps 优先，其次档里的 policy.qps，最后留 0（= run 的默认 1.0，不改口径）
+    profile_qps = float(profile.qps) if profile is not None else 0.0
+    effective_qps = args.qps if args.qps > 0 else profile_qps
+    if profile_qps and args.qps > 0 and abs(args.qps - profile_qps) > 1e-9:
+        print(f"限速：命令行 {args.qps:g} qps 覆盖档里的 {profile_qps:g} qps")
+
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     db = Path(args.db)
@@ -292,6 +317,8 @@ def main(argv: list[str] | None = None) -> int:
         extra_args: list[str] = []
         if args.exclude:
             extra_args += ["--exclude", args.exclude]
+        if effective_qps > 0:
+            extra_args += ["--qps", f"{effective_qps:g}"]
         asset_token = token_by_asset.get(asset_ids[i - 1], "") or shared_token
         if asset_token:
             # 平台原来不传 token：带鉴权的资产在平台里永远只能落 BLOCKED（B163）
@@ -404,6 +431,8 @@ def main(argv: list[str] | None = None) -> int:
         ),
         # 凭据只记"有没有 / 怎么给的"，**不落原文**：报告是要发给客户的（B163/B185）
         _credential_line(token_by_asset, shared_token, len(targets)),
+        _rate_line(profile_qps, effective_qps,
+                   int(profile.concurrency) if profile is not None else 1),
         "",
         "## 1. 逐资产结论",
         "",
