@@ -20,7 +20,22 @@ from veripen_core.sandbox.runner import (
     select_executor,
 )
 
-HAS_RUNTIME = shutil.which("docker") is not None or shutil.which("podman") is not None
+def _live_engine() -> bool:
+    """命令在 ≠ 服务在（B200）：GitHub 的 runner 有 docker CLI 却没有守护进程。"""
+    exe = shutil.which("docker") or shutil.which("podman")
+    if not exe:
+        return False
+    try:
+        proc = subprocess.run(  # noqa: S603 - 固定命令
+            [exe, "info", "--format", "{{.ServerVersion}}"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return proc.returncode == 0 and bool((proc.stdout or "").strip())
+
+
+HAS_RUNTIME = _live_engine()
 
 
 def _p(*parts: str) -> str:

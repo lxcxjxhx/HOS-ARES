@@ -91,15 +91,36 @@ def _load_kernel32() -> Any:
 kernel32: Any = _load_kernel32()
 
 
+_SELF_TEST: bool | None = None
+
+
 def available() -> bool:
-    """Job Object 可用性：Windows + kernel32 关键符号在位。"""
+    """Job Object 是否**真能用**：符号在 + 一次真实的 job 赋值成功（B200）。
+
+    只查 `hasattr` 不够：GitHub 的 Windows runner 本身跑在一个 Job 里，嵌套赋值
+    会被拒（`AssignProcessToJobObject` 返回 0），于是"可用"的假象换来**每次执行
+    都 assign_failed**。这里做一次性自测并缓存：赋不进去就当不可用，调用方按
+    "没有执行体"处理（BLOCKED / SKIP），而不是每次运行都报错。
+    """
+    global _SELF_TEST
+    if _SELF_TEST is not None:
+        return _SELF_TEST
+    _SELF_TEST = False
     if sys.platform != "win32" or kernel32 is None:
         return False
     for name in ("CreateJobObjectW", "SetInformationJobObject",
                  "AssignProcessToJobObject", "TerminateJobObject"):
         if not hasattr(kernel32, name):
             return False
-    return True
+    # `run()` 自己会先问 `available()`：做自测时必须先让守卫放行，
+    # 否则自测永远走 blocked 分支，把可用当成不可用（第一版就踩了）。
+    _SELF_TEST = True
+    try:
+        res = WinJobRunner().run([sys.executable, "-c", "print(1)"], timeout_s=30)
+        _SELF_TEST = res.outcome == "ok" and b"1" in res.stdout
+    except Exception:  # noqa: BLE001 - 自测失败就是不可用
+        _SELF_TEST = False
+    return _SELF_TEST
 
 
 @dataclass(frozen=True)
