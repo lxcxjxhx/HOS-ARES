@@ -268,6 +268,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("--max-oracles", type=int, default=0, help="0 = 全跑")
     ap.add_argument(
+        "--max-impact", choices=("read_only", "reversible_write"),
+        default="read_only", help="影响顶棚（默认 read_only；写类 oracle 需显式抬高）",
+    )
+    ap.add_argument(
+        "--deny", default="",
+        help="禁止触碰的主机（逗号分隔，通常来自档的 scope.deny）；命中即整任务 BLOCKED",
+    )
+    ap.add_argument(
         "--qps", type=float, default=1.0,
         help="出网限速（请求/秒）。默认 1.0 与闸门默认一致；平台会按档的 policy.qps 传",
     )
@@ -400,7 +408,9 @@ def main(argv: list[str] | None = None) -> int:
     # 默认 qps=1 时 burst 仍是 2（与闸门默认一致，不改老行为）；提速时 burst 跟着涨
     guard = build_guard(host, routeset, tuple(oracles),
                         rate=max(0.1, float(args.qps)),
-                        burst=max(2.0, float(args.qps)))
+                        burst=max(2.0, float(args.qps)),
+                        deny=[x.strip() for x in args.deny.split(",") if x.strip()],
+                        ceiling=args.max_impact)
     http_tool.install_guard(guard)
     started = time.time()
     results: list[tuple[str, Any, Any, Any]] = []   # (oracle_id, meta, result, binding)

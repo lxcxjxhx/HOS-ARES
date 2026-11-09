@@ -66,6 +66,8 @@ class Profile:
     qps: float
     concurrency: int
     frameworks: tuple[str, ...]
+    #: 影响顶棚（B187）：档里写 `policy.max_impact_class`，原来根本没人读
+    max_impact: str = "read_only"
     deny: tuple[str, ...] = ()
     #: 符号名 → 部署期注入的环境变量名（值不进 git）
     asset_env: Mapping[str, str] = field(default_factory=dict)
@@ -99,7 +101,8 @@ class Profile:
                 "enabled": sorted(self.oracles.enabled),
                 "needs_approval": sorted(self.oracles.needs_approval),
             },
-            "policy": {"qps": self.qps, "concurrency": self.concurrency},
+            "policy": {"qps": self.qps, "concurrency": self.concurrency,
+                       "max_impact_class": self.max_impact},
             "report": {"frameworks": sorted(self.frameworks)},
         }
         assets = sorted(
@@ -190,6 +193,7 @@ def load_profile(path: str | Path) -> Profile:
         ),
         qps=float(policy.get("qps") or 0),
         concurrency=int(policy.get("concurrency") or 1),
+        max_impact=str(policy.get("max_impact_class") or "read_only"),
         frameworks=tuple(report.get("frameworks") or ()),
         deny=tuple(scope.get("deny") or ()),
         asset_env={a.id: f"VP_ASSET_{a.id.upper().replace('-', '_')}" for a in assets},
@@ -225,6 +229,11 @@ def validate_profile(
     if bad_tags:
         issues.append(ValidationIssue("fail", "unknown_tag", f"标签不在字典里：{bad_tags}"))
 
+    if profile.max_impact not in ("read_only", "reversible_write"):
+        issues.append(ValidationIssue(
+            "fail", "max_impact_unknown",
+            f"policy.max_impact_class 只能是 read_only / reversible_write，收到 {profile.max_impact!r}",
+        ))
     if profile.qps <= 0:
         issues.append(ValidationIssue("fail", "qps_missing", "policy.qps 必须 > 0"))
     if profile.qps > 50:

@@ -282,6 +282,25 @@ def main(argv: list[str] | None = None) -> int:
             print(f"契约不存在：{spec_path}", file=sys.stderr)
             return 2
 
+    # 档的 scope.deny（B187）：原来只写进档的哈希，没有任何代码把它交给闸门——
+    # 也就是"配了黑名单"，但闸门的 deny 永远是空集。现在按资产映射成主机传下去。
+    deny_hosts: list[str] = []
+    if profile is not None and profile.deny:
+        # deny 里既可以写资产 id，也可以直接写主机名：两种都收
+        def _host_of(url: str) -> str:
+            from urllib.parse import urlsplit
+
+            return urlsplit(url).hostname or ""
+
+        profile_asset_ids = {a.id for a in profile.assets}
+        mapped = {
+            _host_of(str(resolved.get(a.id, ""))) for a in profile.assets
+            if a.id in set(profile.deny)
+        } - {""}
+        # 资产 id 映射成主机；不是资产的条目（主机名）原样留着
+        deny_hosts = sorted(mapped | (set(profile.deny) - profile_asset_ids))
+        print(f"黑名单：{', '.join(deny_hosts)} —— 命中的资产整面 BLOCKED（不发包）")
+
     # 限速：命令行 --qps 优先，其次档里的 policy.qps，最后留 0（= run 的默认 1.0，不改口径）
     profile_qps = float(profile.qps) if profile is not None else 0.0
     effective_qps = args.qps if args.qps > 0 else profile_qps
@@ -319,6 +338,8 @@ def main(argv: list[str] | None = None) -> int:
             extra_args += ["--exclude", args.exclude]
         if effective_qps > 0:
             extra_args += ["--qps", f"{effective_qps:g}"]
+        if deny_hosts:
+            extra_args += ["--deny", ",".join(deny_hosts)]
         asset_token = token_by_asset.get(asset_ids[i - 1], "") or shared_token
         if asset_token:
             # 平台原来不传 token：带鉴权的资产在平台里永远只能落 BLOCKED（B163）
