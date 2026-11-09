@@ -268,6 +268,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("--max-oracles", type=int, default=0, help="0 = 全跑")
     ap.add_argument(
+        "--qps", type=float, default=1.0,
+        help="出网限速（请求/秒）。默认 1.0 与闸门默认一致；平台会按档的 policy.qps 传",
+    )
+    ap.add_argument(
         "--max-faces", type=int, default=5,
         help="每个 oracle 最多跑几条适用的面（默认 5；0 视为 1）",
     )
@@ -393,7 +397,10 @@ def main(argv: list[str] | None = None) -> int:
     # 出网闸门：没有它任何请求都抛 GuardMissing（闸门不是可选项）
     from veripen_core.tools import http as http_tool
 
-    guard = build_guard(host, routeset, tuple(oracles))
+    # 默认 qps=1 时 burst 仍是 2（与闸门默认一致，不改老行为）；提速时 burst 跟着涨
+    guard = build_guard(host, routeset, tuple(oracles),
+                        rate=max(0.1, float(args.qps)),
+                        burst=max(2.0, float(args.qps)))
     http_tool.install_guard(guard)
     started = time.time()
     results: list[tuple[str, Any, Any, Any]] = []   # (oracle_id, meta, result, binding)
