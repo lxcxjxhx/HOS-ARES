@@ -123,6 +123,19 @@ class LockPin:
         return {"resolved": self.resolved, "sha256": self.sha256}
 
 
+def lock_sha(pins: Mapping[str, Any]) -> str:
+    """按 pin 字典重算锁快照的 sha256（B175）。
+
+    `doctor` 用它**独立复算**一遍，而不是相信快照里现成的 `snapshot_sha256`——
+    只检查"这个字段有 64 位"是永远绿的，什么也没验。
+    """
+    payload = json.dumps(
+        {str(k): v for k, v in sorted(pins.items())},
+        sort_keys=True, separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 def _parse_ts(ts: str) -> datetime | None:
     if not ts:
         return None
@@ -186,11 +199,7 @@ class Registry:
         }
 
     def _lock_sha(self) -> str:
-        payload = json.dumps(
-            {k: v.as_dict() for k, v in sorted(self._lock.items())},
-            sort_keys=True, separators=(",", ":"),
-        )
-        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+        return lock_sha({k: v.as_dict() for k, v in sorted(self._lock.items())})
 
     # ── 更新检查（带冷却 + 响应复用）─────────────────────────────
     def due_for_check(self, pid: str, *, now: datetime) -> bool:
