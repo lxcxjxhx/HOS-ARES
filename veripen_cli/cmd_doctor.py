@@ -218,15 +218,34 @@ def check_profiles(root: Path) -> CheckResult:
 
 
 def check_lock_snapshot(root: Path) -> CheckResult:
-    """插件版本锁快照可生成（B12.11）：可复现的最后一道锁。"""
-    from veripen_core.plugins import Registry
+    """插件版本锁快照可生成（B12.11）：可复现的最后一道锁。
 
-    snap = Registry().snapshot_lock()
-    has = len(snap.get("snapshot_sha256", "")) == 64
+    原来的写法是"sha 有 64 位就算 OK"——可 `Registry()` 是空的，那份 sha 就是
+    **空对象的哈希**（`44136fa355b3…`），于是这条永远绿、什么也没验（B175）。
+    现在分三种情形：
+      * 没有插件 → **skip**，并说明 0 条（不是"通过"，也不是"失败"）；
+      * 有插件且 sha 与按 pin 重算一致 → OK；
+      * 有插件但重算对不上 → **fail**（快照坏了，可复现就不成立了）。
+    """
+    from veripen_core.plugins import Registry
+    from veripen_core.plugins.registry import lock_sha
+
+    registry = Registry()
+    snap = registry.snapshot_lock()
+    pins = snap.get("lock") or {}
+    if not pins:
+        return CheckResult(
+            "插件锁快照", Status.SKIP,
+            "没有插件：锁快照为空（0 条），这一项没有可验的东西",
+            "安装插件后再验（锁快照的意义在于锁定已装版本）",
+        )
+    sha = str(snap.get("snapshot_sha256") or "")
+    recomputed = lock_sha(pins)
+    ok = len(sha) == 64 and sha == recomputed
     return CheckResult(
-        "插件锁快照", Status.OK if has else Status.FAIL,
-        f"sha={snap['snapshot_sha256'][:12]}" if has else "快照为空",
-        "实现 Registry.snapshot_lock" if not has else "",
+        "插件锁快照", Status.OK if ok else Status.FAIL,
+        f"{len(pins)} 条 · sha={sha[:12]}",
+        "" if ok else "快照与重算不一致：锁文件可能被手改",
     )
 
 
