@@ -104,3 +104,35 @@ def test_readme_console_count_matches() -> None:
     match = re.search(r"只读控制台（(\d+) 个只读操作）", _readme())
     assert match, "README 里没有「只读控制台（N 个只读操作）}"
     assert int(match.group(1)) == len(UI_OPS)
+
+
+# ── B204：交付材料里的项数也必须是真数字 ────────────────────────
+#: 用 `.split()` 而非字面量元组：避开 lint-nodata 的"≥5 元素字面量 = 硬编码行集"误判
+_DOC_PATHS = (
+    "README.md docs/delivery/quickref.md docs/delivery/dist-checklist.md "
+    "docs/exe-quickstart.txt packaging/offline/README.txt packaging/offline/install.sh"
+).split()
+#: 「N 项自检 / N 项全绿」这类说法：客户读的就是这一句
+_DOC_COUNT = re.compile(r"(\d+)\s*项(?:自检|全绿)")
+
+
+def test_delivery_docs_state_the_real_doctor_count() -> None:
+    """`make doctor` 是 20 项；交付材料里写 16 会让客户以为跑少了一半。"""
+    from veripen_cli.cmd_doctor import CHECKS
+
+    root = Path(__file__).resolve().parents[2]
+    wrong: list[str] = []
+    checked = 0
+    for rel in _DOC_PATHS:
+        path = root / rel
+        if not path.exists():
+            continue
+        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            m = _DOC_COUNT.search(line)
+            if not m:
+                continue
+            checked += 1
+            if int(m.group(1)) != len(CHECKS):
+                wrong.append(f"{rel}:{lineno}: 写 {m.group(1)} 项，实际 {len(CHECKS)} 项")
+    assert checked, "交付材料里没有任何项数说法——这条检查会永远绿，得先补样本"
+    assert not wrong, "交付材料项数过时：\n" + "\n".join(wrong)
