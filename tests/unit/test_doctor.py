@@ -224,3 +224,25 @@ def test_doctor_flags_a_missing_lint(tmp_path, monkeypatch) -> None:  # noqa: AN
     result = cmd_doctor.check_gate_parity(copy)
     assert result.status is cmd_doctor.Status.FAIL, result.detail
     assert "noleak.py" in result.detail, result.detail
+
+
+# ── B216：闸门"写了"不等于"接上了" ─────────────────────────────
+def test_agent_guard_check_passes_on_the_repo() -> None:
+    root = Path(__file__).resolve().parents[2]
+    result = cmd_doctor.check_agent_guard(root)
+    assert result.status is cmd_doctor.Status.OK, result.detail
+    assert "两个入口已接" in result.detail, result.detail
+
+
+def test_agent_guard_check_catches_an_unwired_executor(tmp_path, monkeypatch) -> None:  # noqa: ANN001
+    """闸门从**执行路径**上摘掉，这项必须红——grep 到 import 就绿是最容易犯的假绿。"""
+    import veripen_cli.cmd_chat as chat
+
+    def _unwired(step, *, wb, root, allow_dangerous=False):  # noqa: ANN001, ANN202
+        return True, "exit=0（闸门被摘掉）"
+
+    monkeypatch.setattr(chat, "_exec_step", _unwired)
+    root = Path(__file__).resolve().parents[2]
+    result = cmd_doctor.check_agent_guard(root)
+    assert result.status is cmd_doctor.Status.FAIL, result.detail
+    assert "没拦" in result.detail, result.detail
