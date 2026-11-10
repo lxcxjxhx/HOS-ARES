@@ -452,6 +452,16 @@ def load_file(path: str | Path) -> ConsoleState:
     report = load_report(p.parent)
     if report:
         state.report = report
+    # 路由逐条摘要（B213）：以前产物只记条数，`ui.routes` 永远是空表。
+    # 老产物没有这个字段 → 保持空，页面按"只有条数"如实说。
+    detail = record.get("bindings_detail")
+    if isinstance(detail, list) and detail:
+        state.bindings = tuple(d for d in detail if isinstance(d, Mapping))
+        state.bindings_total = len(detail)
+    counted = record.get("bindings")
+    # 老产物只记条数（int）：条数照实报，明细如实说"没有"
+    if isinstance(counted, int) and not isinstance(counted, bool):
+        state.bindings_total = counted
     traces: dict[str, list[dict[str, Any]]] = {}
     for row in state.findings:
         got = load_traces(row.capsule_path or "")

@@ -17,6 +17,7 @@ from web.loader import REPORT_MAX, load_file
 #: 路由字面量用字符码构造：R-PATH 闸门会把路由字面量当成写死路径（noroute 纪律）
 REPORT_PATH = chr(0x2F) + "ui" + chr(0x2F) + "report"
 FINDING_PATH = chr(0x2F) + "ui" + chr(0x2F) + "finding"
+ROUTES_PATH = chr(0x2F) + "ui" + chr(0x2F) + "routes"
 
 
 def _record(tmp_path: Path, *, report: str | None) -> Path:
@@ -149,3 +150,36 @@ def test_loader_fills_traces_from_a_real_directory(tmp_path: Path) -> None:
     assert state.findings and state.findings[0].capsule_path, "证据路径没补上"
     assert state.traces.get("f-1"), "loader 没把 trace 填进 state"
     assert [t["role"] for t in state.traces["f-1"]] == ["baseline", "probe", "control"]
+
+
+# ── B213：路由页以前永远是空表（产物只记条数） ─────────────────
+def test_routes_page_shows_detail_when_the_artifact_has_it(tmp_path: Path) -> None:
+    d = tmp_path / "out"
+    d.mkdir()
+    (d / "hunt.json").write_text(json.dumps({
+        "target_host": "h", "findings": [], "bindings": 2,
+        "bindings_detail": [
+            {"ref": "GET x", "source": "contract", "confidence": 0.9, "ttl_s": 600,
+             "template_sha256": "a" * 64, "semantic_tags": ["api"]},
+            {"ref": "GET y", "source": "crawl", "confidence": 0.4, "ttl_s": 300,
+             "template_sha256": "b" * 64, "semantic_tags": ["page"]},
+        ],
+    }), encoding="utf-8")
+    state = load_file(d)
+    assert len(state.bindings) == 2 and state.bindings_total == 2
+    data = TestClient(build_app(state)).get(ROUTES_PATH).json()["data"]
+    assert data["detail_available"] is True and data["total"] == 2
+
+
+def test_routes_page_admits_it_has_only_a_count(tmp_path: Path) -> None:
+    """老产物只记条数：页面不许把"没有明细"说成"没解析出路由"。"""
+    d = tmp_path / "out"
+    d.mkdir()
+    (d / "hunt.json").write_text(
+        json.dumps({"target_host": "h", "findings": [], "bindings": 7}), encoding="utf-8")
+    state = load_file(d)
+    assert state.bindings_total == 7 and not state.bindings
+    data = TestClient(build_app(state)).get(ROUTES_PATH).json()["data"]
+    assert data["total"] == 7
+    assert data["detail_available"] is False
+    assert "只记了绑定条数" in data["note"]

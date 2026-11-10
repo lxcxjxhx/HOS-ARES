@@ -444,6 +444,8 @@ class ConsoleState:
 
     findings: Sequence[Row] = ()
     bindings: Sequence[Mapping[str, Any]] = ()
+    #: 产物里记的绑定**总数**（B213）：明细有上限，条数要能单独说清
+    bindings_total: int = 0
     bounds: Sequence[Mapping[str, Any]] = ()
     engagement: Mapping[str, Any] = field(default_factory=dict)
     coverage: Mapping[str, Any] = field(default_factory=dict)
@@ -517,7 +519,14 @@ def build_app(
             return findings_view(state.findings, include_low=q.get("low") == "1",
                                  asset=q.get("asset", ""))
         if op == "ui.routes":
-            return routes_view(state.bindings)
+            view = routes_view(state.bindings)
+            # 产物只记条数时（老产物），页面必须说出来——空表不等于"没解析出路由"（B213）
+            total = state.bindings_total or len(state.bindings)
+            return {**view, "total": total,
+                    "detail_available": bool(state.bindings),
+                    "note": "" if state.bindings else (
+                        "本轮产物只记了绑定条数，没有逐条明细；重跑一次 `veripen hunt` 即可带上"
+                        if total else "")}
         if op == "ui.bounds":
             return bounds_view(state.bounds)
         if op == "ui.unverified":
