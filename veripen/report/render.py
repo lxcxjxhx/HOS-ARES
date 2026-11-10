@@ -323,6 +323,23 @@ def _by_strength(report: ReportInput) -> dict[str, int]:
 _SARIF_LEVEL = {"critical": "error", "high": "error", "medium": "warning", "low": "note", "info": "note"}
 
 
+def _oracle_one_liner(oracle_id: str) -> str:
+    """oracle 自己的第一行说明（docstring 首行）——比 id 有信息量（B219）。"""
+    try:
+        from veripen_oracles import ALL_ORACLES
+    except Exception:  # noqa: BLE001 - 渲染不该因为查表失败而崩
+        return oracle_id
+    for cls in ALL_ORACLES:
+        try:
+            inst = cls()
+        except Exception:  # noqa: BLE001
+            continue
+        if str(getattr(inst, "id", "")) == oracle_id:
+            doc = (cls.__doc__ or "").strip().splitlines()
+            return doc[0].strip() if doc else oracle_id
+    return oracle_id
+
+
 def render_sarif(report: ReportInput) -> dict[str, Any]:
     assert_renderable(report)
     rules: dict[str, dict[str, Any]] = {}
@@ -335,9 +352,13 @@ def render_sarif(report: ReportInput) -> dict[str, Any]:
             {
                 "id": rid,
                 "name": f.oracle_id,
-                "shortDescription": {"text": meta.get("short", f.oracle_id)},
-                "fullDescription": {"text": meta.get("full", f.oracle_id)},
-                "helpUri": meta.get("help", "about:blank"),
+                # 描述必须是人话（B219）：以前 short/full 都回落到 oracle id，
+                # 代码扫描界面里那行"规则说明"就只是一串下划线英文；
+                # helpUri 以前写死 `about:blank`——一条点开是空白的帮助链接。
+                # 没有真链接就**不写**（SARIF 里 helpUri 是可选项）。
+                "shortDescription": {"text": meta.get("short") or _oracle_one_liner(f.oracle_id)},
+                "fullDescription": {"text": meta.get("full") or _oracle_one_liner(f.oracle_id)},
+                **({"helpUri": str(meta["help"])} if meta.get("help") else {}),
                 "defaultConfiguration": {"level": _SARIF_LEVEL.get(f.severity, "note")},
                 "properties": {
                     "tags": ["security", f"cwe/{f.cwe.split('-')[-1]}"]
@@ -349,7 +370,9 @@ def render_sarif(report: ReportInput) -> dict[str, Any]:
             {
                 "ruleId": rid,
                 "level": _SARIF_LEVEL.get(f.severity, "note"),
-                "message": {"text": f.title},
+                # 扫描界面里那一行消息 = 我们观测到什么（B219）；
+                # 以前是标题「xxx 已验证」，读者得点进去才知道发生了什么
+                "message": {"text": f.situation or f.title},
                 "partialFingerprints": fingerprints(f),
                 "locations": [
                     {
