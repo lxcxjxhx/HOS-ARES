@@ -22,6 +22,14 @@ import webbrowser
 from pathlib import Path
 from typing import Any
 
+#: 控制台不一定是 UTF-8（Windows runner 是 cp1252）：先钉死编码，否则打印中文
+#: 这一步本身就崩——exe 会在开始服务之前退出（B206 在 CI 上抓到）。
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+    except (AttributeError, ValueError):  # pragma: no cover - 被重定向/老 Python
+        pass
+
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:      # 源码运行时把仓库根挂上；打包后是 _MEIPASS
     sys.path.insert(0, str(ROOT))
