@@ -114,7 +114,12 @@ def main(argv: list[str]) -> int:
 
     if args.selftest:
         if not args.capsule:
-            return _fail("--selftest 需要 --capsule")
+            # B222：这条消息以前把自己说成"替代品"（无参时提示"或用 --selftest"），
+            # 而 `--selftest` 自己又要 --capsule——两个出口互相指，都走不通。
+            # 自检的本质是**篡改真证据**，所以它必然需要一份 capsule：
+            # 说清这一点，并给出从哪来（跑一次 run / hunt 就有）。
+            return _fail("--selftest 需要一份 capsule 作为被篡改对象："
+                         "--capsule <path>（跑一次 `veripen run` 或 `veripen hunt` 就会生成）")
         try:
             cap = load_capsule(args.capsule)
         except CapsuleError as exc:
@@ -122,7 +127,8 @@ def main(argv: list[str]) -> int:
         return _tamper_probe(cap, Path(args.out))
 
     if not args.capsule:
-        return _fail("需要 --capsule（或用 --selftest）")
+        return _fail("需要 --capsule <path>（重放一份证据）；"
+                     "想只验证哈希闸门可用，加 --capsule <path> --selftest")
 
     try:
         cap = load_capsule(args.capsule)
