@@ -83,6 +83,12 @@ GATES: tuple[Gate, ...] = (
 )
 
 #: 测试分三段跑：本机单进程全量约 30 分钟，超过一条命令的观察窗口。
+#: 冒烟类闸门：只证明链路能跑通，**不产出验收数字**（子集跑）
+SMOKES: tuple[Gate, ...] = (
+    Gate("bench-smoke", _py("scripts/b12/run_bench.py", "--rounds", "1",
+                            "--limit", "3", "--out", "out/bench-smoke"), kind="smoke"),
+)
+
 TEST_CHUNKS: tuple[Gate, ...] = (
     Gate("tests-unit", _py("-m", "pytest", "tests/unit", "-q"), kind="test"),
     Gate("tests-integration", _py("-m", "pytest", "tests/integration", "-q"), kind="test"),
@@ -139,7 +145,7 @@ def _default_runner(argv: Sequence[str], name: str = "gate") -> tuple[int, str]:
 
 
 def select(only: str, with_tests: bool) -> list[Gate]:
-    pool = list(GATES) + (list(TEST_CHUNKS) if with_tests else [])
+    pool = list(GATES) + list(SMOKES) + (list(TEST_CHUNKS) if with_tests else [])
     if not only:
         return pool
     wanted = {x.strip() for x in only.split(",") if x.strip()}
