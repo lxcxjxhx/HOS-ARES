@@ -28,6 +28,7 @@ if str(ROOT) not in sys.path:
 
 from veripen_core.agent.session import COMMANDS, Session  # noqa: E402
 from veripen_core.store import Store  # noqa: E402
+from veripen_core.workbench.danger import check_command  # noqa: E402
 from veripen_core.workbench.executor import make_subprocess_executor  # noqa: E402
 from veripen_core.workbench.fs import Workbench  # noqa: E402
 
@@ -95,13 +96,17 @@ def _do_grep(wb: Workbench, arg: str) -> tuple[bool, str]:
     return True, f"{len(matches)} 处 :: {first.path}:{first.line} {text[:60]}"
 
 
-def _do_sh(root: Path, arg: str) -> tuple[bool, str]:
+def _do_sh(root: Path, arg: str, *, allow_dangerous: bool = False) -> tuple[bool, str]:
     if not arg:
         return False, "用法：sh <命令>"
     # `sh` 就是"跑一条命令"：解释器由系统 shell 决定，**不按首词猜**（B169）。
     # 早先首词含 python 就把整行塞进 `python -c`，于是 `sh python -V` 变成
     # `python -c "python -V"`，必然 SyntaxError——工具看着能跑，其实跑不了。
     interp = "cmd" if sys.platform == "win32" else "sh"
+    hit = None if allow_dangerous else check_command(arg)
+    if hit is not None:
+        return False, (f"[GATE-DANGER] {hit.name}：{hit.why}"
+                       "（确实要跑就加 --allow-dangerous）")
     runner = make_subprocess_executor()
     code, out, err = runner(arg, interp, str(root), 30, {})
     text = (out or err or "").strip().replace("\n", " ⏎ ")[:200]
@@ -117,6 +122,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--task-id", default="", help="会话 id（--resume 时指定）")
     ap.add_argument("--resume", action="store_true", help="恢复已有会话")
     ap.add_argument("--max-turns", type=int, default=0, help="0 = 不限")
+    ap.add_argument("--allow-dangerous", action="store_true",
+                    help="放行危险命令（删根/格式化/远程脚本直跑等，默认拦）")
     args = ap.parse_args(sys.argv[1:] if argv is None else argv)
     setup_stdio()
 
@@ -168,7 +175,7 @@ def main(argv: list[str] | None = None) -> int:
                 elif cmd == "grep":
                     ok, summary = _do_grep(wb, arg)
                 elif cmd == "sh":
-                    ok, summary = _do_sh(root, arg)
+                    ok, summary = _do_sh(root, arg, allow_dangerous=args.allow_dangerous)
                 else:
                     ok, summary = False, "未实现"
             except Exception as exc:  # noqa: BLE001 —— 指令失败要如实报，不能吞

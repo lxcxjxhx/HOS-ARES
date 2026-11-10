@@ -39,6 +39,7 @@ if str(ROOT) not in sys.path:
 from veripen_core.agent.intent import Plan, Step, parse  # noqa: E402
 from veripen_core.agent.session import Session  # noqa: E402
 from veripen_core.store import Store  # noqa: E402
+from veripen_core.workbench.danger import check_command  # noqa: E402
 from veripen_core.workbench.executor import make_subprocess_executor  # noqa: E402
 from veripen_core.workbench.fs import Workbench  # noqa: E402
 
@@ -140,7 +141,7 @@ def _truthy(value: Any) -> bool:
     return str(value).strip().lower() in ("1", "true", "yes", "y", "on")
 
 
-def _exec_step(step: Any, *, wb: Workbench, root: Path) -> tuple[bool, str]:
+def _exec_step(step: Any, *, wb: Workbench, root: Path, allow_dangerous: bool = False) -> tuple[bool, str]:
     tool = step.tool
     a = dict(step.args)
 
@@ -245,6 +246,10 @@ def _exec_step(step: Any, *, wb: Workbench, root: Path) -> tuple[bool, str]:
         # 所以交给 shell（Windows: cmd /c；POSIX: sh -c），不要按"以 python 开头"
         # 就当成 python 脚本 —— 那会把 `python -c "print(42)"` 再套一层 python -c。
         interp = "cmd" if sys.platform == "win32" else "sh"
+        hit = None if allow_dangerous else check_command(a["cmd"])
+        if hit is not None:
+            return False, (f"[GATE-DANGER] {hit.name}：{hit.why}"
+                           "（确实要跑就加 --allow-dangerous）")
         runner = make_subprocess_executor()
         code, out, err = runner(a["cmd"], interp, str(root), 60, {})
         text = (out or err or "").strip()
@@ -271,6 +276,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--task-id", default="", help="会话 id（--resume 时指定）")
     ap.add_argument("--resume", action="store_true", help="恢复已有会话")
     ap.add_argument("--yes", action="store_true", help="跳过计划确认（脚本/录屏用）")
+    ap.add_argument("--allow-dangerous", action="store_true",
+                    help="放行危险命令（删根/格式化/远程脚本直跑等，默认拦）")
     args = ap.parse_args(sys.argv[1:] if argv is None else argv)
     setup_stdio()
 
@@ -354,7 +361,8 @@ def main(argv: list[str] | None = None) -> int:
         for idx, step in enumerate(plan.steps, start=1):
             _say(f"{C_BOLD}⏺ {step.tool}{C_OFF}({', '.join(f'{k}={v}' for k, v in step.args.items())})")
             try:
-                ok, out = _exec_step(step, wb=wb, root=root)
+                ok, out = _exec_step(step, wb=wb, root=root,
+                             allow_dangerous=args.allow_dangerous)
             except KeyboardInterrupt:
                 _say(f"  {C_RED}中断{C_OFF}")
                 ok, out = False, "用户中断"
