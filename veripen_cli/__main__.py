@@ -24,7 +24,7 @@ COMMANDS: tuple[tuple[str, str, str], ...] = (
     ("discover", "veripen_cli.cmd_discover", "无契约发现：从首页攒面（不产判定）"),
     ("platform", "veripen_cli.cmd_platform", "企业编排：多资产 + 审批阻断 + 汇总报告"),
     ("hunt", "veripen_cli.cmd_hunt", "边跑边打印（人盯着看的那种）"),
-    ("console", "veripen_cli.cmd_console", "只读控制台（10 个只读操作）"),
+    ("console", "veripen_cli.cmd_console", "只读控制台（11 个只读操作）"),
     ("agent", "veripen_cli.cmd_agent", "指令模式会话（白名单动词）"),
     ("tui", "veripen_cli.tui", "终端三面板（只读）"),
     ("doctor", "veripen_cli.cmd_doctor", "部署自检（23 项）"),

@@ -29,7 +29,7 @@ UI_PREFIX = chr(0x2F) + "ui" + chr(0x2F)
 #: 只读页面（op_id）；路由由 bindings 派生，这里只是白名单
 UI_OPS: tuple[str, ...] = tuple(
     "ui." + name
-    for name in "overview engagement findings finding unverified coverage routes audit bounds approvals".split()
+    for name in "overview engagement findings finding unverified coverage routes audit bounds approvals report".split()
 )
 
 #: 路径分隔符：零地址闸门（R-PATH）把该字面量当路径片段，统一用字符码构造
@@ -453,6 +453,9 @@ class ConsoleState:
     #: 模型在 `finish` 里的自述（B158/B161）。**只展示，不计入判定**：
     #: verdicts 与覆盖账本都不读它——这里给的是"模型自己怎么说"。
     agent_claim: Mapping[str, Any] = field(default_factory=dict)
+    #: 交付物正文（`report.md` / `platform-report.md`）。B211：整份产品的产出
+    #: 以前在界面上根本看不到——能找到发现、覆盖、路由，唯独看不到要交出去的那份东西。
+    report: Mapping[str, Any] = field(default_factory=dict)
 
 
 def _path_for(op_id: str) -> str:
@@ -617,6 +620,15 @@ def build_app(
                     "pending": sum(1 for r in rows if r["status"] == "pending"),
                     # 决定会不会被记下来：页面必须能说出来（B193）
                     "records": record_decision is not None}
+        if op == "ui.report":
+            # 空态要说清楚"去哪里产"，别让人对着白屏猜
+            return dict(state.report) if state.report else {
+                "present": False,
+                "name": "",
+                "bytes": 0,
+                "text": "",
+                "empty_hint": "还没有报告——跑一次 `veripen run` 或 `veripen platform` 后重开",
+            }
         if op == "ui.audit":
             # 恒空的页签不允许留：有事件源就报 state，没有就显式 source=unavailable
             return {

@@ -7,7 +7,7 @@
 
 export const OPS = [
   "overview", "engagement", "findings", "finding", "unverified",
-  "coverage", "routes", "audit", "bounds", "approvals",
+  "coverage", "routes", "audit", "bounds", "approvals", "report",
 ];
 
 /** 允许出现在 hash 里的参数（未知键丢弃，避免 URL 长毛） */
