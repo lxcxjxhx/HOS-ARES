@@ -184,6 +184,21 @@ def _discover_routeset(args: Any, host: str) -> Any:
             records.append(rec)
             fresh += 1
         print(f"发现第 {round_no} 轮：抓 {step.fetched} 页 / 新面 {fresh} 条")
+        # 抓了却一条都没成，必须说清为什么（B221）：否则下一句"没有可跑的 oracle"
+        # 会把"目标连不上"读成"目标没有可测的面"，用户会去改错的东西
+        if step.fetched and not step.records:
+            reasons: dict[str, int] = {}
+            for _tpl, why in getattr(step, "skipped", ()):
+                reasons[str(why)] = reasons.get(str(why), 0) + 1
+            detail = "、".join(f"{k}×{v}" for k, v in sorted(reasons.items())) or "未记录原因"
+            print(f"  这一轮一页都没抓成：{detail}", file=sys.stderr)
+            if set(reasons) == {"fetch_failed"}:
+                print("  连接层面就没过——先确认目标可达（端口/证书/代理）再谈覆盖面：",
+                      file=sys.stderr)
+                # 用**用户原样给的 target**：`host` 只是主机名，丢了端口时那条提示
+                # 会指到默认端口上（实测 127.0.0.1:1 被印成 127.0.0.1）
+                probe = str(getattr(args, "target", "") or host).rstrip(SEP)
+                print(f"  可试：curl -sS -o NUL -w '%{{http_code}}' {probe}", file=sys.stderr)
         if not step.next:
             break
         candidates = [candidate_of(s, BASE_SYMBOL) for s in step.next]
