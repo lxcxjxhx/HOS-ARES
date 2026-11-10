@@ -75,6 +75,8 @@ GATES: tuple[Gate, ...] = (
     Gate("lint-ui", _py("scripts/lint/ui_zero_address.py")),
     Gate("lint-netimports", _py("scripts/lint/netimports.py")),
     Gate("lint-noleak", _py("scripts/lint/noleak.py")),
+    # 锁与 pyproject 是同一份事实的两个出口：漂了，内网离线装就会少包（B201）
+    Gate("lint-lock", _py("scripts/lint/lock_sync.py")),
     Gate("spec-drift", _py("scripts/lint/spec_drift.py")),
     Gate("ledger", _py("scripts/lint/ledger_check.py")),
     Gate("plan", ("node", "plan-hos-ares/check-plan.cjs"), needs="node"),
