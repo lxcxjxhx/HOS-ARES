@@ -220,11 +220,19 @@ def check_lock_sync(root: Path) -> CheckResult:
     return _lint("锁与 pyproject 一致", "lock_sync.py", root)
 
 
+#: doctor 有意**不跑**的闸门：每一条都要写清理由，否则 `gate_parity` 判红（B210）。
+DOCTOR_EXCLUDED: dict[str, str] = {
+    "mypy": "太慢（30s+），交给 verify.py / CI",
+    "plan": "要 node 环境，doctor 不假定有",
+    "bench-smoke": "要起靶场（环回端口 + 真发包），属验收不属现场自检",
+}
+
+
 def check_gate_parity(root: Path) -> CheckResult:
-    """doctor 的 lint 覆盖必须跟上 `scripts/verify.py` 的清单（B209）。
+    """doctor 的覆盖必须跟上 `scripts/verify.py` 的**全部**闸门（B209 / B210）。
 
     两处清单靠人同步 = 迟早漏（B204/B208 都是这个病）。这条检查把
-    "verify 里有的 lint，doctor 有没有跑"变成一次可失败的检查。
+    "verify 里有的闸门，doctor 要么跑了、要么写明为什么不跑"变成一次可失败的检查。
     """
     import importlib.util
 
@@ -244,20 +252,22 @@ def check_gate_parity(root: Path) -> CheckResult:
         return CheckResult("闸门清单一致", Status.FAIL,
                            f"scripts/verify.py 载入失败：{type(exc).__name__}: {exc}"[:160],
                            "修 scripts/verify.py")
-    gates = [g for g in getattr(mod, "GATES", ())
-             if g.name.startswith("lint-") or g.name == "spec-drift"]
+    gates = [*getattr(mod, "GATES", ()), *getattr(mod, "SMOKES", ())]
     source = Path(__file__).read_text(encoding="utf-8")
-    missing = []
+    missing: list[str] = []
     for gate in gates:
+        if gate.name in DOCTOR_EXCLUDED:
+            continue
         script = Path(str(gate.argv[-1])).name
         if script not in source:
-            missing.append(script)
+            missing.append(f"{gate.name}（{script}）")
     if missing:
         return CheckResult("闸门清单一致", Status.FAIL,
-                           f"verify 有、doctor 没跑：{missing}"[:180],
-                           "在 cmd_doctor 里补上对应的 _lint 检查（清单在 scripts/verify.py）")
+                           f"verify 有、doctor 既没跑也没说明为什么：{missing}"[:200],
+                           "在 cmd_doctor 里补检查，或写进 DOCTOR_EXCLUDED 并给理由")
+    covered = len(gates) - len(DOCTOR_EXCLUDED)
     return CheckResult("闸门清单一致", Status.OK,
-                       f"{len(gates)} 道 lint 全部覆盖"[:120], "")
+                       f"{covered} 道跑 / {len(DOCTOR_EXCLUDED)} 道写明不跑（共 {len(gates)}）"[:120], "")
 
 
 def check_act_cmd(root: Path) -> CheckResult:
