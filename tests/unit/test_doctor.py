@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+from veripen_cli import cmd_doctor
 from veripen_cli.cmd_doctor import (
     CHECKS,
     CheckResult,
@@ -187,3 +188,32 @@ def test_executor_check_splits_unproven_env_from_broken_behaviour(monkeypatch, t
 
     truly_broken = forged(stdout_captured=True, exit_code_preserved=False, timeout_enforced=True)
     assert truly_broken.status is cmd_doctor.Status.FAIL
+
+
+# ── B209：doctor 的 lint 覆盖必须跟上 verify 的清单 ──────────────
+def test_doctor_covers_every_lint_in_the_gate_list(tmp_path) -> None:  # noqa: ANN001
+    """`scripts/verify.py` 里每一道 lint，doctor 都要跑到（否则两处清单会漂）。"""
+    root = Path(__file__).resolve().parents[2]
+    result = cmd_doctor.check_gate_parity(root)
+    assert result.status is cmd_doctor.Status.OK, result.detail
+    assert "道 lint 全部覆盖" in result.detail, result.detail
+
+
+def test_doctor_flags_a_missing_lint(tmp_path, monkeypatch) -> None:  # noqa: ANN001
+    """把 noleak 从 doctor 源码里抹掉，这条检查必须红——否则它只是墙上的标语。"""
+    import shutil
+
+    root = Path(__file__).resolve().parents[2]
+    copy = tmp_path / "repo"
+    copy.mkdir()
+    (copy / "scripts").mkdir()
+    shutil.copy2(root / "scripts" / "verify.py", copy / "scripts" / "verify.py")
+
+    # 用一份"漏了 noleak"的 doctor 源码替代当前实现
+    altered = tmp_path / "cmd_doctor_copy.py"
+    altered.write_text((root / "veripen_cli" / "cmd_doctor.py").read_text(encoding="utf-8")
+                    .replace('"noleak.py"', '"__gone__.py"'), encoding="utf-8")
+    monkeypatch.setattr(cmd_doctor, "__file__", str(altered))
+    result = cmd_doctor.check_gate_parity(copy)
+    assert result.status is cmd_doctor.Status.FAIL, result.detail
+    assert "noleak.py" in result.detail, result.detail

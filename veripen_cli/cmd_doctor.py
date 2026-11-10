@@ -212,6 +212,54 @@ def check_ui(root: Path) -> CheckResult:
     return _lint("控制台零地址", "ui_zero_address.py", root)
 
 
+def check_noleak(root: Path) -> CheckResult:
+    return _lint("客户串不进内核", "noleak.py", root)
+
+
+def check_lock_sync(root: Path) -> CheckResult:
+    return _lint("锁与 pyproject 一致", "lock_sync.py", root)
+
+
+def check_gate_parity(root: Path) -> CheckResult:
+    """doctor 的 lint 覆盖必须跟上 `scripts/verify.py` 的清单（B209）。
+
+    两处清单靠人同步 = 迟早漏（B204/B208 都是这个病）。这条检查把
+    "verify 里有的 lint，doctor 有没有跑"变成一次可失败的检查。
+    """
+    import importlib.util
+
+    import sys as _sys
+
+    # 模块名必须与登记进 sys.modules 的一致：dataclass 会按 cls.__module__ 反查，
+    # 对不上就 AttributeError: 'NoneType' object has no attribute '__dict__'（踩过）。
+    name = "_verify_gates"
+    spec = importlib.util.spec_from_file_location(name, root / "scripts" / "verify.py")
+    if spec is None or spec.loader is None:
+        return CheckResult("闸门清单一致", Status.SKIP, "读不到 scripts/verify.py", "")
+    mod = importlib.util.module_from_spec(spec)
+    _sys.modules[name] = mod
+    try:
+        spec.loader.exec_module(mod)
+    except Exception as exc:  # noqa: BLE001 - 清单脚本自身坏了要如实说
+        return CheckResult("闸门清单一致", Status.FAIL,
+                           f"scripts/verify.py 载入失败：{type(exc).__name__}: {exc}"[:160],
+                           "修 scripts/verify.py")
+    gates = [g for g in getattr(mod, "GATES", ())
+             if g.name.startswith("lint-") or g.name == "spec-drift"]
+    source = Path(__file__).read_text(encoding="utf-8")
+    missing = []
+    for gate in gates:
+        script = Path(str(gate.argv[-1])).name
+        if script not in source:
+            missing.append(script)
+    if missing:
+        return CheckResult("闸门清单一致", Status.FAIL,
+                           f"verify 有、doctor 没跑：{missing}"[:180],
+                           "在 cmd_doctor 里补上对应的 _lint 检查（清单在 scripts/verify.py）")
+    return CheckResult("闸门清单一致", Status.OK,
+                       f"{len(gates)} 道 lint 全部覆盖"[:120], "")
+
+
 def check_act_cmd(root: Path) -> CheckResult:
     return _lint("act 命令零地址", "act_cmd.py", root)
 
@@ -402,6 +450,9 @@ CHECKS: tuple[tuple[str, Callable[[Path], CheckResult]], ...] = (
     ("nodata", check_nodata),
     ("netimports", check_netimports),
     ("policy", check_policy),
+    ("noleak", check_noleak),
+    ("lock_sync", check_lock_sync),
+    ("gate_parity", check_gate_parity),
     ("spec_drift", check_spec_drift),
     ("ledger", check_ledger),
     ("ui", check_ui),

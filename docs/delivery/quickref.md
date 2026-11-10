@@ -8,7 +8,7 @@ $ make demo          # 端到端演示：发现 → 判定 → 证据 → 报告
 $ make demo-alt      # 换客户档跑同一份镜像（A1）
 $ make bench         # 44 例 × 3 轮，FP=0 / 越界=0 / routeset 三轮一致
 $ make replay-offline# 断网只走判定纯函数
-$ make doctor        # 20 项自检，失败项会指出该改哪里
+$ make doctor        # 23 项自检，失败项会指出该改哪里
 $ make lint          # 零地址 / 禁数据桩 / 绑定覆盖 / 默认关闭
 $ make verify-report # 报告三视图零地址 + manifest 未手改
 ```

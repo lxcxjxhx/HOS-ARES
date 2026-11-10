@@ -1,6 +1,6 @@
 # 分发前十项
 
-- [ ] `make doctor` 20 项全绿
+- [ ] `make doctor` 23 项全绿
 - [ ] `make lint`（零地址 / 禁数据桩 / 绑定覆盖 / 默认关闭 / policy）
 - [ ] `make bench` FP=0、越界=0、routeset 三轮一致
 - [ ] `make demo` 与 `make demo-alt` 均跑通
