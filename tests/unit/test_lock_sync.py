@@ -83,3 +83,38 @@ def test_real_repo_lock_matches_pyproject() -> None:
     rows = lock_sync.compare(lock_sync.declared(), lock_sync.locked())
     assert rows["missing"] == [], f"运行期依赖没进锁：{rows['missing']}"
     assert rows["below_floor"] == [], rows["below_floor"]
+
+
+# ── B203：容器镜像的依赖也必须走锁 ─────────────────────────────
+def test_dockerfile_with_hardcoded_list_is_flagged(tmp_path: Path) -> None:
+    """手写清单在这里漏过 jsonschema：镜像里加载剧本即崩。"""
+    import lock_sync
+
+    df = tmp_path / "Dockerfile"
+    df.write_text(
+        "FROM python:3.12-slim\n"
+        "RUN pip install --no-cache-dir pydantic PyYAML fastapi uvicorn\n",
+        encoding="utf-8",
+    )
+    problems = lock_sync.dockerfile_problems(df)
+    assert problems and "没走 requirements.lock" in problems[0], problems
+
+
+def test_dockerfile_reading_the_lock_is_accepted(tmp_path: Path) -> None:
+    import lock_sync
+
+    df = tmp_path / "Dockerfile"
+    df.write_text(
+        "FROM python:3.12-slim\n"
+        "COPY requirements.lock ./\n"
+        "RUN pip install --no-cache-dir -r requirements.lock\n",
+        encoding="utf-8",
+    )
+    assert lock_sync.dockerfile_problems(df) == []
+
+
+def test_real_dockerfile_reads_the_lock() -> None:
+    """真仓的 Dockerfile 必须走锁——它就是镜像里那唯一一份依赖清单。"""
+    import lock_sync
+
+    assert lock_sync.dockerfile_problems() == []

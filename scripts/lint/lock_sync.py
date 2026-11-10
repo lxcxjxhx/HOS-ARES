@@ -84,6 +84,28 @@ def compare(deps: dict[str, str], pins: dict[str, str]) -> dict[str, Any]:
     return {"missing": missing, "below_floor": below, "transitive": extra}
 
 
+#: 容器镜像同样"装什么"要与锁一致：手写清单漏过 jsonschema（B203）
+DOCKERFILE = ROOT / "Dockerfile"
+
+
+def dockerfile_problems(path: Path = DOCKERFILE) -> list[str]:
+    """Dockerfile 里装依赖必须走 `-r requirements.lock`，不许手写包名清单。"""
+    if not path.exists():
+        return []
+    problems: list[str] = []
+    for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        stripped = line.strip()
+        if stripped.startswith("#") or "pip install" not in stripped:
+            continue
+        if "-r requirements.lock" in stripped or "--requirement" in stripped:
+            continue
+        problems.append(
+            f"Dockerfile:{lineno}: pip install 没走 requirements.lock（手写清单会漏包）："
+            f"{stripped[:90]}"
+        )
+    return problems
+
+
 def main(argv: list[str] | None = None) -> int:
     args = list(argv if argv is not None else sys.argv[1:])
     deps, pins = declared(), locked()
@@ -92,8 +114,10 @@ def main(argv: list[str] | None = None) -> int:
               f"（{LOCK.relative_to(ROOT).as_posix()}）", file=sys.stderr)
         return 1
     rows = compare(deps, pins)
+    docker_problems = dockerfile_problems()
     if "--json" in args:
-        print(json.dumps({"declared": len(deps), "locked": len(pins), **rows},
+        print(json.dumps({"declared": len(deps), "locked": len(pins),
+                          "dockerfile": docker_problems, **rows},
                          ensure_ascii=False, indent=2))
         return 0 if not rows["missing"] and not rows["below_floor"] else 1
 
@@ -107,6 +131,11 @@ def main(argv: list[str] | None = None) -> int:
         bad = True
         print("lint-lock-sync: FAIL 锁里的版本低于 pyproject 下限", file=sys.stderr)
         for item in rows["below_floor"]:
+            print(f"  - {item}", file=sys.stderr)
+    if docker_problems:
+        bad = True
+        print("lint-lock-sync: FAIL Dockerfile 装依赖没走锁（B203）", file=sys.stderr)
+        for item in docker_problems:
             print(f"  - {item}", file=sys.stderr)
     if bad:
         return 1
