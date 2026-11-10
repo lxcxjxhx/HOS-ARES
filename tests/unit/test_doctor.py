@@ -191,12 +191,19 @@ def test_executor_check_splits_unproven_env_from_broken_behaviour(monkeypatch, t
 
 
 # ── B209：doctor 的 lint 覆盖必须跟上 verify 的清单 ──────────────
-def test_doctor_covers_every_lint_in_the_gate_list(tmp_path) -> None:  # noqa: ANN001
-    """`scripts/verify.py` 里每一道 lint，doctor 都要跑到（否则两处清单会漂）。"""
+def test_doctor_covers_every_gate_in_the_list(tmp_path) -> None:  # noqa: ANN001
+    """`scripts/verify.py` 里每一道闸门，doctor 要么跑、要么写明为什么不跑。"""
     root = Path(__file__).resolve().parents[2]
     result = cmd_doctor.check_gate_parity(root)
     assert result.status is cmd_doctor.Status.OK, result.detail
-    assert "道 lint 全部覆盖" in result.detail, result.detail
+    assert "道跑" in result.detail and "写明不跑" in result.detail, result.detail
+
+
+def test_every_exclusion_carries_a_reason() -> None:
+    """`DOCTOR_EXCLUDED` 不是逃生门：每条都要有理由，否则就是悄悄绕过。"""
+    assert cmd_doctor.DOCTOR_EXCLUDED, "排除表空了——要么真有排除，要么这条用例该删"
+    for name, reason in cmd_doctor.DOCTOR_EXCLUDED.items():
+        assert reason.strip(), f"{name} 没写理由"
 
 
 def test_doctor_flags_a_missing_lint(tmp_path, monkeypatch) -> None:  # noqa: ANN001
