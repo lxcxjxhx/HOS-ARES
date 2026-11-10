@@ -164,3 +164,47 @@ def test_every_subcommand_survives_a_non_utf8_console() -> None:
             tail = (proc.stderr or "").strip().splitlines()[-1:] or [""]
             bad.append(f"{name}: exit={proc.returncode} · {tail[0][:120]}")
     assert not bad, "这些子命令在 cp1252 控制台下崩了：\n" + "\n".join(bad)
+
+
+# ── B220：模块在、命令不在 = 摸不到的能力 ──────────────────────
+def test_every_cmd_module_is_reachable_from_the_cli() -> None:
+    """`veripen_cli/cmd_*.py` 里有 `main` 的，都要能在 `veripen <名字>` 摸到。
+
+    以前 `cmd_coverage.py` 只有 `make coverage-matrix` 能调，命令行里
+    `veripen coverage` 报"未知子命令"——设计文档写的却是这个形式。
+    """
+    from veripen_cli.__main__ import COMMANDS, INTERNAL_MODULES
+
+    root = Path(__file__).resolve().parents[2]
+    reachable = {module for _name, module, _desc in COMMANDS} | set(INTERNAL_MODULES)
+    missing: list[str] = []
+    for path in sorted((root / "veripen_cli").glob("cmd_*.py")):
+        module = f"veripen_cli.{path.stem}"
+        src = path.read_text(encoding="utf-8")
+        if "def main(" not in src:
+            continue
+        if module not in reachable:
+            missing.append(path.stem)
+    assert not missing, f"这些命令模块在 CLI 里摸不到：{missing}"
+
+
+def test_coverage_subcommand_runs() -> None:
+    """注册了就要真能跑：`veripen coverage` 出矩阵（退出码由缺口决定，0 或 1）。"""
+    import subprocess
+    import sys
+
+    root = Path(__file__).resolve().parents[2]
+    proc = subprocess.run([sys.executable, "-m", "veripen_cli", "coverage", "--json"],  # noqa: S603
+                          cwd=str(root), capture_output=True, text=True,
+                          encoding="utf-8", errors="replace", timeout=180)
+    assert proc.returncode in (0, 1), proc.stderr[-400:]
+    assert '"oracles"' in proc.stdout or "oracle" in proc.stdout.lower(), proc.stdout[:200]
+
+
+def test_internal_modules_carry_reasons() -> None:
+    """白名单不是逃生门：每条都要写清为什么不做成子命令。"""
+    from veripen_cli.__main__ import INTERNAL_MODULES
+
+    for module, reason in INTERNAL_MODULES.items():
+        assert reason.strip(), f"{module} 没写理由"
+        assert module.startswith("veripen_cli.cmd_"), module

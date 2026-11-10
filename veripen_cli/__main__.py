@@ -31,7 +31,21 @@ COMMANDS: tuple[tuple[str, str, str], ...] = (
     ("parity", "veripen_cli.cmd_parity", "三对标总验收（5 面 × 22 项）"),
     ("playbook", "veripen_cli.cmd_playbook", "Playbook 资产库"),
     ("replay", "veripen_cli.cmd_replay", "证据重放"),
+    # B220：这个模块一直都在，只有 `make coverage-matrix` 能摸到——
+    # 设计文档写的是 `veripen coverage --matrix`，命令行里却没有这个子命令
+    ("coverage", "veripen_cli.cmd_coverage", "覆盖矩阵（14 类 oracle × 标签，空类显式列出）"),
 )
+
+
+#: 有意**不做成子命令**的命令模块（每条写清理由，B220）。
+#: 它们是内部脚手架（跑分 / 用例检查 / 插件往返 / 工作台冒烟），由 Makefile 调；
+#: 放进 `veripen <名字>` 会让用户以为那是产品入口。
+INTERNAL_MODULES: dict[str, str] = {
+    "veripen_cli.cmd_bench_leads": "跑分脚手架：由 make bench-leads 调",
+    "veripen_cli.cmd_cases": "用例契约检查：由 make cases CASES=contract 调",
+    "veripen_cli.cmd_plugin_roundtrip": "插件往返自检：由 make plugin-roundtrip 调",
+    "veripen_cli.cmd_workbench_smoke": "工作台冒烟：由 make workbench-smoke 调",
+}
 
 
 def _load(module_path: str) -> Callable[[Sequence[str] | None], int]:

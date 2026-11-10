@@ -136,7 +136,7 @@ make demo                   # → out/demo/hos-ares-tour.mp4
 | 插件装→用→升级回滚→卸 | ✅ | `tests/unit/test_plugin_lifecycle.py` |
 | 审批落库 + 事件留痕 | ✅ | `tests/unit/test_approval_persistence.py` |
 | 交互式会话（说人话 / 计划 / diff / 多步） | ✅ | `tests/integration/test_chat_*.py` |
-| 统一 CLI（12 个子命令） | ✅ | `veripen --help` |
+| 统一 CLI（13 个子命令） | ✅ | `veripen --help` |
 
 ## 现在**不**能做什么
 
