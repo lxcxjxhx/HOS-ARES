@@ -39,6 +39,9 @@ from ._discover_args import add_discovery_args
 from ._io import setup_stdout  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
+
+#: 逐条路由摘要的上限：产物是给人看与机器读的，不是全量导出
+BINDINGS_DETAIL_MAX = 200
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -682,6 +685,20 @@ def main(argv: list[str]) -> int:
         "skipped": (list(planned.skipped) if planned is not None else None),
         "source": ("discover" if planned is None else "contract"),
         "bindings": len(routeset.bindings),
+        # 逐条摘要（B213）：只记条数的话，控制台的"路由来源"页永远是空表——
+        # 想看一眼本轮解析出哪些路由，只能重跑。**模板正文仍不落盘**（22 §2），
+        # 这里只有 ref / 标签 / 来源 / 置信度 / ttl / 模板指纹。
+        "bindings_detail": [
+            {
+                "ref": b.ref,
+                "source": str(getattr(b.source, "value", b.source)),
+                "confidence": round(float(b.confidence), 3),
+                "ttl_s": b.ttl_s,
+                "template_sha256": b.template_sha256,
+                "semantic_tags": list(b.semantic_tags),
+            }
+            for b in routeset.bindings[:BINDINGS_DETAIL_MAX]
+        ],
         "oracles": list(oracles),
         "decision": result.decision.value,
         "reason": result.reason,
