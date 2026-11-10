@@ -32,9 +32,17 @@ def test_every_item_reports_one_of_four_states() -> None:
 
 
 def test_runtime_gaps_are_unverified_and_discovery_is_done() -> None:
-    """缺 docker → 未验；渲染/并行/发现都已实现 → 绿（不再是"不做"）。"""
+    """E1 的真隔离只有**守护进程活着**才准绿；否则必须未验（B200）。"""
     by_key = {row["key"]: row for row in run()}
-    assert by_key["E1"]["status"] == UNVERIFIED, "无 docker：真隔离只能未验"
+    # 硬写"必须未验"在两种环境里都是错的：本机没 docker（未验），
+    # GitHub 的 windows runner 有活着的引擎（那是真能跑）。
+    # 判据换成不变式：绿 ⇒ 报告里必须说明是哪个运行时，并且不是靠"命令存在"给的绿。
+    e1 = by_key["E1"]
+    if e1["status"] == GREEN:
+        assert "运行时" in e1["detail"], e1["detail"]
+        assert "守护进程" not in e1["detail"], e1["detail"]
+    else:
+        assert e1["status"] == UNVERIFIED, e1["status"]
     assert by_key["E4"]["status"] == GREEN, "资产发现已实现（B86 起），不该再标不做"
     assert by_key["E2"]["status"] == GREEN and "容器内未验" in by_key["E2"]["detail"]
     assert by_key["E5"]["status"] == GREEN and "容器级并行未验" in by_key["E5"]["detail"]

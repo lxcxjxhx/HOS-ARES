@@ -21,7 +21,16 @@ demo:
 doctor:
 	$(PY) -m veripen_cli.cmd_doctor
 
-.PHONY: demo agent-discover hunt-creds b29 b34 help test doctor package-offline bindings-check lint-noroute lint-nodata-stub lint-noleak replay coverage-matrix cases bench-leads plugin-roundtrip workbench-smoke assertions b1 b4 b5 b6 b7 b8 b9 b10 b11 b12 b12.1 b12.2 b12.3 b12.4 b12.5 b12.6 b12.7 b12.8 b12.9 b12.10 b12.11 b12.12 b12.13 b12.14 b12.15 b12.16 bench-abi bench-rerun lint-act-cmd lint-ui b13 b14 b15 b16 b17
+# 一条命令跑完所有闸门（B200）：清单在 scripts/verify.py，CI 调的是同一份
+# 退出码：0 全绿 / 1 有失败 / 2 有跳过（缺条件的跳过不算通过）
+verify:
+	$(PY) scripts/verify.py
+
+# 追加分段 pytest（本机全量约 30 分钟，分段跑）
+verify-all:
+	$(PY) scripts/verify.py --with-tests
+
+.PHONY: verify verify-all demo agent-discover hunt-creds b29 b34 help test doctor package-offline bindings-check lint-noroute lint-nodata-stub lint-noleak replay coverage-matrix cases bench-leads plugin-roundtrip workbench-smoke assertions b1 b4 b5 b6 b7 b8 b9 b10 b11 b12 b12.1 b12.2 b12.3 b12.4 b12.5 b12.6 b12.7 b12.8 b12.9 b12.10 b12.11 b12.12 b12.13 b12.14 b12.15 b12.16 bench-abi bench-rerun lint-act-cmd lint-ui b13 b14 b15 b16 b17
 
 help:
 	@echo "make test             运行 B1 契约测试"

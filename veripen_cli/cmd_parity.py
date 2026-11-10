@@ -14,6 +14,7 @@ import argparse
 import json
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
@@ -94,6 +95,16 @@ def _sandbox() -> tuple[str, str]:
     have = shutil.which("docker") or shutil.which("podman")
     if not have:
         return UNVERIFIED, "无 docker/podman：策略与 BLOCKED 已验，真隔离未验"
+    # 命令在 ≠ 服务在（B200）：GitHub 的 windows runner 有 docker CLI 却没有守护进程，
+    # 只看 `which` 会给出一个"真隔离已验证"的假绿。必须问一下守护进程还活着。
+    proc = subprocess.run(  # noqa: S603 - 固定命令，无外部输入
+        [have, "info", "--format", "{{.ServerVersion}}"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
+    )
+    if proc.returncode != 0 or not (proc.stdout or "").strip():
+        return UNVERIFIED, (
+            f"有 {Path(have).name} 命令但守护进程不可用：真隔离未验（命令在 ≠ 服务在）"
+        )
     return GREEN, f"运行时 {Path(have).name}"
 
 

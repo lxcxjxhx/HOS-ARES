@@ -261,3 +261,25 @@ def test_worker_runs_pending_tasks(store: Store) -> None:
 def test_lease_lost_type_is_raisable() -> None:
     with pytest.raises(LeaseLost):
         raise LeaseLost("boom")
+
+
+# ── B200：Heartbeat 不许覆盖 threading.Thread 的内部名字 ──────────
+def test_heartbeat_does_not_shadow_thread_internals(store: Store) -> None:
+    """`Thread._stop` 是 CPython 的内部方法；同名实例属性会让 join() 在
+    `'Event' object is not callable` 上炸（3.12 runner 实跑过）。"""
+    import threading
+
+    from worker.heartbeat import Heartbeat
+
+    lease = Lease(store, StoreClock(store), LeaseConfig(heartbeat_s=30, ttl_s=60))
+    tid = _submit(store)
+    lease.claim("w1")
+    hb = Heartbeat(lease, tid, "w1")
+
+    assert "_stop" not in vars(hb), "实例上不该有 _stop（那是 Thread 的内部方法）"
+    assert isinstance(vars(hb).get("_stop_event"), threading.Event)
+
+    hb.start()
+    hb.stop()
+    hb.join(timeout=5)          # 覆盖过 _stop 的话，这里就是 TypeError
+    assert not hb.is_alive()

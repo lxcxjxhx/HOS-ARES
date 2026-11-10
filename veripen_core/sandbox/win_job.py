@@ -20,7 +20,7 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Any, Sequence
 
 # ── Win32 常量 ────────────────────────────────────────────────────
 JOB_OBJECT_LIMIT_PROCESS_MEMORY = 0x00000100
@@ -70,18 +70,57 @@ class _ExtendedLimits(ctypes.Structure):
     ]
 
 
-kernel32 = ctypes.WinDLL("kernel32", use_last_error=True) if sys.platform == "win32" else None
+def _last_error() -> int:
+    """`ctypes.get_last_error` 只在 Windows 上存在；取不到就当 0（B200）。"""
+    fn = getattr(ctypes, "get_last_error", None)
+    return int(fn()) if callable(fn) else 0
+
+
+#: `ctypes.WinDLL` 也只在 Windows 上有：用 getattr 取，避免非 Windows 上做类型检查就报
+#: `Module has no attribute "WinDLL"`（CI 的 Linux runner 实跑抓到，B200）。
+def _load_kernel32() -> Any:
+    """Windows 上取 kernel32 句柄；别的平台上返回 None（不 import 就失败）。"""
+    if sys.platform != "win32":
+        return None
+    loader = getattr(ctypes, "WinDLL", None)
+    if loader is None:          # pragma: no cover - Windows 上必然有
+        return None
+    return loader("kernel32", use_last_error=True)
+
+
+kernel32: Any = _load_kernel32()
+
+
+_SELF_TEST: bool | None = None
 
 
 def available() -> bool:
-    """Job Object 可用性：Windows + kernel32 关键符号在位。"""
+    """Job Object 是否**真能用**：符号在 + 一次真实的 job 赋值成功（B200）。
+
+    只查 `hasattr` 不够：GitHub 的 Windows runner 本身跑在一个 Job 里，嵌套赋值
+    会被拒（`AssignProcessToJobObject` 返回 0），于是"可用"的假象换来**每次执行
+    都 assign_failed**。这里做一次性自测并缓存：赋不进去就当不可用，调用方按
+    "没有执行体"处理（BLOCKED / SKIP），而不是每次运行都报错。
+    """
+    global _SELF_TEST
+    if _SELF_TEST is not None:
+        return _SELF_TEST
+    _SELF_TEST = False
     if sys.platform != "win32" or kernel32 is None:
         return False
     for name in ("CreateJobObjectW", "SetInformationJobObject",
                  "AssignProcessToJobObject", "TerminateJobObject"):
         if not hasattr(kernel32, name):
             return False
-    return True
+    # `run()` 自己会先问 `available()`：做自测时必须先让守卫放行，
+    # 否则自测永远走 blocked 分支，把可用当成不可用（第一版就踩了）。
+    _SELF_TEST = True
+    try:
+        res = WinJobRunner().run([sys.executable, "-c", "print(1)"], timeout_s=30)
+        _SELF_TEST = res.outcome == "ok" and b"1" in res.stdout
+    except Exception:  # noqa: BLE001 - 自测失败就是不可用
+        _SELF_TEST = False
+    return _SELF_TEST
 
 
 @dataclass(frozen=True)
@@ -117,7 +156,7 @@ class WinJobRunner:
         assert kernel32 is not None
         job = kernel32.CreateJobObjectW(None, None)
         if not job:
-            raise OSError(ctypes.get_last_error(), "CreateJobObject 失败")
+            raise OSError(_last_error(), "CreateJobObject 失败")
         info = _ExtendedLimits()
         info.BasicLimitInformation.LimitFlags = (
             JOB_OBJECT_LIMIT_ACTIVE_PROCESS
@@ -134,7 +173,7 @@ class WinJobRunner:
         )
         if not ok:
             kernel32.CloseHandle(job)
-            raise OSError(ctypes.get_last_error(), "SetInformationJobObject 失败")
+            raise OSError(_last_error(), "SetInformationJobObject 失败")
         return int(job)
 
     @staticmethod
@@ -176,7 +215,7 @@ class WinJobRunner:
                 assigned = bool(kernel32.AssignProcessToJobObject(job, wt.HANDLE(handle)))
             if not assigned:
                 # 没进 job 就别假装受限：明确报出来，由调用方决定
-                last_error = ctypes.get_last_error()
+                last_error = _last_error()
                 out, errb = proc.communicate(timeout=timeout_s)
                 return JobExecResult(
                     proc.returncode or 1, out or b"", errb or b"",

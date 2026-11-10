@@ -161,3 +161,29 @@ def test_browser_check_defaults_to_no_launch(monkeypatch) -> None:
     # 没装 playwright 时是 skip；装了就是 ok——两种都不许"起浏览器"
     assert result.status in {"ok", "skip"}
     assert "launch" in result.detail or result.status == "skip"
+
+
+# ── B200：探针没跑起来 ≠ 行为坏 ──────────────────────────────
+def test_executor_check_splits_unproven_env_from_broken_behaviour(monkeypatch, tmp_path) -> None:  # noqa: ANN001
+    """干净 runner 上子进程既读不到 stdout 也拿不到退出码：记 skip，不记 fail。"""
+    from veripen_cli import cmd_doctor
+
+    def forged(**facts):  # noqa: ANN003, ANN202
+        def fake_attest(executor):  # noqa: ANN001, ANN202
+            return {"executor": "local", "available": True, **facts}
+
+        def fake_verdict(_facts):  # noqa: ANN001, ANN202
+            return False, "行为不完整"
+
+        monkeypatch.setattr("veripen_core.sandbox.attest.attest", fake_attest)
+        monkeypatch.setattr("veripen_core.sandbox.attest.verdict", fake_verdict)
+        monkeypatch.setattr("veripen_core.sandbox.runner.select_executor",
+                            lambda: type("E", (), {"name": "local", "available": lambda self: True})())
+        return cmd_doctor.check_sandbox_behavior(tmp_path)
+
+    never_ran = forged(stdout_captured=False, exit_code_preserved=False, timeout_enforced=True)
+    assert never_ran.status is cmd_doctor.Status.SKIP, never_ran.status
+    assert "没能执行" in never_ran.detail
+
+    truly_broken = forged(stdout_captured=True, exit_code_preserved=False, timeout_enforced=True)
+    assert truly_broken.status is cmd_doctor.Status.FAIL

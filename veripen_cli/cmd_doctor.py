@@ -309,9 +309,22 @@ def check_sandbox_behavior(root: Path) -> CheckResult:
         facts.get("timeout_enforced") and facts.get("exit_code_preserved")
         and facts.get("stdout_captured")
     )
+    if behavior_ok:
+        return CheckResult("执行体行为", Status.OK, detail[:200], "")
+
+    # 三种情形分开写（B200）：干净 runner 上探针**根本没跑起来**（子进程既读不到
+    # stdout 也拿不到退出码），那是"没能验"，不是"行为坏"。把它记成 fail 会让
+    # 每次干净安装都红一条假失败；记成 OK 又是另一种谎——所以记 skip 并写清原因。
+    never_ran = not facts.get("stdout_captured") and not facts.get("exit_code_preserved")
+    if never_ran:
+        return CheckResult(
+            "执行体行为", Status.SKIP,
+            f"{detail[:170]} │ 探针没能执行（stdout 与退出码都没拿到）",
+            "在具备条件的环境复验这条；本机 skip 不算通过",
+        )
     return CheckResult(
-        "执行体行为", Status.OK if behavior_ok else Status.FAIL, detail[:200],
-        "" if behavior_ok else "执行体行为不符合：看 detail 里哪一项为 False",
+        "执行体行为", Status.FAIL, detail[:200],
+        "执行体行为不符合：看 detail 里哪一项为 False",
     )
 
 
