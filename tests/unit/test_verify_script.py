@@ -81,3 +81,31 @@ def test_all_green_returns_zero() -> None:
     import verify
 
     assert verify.main([], runner=lambda argv: (0, "")) == 0
+
+
+# ── B205：bench 冒烟在清单里，并说清"子集不是验收数字" ──────────
+def test_bench_smoke_is_in_the_list_and_labelled() -> None:
+    import verify
+
+    smoke = [g for g in verify.SMOKES if g.name == "bench-smoke"]
+    assert smoke, "冒烟闸门没进清单"
+    gate = smoke[0]
+    assert gate.kind == "smoke", gate.kind
+    assert "--limit" in gate.argv, "子集跑必须显式限制条数"
+    assert "--rounds" in gate.argv
+
+
+def test_smoke_gates_run_without_with_tests(capsys) -> None:  # noqa: ANN001
+    """冒烟属于快闸门：不带 --with-tests 也要跑到。"""
+    import verify
+
+    seen: list[str] = []
+
+    def runner(argv):  # noqa: ANN001, ANN202
+        seen.append(argv[-1])
+        return 0, ""
+
+    code = verify.main([], runner=runner)
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "bench-smoke" in out, "冒烟闸门没跑"

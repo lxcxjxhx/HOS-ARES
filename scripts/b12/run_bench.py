@@ -392,6 +392,8 @@ def findings_snapshot(rounds: list[RoundResult]) -> list[str]:
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--rounds", type=int, default=3)
+    ap.add_argument("--limit", type=int, default=0,
+                    help="只跑前 N 例（冒烟用；子集跑**不是**验收数字）")
     ap.add_argument("--out", default="out/b12")
     #: 声明本轮有多少条覆盖记录来自 agent 自述（10 §3.0：必须为 0，非 0 整轮不算）
     ap.add_argument("--agent-reported", type=int, default=0)
@@ -424,6 +426,8 @@ def main(argv: list[str]) -> int:
         print(f"TLS: 证书 {TLS[0]}（仅经 SSL_CERT_FILE 注入信任，未改系统信任库）")
 
     cases = load_cases(ROOT / "tests" / "bench" / "cases.yaml")
+    if args.limit and args.limit > 0:
+        cases = cases[: args.limit]
     fps = case_fingerprint(cases)
     rounds: list[RoundResult] = []
     template_hashes: dict[str, str] = {}
