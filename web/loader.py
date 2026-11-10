@@ -389,7 +389,41 @@ def load_platform(path: Path) -> ConsoleState:
             "reason": None,
             "bindings": None,
         },
+        report=load_report(path),
     )
+
+
+#: 交付物文件名：单资产与平台各一份（B211）
+REPORT_NAMES: tuple[str, ...] = ("report.md", "platform-report.md")
+
+#: 报告正文上限：页面是"看"，不是"下载大文件"（超出按字节截断并明说）
+REPORT_MAX = 200_000
+
+
+def load_report(directory: Path) -> dict[str, Any]:
+    """把交付物正文读进控制台（B211）。
+
+    以前界面能看到发现、覆盖、路由、审计、审批，**唯独看不到要交出去的那份报告**——
+    整条链跑完，人还得去文件管理器里翻 `out/`。这里只做只读读取：
+    不新增路由参数（不接受客户端给路径），文件名在白名单里挑第一个存在的。
+    """
+    for name in REPORT_NAMES:
+        candidate = directory / name
+        if not candidate.is_file():
+            continue
+        try:
+            raw = candidate.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return {}
+        clipped = raw[:REPORT_MAX]
+        return {
+            "present": True,
+            "name": name,
+            "bytes": len(raw.encode("utf-8")),
+            "truncated": len(raw) > len(clipped),
+            "text": clipped,
+        }
+    return {}
 
 
 def load_file(path: str | Path) -> ConsoleState:
@@ -415,6 +449,9 @@ def load_file(path: str | Path) -> ConsoleState:
         return ConsoleState()
     state = load_record(record)
     _attach_capsule_paths(state, p.parent)
+    report = load_report(p.parent)
+    if report:
+        state.report = report
     ledger = _load_ledger(p.parent / LEDGER_NAME)
     if ledger:
         state.coverage = {**state.coverage, "ledger": ledger}

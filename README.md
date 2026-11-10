@@ -107,7 +107,7 @@ ubuntu 上跑快闸门，windows 上把测试分三段跑——避免"CI 跑的"
 配合：
 
 ```bash
-veripen console             # 只读控制台（10 个只读操作）
+veripen console             # 只读控制台（11 个只读操作）
 veripen tui                 # 终端三面板
 veripen hunt --target …     # 边跑边打印
 veripen parity              # 三对标总验收（5 面 × 22 项）

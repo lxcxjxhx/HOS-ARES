@@ -561,6 +561,20 @@ function renderApprovals(d) {
   return wrap;
 }
 
+function renderReport(d) {
+  // 交付物正文：整条链跑完要交出去的那份东西，界面上终于能看到了（B211）。
+  // 空态给出"去哪里产"，不留白屏。
+  if (!d || !d.present) {
+    return el("div", { class: "empty" },
+      d && d.empty_hint ? d.empty_hint : "还没有报告");
+  }
+  const head = el("div", { class: "meta" },
+    `${d.name} · ${d.bytes} 字节${d.truncated ? "（页面只显示前 200KB，完整内容见文件）" : ""}`);
+  // textContent：报告是**数据**，不是 HTML
+  const body = el("pre", { class: "report" }, String(d.text || ""));
+  return el("div", {}, head, body);
+}
+
 function renderGeneric(data) {
   return el("pre", {}, JSON.stringify(data, null, 2));
 }
@@ -605,6 +619,7 @@ async function render() {
   else if (state.op === "routes") view = renderRoutes(data);
   else if (state.op === "audit") view = renderAudit(data);
   else if (state.op === "bounds") view = renderBounds(data);
+  else if (state.op === "report") view = renderReport(data);
   else view = renderGeneric(data);
   main.replaceChildren(view);
 }

@@ -285,8 +285,19 @@ def validate_manifest(m: Mapping[str, Any], expected_ops: Sequence[str]) -> list
     """判据 B/C/D 的机器校验。返回问题清单，空表示通过。"""
     problems: list[str] = []
     order = list(m.get("page_order") or [])
-    if order != list(expected_ops):
-        problems.append(f"页序列不一致：{order} vs {list(expected_ops)}")
+    # 录屏是**某个时点的快照**：产品多一个页签不该让旧录像变成"错"（B211 加报告页时
+    # 这里判红过一次）。真正要守的不变式是"录像不许引用不存在的页、顺序不许乱"——
+    # 即 order 必须是 expected_ops 的**子序列**；整份是否完整由 recorded_op_count 说清。
+    unknown = [op for op in order if op not in expected_ops]
+    if unknown:
+        problems.append(f"录像里有已经不存在的页：{unknown}")
+    else:
+        positions = [list(expected_ops).index(op) for op in order]
+        if positions != sorted(positions):
+            problems.append(f"页序列与产品顺序不一致：{order}")
+    recorded = m.get("recorded_op_count")
+    if recorded is not None and int(recorded) != len(order):
+        problems.append(f"recorded_op_count={recorded} 与实际页数 {len(order)} 不符")
     video = m.get("video") or {}
     if float(video.get("duration_s") or 0) < 25:
         problems.append(f"视频时长 {video.get('duration_s')}s < 25s（判据 A）")
