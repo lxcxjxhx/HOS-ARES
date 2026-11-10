@@ -452,6 +452,13 @@ def load_file(path: str | Path) -> ConsoleState:
     report = load_report(p.parent)
     if report:
         state.report = report
+    traces: dict[str, list[dict[str, Any]]] = {}
+    for row in state.findings:
+        got = load_traces(row.capsule_path or "")
+        if got:
+            traces[row.finding_id] = got
+    if traces:
+        state.traces = traces
     ledger = _load_ledger(p.parent / LEDGER_NAME)
     if ledger:
         state.coverage = {**state.coverage, "ledger": ledger}
@@ -461,6 +468,37 @@ def load_file(path: str | Path) -> ConsoleState:
             if asset:
                 state.engagement = {**state.engagement, "asset": asset}
     return state
+
+
+def load_traces(capsule_path: str) -> list[dict[str, Any]]:
+    """从证据包里取出三条 trace 摘要（B212）。
+
+    详情页③"三条 trace 摘要"一直在渲染 `d.traces`，而**没有任何地方填过它**——
+    页面永远显示"未提供（trace 未注入）"，可证据包就在旁边，里面正是这三步。
+    这里只做只读映射：缺文件/坏 JSON 一律返回空（页面照旧说"未提供"，不编）。
+    """
+    if not capsule_path:
+        return []
+    try:
+        doc = json.loads(Path(capsule_path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    steps = doc.get("steps") or []
+    if not isinstance(steps, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for step in steps:
+        if not isinstance(step, Mapping):
+            continue
+        resp = step.get("response") or {}
+        status = resp.get("status") if isinstance(resp, Mapping) else None
+        length = resp.get("length") if isinstance(resp, Mapping) else None
+        out.append({
+            "role": str(step.get("role") or "-"),
+            "status": status if status is not None else (step.get("err") or "-"),
+            "bytes": length if length is not None else "-",
+        })
+    return out
 
 
 def _attach_capsule_paths(state: ConsoleState, root: Path) -> None:
