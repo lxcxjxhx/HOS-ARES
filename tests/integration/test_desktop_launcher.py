@@ -100,3 +100,33 @@ def test_main_runs_and_exits(tmp_path: Path, capsys: pytest.CaptureFixture[str])
     out = capsys.readouterr().out
     assert "控制台已启动" in out
     assert APP_PATH in out, "要把地址打出来"
+
+
+def test_launcher_survives_a_non_utf8_console() -> None:
+    """控制台是 cp1252 时，打印中文不许把启动流程打死（B206 在 CI 上抓到）。
+
+    复现方式就是给子进程 `PYTHONIOENCODING=cp1252`，再看它能不能真的起服务。
+    """
+    import os
+    import subprocess
+    import time
+
+    from veripen_cli.desktop import base_url, free_port, wait_ready
+
+    port = free_port()
+    env = {**os.environ, "PYTHONIOENCODING": "cp1252"}
+    proc = subprocess.Popen(          # noqa: S603 - 固定 argv
+        # -u：子进程被 terminate 时缓冲还没刷，不加就读不到那几行
+        [sys.executable, "-u", "-m", "veripen_cli.desktop",
+         "--no-browser", "--wait-s", "4", "--port", str(port)],
+        cwd=str(ROOT), env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
+    try:
+        assert wait_ready(port), "cp1252 控制台下没起来（编码崩了？）"
+        status, body = _get(base_url(port) + APP_PATH)
+        assert status == 200 and "<title>" in body
+    finally:
+        proc.terminate()
+        proc.wait(timeout=20)
+    out = (proc.stdout.read() if proc.stdout else b"").decode("utf-8", "replace")
+    assert "控制台已启动" in out, out[:200]
