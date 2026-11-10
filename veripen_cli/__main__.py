@@ -27,7 +27,7 @@ COMMANDS: tuple[tuple[str, str, str], ...] = (
     ("console", "veripen_cli.cmd_console", "只读控制台（11 个只读操作）"),
     ("agent", "veripen_cli.cmd_agent", "指令模式会话（白名单动词）"),
     ("tui", "veripen_cli.tui", "终端三面板（只读）"),
-    ("doctor", "veripen_cli.cmd_doctor", "部署自检（23 项）"),
+    ("doctor", "veripen_cli.cmd_doctor", "部署自检（24 项）"),
     ("parity", "veripen_cli.cmd_parity", "三对标总验收（5 面 × 22 项）"),
     ("playbook", "veripen_cli.cmd_playbook", "Playbook 资产库"),
     ("replay", "veripen_cli.cmd_replay", "证据重放"),

@@ -270,6 +270,50 @@ def check_gate_parity(root: Path) -> CheckResult:
                        f"{covered} 道跑 / {len(DOCTOR_EXCLUDED)} 道写明不跑（共 {len(gates)}）"[:120], "")
 
 
+def check_agent_guard(root: Path) -> CheckResult:
+    """`sh` 的危险命令闸门**接线**了吗（B216）。
+
+    只查"代码里有没有那个文件"是不够的：闸门写了但没接到入口，等于没有。
+    这里同时验三件事——规则表非空且能真命中、两个入口都调 `check_command`、
+    放行开关存在（默认关，放行必须显式）。
+    """
+    from veripen_core.workbench.danger import DANGEROUS, check_command
+
+    problems: list[str] = []
+    if len(DANGEROUS) < 10:
+        problems.append(f"规则只有 {len(DANGEROUS)} 条，太少")
+    probe = check_command("rm -rf /")
+    if probe is None:
+        problems.append("自检失败：`rm -rf /` 没被命中（匹配器坏了）")
+    # **行为验证**，不是 grep：grep 到 import 就绿，闸门照样可能没接在执行路径上
+    import tempfile
+
+    try:
+        from veripen_core.agent.intent import Step
+        from veripen_core.workbench.fs import Workbench
+        from veripen_cli.cmd_chat import _exec_step
+
+        with tempfile.TemporaryDirectory() as tmp:
+            ok, summary = _exec_step(Step("sh", {"cmd": "rm -rf /"}, "自检"),
+                                     wb=Workbench(Path(tmp)), root=Path(tmp))
+        if ok or "GATE-DANGER" not in summary:
+            problems.append("chat 的执行路径没拦 `rm -rf /`（闸门没接在执行处）")
+    except Exception as exc:  # noqa: BLE001 - 接线断了要如实说，不能当通过
+        problems.append(f"chat 闸门自检抛错：{type(exc).__name__}: {exc}"[:120])
+    for rel in ("veripen_cli/cmd_chat.py", "veripen_cli/cmd_agent.py"):
+        path = root / rel
+        if not path.is_file():
+            problems.append(f"{rel} 不存在")
+            continue
+        if '"--allow-dangerous"' not in path.read_text(encoding="utf-8"):
+            problems.append(f"{rel} 没有 --allow-dangerous（放行开关缺失）")
+    if problems:
+        return CheckResult("agent 危险命令闸门", Status.FAIL, "；".join(problems)[:200],
+                           "把闸门接到两个入口，或恢复 danger.py 的规则表")
+    return CheckResult("agent 危险命令闸门", Status.OK,
+                       f"{len(DANGEROUS)} 条规则 · 两个入口已接 · 放行需显式"[:120], "")
+
+
 def check_act_cmd(root: Path) -> CheckResult:
     return _lint("act 命令零地址", "act_cmd.py", root)
 
@@ -467,6 +511,7 @@ CHECKS: tuple[tuple[str, Callable[[Path], CheckResult]], ...] = (
     ("ledger", check_ledger),
     ("ui", check_ui),
     ("act_cmd", check_act_cmd),
+    ("agent_guard", check_agent_guard),
     ("profiles", check_profiles),
     ("lock_snapshot", check_lock_snapshot),
     ("docker", check_docker),
