@@ -71,6 +71,7 @@ def _findings_view(
     binding: Any, capsule: CapsuleDoc | None,
 ) -> Any:
     """一次执行 → 渲染用 finding。**verdict 只来自 result，不在这里改。**"""
+    from veripen.report.impact import advice_text, impact_text
     from veripen.report.render import FindingView, Outcome
 
     verdict = str(getattr(result.verdict, "value", result.verdict))
@@ -98,6 +99,10 @@ def _findings_view(
         self_sha256=(capsule.chain.self_sha256 if capsule else None),
         replay_status="NEVER",
         situation=_situation(meta, oracle_id, binding, result),
+        # 影响/建议由**已声明的元数据**生成（B217）：以前这两行是空的，
+        # 渲染器按"空就不写"处理，交付物里就没有影响与建议。
+        impact=impact_text(getattr(meta, "impact", "")),
+        advice=advice_text(_severity_of(meta, oracle_id, _strength_of(binding))[0]),
         outcome=outcome,
         refuted=verdict == "REFUTED",
         reason_code=str(getattr(result, "reason", "") or "")[:60],
