@@ -88,7 +88,7 @@ jobs:
           if ($resp.Content -notmatch "<title>") { throw "返回的不是控制台页面" }
           if ($resp.Content -notmatch 'id="nav"') { throw "页面外壳没出来" }
           Write-Host "单文件自检通过：HTTP 200 · $($resp.Content.Length) 字节"
-          $proc | Wait-Process -Timeout 30 -ErrorAction SilentlyContinue
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
 
       - name: 打安装包
         shell: pwsh
@@ -131,12 +131,21 @@ jobs:
             throw "装出来的程序打不开界面"
           }
           Write-Host "安装自检通过：装出来的 exe 打开就是界面（$($resp.Content.Length) 字节）"
-          $proc | Wait-Process -Timeout 30 -ErrorAction SilentlyContinue
+
+          # 卸载前先停掉它：进程还在跑时卸载器删不掉正在使用的 exe，
+          # 会留下"假残留"（第一次跑就是这样红的）。
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          Start-Sleep -Seconds 2
 
           Start-Process -FilePath (Join-Path $target "unins000.exe") -Wait `
             -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART")
-          Start-Sleep -Seconds 2
-          if (Test-Path (Join-Path $target "HOS-ARES.exe")) { throw "卸载后还有残留" }
+          Start-Sleep -Seconds 3
+          $left = Get-ChildItem $target -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -ne "unins000.exe" -and $_.Name -ne "unins000.dat" }
+          if ($left) {
+            Write-Host "== 卸载后残留 =="; $left | ForEach-Object { Write-Host "  $($_.Name)" }
+            throw "卸载后还有残留"
+          }
           Write-Host "卸载自检通过：无残留"
 
       - name: 上传产物（单文件 + 安装包）
