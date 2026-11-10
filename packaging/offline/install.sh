@@ -2,7 +2,7 @@
 # VeriPen 离线安装（内网 / 断网环境）
 #
 # 三条纪律（12 §2）：
-#   1. 本脚本**不联网**：不 curl、不 wget、不 pip install、不 docker pull。
+#   1. 本脚本**不联网**：不 curl、不 wget、不 docker pull；pip 只许 `--no-index`（离线装本地 wheels）。
 #      所有依赖都在同目录的 images/ 与 vendor/ 里。
 #   2. **幂等**：可重复执行；已存在则跳过并提示，不重复建卷。
 #   3. 先校验再动手：SHA256SUMS 不过就停，别在坏包上装。
@@ -23,13 +23,27 @@ else
     echo "警告：本机无 sha256sum，跳过校验（请在能校验的机器上先验一遍）" >&2
 fi
 
-echo "== 2/4 检查运行时 =="
+echo "== 2/5 安装运行期依赖（wheels） =="
+# 内网主机没有 pip 源：只能 --no-index 从本地 wheels/ 装（B202）
+if [ -d wheels ] && ls wheels/*.whl >/dev/null 2>&1; then
+    if [ -f wheels/requirements.lock ]; then
+        python3 -m pip install --no-index --find-links wheels -r wheels/requirements.lock \
+            || { echo "wheels 安装失败：停止（别在坏包上继续）" >&2; exit 1; }
+        echo "  运行期依赖已从 wheels/ 装好（--no-index）"
+    else
+        echo "  wheels/ 缺 requirements.lock：跳过（请在构建机重新组包）" >&2
+    fi
+else
+    echo "  wheels/ 无 whl：运行期依赖未装（verify 会报出）" >&2
+fi
+
+echo "== 3/5 检查运行时 =="
 if ! command -v docker >/dev/null 2>&1; then
     echo "缺 docker（需 >= 24）。这是本机唯一必须预装的软件。" >&2
     exit 1
 fi
 
-echo "== 3/4 载入镜像 =="
+echo "== 4/5 载入镜像 =="
 if [ -d images ]; then
     for tar in images/*.tar; do
         [ -e "$tar" ] || continue
@@ -40,7 +54,7 @@ else
     echo "  images/ 不存在：跳过（可能已在镜像仓库里）"
 fi
 
-echo "== 4/4 生成配置并首启自检 =="
+echo "== 5/5 生成配置并首启自检 =="
 if [ -f .env ]; then
     echo "  .env 已存在，保留原值（幂等）"
 else

@@ -120,6 +120,8 @@ def test_verify_detects_extra_file(pkg: Path) -> None:
 def test_verify_passes_when_manifest_is_right(pkg: Path) -> None:
     """补上镜像目录的说明性 tar 之后应当全绿——证明校验不是永远红。"""
     (pkg / "images" / "api.tar").write_bytes(b"placeholder-image-for-verification")
+    # wheels/ 也必须真有东西：空目录 verify 会如实报出来（B202）
+    (pkg / "wheels" / "demo-1.0-py3-none-any.whl").write_bytes(b"placeholder-wheel")
     build_manifest = collect(pkg)
     from veripen_cli.offline import Entry
 
@@ -226,3 +228,52 @@ def test_manifest_notes_surface_the_gap(pkg: Path) -> None:
 
     blob = json.loads((pkg / "manifest.json").read_text(encoding="utf-8"))
     assert any("images/" in n for n in blob["notes"])
+
+
+# ── B202：wheels 要么真带，要么如实报，不许"以为带了" ────────────
+def test_build_without_wheels_says_so(tmp_path: Path) -> None:
+    """不给 wheels：目录里留说明，verify 必须报出来（不当通过）。"""
+    pkg = tmp_path / "p"
+    manifest = build(src=SRC, out=pkg, version="t")
+    assert (pkg / "wheels").is_dir()
+    assert not list((pkg / "wheels").glob("*.whl"))
+    assert any("wheels/ 为空" in note for note in manifest.notes), manifest.notes
+    assert any("wheels/ 无 .whl" in p for p in verify(pkg).problems)
+
+
+def test_build_with_wheels_copies_them(tmp_path: Path) -> None:
+    from veripen_cli.offline import Manifest
+
+    src_wheels = tmp_path / "src-wheels"
+    src_wheels.mkdir()
+    (src_wheels / "demo-1.0-py3-none-any.whl").write_bytes(b"wheel-bytes")
+
+    pkg = tmp_path / "p"
+    manifest: Manifest = build(src=SRC, out=pkg, version="t", wheels_from=src_wheels)
+    assert (pkg / "wheels" / "demo-1.0-py3-none-any.whl").read_bytes() == b"wheel-bytes"
+    assert (pkg / "wheels" / "requirements.lock").exists(), "锁要随包带，否则内网没法照单装"
+    assert any("wheels/ 带" in note for note in manifest.notes), manifest.notes
+
+
+def test_build_rejects_an_empty_wheels_dir(tmp_path: Path) -> None:
+    """给了目录却一个 whl 都没有：直接失败，不许产出空的 wheels/。"""
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    with pytest.raises(PackageError):
+        build(src=SRC, out=tmp_path / "p", version="t", wheels_from=empty)
+
+
+def test_offline_pip_install_is_allowed_but_online_is_not(tmp_path: Path) -> None:
+    """`pip install --no-index` 是离线装；不带 --no-index 就是联网装。"""
+    from veripen_cli.offline import check_scripts
+
+    scripts = tmp_path / "s"
+    scripts.mkdir()
+    ok = scripts / "install.sh"
+    ok.write_text("python3 -m pip install --no-index --find-links wheels -r wheels/requirements.lock\n",
+                  encoding="utf-8")
+    assert check_scripts(scripts) == []
+
+    bad = scripts / "install.sh"
+    bad.write_text("python3 -m pip install -r requirements.txt\n", encoding="utf-8")
+    assert check_scripts(scripts), "联网装居然没被拦"

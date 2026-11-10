@@ -37,11 +37,15 @@ REQUIRED_ENTRIES: tuple[str, ...] = (
 #: 这是**常见形态清单**，不是沙箱（B172）：没命中不等于没有外网——
 #: 任何解释器里手写 socket 都能绕过。所以清单要尽量覆盖常见写法，
 #: 而不是宣称"扫过就干净"。
+_REPO = Path(__file__).resolve().parents[1]
+
 EGRESS_PATTERNS: tuple[tuple[str, str], ...] = (
     (r"\bcurl\b[^\n]*(://|\d+\.\d+\.\d+\.\d+)", "curl 外网"),
     (r"\bwget\b", "wget"),
     (r"\bgit\s+clone\b", "git clone"),
-    (r"\bpip\s+install\b", "pip install（应离线装）"),
+    # `pip install --no-index --find-links wheels …` 是**离线**装，不算外网拉取：
+    # 不带 --no-index 的 pip install 就是在联网装（B202）。
+    (r"\bpip\s+install\b(?!.*--no-index)", "pip install（无 --no-index ≈ 联网装）"),
     (r"\bapt(-get)?\s+install\b", "apt install"),
     (r"\bdocker\s+pull\b", "docker pull"),
     (r"\bnpm\s+install\b", "npm install"),
@@ -157,7 +161,7 @@ def check_scripts(root: Path) -> list[str]:
 
 def build(
     *, src: Path, out: Path, version: str, extra_profiles: Sequence[Path] = (),
-    profile: str = "light",
+    profile: str = "light", wheels_from: Path | None = None,
 ) -> Manifest:
     """组包。**已存在的输出目录直接拒**：覆盖一个交付包是不可逆操作。"""
     if out.exists():
@@ -179,6 +183,31 @@ def build(
     for prof in extra_profiles:
         if prof.is_dir():
             shutil.copytree(prof, prof_out / prof.name)
+
+    # 2.5 依赖 wheels（B202）：内网主机没有 pip 源，运行期依赖必须随包带。
+    #     **空目录不算通过**：给了目录却一个 whl 都没有，就是"以为带了其实没带"，
+    #     装完才发现 ModuleNotFoundError。所以这种情况直接失败。
+    wheels = out / "wheels"
+    wheels.mkdir()
+    if wheels_from is not None:
+        whls = sorted(wheels_from.glob("*.whl"))
+        if not whls:
+            raise PackageError(f"{wheels_from} 里没有任何 .whl：不要产出假 wheels/")
+        for whl in whls:
+            shutil.copy2(whl, wheels / whl.name)
+        lock_path = _REPO / "requirements.lock"
+        if lock_path.exists():
+            shutil.copy2(lock_path, wheels / "requirements.lock")
+        manifest.notes.append(f"wheels/ 带 {len(whls)} 个 whl（离线装依赖用）")
+    else:
+        (wheels / "README.txt").write_text(
+            "本目录应放置运行期依赖的 wheel（构建机执行：\n"
+            "  python -m pip download -r requirements.lock -d wheels --only-binary=:all:\n"
+            "然后用 --wheels-from wheels 重新组包）。\n"
+            "verify 会把空的 wheels/ 如实报出来，不计为通过。\n",
+            encoding="utf-8",
+        )
+        manifest.notes.append("wheels/ 为空：需在构建机补齐（verify 会报出）")
 
     # 3 镜像目录：**留说明，不造假 tar**
     images = out / "images"
@@ -265,6 +294,11 @@ def verify(root: Path) -> VerifyResult:
 
     for path in sorted(set(actual) - set(declared)):
         problems.append(f"文件存在但不在清单里：{path}")
+
+    # wheels 为空同样如实报：内网主机没有 pip 源
+    whl_dir = root / "wheels"
+    if whl_dir.is_dir() and not any(p.suffix == ".whl" for p in whl_dir.iterdir()):
+        problems.append("wheels/ 无 .whl：内网主机装不上运行期依赖（需构建机补齐）")
 
     # 镜像为空要如实报，不能当通过
     imgs = root / "images"
