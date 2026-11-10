@@ -132,10 +132,19 @@ jobs:
           }
           Write-Host "安装自检通过：装出来的 exe 打开就是界面（$($resp.Content.Length) 字节）"
 
-          # 卸载前先停掉它：进程还在跑时卸载器删不掉正在使用的 exe，
-          # 会留下"假残留"（第一次跑就是这样红的）。
-          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          # 卸载前先停掉**整个进程树**：单文件 exe 是两层（bootloader → 真进程），
+          # 只 Stop-Process 父进程，子进程还攥着文件，卸载器就删不掉 → 假残留。
+          & taskkill /F /T /PID $proc.Id 2>$null | Out-Null
           Start-Sleep -Seconds 2
+          # 等到文件真的可写（最多 15s），别拿"刚杀完"当"已释放"
+          $free = $false
+          for ($i = 0; $i -lt 30; $i++) {
+            try {
+              $fh = [System.IO.File]::Open((Join-Path $target "HOS-ARES.exe"), "Open", "ReadWrite", "None")
+              $fh.Close(); $free = $true; break
+            } catch { Start-Sleep -Milliseconds 500 }
+          }
+          if (-not $free) { throw "装出来的 exe 停不下来（仍被占用）" }
 
           Start-Process -FilePath (Join-Path $target "unins000.exe") -Wait `
             -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART")
