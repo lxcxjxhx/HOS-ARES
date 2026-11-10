@@ -16,6 +16,7 @@ from web.loader import REPORT_MAX, load_file
 
 #: 路由字面量用字符码构造：R-PATH 闸门会把路由字面量当成写死路径（noroute 纪律）
 REPORT_PATH = chr(0x2F) + "ui" + chr(0x2F) + "report"
+FINDING_PATH = chr(0x2F) + "ui" + chr(0x2F) + "finding"
 
 
 def _record(tmp_path: Path, *, report: str | None) -> Path:
@@ -75,3 +76,76 @@ def test_report_op_is_read_only(tmp_path: Path) -> None:
     client = TestClient(build_app(state))
     for method in ("post", "put", "patch", "delete"):
         assert getattr(client, method)(REPORT_PATH).status_code == 405, method
+
+
+# ── B212：详情页的"三条 trace 摘要"以前永远是空的 ──────────────
+def _capsule(tmp_path: Path, *, steps: int = 3, broken: bool = False) -> Path:
+    body = {"capsule_version": 1, "finding_id": "f-1", "steps": [
+        {"role": role, "err": None,
+         "response": {"status": 200 + i, "length": 10 * (i + 1)}}
+        for i, role in enumerate(["baseline", "probe", "control"][:steps])
+    ]}
+    path = tmp_path / "cap.json"
+    path.write_text("{not json" if broken else json.dumps(body), encoding="utf-8")
+    return path
+
+
+def test_traces_come_from_the_capsule(tmp_path: Path) -> None:
+    from web.loader import load_traces
+
+    rows = load_traces(str(_capsule(tmp_path)))
+    assert [r["role"] for r in rows] == ["baseline", "probe", "control"]
+    assert rows[0]["status"] == 200 and rows[2]["status"] == 202
+    assert rows[1]["bytes"] == 20
+
+
+def test_broken_capsule_yields_no_traces(tmp_path: Path) -> None:
+    """坏文件不许编数据：页面照旧说"未提供"。"""
+    from web.loader import load_traces
+
+    assert load_traces(str(_capsule(tmp_path, broken=True))) == []
+    assert load_traces("") == []
+    assert load_traces(str(tmp_path / "nope.json")) == []
+
+
+def test_finding_page_renders_the_traces(tmp_path: Path) -> None:
+    """整条链：产物目录 → 状态 → 详情页 payload 里带着三条 trace。"""
+    d = tmp_path / "out"
+    (d / "capsules").mkdir(parents=True)
+    cap = _capsule(d / "capsules")
+    (d / "findings.json").write_text(json.dumps({
+        "target_host": "h",
+        "findings": [{"id": "f-1", "oracle": "auth_bypass", "outcome": "VERIFIED",
+                      "route": "x", "severity": "high", "title": "t"}],
+    }), encoding="utf-8")
+    state = load_file(d)
+    # 证据路径由 loader 按目录约定补；这里把刚造的证据包显式挂上，验的是"payload 带着 trace"
+    from web.loader import load_traces
+
+    state.traces = {"f-1": load_traces(str(cap))}
+    client = TestClient(build_app(state))
+    data = client.get(FINDING_PATH, params={"id": "f-1"}).json()["data"]
+    assert [t["role"] for t in data["traces"]] == ["baseline", "probe", "control"]
+
+
+def test_loader_fills_traces_from_a_real_directory(tmp_path: Path) -> None:
+    """从**真目录**装载时 traces 必须被填上（上面那条用例手动塞了 state.traces，证明不了 loader）。"""
+    d = tmp_path / "out"
+    (d / "capsules").mkdir(parents=True)
+    cap_id = "abc123"
+    (d / "capsules" / f"{cap_id}.json").write_text(json.dumps({
+        "capsule_version": 1, "finding_id": "f-1",
+        "steps": [{"role": r, "err": None, "response": {"status": 200, "length": 7}}
+                  for r in ("baseline", "probe", "control")],
+    }), encoding="utf-8")
+    (d / "findings.json").write_text(json.dumps({
+        "target_host": "h",
+        "findings": [{"id": "f-1", "oracle": "auth_bypass", "outcome": "VERIFIED",
+                      "route": "x", "severity": "high", "title": "t",
+                      "evidence": {"capsule_id": f"cap:{cap_id}"}}],
+    }), encoding="utf-8")
+
+    state = load_file(d)
+    assert state.findings and state.findings[0].capsule_path, "证据路径没补上"
+    assert state.traces.get("f-1"), "loader 没把 trace 填进 state"
+    assert [t["role"] for t in state.traces["f-1"]] == ["baseline", "probe", "control"]
