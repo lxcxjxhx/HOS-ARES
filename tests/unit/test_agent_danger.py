@@ -70,3 +70,38 @@ def test_chat_and_agent_both_expose_the_override() -> None:
         src = (root / rel).read_text(encoding="utf-8")
         assert '"--allow-dangerous"' in src, rel
         assert "check_command(" in src, rel
+
+
+# ── B215：计划阶段就标出来；放行要留痕 ──────────────────────────
+def test_plan_marks_a_dangerous_step_before_it_runs() -> None:
+    """「计划先于执行」要能真的用上：人看到 ⚠ 才会说不。
+
+    断言走 `_render_plan` 的输出，不直接调 `_danger_mark`——否则把渲染处那行
+    删掉用例照样绿（B212 踩过这个坑）。
+    """
+    from veripen_cli import cmd_chat
+
+    printed: list[str] = []
+    original = cmd_chat._say
+    cmd_chat._say = lambda text="": printed.append(str(text))  # type: ignore[assignment]
+    try:
+        plan = cmd_chat.Plan(raw="x", steps=(
+            cmd_chat.Step("sh", {"cmd": "rm -rf /"}, "执行命令"),
+            cmd_chat.Step("sh", {"cmd": "echo hi"}, "执行命令"),
+        ), understood_as="两步", confident=True)
+        cmd_chat._render_plan(plan)
+    finally:
+        cmd_chat._say = original
+    joined = "\n".join(printed)
+    assert "rm-root" in joined, joined
+    # 无害那一步不该被标
+    assert joined.count("⚠") == 1, joined
+
+
+def test_override_leaves_a_trace() -> None:
+    """拒绝有记录，override 不能是静默的——这是审计要的那一条。"""
+    from pathlib import Path
+
+    src = (Path(__file__).resolve().parents[2] / "veripen_cli" / "cmd_chat.py").read_text(encoding="utf-8")
+    assert "[DANGER-OVERRIDE" in src, "放行没有留痕"
+    assert "hit = check_command(a[\"cmd\"])" in src, "闸门必须总是算一遍命中，才能区分拦下与放行"

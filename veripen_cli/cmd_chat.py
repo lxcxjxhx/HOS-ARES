@@ -84,10 +84,26 @@ def _step_line(i: int, tool: str, args: dict[str, Any], why: str) -> str:
     return f"  {i}. {C_CYAN}{tool}{C_OFF}({a})" + (f"  {C_DIM}— {why}{C_OFF}" if why else "")
 
 
+def _danger_mark(step: Any) -> str:
+    """计划里就把危险命令标出来（B215）。
+
+    "计划先于执行"要能**真的用上**：人看到 `⚠ rm-root` 才会说不。
+    等到执行时才拦，等于把否决权拖到事后。
+    """
+    if getattr(step, "tool", "") != "sh":
+        return ""
+    cmd = str((step.args or {}).get("cmd") or "")
+    hit = check_command(cmd)
+    return f"{C_RED}⚠ [{hit.name}] {hit.why}{C_OFF}" if hit is not None else ""
+
+
 def _render_plan(plan: Plan) -> None:
     _say(f"{C_BOLD}⏺ 计划{C_OFF}  {C_DIM}{plan.understood_as}{C_OFF}")
     for i, s in enumerate(plan.steps, start=1):
         _say(_step_line(i, s.tool, dict(s.args), s.why))
+        mark = _danger_mark(s)
+        if mark:
+            _say(f"     {mark}")
 
 
 def _plan_from_model(client: Any, text: str, history: list[str]) -> Plan | None:
@@ -246,8 +262,8 @@ def _exec_step(step: Any, *, wb: Workbench, root: Path, allow_dangerous: bool = 
         # 所以交给 shell（Windows: cmd /c；POSIX: sh -c），不要按"以 python 开头"
         # 就当成 python 脚本 —— 那会把 `python -c "print(42)"` 再套一层 python -c。
         interp = "cmd" if sys.platform == "win32" else "sh"
-        hit = None if allow_dangerous else check_command(a["cmd"])
-        if hit is not None:
+        hit = check_command(a["cmd"])
+        if hit is not None and not allow_dangerous:
             return False, (f"[GATE-DANGER] {hit.name}：{hit.why}"
                            "（确实要跑就加 --allow-dangerous）")
         runner = make_subprocess_executor()
@@ -255,7 +271,9 @@ def _exec_step(step: Any, *, wb: Workbench, root: Path, allow_dangerous: bool = 
         text = (out or err or "").strip()
         head = "\n".join(text.splitlines()[:20])
         mark = "✓" if code == 0 else "✗"
-        return code == 0, f"{mark} exit={code}\n{head}"
+        # 放行也要留痕（B215）：拒绝有记录，override 不能是静默的
+        tag = f"[DANGER-OVERRIDE {hit.name}] " if hit is not None else ""
+        return code == 0, f"{tag}{mark} exit={code}\n{head}"
 
     return False, f"未知工具：{tool}"
 
