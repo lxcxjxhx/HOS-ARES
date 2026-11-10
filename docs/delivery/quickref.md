@@ -3,7 +3,8 @@
 ## 8 条命令
 
 ```
-$ make up            # 起环境（数据库 / worker / 靶场）
+$ python scripts/tasks.py console   # 起只读控制台（原先那行指向一个不存在的 make 目标）
+# 没有 make 的机器（含 Windows 安装包环境）一律用：python scripts/tasks.py <同名任务>
 $ make demo          # 端到端演示：发现 → 判定 → 证据 → 报告 → replay → 缩 scope
 $ make demo-alt      # 换客户档跑同一份镜像（A1）
 $ make bench         # 44 例 × 3 轮，FP=0 / 越界=0 / routeset 三轮一致
