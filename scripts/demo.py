@@ -34,6 +34,8 @@ from veripen_core.agent import (  # noqa: E402
 from veripen_core.budget import Budget, BudgetLimits  # noqa: E402
 from veripen.report import (  # noqa: E402
     FindingView,
+    advice_text,
+    impact_text,
     Outcome,
     ReportInput,
     build_manifest,
@@ -78,6 +80,16 @@ SELECTOR = {
     "ssrf_oob": "url_fetch",
     "jwt_suite": "protected_read",
 }
+
+
+def _impact_of(oracle_id: str) -> Any:
+    """按 oracle id 回真表取写入等级（B217）：capsule 里不存这个字段。"""
+    from veripen_oracles import ALL_ORACLES
+
+    for oracle in ALL_ORACLES:
+        if str(oracle.meta.id) == str(oracle_id):
+            return getattr(oracle.meta, "impact", "")
+    return ""
 
 
 def _say(step: str, text: str) -> None:
@@ -293,8 +305,11 @@ def step4_report(profile, sealed, out: Path, *, ledger=None, store=None) -> Path
                 template_sha256=cap.target.template_sha256,
                 param_signature="path:id",
                 situation=cap.assertion.statement or "判定成立",
-                impact="见 capsule",
-                advice="按复现命令重跑",
+                # 影响/建议由**已声明的元数据**生成（B217）：以前这里是
+                # 原先这里是两句占位文本，客户读起来像没写完
+                # capsule 里的 `oracle` 只是 id/cwe/version 三字段；写入等级要回真表里查
+                impact=impact_text(_impact_of(cap.oracle.id)),
+                advice=advice_text("high" if i == 0 else "medium"),
             )
         )
     report = ReportInput(

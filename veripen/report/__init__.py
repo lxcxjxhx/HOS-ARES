@@ -11,6 +11,7 @@ from .lint import (
     quality_score,
     verify_manifest,
 )
+from .impact import advice_text, impact_text
 from .render import (
     FindingView,
     Outcome,
@@ -26,7 +27,7 @@ from .render import (
     rule_id,
 )
 
-__all__ = [
+__all__ = ["advice_text", "impact_text", 
     "FindingView",
     "LintHit",
     "Outcome",
