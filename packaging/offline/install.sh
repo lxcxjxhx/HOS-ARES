@@ -68,5 +68,5 @@ fi
 
 echo
 echo "安装完成。下一步："
-echo "  python -m veripen_cli.cmd_doctor      # 16 项自检，红了先别跑"
+echo "  python -m veripen_cli.cmd_doctor      # 20 项自检，红了先别跑"
 echo "  回滚上一版： sh install.sh --rollback"
