@@ -12,7 +12,7 @@
 # 1. 装依赖（Python 3.11+）
 pip install -e ".[dev]"
 
-# 2. 环境自检（20 项，缺条件的记 skip 不记 fail）
+# 2. 环境自检（23 项，缺条件的记 skip 不记 fail）
 veripen doctor
 
 # 3. 坐下干活
