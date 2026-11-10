@@ -2,7 +2,9 @@ VeriPen 离线包 —— 三步安装
 ============================
 
 一、装什么
-    本包在**断网环境**内完成部署。除 docker（>= 24）外，不需预装任何软件；
+    本包在**断网环境**内完成部署。预装要求只有两项，且都不联网：
+      · docker（>= 24）
+      · Python 3.11+（运行时本体；依赖 wheel 随包放在 wheels/，用 --no-index 装）
     不联网、不拉镜像、不改系统包。
 
 二、怎么装
@@ -22,6 +24,7 @@ VeriPen 离线包 —— 三步安装
     install.sh / uninstall.sh   安装与卸载（卸载保留数据）
     SHA256SUMS                  全部文件的校验和
     manifest.json               清单（含版本、字节数、备注）
+    wheels/                     运行期依赖 *.whl + requirements.lock（--no-index）
     profiles/                   客户档样例（不含真实凭据）
     images/                     镜像 tar（需在有 docker 的构建机生成）
 

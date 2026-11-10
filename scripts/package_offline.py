@@ -26,6 +26,8 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--src", default=str(ROOT / "packaging" / "offline"))
     ap.add_argument("--profiles", default=str(ROOT / "profiles"))
     ap.add_argument("--verify", default="", help="只校验已有包")
+    ap.add_argument("--wheels-from", default="",
+                    help="已有 *.whl 的目录（构建机先 pip download，再指过来）")
     ap.add_argument("--profile", default="light", choices=("light", "browser"),
                     help="包形态：light 只带内核；browser 额外带渲染执行体")
     args = ap.parse_args(argv)
@@ -48,7 +50,8 @@ def main(argv: list[str]) -> int:
 
     try:
         manifest = build(src=Path(args.src), out=out, version=args.version,
-                         extra_profiles=profiles, profile=args.profile)
+                         extra_profiles=profiles, profile=args.profile,
+                         wheels_from=Path(args.wheels_from) if args.wheels_from else None)
     except PackageError as exc:
         print(f"组包失败：{exc}")
         return 1
