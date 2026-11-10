@@ -9,4 +9,5 @@ renderBounds
 renderFinding
 renderError
 renderApprovals
+renderReport
 renderGeneric

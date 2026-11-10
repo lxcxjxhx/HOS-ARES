@@ -105,3 +105,37 @@ def test_committed_demo_manifest_is_valid() -> None:
     mod = _module()
     data = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert mod.validate_manifest(data, _ops()) == []
+
+
+# ── B211：录屏是快照，不是"永远等于产品" ────────────────────────
+def test_manifest_may_lag_behind_new_pages() -> None:
+    """产品多一个页签，旧录像不该被判错——否则每加一页都得重录一遍。"""
+    mod = _module()
+    ops = ["overview", "engagement", "findings", "report"]
+    data = {"page_order": ["overview", "engagement"],
+            "recorded_op_count": 2,
+            "video": {"duration_s": 30, "width": mod.VIEWPORT_W, "height": mod.VIEWPORT_H},
+            "counts": {"findings": 3, "events": 4, "approvals": 1}}
+    assert mod.validate_manifest(data, ops) == []
+
+
+def test_manifest_rejects_pages_that_no_longer_exist() -> None:
+    mod = _module()
+    ops = ["overview", "engagement"]
+    data = {"page_order": ["overview", "ghost"],
+            "recorded_op_count": 2,
+            "video": {"duration_s": 30, "width": mod.VIEWPORT_W, "height": mod.VIEWPORT_H},
+            "counts": {"findings": 3, "events": 4, "approvals": 1}}
+    problems = mod.validate_manifest(data, ops)
+    assert any("已经不存在的页" in p for p in problems), problems
+
+
+def test_manifest_rejects_out_of_order_pages() -> None:
+    mod = _module()
+    ops = ["overview", "engagement", "findings"]
+    data = {"page_order": ["findings", "overview"],
+            "recorded_op_count": 2,
+            "video": {"duration_s": 30, "width": mod.VIEWPORT_W, "height": mod.VIEWPORT_H},
+            "counts": {"findings": 3, "events": 4, "approvals": 1}}
+    problems = mod.validate_manifest(data, ops)
+    assert any("顺序不一致" in p for p in problems), problems
