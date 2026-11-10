@@ -316,7 +316,9 @@ def step4_report(profile, sealed, out: Path, *, ledger=None, store=None) -> Path
         engagement=profile.engagement_id,
         profile_hash=profile.profile_hash(),
         image_digest="demo",
-        root_sha256=sealed[0][0].chain.prev_sha256 or "0" * 64,
+        # 根指纹 = 第一条 capsule 的 self_sha256（与 cmd_run 同口径，B218）：
+        # 以前这里取链头 prev（全零），报告上印一串零，读者以为是真哈希
+        root_sha256=sealed[0][0].chain.self_sha256,
         routeset_sha256=[sealed[0][0].route.routeset_sha256] if sealed[0][0].route else [],
         resolver_version="1.0.0",
         findings=tuple(findings),
