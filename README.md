@@ -78,7 +78,7 @@ ISCC.exe /DMyAppVersion=0.1.0 packaging/HOS-ARES.iss           # packaging/out/H
 ## 一条命令验完整仓
 
 ```bash
-python scripts/verify.py              # 快闸门（约 1 分钟）：mypy + 6 道 lint + 账本 + 计划结构
+python scripts/verify.py              # 快闸门（约 1 分钟）：mypy + 7 道 lint + 账本 + 计划结构 + bench 冒烟
 python scripts/verify.py --with-tests # 追加分段 pytest（本机全量约 30 分钟）
 python scripts/verify.py --list       # 看清单
 ```

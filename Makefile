@@ -37,7 +37,7 @@ help:
 	@echo "make bindings-check    校验 op_id 绑定覆盖（24 §3）"
 	@echo "make lint-noroute      零地址闸门（27 §7）"
 	@echo "make lint-nodata-stub  禁用 mock/硬编码数据（26 §5.1）"
-	@echo "make lint              上述三道闸门"
+	@echo "make lint              七道 lint（清单在 scripts/verify.py，不在这里重抄）"
 
 test:
 	$(PY) -m pytest tests/unit/test_contracts.py -q
@@ -51,7 +51,10 @@ lint-noroute:
 lint-nodata-stub:
 	$(PY) scripts/lint/nodata_stub.py
 
-lint: lint-noroute lint-nodata-stub bindings-check
+# `make lint` 的清单由 scripts/verify.py 说了算（B208）：以前这里是三个 make 目标，
+# 而 verify.py 那边是七道 lint——两个"lint"定义迟早会对不上（B204 的同一族）。
+lint: bindings-check
+	$(PY) scripts/verify.py --only lint-noroute,lint-nodata,lint-ui,lint-netimports,lint-noleak,lint-lock,spec-drift
 
 # B1 退出标准（DoD）一键：测试 + 三道闸门
 b1: test lint

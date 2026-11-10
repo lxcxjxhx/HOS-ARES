@@ -109,3 +109,28 @@ def test_smoke_gates_run_without_with_tests(capsys) -> None:  # noqa: ANN001
     out = capsys.readouterr().out
     assert code == 0
     assert "bench-smoke" in out, "冒烟闸门没跑"
+
+
+# ── B208："lint" 只有一处定义 ──────────────────────────────────
+def test_readme_lint_count_matches_the_gate_list() -> None:
+    """README 写的 lint 条数必须等于清单里真正的 lint 闸门数。"""
+    import re as _re
+
+    import verify
+
+    lints = [g.name for g in verify.GATES if g.name.startswith("lint-") or g.name == "spec-drift"]
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "README.md").read_text(encoding="utf-8")
+    m = _re.search(r"mypy \+ (\d+) 道 lint", text)
+    assert m, "README 里没有\"mypy + N 道 lint\"的说法"
+    assert int(m.group(1)) == len(lints), f"README 写 {m.group(1)} 道，清单里有 {len(lints)} 道：{lints}"
+
+
+def test_make_lint_defers_to_the_gate_list() -> None:
+    """`make lint` 不许自己再抄一份清单。"""
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "Makefile").read_text(encoding="utf-8")
+    block = text.split("\nlint:", 1)
+    assert len(block) == 2, "Makefile 里没有 lint 目标"
+    body = block[1].split("\n\n", 1)[0]
+    assert "scripts/verify.py --only" in body, f"make lint 没引用 verify 清单：{body!r}"
