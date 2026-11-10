@@ -147,6 +147,18 @@ class ReportInput:
 # ══════════════════════════════════════════════════════════════════
 # 断言（渲染期，缺一即抛）
 # ══════════════════════════════════════════════════════════════════
+def _root_fingerprint_line(root_sha256: str) -> str:
+    """报告指纹那一行（B218）。
+
+    全零的 64 位串**看起来像真哈希**，其实是"这一轮没有根指纹"。
+    交付物上不许出现这种"像真的假数据"：没有就说没有。
+    """
+    value = str(root_sha256 or "")
+    if not value or set(value) == {"0"}:
+        return "- 报告指纹 root_sha256: `未计算`（本轮产物没有根指纹）"
+    return f"- 报告指纹 root_sha256: `{value[:16]}`"
+
+
 def assert_renderable(report: ReportInput) -> None:
     """09 §7 的渲染期断言——**不降级、不跳过**。"""
     for f in report.findings:
@@ -427,7 +439,7 @@ def render_markdown(report: ReportInput) -> str:
     w(f"# {report.engagement} 渗透验证报告")
     w("")
     w(f"- profile_hash: `{report.profile_hash[:16]}` · image: `{report.image_digest[:16]}`")
-    w(f"- 报告指纹 root_sha256: `{report.root_sha256[:16]}`")
+    w(_root_fingerprint_line(report.root_sha256))
     for s in report.routeset_sha256:
         w(f"- routeset_sha256: `{s[:12]}`")
     if report.discovery:
@@ -512,7 +524,8 @@ def render_markdown(report: ReportInput) -> str:
 
     w("## 6. 附录")
     w("")
-    w(f"`root_sha256[:12]` · {report.engagement} · {report.render_time} · {report.distribution}")
+    w(f"`{str(report.root_sha256 or '')[:12] or '未计算'}` · {report.engagement} · "
+          f"{report.render_time} · {report.distribution}")
     w("")
     # 复现口径要写死：把"离线重判"当成"洞还在"是这类报告最常见的误读。
     w("复现口径：`--mode offline` 只用证据里存的状态与 body 哈希重算判定（不重发请求）；"

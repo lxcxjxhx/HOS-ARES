@@ -72,6 +72,14 @@ class SqliBoolDiff(BaseOracle):
         control_same = ct.trace.fingerprint() == cf.trace.fingerprint()
         assertion = {
             "kind": "boolean_differential",
+            # 现象一句话（B218）：以前这两个 judge 不给 statement，交付物里
+            # 「现象」一栏只能写"判定成立"——读者看不出到底观测到什么
+            "statement": (
+                f"布尔差分成立：真条件与假条件的响应指纹不同（{t.trace.status} vs "
+                f"{f.trace.status}），无害对照两条指纹相同"
+                if diff and control_same else
+                f"布尔差分不成立：真/假条件指纹相同={not diff}、对照相同={control_same}"
+            ),
             "expected": {"probe_status": [200], "control_status": [200]},
             "fingerprint": {"bool_differs": diff, "control_equal": control_same},
             "observed": {
@@ -206,6 +214,12 @@ class SsrfOob(BaseOracle):
         control_seen = control.trace.headers.get("oob_seen") == "1"
         assertion = {
             "kind": "oob_callback",
+            # 现象一句话（B218）：见上，同一处缺口
+            "statement": (
+                "服务端确实发起了外部请求：OOB 通道收到回调，而指向不存在主机的对照没有回调"
+                if seen and not control_seen else
+                f"OOB 观测：探针回调={seen}、对照回调={control_seen}"
+            ),
             "expected": {"probe_status": [200, 500], "control_status": [200, 400, 500]},
             "observed": {"oob_seen": bool(seen), "control_seen": bool(control_seen)},
             "fingerprint": {"oob_seen": bool(seen), "control_no_callback": not control_seen},
