@@ -15,6 +15,8 @@ from __future__ import annotations
 import sys
 from typing import Callable, Sequence, cast
 
+from ._io import setup_stdout
+
 #: 子命令 → (模块路径, 一句话说明)
 COMMANDS: tuple[tuple[str, str, str], ...] = (
     ("chat", "veripen_cli.cmd_chat", "交互式 agent 会话（说人话，计划 + 工具流 + diff）"),
@@ -54,6 +56,10 @@ def _usage() -> str:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
+    # 一处钉死输出编码（B207）：Windows 控制台默认 cp1252/GBK，打印中文会
+    # UnicodeEncodeError 直接把命令打死——B200（verify 脚本）与 B206（exe 启动）
+    # 都是这个坑。放在分发处，所有子命令自动受益。
+    setup_stdout()
 
     if not args or args[0] in ("-h", "--help", "help"):
         print(_usage())

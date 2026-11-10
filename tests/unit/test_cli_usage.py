@@ -136,3 +136,31 @@ def test_delivery_docs_state_the_real_doctor_count() -> None:
                 wrong.append(f"{rel}:{lineno}: 写 {m.group(1)} 项，实际 {len(CHECKS)} 项")
     assert checked, "交付材料里没有任何项数说法——这条检查会永远绿，得先补样本"
     assert not wrong, "交付材料项数过时：\n" + "\n".join(wrong)
+
+
+# ── B207：控制台不是 UTF-8 时，每条子命令都不许被中文打印打死 ──────
+def test_every_subcommand_survives_a_non_utf8_console() -> None:
+    """B200/B206 都是同一个坑：往 cp1252 控制台打中文 → UnicodeEncodeError。
+
+    这里把 `veripen <子命令> --help` 全部在 `PYTHONIOENCODING=cp1252` 下跑一遍：
+    退出码只能是 0（正常）或 2（用法错误），绝不能是被编码打死的 1。
+    """
+    import os
+    import subprocess
+    import sys
+
+    from veripen_cli.__main__ import COMMANDS
+
+    root = Path(__file__).resolve().parents[2]
+    env = {**os.environ, "PYTHONIOENCODING": "cp1252"}
+    bad: list[str] = []
+    for name, _module, _desc in COMMANDS:
+        proc = subprocess.run(          # noqa: S603 - 固定 argv
+            [sys.executable, "-m", "veripen_cli", name, "--help"],
+            cwd=str(root), env=env, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=120,
+        )
+        if proc.returncode not in (0, 2):
+            tail = (proc.stderr or "").strip().splitlines()[-1:] or [""]
+            bad.append(f"{name}: exit={proc.returncode} · {tail[0][:120]}")
+    assert not bad, "这些子命令在 cp1252 控制台下崩了：\n" + "\n".join(bad)
