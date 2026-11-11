@@ -277,3 +277,19 @@ def test_offline_pip_install_is_allowed_but_online_is_not(tmp_path: Path) -> Non
     bad = scripts / "install.sh"
     bad.write_text("python3 -m pip install -r requirements.txt\n", encoding="utf-8")
     assert check_scripts(scripts), "联网装居然没被拦"
+
+
+# ── B224：离线包要写明面向哪个平台 ────────────────────────────
+def test_readme_states_the_target_platform() -> None:
+    """本包装的是 Linux 侧；Windows 走安装包。以前只字未提。"""
+    text = (SRC / "README.txt").read_text(encoding="utf-8")
+    assert "Linux" in text, "离线包没写面向哪个平台"
+    assert "HOS-ARES-Setup" in text, "没告诉 Windows 主机该用哪个包"
+
+
+def test_install_sh_refuses_a_non_posix_platform() -> None:
+    """平台闸门：非 Linux/Darwin 直接退 2，并指出 Windows 的路径。"""
+    src = (SRC / "install.sh").read_text(encoding="utf-8")
+    assert "uname -s" in src, "install.sh 没有平台判断"
+    assert "exit 2" in src
+    assert "HOS-ARES-Setup" in src

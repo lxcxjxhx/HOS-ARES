@@ -9,6 +9,18 @@
 
 set -eu
 
+# 平台闸门（B224）：本包装的是 Linux 侧（镜像 tar + wheel）；
+# Windows 断网主机走另一条路——`HOS-ARES-Setup-<ver>.exe`（见 docs/exe-quickstart.txt）。
+# 以前这里不判断，Windows 上 sh 走到一半才报一句看不懂的错。
+case "$(uname -s 2>/dev/null || echo unknown)" in
+    Linux|Darwin) : ;;
+    *)
+        echo "本包面向 Linux（x86_64）；当前平台 $(uname -s 2>/dev/null || echo unknown) 请改用安装包：" >&2
+        echo "  Windows：HOS-ARES-Setup-<ver>.exe（静默安装见 docs/exe-quickstart.txt）" >&2
+        exit 2
+        ;;
+esac
+
 HERE=$(cd "$(dirname "$0")" && pwd)
 cd "$HERE"
 
