@@ -1,0 +1,50 @@
+name: Feature request
+description: 提出一个具体的能力缺口（不是「希望能更强」）
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: gap
+    attributes:
+      label: 缺什么
+      description: 现在做不到什么？给出你实际卡住的那一步。
+      placeholder: 想对同一批目标跑两次并对比判定差异，但输出里没有稳定的批次标识。
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: 现在怎么绕
+      description: 有没有临时办法？如果没有，说明为什么绕不过去。
+    validations:
+      required: false
+
+  - type: textarea
+    id: shape
+    attributes:
+      label: 你希望它长什么样
+      description: 命令行长什么样、输出里多哪个字段。不确定就写「不知道，但需要能 X」。
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 属于哪块
+      options:
+        - 判定逻辑
+        - 证据链 / 校验
+        - CLI / 交互
+        - 分发（安装包、离线包）
+        - 文档
+        - 其他
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我搜过现有 issue，没有重复
+          required: true
