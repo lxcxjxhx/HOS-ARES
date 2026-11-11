@@ -1,5 +1,10 @@
 # HOS-ARES
 
+<p>
+  <a href="https://github.com/lxcxjxhx/HOS-ARES/actions/workflows/verify.yml"><img src="https://github.com/lxcxjxhx/HOS-ARES/actions/workflows/verify.yml/badge.svg" alt="verify" /></a>
+  <a href="https://github.com/lxcxjxhx/HOS-ARES/actions/workflows/build-exe.yml"><img src="https://github.com/lxcxjxhx/HOS-ARES/actions/workflows/build-exe.yml/badge.svg" alt="build-exe" /></a>
+</p>
+
 可验证渗透验证内核。判定是纯函数、结论带哈希链证据、地址不进配置。
 
 说人话：**它不会替你"感觉"有没有漏洞，它给你一条能复查的证据链**。
@@ -117,8 +122,11 @@ veripen replay --capsule …  # 证据重放
 一条命令出演示成片（需要 ffmpeg + playwright）：
 
 ```bash
-make demo                   # → out/demo/hos-ares-tour.mp4
+make demo-record            # → out/demo/hos-ares-tour.mp4
 ```
+
+`make demo` 是**端到端演示**（发现 → 判定 → 证据 → 报告，见 `docs/delivery/quickref.md`）；
+成片与演示是两件事，各有各的目标（B239）。
 
 ---
 
@@ -165,6 +173,11 @@ veripen chat          # 启动行会显示 model: <名字>；不设则显示 mod
 三条纪律：**没配就不联网**（`from_env()` 返回 None，自动降级到规则层）；**一步一次调用**
 （`tool_calls_per_step=1`，不许一个 step 串多个工具）；**只认白名单工具名**（`SCHEMAS ∪ surface_names()`）。
 `veripen agent` 是指令模式，不调模型。
+
+配了却连不上，`veripen doctor` 的「模型后端」项当场报 FAIL 并给出可粘的 `curl` 探测命令——不用等到第一次
+`veripen chat` 才发现；没配记 skip（规则层可用，不算缺陷）。报错按状态码指到具体那一项：401/403 是
+`VERIPEN_MODEL_API_KEY`、404 是 `base_url` 少了 `/v1`；配了 key 会带上它去探（不然 401 会冤枉成"检查 key"），
+端点没有 `/models` 只记 skip（能连是事实，核对不到模型名也是事实）。`veripen chat` 里模型层失败会原样说出原因，再降级 rules。
 
 ---
 
