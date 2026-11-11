@@ -87,7 +87,9 @@ def test_delivery_docs_exist() -> None:
 
 def test_quickref_has_eight_commands_and_four_faults() -> None:
     text = (ROOT / "docs" / "delivery" / "quickref.md").read_text(encoding="utf-8")
-    assert text.count("$ make") >= 8, "一页速查至少 8 条命令"
+    # B223：交付命令现在有两条写法（make / scripts/tasks.py），数的是"可粘的命令行"总数
+    commands = text.count("$ make") + text.count("$ python scripts/tasks.py")
+    assert commands >= 8, f"一页速查至少 8 条命令（现在 {commands} 条）"
     for fault in "装不上 跑不动 结果可疑 要立刻停".split():
         assert fault in text, f"缺故障场景：{fault}"
 

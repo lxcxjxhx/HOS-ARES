@@ -1,5 +1,6 @@
 # 分发前十项
 
+> 没有 `make` 的机器（Windows 安装包环境）用 `python scripts/tasks.py <同名任务>`。
 - [ ] `make doctor` 24 项全绿
 - [ ] `make lint`（零地址 / 禁数据桩 / 绑定覆盖 / 默认关闭 / policy）
 - [ ] `make bench` FP=0、越界=0、routeset 三轮一致
