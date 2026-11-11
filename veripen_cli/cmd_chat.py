@@ -288,7 +288,14 @@ def _ask(prompt: str) -> str:
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
-    ap = argparse.ArgumentParser(prog="veripen chat", description="交互式 agent 会话")
+    epilog = (
+        "接真模型（B226）：设 VERIPEN_MODEL_BASE_URL + VERIPEN_MODEL"
+        "（需要鉴权再加 VERIPEN_MODEL_API_KEY）；不设就用规则层，"
+        "启动行会如实显示 `model: rules`。\n"
+        "模型只允许一次调用一个工具（tool_calls_per_step=1），不给的字段不许编。"
+    )
+    ap = argparse.ArgumentParser(prog="veripen chat", description="交互式 agent 会话",
+                                 epilog=epilog, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--db", default=str(ROOT / "out" / "chat.db"), help="会话事件库")
     ap.add_argument("--root", default=str(ROOT), help="工作根（读写不得逃逸）")
     ap.add_argument("--task-id", default="", help="会话 id（--resume 时指定）")
