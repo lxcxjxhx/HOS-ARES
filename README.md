@@ -153,6 +153,21 @@ make demo                   # → out/demo/hos-ares-tour.mp4
 
 ---
 
+## 接模型（可选，B226）
+
+```bash
+export VERIPEN_MODEL_BASE_URL=http://127.0.0.1:4000/v1   # OpenAI 兼容端点
+export VERIPEN_MODEL=deepseek-chat
+export VERIPEN_MODEL_API_KEY=sk-***                     # 需要鉴权时才设
+veripen chat          # 启动行会显示 model: <名字>；不设则显示 model: rules
+```
+
+三条纪律：**没配就不联网**（`from_env()` 返回 None，自动降级到规则层）；**一步一次调用**
+（`tool_calls_per_step=1`，不许一个 step 串多个工具）；**只认白名单工具名**（`SCHEMAS ∪ surface_names()`）。
+`veripen agent` 是指令模式，不调模型。
+
+---
+
 ## 文档地图
 
 | 想知道 | 看 |

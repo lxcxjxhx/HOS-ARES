@@ -116,7 +116,14 @@ def _do_sh(root: Path, arg: str, *, allow_dangerous: bool = False) -> tuple[bool
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
-    ap = argparse.ArgumentParser(prog="veripen agent", description="交互会话（工作台）")
+    # 指令模式**不接模型**（白名单动词留给人打）：这里只说清这件事，
+    # 免得有人照 chat 的环境变量配了模型，以为这里也会用上（B226）
+    epilog = (
+        "本模式是**指令模式**：动词来自白名单，不调模型。\n"
+        "想用模型驱动，用 `veripen chat`（设 VERIPEN_MODEL_BASE_URL + VERIPEN_MODEL）。"
+    )
+    ap = argparse.ArgumentParser(prog="veripen agent", description="交互会话（工作台）",
+                                 epilog=epilog, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--db", default=str(ROOT / "out" / "agent.db"), help="会话事件库")
     ap.add_argument("--root", default=str(ROOT), help="工作根（读写不得逃逸）")
     ap.add_argument("--task-id", default="", help="会话 id（--resume 时指定）")
