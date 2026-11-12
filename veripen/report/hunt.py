@@ -67,6 +67,9 @@ def render_hunt_markdown(
         f"- 路由来源：{'主动探测（无契约）' if source == 'discover' else '契约'}",
         f"- 决策：{decision}（{reason}）",
     ]
+    blocked_note = str(record.get("blocked_note") or "")
+    if blocked_note:
+        lines.append(f"- 注意：{blocked_note}")
     excluded = list(record.get("excluded") or [])
     if excluded:
         # 排除是操作员的选择，**不算缺口**，但必须写在交付物里（B329/B330 共用一份措辞）

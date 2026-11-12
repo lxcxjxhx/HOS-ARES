@@ -591,10 +591,17 @@ def main(argv: list[str]) -> int:
     resolved = _resolve_ips(host)
     if resolved:
         print(f"解析：{len(resolved)} 个 IP —— {', '.join(sorted(resolved))}")
+    # 与 run 同一条口径（B334）：`--deny` 里既有资产 id 也有网段，
+    # 不拆开的话 `10.0.0.0/8` / `DENY_SET_DEFAULT` 在这里静默失效——
+    # 实测：`hunt --deny DENY_SET_DEFAULT` 照样把 3 个面跑完了。
+    from veripen_core.guard.scope import split_deny
+
+    deny_ids, deny_nets = split_deny(x.strip() for x in args.deny.split(",") if x.strip())
     scope = ScopeGuard(
         asset=AssetScope(id=host, host_keys=frozenset({host}), resolved_ips=resolved),
         scope_in=frozenset({host}),
-        deny=frozenset(x.strip() for x in args.deny.split(",") if x.strip()),
+        deny=deny_ids,
+        deny_nets=deny_nets,
         min_confidence=0.0,
         now=int(time.time()),
     )
@@ -736,6 +743,12 @@ def main(argv: list[str]) -> int:
         "excluded": sorted(excluded),
         "decision": result.decision.value,
         "reason": result.reason,
+        # 决策词是 `converged` 时读起来像"正常收敛"，而本轮可能一面都没判成（B334）
+        "blocked_note": (
+            f"本轮 {len(ctx.scope.violations())} 次被边界挡下，没有一面判成——"
+            "决策词不等于「正常收敛」，看 bounds.json"
+            if (not findings and ctx.scope.violations()) else ""
+        ),
         "findings": findings,
         # 模型自述（B158）：与 findings/faces_run 分列——自述**不能**算覆盖，
         # 但把它丢掉等于让模型白说。两者并列，读者自己判断。
@@ -772,6 +785,12 @@ def main(argv: list[str]) -> int:
     # 与 run 同口径（B319）：落盘字符串固定 LF、清单逐文件哈希——客户能 `sha256sum` 核。
     from veripen.report.lint import dumps_artifact
 
+    # 越界事件落盘（B334）：run 那一路有 bounds.json，hunt 没有——同样会被边界挡下，
+    # 却没有可核的痕迹。写出来，并纳进清单。
+    violations = ctx.scope.violations()
+    bounds_text = dumps_artifact({"count": len(violations), "events": violations})
+    (out / "bounds.json").write_text(bounds_text, encoding="utf-8", newline=chr(10))
+
     hunt_text = dumps_artifact(record)
     (out / "hunt.json").write_text(hunt_text, encoding="utf-8", newline=chr(10))
     # 可交付报告（B166）：与 hunt.json **同源渲染**，同一个 dict 进两份产物
@@ -795,7 +814,11 @@ def main(argv: list[str]) -> int:
     manifest = {
         "version": 1,
         "sections": {"markdown": md_sha, "json": js_sha},
-        "files": {"hunt.md": md_sha, "hunt.json": js_sha},
+        "files": {
+            "hunt.md": md_sha,
+            "hunt.json": js_sha,
+            "bounds.json": _hashlib.sha256(bounds_text.encode("utf-8")).hexdigest(),
+        },
         "report_sha256": _hashlib.sha256((md_sha + js_sha).encode("utf-8")).hexdigest(),
     }
     # 清单自哈希（B321）：与 run 那一路同形

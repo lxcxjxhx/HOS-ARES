@@ -82,3 +82,26 @@ def test_hunt_md_has_no_exclusion_line_when_nothing_excluded() -> None:
         capsules_dir="capsules", generated_at="t",
     )
     assert "已排除" not in md
+
+
+# ── B334：hunt 的 deny 要真拦，且挡下时决策词不许被读成"正常收敛" ──
+def test_hunt_md_shows_blocked_note() -> None:
+    from veripen.report.hunt import render_hunt_markdown
+
+    md = render_hunt_markdown(
+        {"target_host": "a", "source": "contract", "decision": "converged", "reason": "x",
+         "oracles": [], "faces_run": [],
+         "blocked_note": "本轮 3 次被边界挡下，没有一面判成"},
+        capsules_dir="capsules", generated_at="t")
+    assert "被边界挡下" in md and "不等于「正常收敛」" not in md, md[:400]
+
+
+def test_hunt_guard_splits_deny_like_run() -> None:
+    """`hunt --deny DENY_SET_DEFAULT` 以前照样把 3 个面跑完——它没走 split_deny。"""
+    import inspect
+
+    from veripen_cli import cmd_hunt
+
+    src = inspect.getsource(cmd_hunt.main)
+    assert "split_deny(" in src, "hunt 也要拆 deny"
+    assert "deny_nets=deny_nets" in src
