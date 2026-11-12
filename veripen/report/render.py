@@ -459,6 +459,23 @@ def render_markdown_with_audit(report: ReportInput, audit_text: str) -> str:
     return body + chr(10) + chr(10) + audit_text.strip() + chr(10)
 
 
+#: replay 状态 → 人话（B294）。`NEVER`/`PARTIAL` 这类内部枚举不该原样进报告正文。
+REPLAY_TEXT = {
+    "OK": "已重放且一致",
+    "NEVER": "未重放（这份证据只做了自哈希校验）",
+    "PARTIAL": "状态一致但字节不同（body 变了，结论仍可重算）",
+    "ROUTE_UNRESOLVED": "路由在当前环境解析不到（不是漏洞没了）",
+    "ROUTE_DRIFT": "路由与出证时不一致（环境变过）",
+    "FAILED": "重放对不上（证据或目标变过）",
+    "TAMPERED": "证据被改过（自哈希不符）",
+}
+
+
+def replay_text(status: str) -> str:
+    """状态 → 一句话；不认识的码原样返回（不猜）。"""
+    return REPLAY_TEXT.get((status or "").strip(), status or "-")
+
+
 def _code_or_absent(value: str, width: int = 16) -> str:
     """有值就给短哈希，没值就写「未提供」——**不许渲染成空反引号**（B247）。"""
     return f"`{value[:width]}`" if value else "未提供"
@@ -556,7 +573,8 @@ def render_markdown(report: ReportInput) -> str:
         if f.situation:
             w(f"- 现象：{f.situation}")
         sha_short = (f.self_sha256 or "")[:16]
-        w(f"- 证据：`capsule {f.capsule_id}` · `self_sha256 {sha_short}…` · replay `{f.replay_status}`")
+        w(f"- 证据：`capsule {f.capsule_id}` · `self_sha256 {sha_short}…` · "
+          f"replay {replay_text(f.replay_status)}")
         # 落盘文件名是**裸 hex**（`save_capsule` 用 self_sha256 命名），不是 `capsule_id`：
         # 用 `sha256:<hex>` 拼路径会得到一份不存在的文件，命令看着能跑、其实是死链（B149）。
         # `--mode offline` 必须写上：默认是 live，而 live 缺 RouteSet/transport 就拒跑，

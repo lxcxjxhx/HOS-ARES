@@ -46,3 +46,19 @@ def test_separator_is_a_dot_not_double_parens() -> None:
     text = explain_with_code("marker_not_fired")
     assert "） · `" in text, text
     assert "）（`" not in text, text
+
+
+# ── B294：replay 状态也是内部枚举，不许原样进报告 ────────────────
+def test_replay_status_gets_a_sentence() -> None:
+    from veripen.report.render import replay_text
+
+    assert "未重放" in replay_text("NEVER")
+    assert "已重放" in replay_text("OK")
+    assert "字节不同" in replay_text("PARTIAL")
+
+
+def test_unknown_replay_status_is_shown_verbatim() -> None:
+    from veripen.report.render import replay_text
+
+    assert replay_text("SOMETHING_NEW") == "SOMETHING_NEW"
+    assert replay_text("") == "-"
