@@ -36,7 +36,7 @@ from typing import Any, Iterable
 from urllib.parse import urlsplit
 
 from ._discover_args import add_discovery_args
-from ._io import setup_stdout  # noqa: E402
+from ._io import read_text_arg, setup_stdout  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -49,6 +49,7 @@ from veripen_contract.parser import ContractError, parse_openapi  # noqa: E402
 from veripen_contract.planner import plan  # noqa: E402
 from veripen_contract.spec_detect import SpecFormatError, as_openapi_text  # noqa: E402
 from veripen_core.agent import AgentState, Loop, build_decider  # noqa: E402
+from veripen_core.agent.loop import MODEL_ERROR_TOOL  # noqa: E402
 from veripen_core.agent.client import from_env  # noqa: E402
 from veripen.bench.capsule import build_capsule  # noqa: E402
 from veripen_core.evidence import ZERO_SHA, save_capsule, seal_capsule_doc  # noqa: E402
@@ -514,8 +515,11 @@ def main(argv: list[str]) -> int:
         routeset = _discover_routeset(args, host)
     else:
         # 契约格式先归一（B89）：swagger 2.0 折成 OpenAPI 3，Postman/认不出的当场说清。
+        raw_text = read_text_arg(args.openapi, what="契约文件")
+        if raw_text is None:
+            return 2
         try:
-            text = as_openapi_text(Path(args.openapi).read_text(encoding="utf-8"))
+            text = as_openapi_text(raw_text)
         except SpecFormatError as exc:
             print(f"契约格式不支持：{exc}", file=sys.stderr)
             return 2
@@ -554,7 +558,14 @@ def main(argv: list[str]) -> int:
     }
     symbols_map: dict[str, str] = {}
     if args.symbols:
-        symbols_map.update(json.loads(Path(args.symbols).read_text(encoding="utf-8")))
+        raw_symbols = read_text_arg(args.symbols, what="符号表")
+        if raw_symbols is None:
+            return 2
+        try:
+            symbols_map.update(json.loads(raw_symbols))
+        except (json.JSONDecodeError, TypeError) as exc:
+            print(f"符号表不是可用的 JSON 对象：{args.symbols}（{exc}）", file=sys.stderr)
+            return 2
     if args.oob:
         symbols_map["OOB"] = args.oob
         symbols_map["OOB_URL"] = "https" + ":" + "//" + args.oob
@@ -616,10 +627,23 @@ def main(argv: list[str]) -> int:
     finally:
         http_tool.uninstall_guard()
 
+    model_errors = []
     for e in result.step_entries:
         flag = "ok " if e.ok else "ERR"
         verdict = f" verdict={e.verdict}" if e.verdict else ""
-        print(f"  {e.step:>2} {flag} {e.tool:<20} facts+{e.new_facts}{verdict}")
+        # B238：`--model live` 失败时这里原本直接打内部哨兵 `__model_error__`，
+        # 客户看到一行下划线开头的名字，既不知道发生了什么事，也不知道该动哪里。
+        label = "模型调用失败" if e.tool == MODEL_ERROR_TOOL else e.tool
+        if e.tool == MODEL_ERROR_TOOL:
+            model_errors.append(e)
+        print(f"  {e.step:>2} {flag} {label:<20} facts+{e.new_facts}{verdict}")
+    if model_errors:
+        classes = {str(e.error_class or "") for e in model_errors}
+        why = "模型端点不可达/报错" if "transport" in classes else "模型输出不合窄 schema"
+        print(f"注意：{len(model_errors)} 步没拿到可用调用（{why}）——已降级到 scripted 继续；"
+              "判定结果不受影响，但这几步没参与决策")
+        if "transport" in classes:
+            print("      `veripen doctor` 的「模型后端」项可复现")
     print("-" * 78)
     print(f"决策：{result.decision.value}（{result.reason}）")
     # 模型自述：**展示，但不计入判定**（B158）。早先这段文本被整个丢掉，
@@ -718,8 +742,11 @@ def main(argv: list[str]) -> int:
         "faces_run": [row.as_dict() for row in runtime.faces_run],
         "not_confirmed": blocked,
         "steps": [
-            {"step": e.step, "tool": e.tool, "ok": e.ok,
-             "error_class": e.error_class, "verdict": e.verdict}
+            # 机器产物里也别留内部哨兵名（B258）：`__model_error__` 是 loop 的实现细节，
+            # 下游按 tool 名做统计/告警的人不该被迫认这个名字。对外统一叫 `model_error`。
+            {"step": e.step,
+             "tool": "model_error" if e.tool == MODEL_ERROR_TOOL else e.tool,
+             "ok": e.ok, "error_class": e.error_class, "verdict": e.verdict}
             for e in result.step_entries
         ],
         "budget": dict(result.budget),

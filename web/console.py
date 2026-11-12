@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import time
+from veripen.report.glossary import explain
 from veripen_core.routes.types import short_ref
 from dataclasses import dataclass, field
 from enum import Enum
@@ -279,7 +280,9 @@ def bounds_view(events: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     return {
         "count": len(events),
         "alert": "red" if events else None,
-        "events": [dict(e) for e in events],
+        # 越界页是 P0 事故页：码要留，但旁边要有一句人话（B264）
+        "events": [{**dict(e), "reason_text": explain(str(e.get("reason") or ""))}
+                   for e in events],
     }
 
 
@@ -301,7 +304,10 @@ def unverified_view(rows: Sequence[Row], *, asset: str = "") -> dict[str, Any]:
         if row.outcome in groups:
             groups[row.outcome].append(
                 {"id": row.finding_id, "oracle": row.oracle_id, "asset": row.asset_id,
-                 "reason": row.reason_code or "-"}
+                 "reason": row.reason_code or "-",
+                 # 人话单列一个字段（B263）：码留在 reason 里给机器对账，
+                 # 界面读 reason_text；未知码就给空串，界面回落到码本身
+                 "reason_text": explain(row.reason_code or "")}
             )
     # 兼容层：三组按 outcome 分（既有契约不动），另给一份按 verdict 分的视图（B36 新增）
     # 本页只装未验证行，所以四态即可（verified 不在这里）
@@ -563,7 +569,9 @@ def build_app(
             blocked = sum(1 for c in cells if c == "blocked")
             total = max(1, len(cells))
             return {
-                "engagements": [dict(state.engagement)],
+                # 空就是空：以前这里恒为 `[dict(...)]`，没有 engagement 时会输出 `[{}]`——
+                # 一条"空的记录"和"没有记录"是两件事（B242）。
+                "engagements": [dict(state.engagement)] if state.engagement else [],
                 "findings": len(state.findings),
                 "unverified": sum(1 for r in state.findings if r.verdict != "verified"),
                 "queues": {q.value: sum(1 for r in state.findings if r.queue is q) for q in Queue},
@@ -705,6 +713,15 @@ def build_app(
                 lambda: FileResponse(page, media_type="text/html",
                                      headers={"Cache-Control": "no-cache"})
             )
+            # 客户会截断 URL（只留 `host:port`）——落点必须是控制台，而不是一圈 404（B241）。
+            import fastapi.responses as _resp
+
+            def _to_app() -> Any:
+                return _resp.RedirectResponse(url=UI_PREFIX + "app", status_code=307)
+
+            app.get(UI_PREFIX.rstrip(UI_PREFIX[-1]), include_in_schema=False)(_to_app)
+            app.get(UI_PREFIX, include_in_schema=False)(_to_app)
+            app.get(chr(0x2F), include_in_schema=False)(_to_app)
         # 只暴露这一个纯函数模块：不做目录挂载（任何"顺手多挂一层"都会变成新的面）
         router_js = static_dir / "router.js"
         if router_js.exists():

@@ -45,7 +45,7 @@ def test_three_findings_chain_complete(tmp_path) -> None:
     paths = [save_capsule(c, tmp_path) for c in caps]
     report = verify_chain([E.load_capsule(p) for p in paths])
     assert report.ok is True
-    assert report.root_sha256 == "0" * 64
+    assert report.genesis_prev_sha256 == "0" * 64
 
 
 # ── 2 改一个字节 → TAMPERED（CLI 也要报）─────────────────────────────

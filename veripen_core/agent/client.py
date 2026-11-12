@@ -1,7 +1,11 @@
 """B18 · 真模型接驳（`08 §7` / `39 §4.1` 的第一件接线）。
 
 这一层只做一件事：**把「模型返回的结构化调用」变成 `ToolCall`，或者明确拒绝**。
-它不做猜测、不做重试、不解析自由文本——那三件事都会让"模型说什么就是什么"复活。
+它不做猜测、不做重试、不解析自由文本——"模型说什么就是什么"不能复活。
+
+唯一放宽的一处（B230）：模型把同一个对象包进围栏、或前后带一句人话时，取出
+**恰好一个**对象照收；出现两个就拒（那正是"一步串两个工具"的形状）。放宽的是
+包装，不是"一步一调用"这条纪律——`_extract_payload` 三个分支全部只返回单体。
 
 三条硬约束，每条对应一个失败模式：
 
@@ -52,6 +56,27 @@ class ModelClientError(RuntimeError):
     error_class = "transport"
 
 
+def explain_http_status(code: int, url: str) -> str:
+    """把 HTTP 状态码翻成**该改哪一项**（B228）。
+
+    这些码在压成"不可达"之前是能区分的：401 是 key、404 是路径、400 多半是
+    model 名、429 是限流、5xx 是端点自己。压成一句"不可达"之后，客户手里只剩
+    一个错位的结论——端点其实可达，坏的是配置或端点（与 B227 是同一族：
+    有信号不说，等于没有）。
+    """
+    if code in (401, 403):
+        return f"HTTP {code}：端点可达但拒绝鉴权，检查 VERIPEN_MODEL_API_KEY（{url}）"
+    if code == 404:
+        return f"HTTP 404：没有这个路径——base_url 多半少了 /v1（当前请求 {url}）"
+    if code == 400:
+        return f"HTTP 400：请求被拒，多半 VERIPEN_MODEL 不是这个端点认的名字（{url}）"
+    if code == 429:
+        return f"HTTP 429：被限流，不是配置错（{url}）"
+    if code >= 500:
+        return f"HTTP {code}：端点自己出错，不是配置问题（{url}）"
+    return f"HTTP {code}（{url}）"
+
+
 class SchemaViolation(ModelClientError):
     """模型输出不符合窄 schema：**可降级**（转 scripted），不可"猜一下"。"""
 
@@ -96,6 +121,104 @@ def _coerce_single_call(raw: Mapping[str, Any]) -> ToolCall:
     if not isinstance(args, Mapping):
         raise SchemaViolation(f"args 必须是对象，收到 {type(args).__name__}")
     return ToolCall(name, dict(args))
+
+
+def _text_of(content: Any) -> str:
+    """把 content 归一成文本：``str``，或分块数组（Anthropic / 多模态网关的 ``[{type,text}]``）。"""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, Sequence) and not isinstance(content, (str, bytes, bytearray)):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, Mapping) and isinstance(item.get("text"), str):
+                parts.append(item["text"])
+        return "".join(parts)
+    return ""
+
+
+def _balanced_object(text: str, start: int) -> tuple[str, int] | None:
+    """从 ``text[start]`` 的 ``{`` 起找配平的 ``}``（跳过字符串里的花括号与转义）。
+
+    返回 ``(片段, 结束下标)``；没配平返回 None。
+    """
+    depth = 0
+    in_str = False
+    esc = False
+    for i in range(start, len(text)):
+        ch = text[i]
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start:i + 1], i + 1
+    return None
+
+
+def _extract_payload(content: Any, finish_reason: str = "") -> Mapping[str, Any]:
+    """从模型回复里取出**恰好一个** json 对象（B230）。
+
+    真模型的三层包装都不改变"一步一调用"，但会让先前那版 ``json.loads(content)``
+    在每个真实端点上降级成 rules：
+
+    1. markdown 围栏 ```` ```json … ``` ````——网关不认 ``response_format`` 时必现；
+    2. 前后带一句人话（"好的，这是调用："）；
+    3. ``content`` 是分块数组（Anthropic / 多模态形状）。
+
+    **仍然只接受恰好一个对象**：识别到两个就拒——那正是"一步串两个工具"的形状。
+    取不到就把原文前 80 字带进错误里：人要能看见模型到底说了什么，而不是只看到
+    "schema 不合规"。
+    """
+    text = _text_of(content).strip()
+    if not text:
+        suffix = ("（finish_reason=length：预算被推理 token 占满，调大 MAX_TOKENS）"
+                  if finish_reason == "length" else "")
+        raise SchemaViolation(f"content 是空的{suffix}")
+
+    # ① 原文整段就是一个对象 ② 整段是一个围栏、里面是对象
+    candidates = [text]
+    if text.startswith("```"):
+        body = text.split("\n", 1)[1] if "\n" in text else ""
+        if "```" in body:
+            body = body[:body.index("```")]
+        candidates.append(body.strip())
+
+    for cand in candidates:
+        try:
+            obj = json.loads(cand)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(obj, Mapping):
+            return dict(obj)
+
+    # ③ 前后带人话：只取第一个配平对象，且**不许有第二个**
+    start = text.find("{")
+    if start >= 0:
+        found = _balanced_object(text, start)
+        if found is not None:
+            snippet, end = found
+            rest = text[end:]
+            nxt = rest.find("{")
+            if nxt >= 0 and _balanced_object(rest, nxt) is not None:
+                raise SchemaViolation("模型给了多个 json 对象（一步只允许一个调用）")
+            try:
+                obj = json.loads(snippet)
+            except json.JSONDecodeError:
+                obj = None
+            if isinstance(obj, Mapping):
+                return dict(obj)
+
+    raise SchemaViolation(f"content 里取不到 json 对象：{text[:80]!r}")
 
 
 class HttpChatClient:
@@ -243,6 +366,9 @@ class HttpChatClient:
         try:
             with urllib.request.urlopen(req, timeout=self.timeout_s) as resp:  # noqa: S310 - 仅回环网关
                 body = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            # HTTPError 是 URLError 的子类：先接住它，否则 401/404 会被说成"不可达"。
+            raise ModelClientError(explain_http_status(exc.code, req.full_url)) from exc
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             raise ModelClientError(f"模型不可达：{exc}") from exc
         except json.JSONDecodeError as exc:
@@ -258,12 +384,7 @@ class HttpChatClient:
             except (TypeError, ValueError):
                 pass
         content = ((choice.get("message") or {}).get("content") or "")
-        try:
-            parsed: Any = json.loads(content) if isinstance(content, str) else content
-        except json.JSONDecodeError as exc:
-            raise SchemaViolation(f"content 不是 JSON 对象：{exc}") from exc
-        if not isinstance(parsed, Mapping):
-            raise SchemaViolation(f"模型返回的不是 JSON 对象：{type(parsed).__name__}")
+        parsed = _extract_payload(content, self.last_finish_reason)
         return dict(parsed)
 
 
@@ -317,6 +438,7 @@ __all__ = [
     "ModelClientError",
     "SchemaViolation",
     "ScriptedClient",
+    "explain_http_status",
     "from_env",
     "to_tool_call",
 ]

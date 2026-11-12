@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""veripen coverage-matrix —— A6「覆盖够宽」的命令行形态（`18 §0` / `16 §4`）。
+"""veripen coverage —— A6「覆盖够宽」的命令行形态（`18 §0` / `16 §4`）。
 
-用法：python -m veripen_cli.cmd_coverage [--cases tests/bench/cases.yaml] [--out out/coverage]
+用法：veripen coverage [--cases tests/bench/cases.yaml] [--out out/coverage]
+（等价入口：python -m veripen_cli.cmd_coverage；`make coverage-matrix` 是同一个东西）
 
 回答一个问题：**14 类 oracle × 已登记标签，哪些真的有用例、哪些是空的。**
 
@@ -33,7 +34,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from veripen.bench.core import load_cases  # noqa: E402
+from veripen.bench.core import BenchFailed, load_cases  # noqa: E402
 from veripen_oracles import ALL_ORACLES  # noqa: E402
 
 #: `18 §0` 的 14 类判定矩阵。**这里是唯一权威**：注册表可以多（别名），
@@ -112,13 +113,18 @@ def build_report(cases: Sequence[Any]) -> dict[str, Any]:
 
 
 def main(argv: list[str]) -> int:
-    ap = argparse.ArgumentParser(prog="veripen coverage-matrix")
+    ap = argparse.ArgumentParser(prog="veripen coverage")
     ap.add_argument("--cases", default=str(ROOT / "tests" / "bench" / "cases.yaml"))
     ap.add_argument("--out", default=str(ROOT / "out" / "coverage"))
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
 
-    cases = load_cases(args.cases)
+    # 路径来自命令行：用例集不可用要说人话（B236），别甩 traceback
+    try:
+        cases = load_cases(args.cases)
+    except BenchFailed as exc:
+        print(f"用例集不可用：{exc}", file=sys.stderr)
+        return 2
     report = build_report(cases)
     rows = report["rows"]
     uncovered = report["uncovered"]

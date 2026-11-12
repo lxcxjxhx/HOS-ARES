@@ -25,8 +25,22 @@ from web.console import build_app  # noqa: E402
 from web.loader import load_file, summarize  # noqa: E402
 
 
+def artifact_note(path: str) -> str:
+    """产物文件在不在——**"0 条"与"没跑过"不是一回事**（B243）。
+
+    `out/` 整个目录不进版本库，所以干净 clone 上第一次开控制台必然指到一个不存在的
+    文件；旧行为在两种情况下都只印一行 `数据：0 条`，客户没法判断是不是自己还没跑过。
+    """
+    p = Path(path)
+    if p.is_file():
+        return ""
+    if p.exists():
+        return "（是目录，不是产物文件）"
+    return "（不存在：先跑一次 `veripen run` 或 `veripen hunt`，或换 --hunt 指到产物）"
+
+
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="veripen-console", description="只读控制台")
+    ap = argparse.ArgumentParser(prog="veripen console", description="只读控制台")
     ap.add_argument("--port", type=int, default=8099)
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--hunt", default=str(ROOT / "out" / "b30" / "hunt.json"),
@@ -83,7 +97,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"控制台：http://{args.host}:{args.port}" + chr(0x2F) + "ui" + chr(0x2F) + "app")
     print(f"数据：{stats['total']} 条（{stats['verified']} 已确认 / "
           f"{stats['unverified']} 未验证，其中 blocked {stats['blocked']}）")
-    print(f"来源：{args.hunt}")
+    print(f"来源：{args.hunt}{artifact_note(args.hunt)}")
     print(f"审计事件：{db_note}")
 
     import uvicorn

@@ -40,7 +40,7 @@ from veripen_oracles.common.harness import run as run_oracle  # noqa: E402
 from veripen_oracles.live import CoreTransport  # noqa: E402
 
 from ._discover_args import add_discovery_args
-from ._io import setup_stdout  # noqa: E402
+from ._io import read_text_arg, setup_stdout  # noqa: E402
 from .cmd_hunt import _build_routeset, _host_of, _oracles_for, build_guard  # noqa: E402
 
 #: 证据目录名（相对 --out）
@@ -183,7 +183,10 @@ def _discover_routeset(args: Any, host: str) -> Any:
             seen.add(key)
             records.append(rec)
             fresh += 1
-        print(f"发现第 {round_no} 轮：抓 {step.fetched} 页 / 新面 {fresh} 条")
+        # B236：`fetched` 计的是**尝试数**（预算是按它扣的）——整台不可达时它照样加 1，
+        # 所以"抓了 N 页"要同时给"拿到响应 M 页"，否则和下一行"一页都没抓成"互相打脸。
+        print(f"发现第 {round_no} 轮：尝试 {step.fetched} 页 / 拿到响应 {step.responded} 页"
+              f" / 新面 {fresh} 条")
         # 抓了却一条都没成，必须说清为什么（B221）：否则下一句"没有可跑的 oracle"
         # 会把"目标连不上"读成"目标没有可测的面"，用户会去改错的东西
         if step.fetched and not step.records:
@@ -260,7 +263,13 @@ def _severity_of(meta: Any, oracle_id: str, strength: str) -> tuple[str, str]:
 
 
 def _situation(meta: Any, oracle_id: str, binding: Any, result: Any) -> str:
-    """现况一句话。**严重度的来路写在这里**，而不是靠读者猜 medium 是评估还是兜底。"""
+    """现况一句话。**严重度的来路写在这里**，而不是靠读者猜 medium 是评估还是兜底。
+
+    文字取 ``assertion.statement``（oracle 自己写的那句）。**不拿 ``reason`` 当句子**（B245）：
+    ``reason`` 是判定码（``nosniff_absent`` / ``boolean_differential_holds``），
+    它已经单独进了 ``reason_code`` 字段；塞进"现象"就会让交付报告里出现一串内部标识符——
+    实测报告里 `- 现象：csp_header_absent` 这种行有一整排。
+    """
     strength = _strength_of(binding)
     _severity, basis = _severity_of(meta, oracle_id, strength)
     prefix = ""
@@ -268,7 +277,22 @@ def _situation(meta: Any, oracle_id: str, binding: Any, result: Any) -> str:
         prefix = f"弱面（{strength}）：严重度按 medium 计。"
     elif basis == "default":
         prefix = "oracle 未声明该规则对应的严重度，按 medium 兜底。"
-    return (prefix + str(getattr(result, "reason", "") or ""))[:200]
+    from collections.abc import Mapping as _Mapping
+
+    reason = str(getattr(result, "reason", "") or "")
+    assertion = getattr(result, "assertion", None)
+    statement = ""
+    if isinstance(assertion, _Mapping):
+        statement = str(assertion.get("statement") or "").strip()
+    if statement:
+        body = statement
+    elif reason:
+        # 没写文字就别编：如实说这一条只有判定码，读的人才知道该去看 capsule
+        body = f"该 oracle 未给出文字现象（判定码 {reason}）"
+    else:
+        body = ""
+    # 一句话都没有时连严重度前缀也不留：只有前缀的"现象"是一句悬空的话
+    return (prefix + body)[:200] if body else ""
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -355,8 +379,11 @@ def main(argv: list[str] | None = None) -> int:
     else:
         # 契约格式先归一（B89）：swagger 2.0 会在这里折成 OpenAPI 3；
         # Postman/认不出的格式当场说清楚，不要等到 parser 报"paths 不是对象"。
+        raw_text = read_text_arg(args.openapi, what="契约文件")
+        if raw_text is None:
+            return 2
         try:
-            text = as_openapi_text(Path(args.openapi).read_text(encoding="utf-8"))
+            text = as_openapi_text(raw_text)
         except SpecFormatError as exc:
             print(f"契约格式不支持：{exc}", file=sys.stderr)
             return 2
@@ -591,7 +618,8 @@ def main(argv: list[str] | None = None) -> int:
         index_of[(cap.oracle.id, cap_ref)] = cap
 
     # ── 报告 ────────────────────────────────────────────────────
-    from veripen.report.render import ReportInput, render_json, render_markdown
+    from veripen.report.lint import build_manifest
+    from veripen.report.render import ReportInput, render_json, render_markdown, render_sarif
 
     views = [
         _findings_view(
@@ -647,10 +675,24 @@ def main(argv: list[str] | None = None) -> int:
         distribution=args.distribution,
     )
 
+    # 三视图 + 清单（B254）：以前 `veripen run` 只写 md 与 json，SARIF 与
+    # `report.manifest.json` 只在演示脚本里有——于是"产品路径产出的报告"进不了客户的
+    # CI（SARIF 是扫描平台读的），也没法证明"报告没被手改"（manifest 是那件事的凭据）。
+    # 演示里怎么写，产品里就怎么写：同一份 dict 进三份产物。
+    md_text = render_markdown(report)
+    js_payload = render_json(report)
+    sarif = render_sarif(report)
+    manifest = build_manifest(markdown=md_text, sarif=sarif, js=js_payload)
     (out / "findings.json").write_text(
-        json.dumps(render_json(report), ensure_ascii=False, indent=2), encoding="utf-8"
+        json.dumps(js_payload, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    (out / "report.md").write_text(render_markdown(report), encoding="utf-8")
+    (out / "report.md").write_text(md_text, encoding="utf-8")
+    (out / "report.sarif").write_text(
+        json.dumps(sarif, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    (out / "report.manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
     verified = sum(1 for v in views if v.outcome.value == "reported")
     print("-" * 62)
@@ -668,7 +710,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  注意：{caveat}")
 
     print(f"证据：{len(sealed)} 份 capsule → {capsules_dir}")
-    print(f"交付：{(out / 'report.md').name} / {(out / 'findings.json').name}")
+    print(f"交付：{(out / 'report.md').name} / {(out / 'findings.json').name}"
+          f" / {(out / 'report.sarif').name} / {(out / 'report.manifest.json').name}")
     print(f"耗时：{time.time() - started:.1f}s")
     bad = [c for c in sealed if not verify_self_sha(c)]
     if bad:

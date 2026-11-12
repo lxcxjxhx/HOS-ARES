@@ -71,3 +71,59 @@ def test_assertion_table_has_twenty_rows() -> None:
     text = (cmd_parity.ROOT / "plan-veripen" / "16-完整范围与交付地图.md").read_text(encoding="utf-8")
     assert "A20 三对标可证" in text
     assert "A18 浏览器可证" in text and "容器内渲染未验" in text
+
+
+# ── B251：每项要能看到"它是怎么被判的" ────────────────────────────
+def test_every_item_says_where_its_judgement_lives() -> None:
+    """这一层没有 shell 命令可写：每项是内置探针。至少要给出**判据位置**。"""
+    for item in ITEMS:
+        how = item.how
+        assert how.startswith("cmd_parity."), (item.key, how)
+        assert item.probe.__name__ in how, (item.key, how)
+
+
+def test_json_rows_carry_the_judgement_locator(tmp_path: object) -> None:
+    out = str(tmp_path / "parity.json")  # type: ignore[operator]
+    assert main(["--json", "--out", out]) == 0
+    payload = json.loads((tmp_path / "parity.json").read_text(encoding="utf-8"))  # type: ignore[operator]
+    for row in payload["items"]:
+        assert row.get("how", "").startswith("cmd_parity."), row
+
+
+def test_human_output_prints_the_locator(capsys, tmp_path: object) -> None:  # noqa: ANN001
+    assert main(["--out", str(tmp_path / "p.json")]) == 0  # type: ignore[operator]
+    out = capsys.readouterr().out
+    assert "└ cmd_parity._pure_judge" in out, out[:400]
+
+
+# ── B252：判据位置要带一句说明，不能只有函数名 ────────────────────
+def test_every_locator_carries_a_sentence() -> None:
+    """`how` 只有 `cmd_parity._xxx` 时，读者仍不知道它在判什么。"""
+    missing = [item.key for item in ITEMS if "——" not in item.how]
+    assert not missing, f"这些项的判据位置没有说明：{missing}"
+
+
+def test_docstrings_do_not_overclaim() -> None:
+    """说明要跟实现对得上：`_evidence` 只做导入，不许写成"校验通过"。"""
+    item = next(i for i in ITEMS if i.key == "V2")
+    assert "导入" in item.how and "不跑" in item.how, item.how
+
+
+# ── B253：组得出来 ≠ 过得了自身校验 ──────────────────────────────
+def test_delivery_says_whether_the_package_passes_its_own_verify() -> None:
+    """本机没有构建机的 wheels/ 与 images/，所以 verify 必报这两条。
+
+    这一项判的是"能不能组出来"（green），但明细必须写明"自身校验未过"——
+    否则读者会以为包已经可交付。
+    """
+    item = next(i for i in ITEMS if i.key == "G2")
+    status, detail = item.probe()
+    assert status == GREEN, detail
+    assert "自身校验" in detail, detail
+    if "未过" in detail:
+        assert "wheels" in detail or "images" in detail, "要把缺什么写出来"
+
+
+def test_delivery_docstring_does_not_promise_a_pass() -> None:
+    item = next(i for i in ITEMS if i.key == "G2")
+    assert "组得出来 ≠ 过得了校验" in item.how, item.how

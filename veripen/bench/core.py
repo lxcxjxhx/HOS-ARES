@@ -378,7 +378,20 @@ def check_route_derivable(
 def load_cases(path: str | Path) -> list[BenchCase]:
     import yaml
 
-    raw = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+    p = Path(path)
+    # 路径来自命令行：读不到/不是 YAML 都要说人话，别把 traceback 甩给客户（B236）。
+    try:
+        text = p.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise BenchFailed(f"用例文件不存在：{p}") from exc
+    except OSError as exc:
+        raise BenchFailed(f"用例文件读不出来：{p}（{exc.strerror or exc}）") from exc
+    try:
+        raw = yaml.safe_load(text) or {}
+    except yaml.YAMLError as exc:
+        raise BenchFailed(f"用例文件不是合法 YAML：{p}（{exc}）") from exc
+    if not isinstance(raw, dict):
+        raise BenchFailed(f"用例文件的顶层必须是 `cases:` 映射：{p}")
     out: list[BenchCase] = []
     for item in raw.get("cases", []):
         out.append(

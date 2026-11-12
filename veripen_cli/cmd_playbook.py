@@ -20,7 +20,7 @@ def oracle_table() -> dict[str, str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="playbook")
+    ap = argparse.ArgumentParser(prog="veripen playbook")
     sub = ap.add_subparsers(dest="cmd", required=True)
     check = sub.add_parser("check", help="校验 playbooks/")
     check.add_argument("--dir", default=None)
@@ -39,7 +39,11 @@ def main(argv: list[str] | None = None) -> int:
     print(f"playbook-check: OK: {len(books)} 个资产")
     for book in books:
         rate = "未测" if book.success_rate is None else f"{book.success_rate:.4f}"
-        print(f"  {book.id}  oracle={book.oracle}  success_rate={rate}")
+        # 0% 要说清是"实测就没成过"，不是"坏了"（B274）：客户看到 0.0000 只会怀疑工具
+        note = ""
+        if book.success_rate == 0.0:
+            note = "  ← 实测从未成功：这套靶场里它不成立（不是坏的）"
+        print(f"  {book.id}  oracle={book.oracle}  success_rate={rate}{note}")
     return 0
 
 

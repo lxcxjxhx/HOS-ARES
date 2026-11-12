@@ -207,7 +207,10 @@ class JwtSuite(BaseOracle):
 
         assertion = {
             "kind": "jwt_suite",
-            "statement": "无效签名被拒，但以下变体被接受并返回了身份标记字段",
+            # 措辞必须**自己站得住**（B244）：报告里的"现象"只取这一句，
+            # 变体清单在 observed.accepted，正文不渲染它。原先是"以下变体被接受"——
+            # 报告读者往下看什么也没有，只能以为报告漏了内容。
+            "statement": "无效签名被拒，但存在被接受的变体，响应里带出了该身份才可见的标记字段",
             "expected": {"probe_status": [200], "control_status": [401, 403]},
             "observed": {
                 "accepted": sorted(accepted),

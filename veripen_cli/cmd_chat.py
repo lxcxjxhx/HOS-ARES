@@ -36,6 +36,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from veripen_core.agent.client import ModelClientError  # noqa: E402
 from veripen_core.agent.intent import Plan, Step, parse  # noqa: E402
 from veripen_core.agent.session import Session  # noqa: E402
 from veripen_core.store import Store  # noqa: E402
@@ -106,37 +107,44 @@ def _render_plan(plan: Plan) -> None:
             _say(f"     {mark}")
 
 
-def _plan_from_model(client: Any, text: str, history: list[str]) -> Plan | None:
-    """问模型「这句话该调哪个工具」。**给不出合规调用就返回 None**（由调用方降级 rules）。
+def _plan_from_model(client: Any, text: str, history: list[str]) -> tuple[Plan | None, str]:
+    """问模型「这句话该调哪个工具」。返回 ``(plan, 降级原因)``。
 
-    校验走 ``to_tool_call``（窄 schema）：未知工具 / 多调用 / 缺字段一律拒。
+    给不出合规调用时 plan 为 None，原因非空，由调用方决定**说一次还是每次都说**。
+    两类原因措辞必须不同（B228/B234）：模型层失败（401/404/超时）与"给了不合规的调用"
+    对客户意味着完全不同的下一步，混成一句"未给出合规调用"会把人引向错误的方向。
+
+    校验走 ``to_tool_call`` 那套窄 schema 的一部分：未知工具 / 多调用 / 缺字段一律拒。
     拒绝不是错误，是"这个模型这轮用不上"，要退回规则层而不是猜。
     """
     ctx = {"state": {"step": len(history), "pending": []}, "tools": {}}
     try:
         raw = client(text, ctx)
+    except ModelClientError as exc:
+        return None, f"模型层失败：{exc}——本轮降级 rules"
     except Exception:  # noqa: BLE001 —— 模型层失败一律降级，不打断会话
-        return None
+        return None, "模型调用异常——本轮降级 rules"
 
     # **按 chat 自己的工具集校验**，不套 agent 的 oracle 白名单：
     # `to_tool_call` 的白名单是 SCHEMAS ∪ surface_names()，面向判定链路；
     # chat 要的是 read/write/edit/sh/run/platform。用错表会把合规调用判成非法。
+    why = "模型给了不合规的调用——本轮降级 rules"
     if isinstance(raw, (list, tuple)):
-        return None                      # 一步一调用：多调用直接拒
+        return None, why                      # 一步一调用：多调用直接拒
     if not isinstance(raw, dict):
-        return None
+        return None, why
     name = str(raw.get("tool") or raw.get("name") or "")
     if not name or name == "finish" or name not in CHAT_TOOLS:
-        return None
+        return None, why
     args = raw.get("args") or raw.get("arguments") or {}
     if not isinstance(args, dict):
-        return None
+        return None, why
     return Plan(
         raw=text,
         steps=(Step(name, args, "模型选择"),),
         understood_as=f"模型：{name}",
         confident=True,
-    )
+    ), ""
 
 
 def _diff_text(before: str, after: str, path: str) -> tuple[str, int, int]:
@@ -333,6 +341,18 @@ def main(argv: list[str] | None = None) -> int:
     _say()
 
     history: list[str] = [t.instruction for t in sess.turns]
+    #: 降级原因 → 次数。**同一条只说一次**：每轮刷同一句，人就不看了（B234）。
+    degraded: dict[str, int] = {}
+
+    def _note_degrade(why: str) -> None:
+        if why in degraded:
+            degraded[why] += 1
+            return
+        degraded[why] = 1
+        _say(f"{C_DIM}{why}{C_OFF}")
+        if "模型层失败" in why:
+            _say(f"{C_DIM}  `veripen doctor` 的「模型后端」项可复现；`/status` 看累计次数{C_OFF}")
+
     while True:
         try:
             line = _ask(f"{C_GREEN}{PROMPT}{C_OFF}")
@@ -347,20 +367,26 @@ def main(argv: list[str] | None = None) -> int:
             break
         if text == "/help":
             _say("  说人话就行：「看下 out/x.txt」「往 out/y.txt 写 hello」")
-            _say("  「把 a.txt 里的 foo 改成 bar」「执行 python -V」「状态」；/quit 退出")
+            _say("  「把 a.txt 里的 foo 改成 bar」「执行 python -V」")
+            # 斜杠命令自己也要有一条说明（B249）：/help 以前只教"说人话"，
+            # 于是 /status、/history 这些只有读到源码的人知道。
+            _say("  斜杠命令：/help 本条 · /status 步数与决策层 · /history 本会话步骤 · /quit 退出")
             continue
         if text == "/history":
             _say(sess.render_history())
             continue
         if text == "/status":
-            _say(f"  步数 {len(sess.turns)} · 决策层 {layer} · 库 {db}")
+            extra = ""
+            if degraded:
+                extra = f" · 模型降级 {sum(degraded.values())} 次"
+            _say(f"  步数 {len(sess.turns)} · 决策层 {layer} · 库 {db}{extra}")
             continue
 
         if client is not None:
-            model_plan = _plan_from_model(client, text, history)
+            model_plan, why = _plan_from_model(client, text, history)
             if model_plan is None:
-                _say(f"{C_DIM}模型未给出合规调用，本轮降级 rules{C_OFF}")
                 plan = parse(text, history=history)
+                _note_degrade(why)
             else:
                 plan = model_plan
         else:

@@ -48,6 +48,11 @@ class _Handler(BaseHTTPRequestHandler):
 
         if self.mode == "bad_schema":
             content = json.dumps({"tool": "no_such_tool", "args": {}})
+        elif self.mode == "fenced":
+            # 真网关最常见的形状：围栏 + 一句人话（B230）
+            content = ("好的，这是调用：\n```json\n"
+                       + json.dumps({"tool": self.tool, "args": dict(self.args)}, ensure_ascii=False)
+                       + "\n```")
         elif self.mode == "two_calls":
             content = json.dumps([
                 {"tool": "read", "args": {"path": "a"}},

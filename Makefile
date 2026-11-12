@@ -12,12 +12,17 @@ package-offline:
 
 # 演示成片（B70）：控制台 10 页 + 三幕终端 → 一支带章节卡的成片
 # 前置：pip install playwright && playwright install chromium；ffmpeg 在 PATH
-demo:
+#
+# 名字必须是 `demo-record` 而不是 `demo`（B239）：`demo` 已经给了
+# `scripts/demo.py`（端到端演示，README/quickref 都按它写），而 Makefile 里同名
+# 目标**后定义者胜**——先前这条 `demo:` 一直是被静默覆盖的死代码，
+# 谁想跑成片都会得到另一件事，make 只在启动时嘟囔一句 warning。
+demo-record:
 	$(PY) scripts/demo/record_console.py
 	$(PY) scripts/demo/record_terminal.py
 	$(PY) scripts/demo/build_tour.py
 
-# 部署自检 16 项（skip 不算通过，全 ok 才叫绿）
+# 部署自检 25 项（skip 不算通过，全 ok 才叫绿；清单在 veripen_cli/cmd_doctor.py）
 doctor:
 	$(PY) -m veripen_cli.cmd_doctor
 
@@ -30,7 +35,7 @@ verify:
 verify-all:
 	$(PY) scripts/verify.py --with-tests
 
-.PHONY: verify verify-all demo agent-discover hunt-creds b29 b34 help test doctor package-offline bindings-check lint-noroute lint-nodata-stub lint-noleak replay coverage-matrix cases bench-leads plugin-roundtrip workbench-smoke assertions b1 b4 b5 b6 b7 b8 b9 b10 b11 b12 b12.1 b12.2 b12.3 b12.4 b12.5 b12.6 b12.7 b12.8 b12.9 b12.10 b12.11 b12.12 b12.13 b12.14 b12.15 b12.16 bench-abi bench-rerun lint-act-cmd lint-ui b13 b14 b15 b16 b17
+.PHONY: verify verify-all demo demo-record agent-discover hunt-creds b29 b34 help test doctor package-offline bindings-check lint-noroute lint-nodata-stub lint-noleak replay coverage-matrix cases bench-leads plugin-roundtrip workbench-smoke assertions b1 b4 b5 b6 b7 b8 b9 b10 b11 b12 b12.1 b12.2 b12.3 b12.4 b12.5 b12.6 b12.7 b12.8 b12.9 b12.10 b12.11 b12.12 b12.13 b12.14 b12.15 b12.16 bench-abi bench-rerun lint-act-cmd lint-ui b13 b14 b15 b16 b17
 
 help:
 	@echo "make test             运行 B1 契约测试"
@@ -484,14 +489,10 @@ tool-surface:
 	$(PY) -m pytest tests/unit/test_tool_surface.py -q
 
 # B41 视觉系统（令牌 + 双配色对比度 + 三态）
-ui-contrast:
-	$(PY) scripts/ui/contrast_check.py
-	$(PY) -m pytest tests/unit/test_ui_contrast.py -q
+# 定义在 B41 那一段（见 `b41:` 附近），此处不再重复一份（B239）
 
 # B42 可访问性与打印
-ui-a11y:
-	$(PY) scripts/ui/a11y_check.py
-	$(PY) -m pytest tests/unit/test_ui_a11y.py -q
+# 同上：`b42:` 附近已有唯一定义
 
 # B54 审批界面（唯一写入点）
 ui-approvals:
@@ -549,10 +550,10 @@ parity:
 b43: ui-contract
 b44: ui-honesty ui-semantics ui-contract ui-dom
 b45: exec-isolation
-b46: exec-isolation
+# b46 / b49 的**唯一**定义在本文件末尾各自那一段（含 browser-render / parallel-check）。
+# 早先这里还各有一行简写，后定义者胜 → 简写那行永远不生效（B239）。
 b47: tool-surface exec-isolation
 b48: exec-isolation
-b49: exec-isolation blackboard-conflict
 b50: playbook-check
 b51: blackboard-conflict
 b52: context-compress

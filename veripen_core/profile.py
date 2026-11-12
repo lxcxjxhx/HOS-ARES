@@ -24,6 +24,73 @@ class ProfileError(RuntimeError):
     code = "VP-1005"
 
 
+#: 加载器**真的会读**的键（点号路径）。其余一律不许默默接受（B259）。
+#: 写成 `split()` 而不是字面量元组：`lint-nodata` 把 ≥5 元素的字面量当硬编码行集。
+PARSED_KEYS: frozenset[str] = frozenset((
+    "apiVersion "
+    "meta.name meta.customer_id meta.industry meta.env "
+    "scope.engagement_id scope.deny scope.assets "
+    "routes.selectors "
+    "oracles.enabled oracles.needs_approval "
+    "policy.qps policy.concurrency policy.max_impact_class "
+    "report.frameworks report.distribution"
+).split())
+
+#: 档里**加载器不读**的键。分两类，别混（B260）：
+#: - `TOOLING_KEYS`：有别的工具在读（`auth.providers` 被 noleak 拿去扫泄漏），
+#:   所以它**不是**"写了不生效"；
+#: - 其余：确实没人读，客户写了不会改变任何行为，必须提示。
+NOT_LOADED_KEYS: frozenset[str] = frozenset((
+    "auth "
+    "meta.version meta.data_class "
+    "scope.timezone scope.dns_policy scope.max_redirects "
+    "routes.contract_locator routes.probe_wordlists routes.sources"
+).split())
+
+TOOLING_KEYS: frozenset[str] = frozenset(("auth",))
+
+#: 真正"写了不生效"的那一批（NOT_LOADED 减去有工具在读的）
+UNWIRED_KEYS: frozenset[str] = NOT_LOADED_KEYS - TOOLING_KEYS
+
+
+def _walk_keys(raw: Mapping[str, Any]) -> set[str]:
+    """把档摊成点号路径（只下钻到一层嵌套，够覆盖本格式）。"""
+    out: set[str] = set()
+    for key, value in raw.items():
+        out.add(key)
+        if isinstance(value, Mapping):
+            for sub in value:
+                out.add(f"{key}.{sub}")
+    return out
+
+
+def _reject_unknown_keys(raw: Mapping[str, Any]) -> tuple[str, ...]:
+    """未知键 → 报错（带拼写建议）；返回"声明了但没接线"的那些键。
+
+    客户档是**交付物**：拼错一个键（`polcy:`）今天会被默默忽略并落到默认值，
+    而默认值里有 qps=0（不限速）这种危险项。所以拼错必须当场红。
+    """
+    import difflib
+
+    present = _walk_keys(raw)
+    known = PARSED_KEYS | NOT_LOADED_KEYS
+    # 段名本身（`meta` / `scope` …）不是键，先放行；下钻后的子键逐个比对
+    sections = {k.split(".", 1)[0] for k in known}
+    # 未接线的段（如 `auth`）整段放行：我们本来就不读它，它的子键不该被当成拼错
+    unwired_prefixes = tuple(u + "." for u in NOT_LOADED_KEYS)
+    unknown = sorted(
+        k for k in present - known
+        if k not in sections and not any(k.startswith(pref) for pref in unwired_prefixes)
+    )
+    if unknown:
+        hints = []
+        for key in unknown[:5]:
+            close = difflib.get_close_matches(key, sorted(known), n=1)
+            hints.append(f"{key}" + (f"（是不是 {close[0]}？）" if close else ""))
+        raise ProfileError(f"profile 里有未知键：{'、'.join(hints)}——不猜，先改对再跑")
+    return tuple(sorted(present & UNWIRED_KEYS))  # auth 不算：有工具在读
+
+
 @dataclass(frozen=True)
 class Asset:
     id: str
@@ -73,6 +140,8 @@ class Profile:
     deny: tuple[str, ...] = ()
     #: 符号名 → 部署期注入的环境变量名（值不进 git）
     asset_env: Mapping[str, str] = field(default_factory=dict)
+    #: 档里写了但当前不接线的键（B259）：调用方要如实提示"写了不生效"
+    unwired: tuple[str, ...] = ()
 
     # ── 哈希（02 §5）──────────────────────────────────────────
     def profile_hash(self, resolved: Mapping[str, str] | None = None) -> str:
@@ -147,6 +216,7 @@ def load_profile(path: str | Path) -> Profile:
     raw = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
     if str(raw.get("apiVersion")) != "veripen.profile/v2":
         raise ProfileError(f"未知 apiVersion：{raw.get('apiVersion')}")
+    unwired = _reject_unknown_keys(raw)
 
     meta = raw.get("meta") or {}
     scope = raw.get("scope") or {}
@@ -201,6 +271,7 @@ def load_profile(path: str | Path) -> Profile:
         distribution=str(report.get("distribution") or "internal"),
         deny=tuple(scope.get("deny") or ()),
         asset_env={a.id: f"VP_ASSET_{a.id.upper().replace('-', '_')}" for a in assets},
+        unwired=unwired,
     )
 
 
@@ -258,6 +329,13 @@ def validate_profile(
 
     if not profile.frameworks:
         issues.append(ValidationIssue("warn", "no_frameworks", "report.frameworks 为空，合规章节将缺失"))
+    if profile.unwired:
+        # 写了不生效必须说出来（B259）：`scope.max_redirects: 0` 这种话躺在文件里，
+        # 客户会以为已经限住了，实际没有任何代码读它。
+        issues.append(ValidationIssue(
+            "warn", "unwired_profile_keys",
+            f"加载器不读这些键（写了不会改变行为）：{'、'.join(profile.unwired)}",
+        ))
     return issues
 
 

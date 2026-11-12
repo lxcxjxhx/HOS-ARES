@@ -24,6 +24,7 @@ for extra in (ROOT, ROOT / "scripts"):
 EXPECTED = {
     "mypy", "lint-noroute", "lint-nodata", "lint-ui",
     "lint-netimports", "lint-noleak", "spec-drift", "ledger", "plan",
+    "plan-old-manifest",
 }
 
 
@@ -134,3 +135,30 @@ def test_make_lint_defers_to_the_gate_list() -> None:
     assert len(block) == 2, "Makefile 里没有 lint 目标"
     body = block[1].split("\n\n", 1)[0]
     assert "scripts/verify.py --only" in body, f"make lint 没引用 verify 清单：{body!r}"
+
+
+# ── B232：冻结包自己那份 MANIFEST 也得有人跑 ────────────────────
+def test_old_plan_manifest_runs_in_its_own_directory() -> None:
+    """校验器读的是相对路径 `MANIFEST.md`，必须在 plan-veripen 那层跑。"""
+    import verify
+
+    gate = {g.name: g for g in verify.GATES}["plan-old-manifest"]
+    assert gate.needs == "node"
+    assert gate.cwd == "plan-veripen", gate.cwd
+
+
+def test_old_plan_manifest_matches_its_content() -> None:
+    """B232 的实物：`ae04456` 改了 `06-证据与replay规格.md` 却没重生成 MANIFEST，
+
+    那张 54 文件的哈希表过期了也没人知道——因为它不在闸门清单里。
+    这条断言真跑一次校验器（反例注入实测：往任一规格文件末尾加一个换行即红）。
+    """
+    import pytest
+
+    import verify
+
+    gate = {g.name: g for g in verify.GATES}["plan-old-manifest"]
+    if not verify.available(gate):
+        pytest.skip("缺 node")
+    status, note = verify.run_gate(gate)
+    assert status == verify.PASS, note

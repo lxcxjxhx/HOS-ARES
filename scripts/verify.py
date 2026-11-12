@@ -56,6 +56,7 @@ class Gate:
     argv: tuple[str, ...]
     needs: str = ""          # "node" 表示依赖外部程序；缺了记 SKIP（不记通过）
     kind: str = "gate"       # gate=闸门 / test=测试段
+    cwd: str = ""            # 相对仓库根的工作目录（有的校验器只认自己那层）
 
 
 def _py(*args: str) -> tuple[str, ...]:
@@ -80,6 +81,11 @@ GATES: tuple[Gate, ...] = (
     Gate("spec-drift", _py("scripts/lint/spec_drift.py")),
     Gate("ledger", _py("scripts/lint/ledger_check.py")),
     Gate("plan", ("node", "plan-hos-ares/check-plan.cjs"), needs="node"),
+    # 冻结包**自带**的内容寻址闸门。`ae04456` 改过 `06-证据与replay规格.md`
+    # 却没重生成它的 `MANIFEST.md`，于是那 54 个文件的哈希表过期了——一直没人
+    # 知道，因为这行不在清单里（B232）。两个包各有各的 MANIFEST，得各跑一遍。
+    Gate("plan-old-manifest", ("node", "_verify-manifest.cjs"),
+         needs="node", cwd="plan-veripen"),
 )
 
 #: 测试分三段跑：本机单进程全量约 30 分钟，超过一条命令的观察窗口。
@@ -108,7 +114,7 @@ def run_gate(gate: Gate, *, runner=None, name: str = "") -> tuple[str, str]:
     """跑一道闸门，返回 (状态, 摘要)。runner 可注入，便于自测。"""
     if not available(gate):
         return SKIP, f"缺 {gate.needs}（本机没装，记 skip）"
-    call = runner or (lambda argv: _default_runner(argv, name or gate.name))
+    call = runner or (lambda argv: _default_runner(argv, name or gate.name, cwd=gate.cwd))
     code, tail = call(gate.argv)
     return (PASS if code == 0 else FAIL), tail
 
@@ -124,10 +130,11 @@ def _dump(name: str, text: str) -> str:
     return path.relative_to(ROOT).as_posix()
 
 
-def _default_runner(argv: Sequence[str], name: str = "gate") -> tuple[int, str]:
+def _default_runner(argv: Sequence[str], name: str = "gate", *, cwd: str = "") -> tuple[int, str]:
     env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+    where = str(ROOT / cwd) if cwd else str(ROOT)
     proc = subprocess.run(  # noqa: S603 - 命令来自上面的常量清单
-        list(argv), cwd=str(ROOT), capture_output=True, text=True,
+        list(argv), cwd=where, capture_output=True, text=True,
         encoding="utf-8", errors="replace", env=env,
     )
     out = (proc.stdout or "") + (proc.stderr or "")

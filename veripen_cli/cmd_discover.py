@@ -102,6 +102,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     pending: set[str] = set()
     skipped_all: list[tuple[str, str]] = []
     pages = 0
+    responded = 0
     candidates = [seed_candidate(BASE_SYMBOL), *well_known_candidates(BASE_SYMBOL)]
     truncated = False
 
@@ -124,6 +125,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             http_tool.uninstall_guard()
 
         pages += result.fetched
+        responded += result.responded
         fresh = [r.template for r in result.records if r.template not in known]
         known.update(fresh)
         skipped_all.extend(result.skipped)
@@ -132,7 +134,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         note = "（本轮触到页数/记录上限）" if result.truncated else ""
         if result.rendered:
             note += f"（渲染 {result.rendered} 页）"
-        print(f"第 {round_no} 轮：抓取成功 {result.fetched} 页 / 新面 {len(fresh)} 条{note}")
+        print(f"第 {round_no} 轮：尝试 {result.fetched} 页 / 拿到响应 {result.responded} 页"
+              f" / 新面 {len(fresh)} 条{note}")
         if not result.next:
             break
         for sighting in result.next:
@@ -145,7 +148,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"目标：{host}")
     print(
         f"发现：已抓面 {len(faces)} 条 / 待抓候选 {len(candidates_left)} 条"
-        f" / 抓取成功 {pages} 页 / 置信 0.70（crawl，未验证）"
+        f" / 尝试 {pages} 页 · 拿到响应 {responded} 页 / 置信 0.70（crawl，未验证）"
     )
     for template in faces[:40]:
         print(f"  · {template}")

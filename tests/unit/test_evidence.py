@@ -134,7 +134,12 @@ def test_chain_links_and_root() -> None:
 
     report = verify_chain(caps)
     assert report.ok is True
-    assert report.root_sha256 == "0" * 64
+    assert report.genesis_prev_sha256 == "0" * 64
+    # B240：链的身份是**链头自哈希**，不是那个恒为零的 prev；
+    # 早先 ChainReport 把 prev 也叫 root_sha256，演示台本照打 → 观众看到 12 个 0。
+    assert report.head_sha256 == caps[0].chain.self_sha256
+    assert report.tip_sha256 == caps[-1].chain.self_sha256
+    assert report.head_sha256 != "0" * 64
 
 
 def test_chain_detects_middle_tamper_with_index() -> None:
@@ -178,7 +183,7 @@ def test_chain_reports_length_and_tip() -> None:
     assert report.length == 3
     assert report.head_sha256 == caps[0].chain.self_sha256
     assert report.tip_sha256 == caps[-1].chain.self_sha256
-    assert report.root_sha256 == "0" * 64
+    assert report.genesis_prev_sha256 == "0" * 64
 
 
 # ── 5b 重算不了 ≠ 被推翻（B151）────────────────────────────────────

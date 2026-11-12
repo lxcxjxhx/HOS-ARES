@@ -103,7 +103,7 @@ def run(state: TuiState) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="veripen-tui", description="只读任务面板（stdlib curses）")
+    ap = argparse.ArgumentParser(prog="veripen tui", description="只读任务面板（stdlib curses）")
     ap.add_argument("--task", default="t-demo")
     ap.add_argument("--once", action="store_true", help="只打印一次（纯行模式）")
     ap.add_argument("--steps", type=int, default=0)

@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import re
+
 import pytest
 
 from veripen.report.render import (
@@ -121,7 +123,10 @@ def test_dead_section_is_reported_in_json() -> None:
 
 
 def test_dead_and_leads_coexist_in_order(ledger: LeadLedger) -> None:
-    """两段可以同时存在，且顺序是：覆盖 → 线索 → 死信 → 合规 → 附录。"""
+    """两段可以同时存在，且顺序是：覆盖 → 线索 → 死信 → 合规（可选）→ 附录。
+
+    附录编号按有没有合规映射决定（B246），所以按 `## N. 附录` 找，不写死数字。
+    """
     md = render_markdown(_report(
         leads_section=render_leads_section(ledger, "t"),
         dead_section=dead_section(_dead_store()),
@@ -129,8 +134,9 @@ def test_dead_and_leads_coexist_in_order(ledger: LeadLedger) -> None:
     i_cov = md.find("## 4. 覆盖范围与未覆盖")
     i_leads = md.find("## 线索（与 finding 分列）")
     i_dead = md.find("## 死信（单列）")
-    i_app = md.find("## 6. 附录")
-    assert i_cov < i_leads < i_dead < i_app
+    match = re.search(r"^## \d+\. 附录$", md, re.MULTILINE)
+    assert match is not None, "找不到附录标题"
+    assert i_cov < i_leads < i_dead < match.start()
 
 
 # ══════════════════════════════════════════════════════════════════

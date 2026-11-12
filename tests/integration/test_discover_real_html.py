@@ -82,12 +82,18 @@ def test_discover_finds_faces_from_real_html(site: str, tmp_path: Path,
 
 def test_summary_separates_success_from_skip(site: str, tmp_path: Path,
                                              capsys: pytest.CaptureFixture[str]) -> None:
-    """“抓 N 页”不能把 404 也算成抓成功——汇总要能分开读。"""
+    """“抓 N 页”不能把 404 也算成抓成功——汇总要能分开读。
+
+    B236：旧文字把它说成「抓取成功 N 页」，而 N 其实是**尝试数**（预算按它扣），
+    整台不可达时也会写出「抓取成功 3 页」+「跳过 3 条：fetch_failed×3」。现在两句话分开：
+    「尝试 N 页 · 拿到响应 M 页」。
+    """
     from veripen_cli.cmd_discover import main
 
     main(["--target", site, "--max-rounds", "1", "--max-pages", "4",
           "--rate", "20", "--out", str(tmp_path / "d.json")])
     text = capsys.readouterr().out
-    assert "抓取成功" in text, text
+    assert "尝试" in text and "拿到响应" in text, text
+    assert "抓取成功" not in text, f"别再说『抓取成功』——那是尝试数：{text[:400]}"
     if "跳过" in text:
         assert "×" in text, "跳过要按原因分类报，不是只报第一个原因"

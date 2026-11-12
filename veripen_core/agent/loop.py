@@ -39,6 +39,11 @@ class DiscoveryTier(str, Enum):
     EMPTY = "empty"
 
 
+#: "模型这一步没给出可用调用"的内部哨兵工具名。**只给 loop 与产物用**：
+#: 展示层必须换成一句人话（B238）——客户不该在轮次表里读到下划线开头的名字。
+MODEL_ERROR_TOOL = "__model_error__"
+
+
 @dataclass(frozen=True)
 class DiscoveryOutcome:
     tier: DiscoveryTier
@@ -343,6 +348,17 @@ class Loop:
                     capsule_id=result.data.get("capsule_id"),
                 )
             )
+            if result.error_class == "transport":
+                # 端点不可达不是"模型答得不对"：再走一步还是同一个端点，只会多等一次
+                # 超时（B228：30s × 剩余步数，客户看到的是"卡住"而不是"配错了"）。
+                # 有下一级就当场降级把活干完；没有就如实收尾，别拖到步数用尽。
+                escalate = getattr(self.decider, "escalate", None)
+                if callable(escalate) and escalate():
+                    self._idle_streak = 0
+                    continue
+                return self._finish(
+                    Decision.BUDGET, reason=f"model_unreachable:{result.hint}"[:180]
+                )
             if result.error_class == "schema":
                 # 模型给的调用不合法 ≠ 任务无进展：不计入 idle，让它有机会自愈/降级
                 self._idle_streak = 0
@@ -367,7 +383,7 @@ class Loop:
             # 用一条必然被 validate_call 拒的调用表示"这一步模型没给出合法调用"。
             # 不在 loop 里判 schema——那是 tools.registry 的职责，这里只转达。
             self._pending_error = exc
-            return ToolCall("__model_error__", {"detail": str(exc)})
+            return ToolCall(MODEL_ERROR_TOOL, {"detail": str(exc)})
 
     def _note(self, result: ToolResult) -> ToolResult:
         """把结果回告决策器（降级链据此计数）；Decider 不支持就跳过。"""
@@ -377,16 +393,16 @@ class Loop:
         return result
 
     def _dispatch(self, call: ToolCall) -> ToolResult:
-        if call.name == "__model_error__":
-            # 模型这一步没给出合法调用：记成 schema 错误（可降级），
-            # 不进 dispatch、不碰 runtime。降级链据 error_class=schema 计数。
+        if call.name == MODEL_ERROR_TOOL:
+            # 模型这一步没给出合法调用：记成一次失败调用，不进 dispatch、不碰 runtime。
+            # **error_class 原样传**（B228）：transport 与 schema 是两种失败——
+            # 输出不合法该回喂 3 次再降级，端点不可达回喂 3 次只是多等三次超时。
             err = getattr(self, "_pending_error", None)
             self._pending_error = None
-            return ToolResult(
-                ok=False,
-                error_class="schema",
-                hint=f"模型输出不合窄 schema：{err}" if err else "模型输出不合窄 schema",
-            )
+            error_class = getattr(err, "error_class", "schema") or "schema"
+            hint = (f"模型输出不合窄 schema：{err}" if error_class == "schema"
+                    else f"模型层失败：{err}")
+            return ToolResult(ok=False, error_class=error_class, hint=hint)
         checked = validate_call(call)
         if isinstance(checked, ToolResult):
             return checked
@@ -470,6 +486,7 @@ class Loop:
 
 
 __all__ = [
+    "MODEL_ERROR_TOOL",
     "AgentState",
     "Decider",
     "Decision",

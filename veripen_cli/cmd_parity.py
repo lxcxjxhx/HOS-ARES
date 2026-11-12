@@ -32,6 +32,19 @@ class Item:
     face: str
     probe: Callable[[], tuple[str, str]]
 
+    @property
+    def how(self) -> str:
+        """这一项的判据**长在哪**（B251）。
+
+        验收口径要求"每项能看到它是怎么被判的"，而这一层压根没有 shell 命令可写：
+        每项都是一个内置探针函数。所以给出的是**判据位置**——函数名 + 它自己的第一行说明，
+        读者可以据此去读实现，而不是看一个编出来的命令行。
+        """
+        doc = (self.probe.__doc__ or "").strip().splitlines()
+        first = doc[0].strip() if doc else ""
+        where = f"cmd_parity.{self.probe.__name__}"
+        return f"{where} —— {first}" if first else where
+
 
 def _pure_judge() -> tuple[str, str]:
     """V1 不查"是不是正好 15 条"（手抄的数字），只查**不变量**。"""
@@ -54,12 +67,14 @@ def _pure_judge() -> tuple[str, str]:
 
 
 def _evidence() -> tuple[str, str]:
+    """**只证明能导入**（不跑校验）：真跑链校验与 replay 在用例里。"""
     from veripen_core.evidence import replay, verify_chain  # noqa: F401
 
     return GREEN, "capsule/replay 模块可用"
 
 
 def _routes() -> tuple[str, str]:
+    """检查 RouteBinding 的字段名里没有 url/host/port/address。"""
     from dataclasses import fields
 
     from veripen_core.routes.types import RouteBinding
@@ -92,6 +107,7 @@ def _coverage() -> tuple[str, str]:
 
 
 def _sandbox() -> tuple[str, str]:
+    """查 docker/podman 命令**并**确认守护进程真在——命令在 ≠ 服务在。"""
     have = shutil.which("docker") or shutil.which("podman")
     if not have:
         return UNVERIFIED, "无 docker/podman：策略与 BLOCKED 已验，真隔离未验"
@@ -109,6 +125,7 @@ def _sandbox() -> tuple[str, str]:
 
 
 def _browser() -> tuple[str, str]:
+    """渲染执行体在位、BrowserRenderer 报可用；容器内渲染未验。"""
     # 库存在 ≠ 执行体实现：B46 落地后按"执行体存在 + 宿主渲染"给绿，隔离仍记未验
     if not (ROOT / "veripen_core" / "render" / "browser.py").exists():
         return UNVERIFIED, "渲染执行体未做（B46）"
@@ -122,6 +139,7 @@ def _browser() -> tuple[str, str]:
 
 
 def _tool_surface() -> tuple[str, str]:
+    """构建工具面并数注册项，≥12 才算过。"""
     from veripen_core.tools.surface import build_surface
 
     count = len(build_surface().catalog())
@@ -215,6 +233,7 @@ def _control_plane() -> tuple[str, str]:
 
 
 def _blackboard() -> tuple[str, str]:
+    """内存库里写一条黑板冲突再读回来。"""
     from veripen_core.blackboard import Blackboard
     from veripen_core.store import Store
 
@@ -266,6 +285,7 @@ def _compression() -> tuple[str, str]:
 
 
 def _playbooks() -> tuple[str, str]:
+    """加载 playbooks 并校验 schema 与 oracle 存在性，≥3 个资产才算过。"""
     from veripen_core.playbooks import load_all
     from veripen_cli.cmd_playbook import oracle_table
 
@@ -274,6 +294,7 @@ def _playbooks() -> tuple[str, str]:
 
 
 def _plugins() -> tuple[str, str]:
+    """装上再卸下一个插件，检查工具面前后一致。"""
     from veripen_core.plugins.lifecycle import Lifecycle, PluginSpec
     from veripen_core.tools.surface import Impact, build_surface
 
@@ -288,6 +309,7 @@ def _plugins() -> tuple[str, str]:
 
 
 def _approvals() -> tuple[str, str]:
+    """起控制台：审批页可读，其它页的写方法一律 405。"""
     from fastapi.testclient import TestClient
 
     from web.console import ConsoleState, build_app
@@ -298,6 +320,7 @@ def _approvals() -> tuple[str, str]:
 
 
 def _audit_section() -> tuple[str, str]:
+    """渲染审计节，检查它每个小节标题都在。"""
     from veripen.report.audit import SECTIONS, AuditInput, render_audit_section
 
     text = render_audit_section(AuditInput(task_id="t"))
@@ -306,6 +329,7 @@ def _audit_section() -> tuple[str, str]:
 
 
 def _workbench() -> tuple[str, str]:
+    """临时目录里写一个文件再读回来。"""
     from veripen_core.workbench.fs import Workbench
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -315,6 +339,7 @@ def _workbench() -> tuple[str, str]:
 
 
 def _memory() -> tuple[str, str]:
+    """内存库里写入并召回一次记忆。"""
     from veripen_core.blackboard import Blackboard
     from veripen_core.memory import Memory
     from veripen_core.store import Store
@@ -329,6 +354,7 @@ def _memory() -> tuple[str, str]:
 
 
 def _tui() -> tuple[str, str]:
+    """纯行模式渲染三面板，检查关键标题在场。"""
     from veripen_cli.tui import TuiState, render_panels
 
     text = render_panels(TuiState(task_id="t"))
@@ -336,6 +362,7 @@ def _tui() -> tuple[str, str]:
 
 
 def _console() -> tuple[str, str]:
+    """控制台的 overview 页返回 200。"""
     from fastapi.testclient import TestClient
 
     from web.console import ConsoleState, build_app
@@ -345,14 +372,24 @@ def _console() -> tuple[str, str]:
 
 
 def _delivery() -> tuple[str, str]:
-    from veripen_cli.offline import build
+    """组一个 light 包并**顺带跑它自己的 verify**——组得出来 ≠ 过得了校验。
+
+    本机没有构建机那两样东西（wheels/ 与 images/），所以 verify 必然报这两条；
+    这一项判的是"包能不能组出来"，因此仍记 green，但把"过不了自身校验"写在明细里。
+    """
+    from veripen_cli.offline import build, verify
 
     src = ROOT / "packaging" / "offline"
     if not src.is_dir():
         return SKIPPED, "packaging/offline 缺失"
     with tempfile.TemporaryDirectory() as tmp:
-        build(src=src, out=Path(tmp) / "pkg", version="parity", profile="light")
-    return GREEN, "light 包可组（images/ 需 docker 构建机）"
+        pkg = Path(tmp) / "pkg"
+        build(src=src, out=pkg, version="parity", profile="light")
+        result = verify(pkg)
+    if result.ok:
+        return GREEN, f"light 包可组，且自身校验通过（{result.checked} 个文件）"
+    gaps = "；".join(p.split("：")[0] for p in result.problems[:2]) or "见 verify 输出"
+    return GREEN, f"light 包可组；自身校验未过（{gaps}，需构建机补齐）"
 
 
 def _assertions() -> tuple[str, str]:
@@ -394,12 +431,13 @@ def run() -> list[dict[str, str]]:
             status, detail = item.probe()
         except Exception as exc:  # noqa: BLE001 - 单点异常如实记红，不拖垮全表
             status, detail = RED, f"{type(exc).__name__}: {exc}"
-        rows.append({"key": item.key, "face": item.face, "status": status, "detail": detail})
+        rows.append({"key": item.key, "face": item.face, "status": status,
+                     "detail": detail, "how": item.how})
     return rows
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="parity")
+    ap = argparse.ArgumentParser(prog="veripen parity")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--out", default=str(ROOT / "out" / "parity.json"))
     args = ap.parse_args(argv)
@@ -418,6 +456,7 @@ def main(argv: list[str] | None = None) -> int:
         for r in rows:
             mark = {"green": "OK  ", "unverified": "未验", "skipped": "不做", "red": "RED "}[r["status"]]
             print(f"  {mark} {r['key']:<{width}} {r['face']:<4} {r['detail']}")
+            print(f"         └ {r.get('how', '')}")
         print(f"\n合计 {len(rows)} 项：green {counts[GREEN]} · 未验 {counts[UNVERIFIED]} · "
               f"不做 {counts[SKIPPED]} · red {counts[RED]}")
         print(f"证据：{args.out}")

@@ -351,12 +351,14 @@ def chain_capsules(caps: Sequence[CapsuleDoc]) -> list[CapsuleDoc]:
 @dataclass(frozen=True)
 class ChainReport:
     ok: bool
-    root_sha256: str
+    #: **链头的 prev**（合法链恒为全零）。**它不是"报告指纹"**（B240）：
+    #: 报告头部的 root_sha256 是 `head_sha256`。这个名字以前也叫 root_sha256，
+    #: 于是 `scripts/demo.py` 老老实实把 12 个 0 打给了观众，看着像哈希坏了。
+    genesis_prev_sha256: str
     breaks: tuple[str, ...]
     #: 链上真的串起来多少条。报告说"证据 N 份"，这里就该是 N（多面之后会变长）。
     length: int = 0
-    #: 链头（第一环）的自哈希。报告头部的 ``root_sha256`` 就是这个值——
-    #: 名字撞了：本结构的 ``root_sha256`` 是**链头的 prev**（合法链恒为全零）。
+    #: 链头（第一环）的自哈希——**报告指纹用的就是这个**。
     head_sha256: str = ""
     #: 链尾（最后一环）的自哈希：报告侧只钉了链头，链尾得自己露出来。
     tip_sha256: str = ""
@@ -422,7 +424,7 @@ def verify_chain(caps: Sequence[CapsuleDoc], *, root_sha256: str | None = None) 
     tip = caps[-1].chain.self_sha256 if caps else ""
     return ChainReport(
         ok=not breaks,
-        root_sha256=root or "",
+        genesis_prev_sha256=root or "",
         breaks=tuple(breaks),
         length=len(caps),
         head_sha256=head,
@@ -475,7 +477,19 @@ def save_capsule(cap: CapsuleDoc, directory: str | Path) -> Path:
 
 
 def load_capsule(path: str | Path) -> CapsuleDoc:
-    return loads_capsule(Path(path).read_bytes())
+    """读一份 capsule 文件。**读不到也要说人话**（B235）。
+
+    传进来的路径来自命令行，第一次失败几乎总是打错一个字母；把 `FileNotFoundError`
+    原样抛出去，CLI 就只能打一屏 traceback——客户既看不出是哪份文件，也看不出该改什么。
+    """
+    p = Path(path)
+    try:
+        raw = p.read_bytes()
+    except FileNotFoundError as exc:
+        raise CapsuleIncomplete(f"没有这个文件：{p}") from exc
+    except OSError as exc:
+        raise CapsuleIncomplete(f"读不出这份证据：{p}（{exc.strerror or exc}）") from exc
+    return loads_capsule(raw)
 
 
 # ── replay ──────────────────────────────────────────────────────────

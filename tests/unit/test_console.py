@@ -311,3 +311,70 @@ def test_oracles_are_sorted_for_determinism() -> None:
 def test_no_ledger_gaps_leaves_view_alone() -> None:
     view = _view()
     assert _expand_matrix_with_gaps(view, {"gaps": []}) is view
+
+
+# ── 5 落点：截断 URL 不许是一圈 404（B241）──────────────────────
+def test_root_redirects_to_the_console_page() -> None:
+    """客户会把地址截成 `host:port` 再打开；那时必须落到控制台，而不是 `{"detail":"Not Found"}`。"""
+    client = _client()
+    resp = client.get(SLASH, follow_redirects=False)
+    assert resp.status_code in (307, 308, 302, 301), resp.status_code
+    assert resp.headers["location"].endswith("ui" + SLASH + "app"), resp.headers["location"]
+
+
+def test_ui_prefix_redirects_too() -> None:
+    client = _client()
+    resp = client.get(UI, follow_redirects=False)
+    assert resp.status_code in (307, 308, 302, 301), resp.status_code
+    assert resp.headers["location"].endswith("app"), resp.headers["location"]
+
+
+def test_root_actually_serves_the_page_when_followed() -> None:
+    """跟随后要拿到 HTML——重定向到不存在的路径等于没修。"""
+    client = _client()
+    resp = client.get(SLASH, follow_redirects=True)
+    assert resp.status_code == 200, resp.status_code
+    assert "text/html" in resp.headers.get("content-type", ""), resp.headers
+
+
+# ── B263：控制台"未验证"页的原因列也要说人话 ────────────────────
+def test_unverified_reason_has_a_human_text_beside_the_code() -> None:
+    """码留机器字段，人话另给一列——界面不该只显示 `marker_not_fired`。"""
+    rows = [_row(finding_id="f-2", outcome="not_run", reason_code="marker_not_fired")]
+    entry = unverified_view(rows)["groups"]["not_run"][0]
+    assert entry["reason"] == "marker_not_fired", "机器字段必须仍是码"
+    assert entry["reason_text"].startswith("探针标记没有出现"), entry
+
+
+def test_unverified_unknown_code_leaves_reason_text_empty() -> None:
+    """表里没有的码不猜：界面回落到码本身。"""
+    rows = [_row(finding_id="f-3", outcome="error", reason_code="brand_new_code")]
+    entry = unverified_view(rows)["groups"]["error"][0]
+    assert entry["reason_text"] == "", entry
+    assert entry["reason"] == "brand_new_code"
+
+
+# ── B264：越界页与审批状态也要说人话 ────────────────────────────
+def test_bounds_event_carries_a_human_reason() -> None:
+    """越界页是 P0 事故页：`peer_in_deny` 旁边必须有一句人话。"""
+    view = bounds_view([{"ip": "203.0.113.9", "reason": "peer_in_deny"}])
+    event = view["events"][0]
+    assert event["reason"] == "peer_in_deny", "码要留着给日志对账"
+    assert "拒绝名单" in event["reason_text"], event
+
+
+def test_bounds_unknown_reason_leaves_text_empty() -> None:
+    event = bounds_view([{"ip": "203.0.113.9", "reason": "something_new"}])["events"][0]
+    assert event["reason_text"] == ""
+
+
+def test_console_maps_approval_states_to_chinese() -> None:
+    """审批状态码不该原样上屏（`pending` / `rejected`）。"""
+    from pathlib import Path
+
+    html = (Path(__file__).resolve().parents[2] / "web" / "static" / "index.html").read_text(
+        encoding="utf-8")
+    for code, label in (("pending", "待批"), ("approved", "已批准"),
+                        ("rejected", "已驳回"), ("expired", "已过期")):
+        assert f'{code}: "{label}"' in html, (code, label)
+    assert "decisionText(" in html

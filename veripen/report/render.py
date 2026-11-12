@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+from .glossary import explain
+
 import hashlib
 import json
 from veripen_core.routes.types import short_ref
@@ -400,7 +402,11 @@ def render_sarif(report: ReportInput) -> dict[str, Any]:
                 "tool": {
                     "driver": {
                         "name": "veripen",
-                        "informationUri": "about:blank",
+                        # 工具版本必填（B250）：SARIF 消费者要拿它把结果对到某个构建上；
+                        # 留空的话，同一个 ruleId 在两版之间的行为差异就无从解释。
+                        "version": _tool_version(),
+                        # `informationUri` 是**可选**的：不写比写 `about:blank` 好——
+                        # 后者在扫描界面里是一条点开空白的链接（规则层的 helpUri 早就这么处理了，B219）。
                         "rules": list(rules.values()),
                     }
                 },
@@ -453,6 +459,21 @@ def render_markdown_with_audit(report: ReportInput, audit_text: str) -> str:
     return body + chr(10) + chr(10) + audit_text.strip() + chr(10)
 
 
+def _code_or_absent(value: str, width: int = 16) -> str:
+    """有值就给短哈希，没值就写「未提供」——**不许渲染成空反引号**（B247）。"""
+    return f"`{value[:width]}`" if value else "未提供"
+
+
+def _tool_version() -> str:
+    """本程序版本（写进 SARIF 的 driver.version）；取不到就给一个不含空白的占位。"""
+    try:
+        from veripen_cli import __version__
+
+        return str(__version__) or "unknown"
+    except Exception:  # noqa: BLE001 - 取版本失败不该让报告渲染失败
+        return "unknown"
+
+
 def render_markdown(report: ReportInput) -> str:
     assert_renderable(report)
     counts = counts_by_outcome(report)
@@ -461,7 +482,10 @@ def render_markdown(report: ReportInput) -> str:
 
     w(f"# {report.engagement} 渗透验证报告")
     w("")
-    w(f"- profile_hash: `{report.profile_hash[:16]}` · image: `{report.image_digest[:16]}`")
+    # 空值要写成「未提供」，不是两个空反引号（B247）：`veripen run` 不走客户档，
+    # profile_hash / image 本来就是空的，渲染成 `` 看着像渲染坏了。
+    w(f"- profile_hash: {_code_or_absent(report.profile_hash)}"
+      f" · image: {_code_or_absent(report.image_digest)}")
     w(_root_fingerprint_line(report.root_sha256))
     for s in report.routeset_sha256:
         w(f"- routeset_sha256: `{s[:12]}`")
@@ -503,9 +527,20 @@ def render_markdown(report: ReportInput) -> str:
     w("")
     w("| 严重度 | 数量 |")
     w("|---|---|")
-    for sev, n in _by_severity(report).items():
+    # **只统计已出报告的条目**（B246）：旧版按全部 findings 计数，于是标题下面写着
+    # `high 7`，紧接着"已验证发现"只有 2 条——读者以为报告漏了 5 条。
+    sev_of_reported: dict[str, int] = {}
+    for f in reported:
+        sev_of_reported[f.severity] = sev_of_reported.get(f.severity, 0) + 1
+    for sev, n in dict(sorted(sev_of_reported.items())).items():
         w(f"| {sev} | {n} |")
+    if not sev_of_reported:
+        w("| （无） | 0 |")
     w("")
+    others = len(report.findings) - len(reported)
+    if others:
+        w(f"> 另有 {others} 条未判定/未执行，未计入上表（逐条见 §3）。")
+        w("")
 
     w("## 2. 已验证发现")
     w("")
@@ -545,7 +580,10 @@ def render_markdown(report: ReportInput) -> str:
             w(f"- {fw}")
         w("")
 
-    w("## 6. 附录")
+    # 章节号不能写死：§5（合规映射）只在有框架时出现，写死 6 会让没有框架的报告
+    # 从 §4 直接跳到 §6，读者以为中间丢了一整节（B246）。
+    appendix_no = 6 if report.frameworks else 5
+    w(f"## {appendix_no}. 附录")
     w("")
     w(f"`{str(report.root_sha256 or '')[:12] or '未计算'}` · {report.engagement} · "
           f"{report.render_time} · {report.distribution}")
@@ -576,8 +614,19 @@ def _render_unverified(report: ReportInput, lines: list[str]) -> None:
             continue
         for f in items:
             reason = f.reason_code or "-"
-            title = TITLE_BY_STATUS.get(reason, reason)
-            w(f"- `{f.asset_id}` · {f.oracle_id} · {title}（`{reason}`）")
+            title = TITLE_BY_STATUS.get(reason, "")
+            gloss = explain(reason)
+            if title and title != reason:
+                w(f"- `{f.asset_id}` · {f.oracle_id} · {title}（`{reason}`）")
+            elif gloss:
+                w(f"- `{f.asset_id}` · {f.oracle_id} · {gloss}（`{reason}`）")
+            else:
+                # 码表认的是四态状态名（BLOCKED / ROUTE_UNRESOLVED…），oracle 自己的
+                # 失败码（baseline_abnormal / marker_not_fired）不在表里。旧版把码当标题，
+                # 于是同一行印两遍：`baseline_abnormal（`baseline_abnormal`）`（B246）。
+                # B248 起先查人话表，仍未登记的码就如实说它是机器码。
+                w(f"- `{f.asset_id}` · {f.oracle_id} · 判定码 `{reason}`"
+                  "（机器码：该 oracle 为何没出结论，原文见 findings.json）")
         w("")
 
 

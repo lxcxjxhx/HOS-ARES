@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from typing import Any, cast
 
 
@@ -38,4 +39,27 @@ def setup_stdio() -> None:
     _reconfigure(sys.stdin, encoding="utf-8-sig", errors="replace")
 
 
-__all__ = ["setup_stdio", "setup_stdout"]
+def read_text_arg(path: str, *, what: str = "文件") -> str | None:
+    """读一个**用户在命令行给出的**文本文件；读不到就一句人话并返回 None。
+
+    调用方拿到 None 就 `return 2`。抛 `OSError` 出去换来的是一屏 traceback（B235）：
+    客户第一次失败几乎总是路径打错，他需要看见的是"哪个文件、错在哪"。
+    """
+    # Windows 上读目录抛的是 PermissionError（不是 IsADirectoryError），所以先看形态。
+    if Path(path).is_dir():
+        print(f"{what}是个目录，不是文件：{path}", file=sys.stderr)
+        return None
+    try:
+        return Path(path).read_text(encoding="utf-8")
+    except FileNotFoundError:
+        print(f"{what}不存在：{path}", file=sys.stderr)
+    except IsADirectoryError:
+        print(f"{what}是个目录，不是文件：{path}", file=sys.stderr)
+    except UnicodeDecodeError:
+        print(f"{what}不是 UTF-8 文本：{path}（先转成 UTF-8）", file=sys.stderr)
+    except OSError as exc:
+        print(f"{what}读不出来：{path}（{exc.strerror or exc}）", file=sys.stderr)
+    return None
+
+
+__all__ = ["read_text_arg", "setup_stdio", "setup_stdout"]

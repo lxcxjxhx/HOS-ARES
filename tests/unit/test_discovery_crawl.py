@@ -342,3 +342,25 @@ def test_same_template_with_query_still_yields_links() -> None:
     step = Crawler(fetch, submit_forms=False).step(rs.bindings)
     paths = {s.path for s in step.next}
     assert p("result", "42") in paths, "带查询串那一页的链接被去重逻辑吞掉了"
+
+
+# ── 5. 计数语义：fetched 是尝试数，不是成功数（B236）────────────
+def test_fetched_counts_attempts_not_successes() -> None:
+    """整台不可达时 `fetched` 照样加 1（预算按它扣）。
+
+    改前 CLI 拿它当"抓取成功"打印，于是同一次输出里写着
+    「抓取成功 3 页」+「跳过 3 条：fetch_failed×3」——两句互相打脸。
+    """
+    binding = _binding(p("index"))
+    round_one = Crawler(lambda _b: None).step([binding])
+    assert round_one.fetched == 1, "预算是按尝试扣的"
+    assert round_one.unreachable == 1
+    assert round_one.responded == 0, "一页都没拿到响应"
+
+
+def test_responded_counts_real_responses() -> None:
+    binding = _binding(p("index"))
+    round_one = Crawler(lambda _b: (200, "text/html", page(p("x")))).step([binding])
+    assert round_one.fetched == 1
+    assert round_one.responded == 1
+    assert round_one.counts["responded"] == 1

@@ -279,8 +279,12 @@ function renderUnverified(data, params) {
     // 未验证行不在 findings 载荷里，用本页 entries（B39：blocked 在旧三组中没有位置）
     const entries = (data.entries || []).filter((e) => ids.includes(e.id));
     for (const e of entries) {
+      // 原因列先写人话，再附码（B263）：码要留，界面不该只给机器名
+      const reasonCell = e.reason_text
+        ? el("td", {}, `${e.reason_text} · `, el("code", {}, e.reason))
+        : el("td", {}, e.reason);
       table.append(el("tr", el("td", {}, e.id), el("td", {}, e.oracle),
-        el("td", {}, e.reason), el("td", { class: "muted" }, VERDICT_FIX[key] || "-")));
+        reasonCell, el("td", { class: "muted" }, VERDICT_FIX[key] || "-")));
     }
     wrap.append(table);
   }
@@ -335,7 +339,7 @@ function renderEngagement(d) {
   const rows = [
     ["engagement", d.id], ["资产", d.asset], ["范围", d.scope],
     ["已确认", d.confirmed], ["总条目", d.total],
-    ["决策", d.decision], ["原因", d.reason], ["绑定数", d.bindings],
+    ["决策", decisionText(d.decision)], ["原因", d.reason], ["绑定数", d.bindings],
   ];
   const table = el("table");
   for (const [k, v] of rows) {
@@ -446,6 +450,12 @@ function renderBounds(data) {
   return wrap;
 }
 
+// 审批状态 → 人话（B264）：`pending`/`rejected` 这类码不该原样上屏
+const DECISION_LABEL = {
+  pending: "待批", approved: "已批准", rejected: "已驳回", expired: "已过期",
+};
+const decisionText = (v) => DECISION_LABEL[String(v || "")] || String(v || "-");
+
 const VERDICT_BADGE = {
   verified: "已确认", inconclusive: "未确认", blocked: "阻塞", not_run: "未执行", error: "错误",
 };
@@ -473,7 +483,7 @@ function renderFinding(d) {
     el("p", {}, `${d.id} · ${a.oracle || "-"} · ${a.asset || "-"}`),
     el("p", { class: "muted" },
       `severity: ${a.severity || "（未验证，无分档）"} · 置信度 ${Number(a.confidence || 0).toFixed(2)}`
-      + (a.reason ? ` · 原因 ${a.reason}` : ""))));
+      + (a.reason ? ` · 原因 ${a.reason_text || a.reason}` : ""))));
 
   wrap.append(section("② 复现",
     el("p", { class: "muted" }, "关掉 agent，只用证据包重发三条请求："),
@@ -554,7 +564,7 @@ function renderApprovals(d) {
       buttons[0].addEventListener("click", () => send("approve"));
       buttons[1].addEventListener("click", () => send("reject"));
     } else {
-      box.append(el("p", {}, `决定：${row.status} · ${row.decided_by || "-"} · ${row.reason || "-"}`));
+      box.append(el("p", {}, `决定：${decisionText(row.status)} · ${row.decided_by || "-"} · ${row.reason || "-"}`));
     }
     wrap.append(box);
   }

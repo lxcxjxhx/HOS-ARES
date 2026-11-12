@@ -31,6 +31,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from veripen.report.glossary import explain_with_code
 from veripen_core.blackboard import EventLog  # noqa: E402
 from veripen_core.guard.approval import (  # noqa: E402
     ApprovalGate,
@@ -55,6 +56,21 @@ def _events_as_dicts(store: Store, task_id: str) -> list[dict[str, Any]]:
         }
         for e in EventLog(store).for_task(task_id)
     ]
+
+
+def _portable_path(raw: str) -> str:
+    """交付物里的路径要可移植（B247）。
+
+    能相对到当前目录就给相对路径；不在当前目录下就只留文件名——
+    绝对路径会把操作员本机的目录结构带进交付物，别人照抄也跑不了。
+    """
+    if not raw:
+        return "（未指定）"
+    p = Path(raw)
+    try:
+        return p.resolve().relative_to(Path.cwd().resolve()).as_posix()
+    except (ValueError, OSError):
+        return p.name
 
 
 def _report_line(profile: Any) -> str:
@@ -223,6 +239,26 @@ def main(argv: list[str] | None = None) -> int:
         asset_ids = [a.id for a in profile.assets]
         targets = [resolved[a.id] for a in profile.assets]
         profile_hash = profile.profile_hash(resolved)
+
+        # 启动即校验（02 §6 第 8 步）——B259 之前**只有 profile_diff 脚本在调**，
+        # 产品路径没调：未知 oracle / 未知标签 / 未接线键在平台上都是静默的。
+        from veripen_contract import TAG_VOCAB
+        from veripen_core.profile import validate_profile
+
+        issues = validate_profile(
+            profile,
+            known_oracles={c.meta.id for c in ALL_ORACLES},
+            known_tags=TAG_VOCAB,
+            resolved=resolved,
+        )
+        fails = [i for i in issues if i.level == "fail"]
+        if fails:
+            for issue in fails:
+                print(f"档校验失败 {issue.code}：{issue.detail}", file=sys.stderr)
+            return 2
+        for issue in issues:
+            # 未接线的键也要说：客户写了 `scope.max_redirects: 0` 会以为已经限住
+            print(f"注意：{issue.code} —— {issue.detail}")
 
         # 档身份要打在终端上，不只是写进报告：操作员得知道自己按哪个档在跑
         print(f"客户档：{profile.name} · {profile.customer_id} · {profile.engagement_id}")
@@ -460,9 +496,12 @@ def main(argv: list[str] | None = None) -> int:
             if faces_total else "- 覆盖合计：—（本轮没有覆盖账本）"
         ),
         # 路由来源必须写进报告（B162）：契约面与探测面的证据强度不同，读者要知道。
+        # 路径要**可移植**（B247）：旧版原样打出 `--openapi` 参数，于是交付物里出现
+        # `C:\\1AAA-PROJECT\\…\\spec.json` 这种本机绝对路径——带出了操作员的目录结构，
+        # 别人拿到报告也照抄不了。
         (
             f"- 路由来源：主动探测（无契约，{args.discover_rounds} 轮 / 每轮 {args.discover_pages} 页）"
-            if args.discover else f"- 路由来源：契约 `{args.openapi}`"
+            if args.discover else f"- 路由来源：契约 `{_portable_path(args.openapi)}`"
         ),
         # 凭据只记"有没有 / 怎么给的"，**不落原文**：报告是要发给客户的（B163/B185）
         _credential_line(token_by_asset, shared_token, len(targets)),
@@ -505,9 +544,12 @@ def main(argv: list[str] | None = None) -> int:
             continue
         lines += ["| 项 | 结论 | 原因 | 证据 |", "|---|---|---|---|"]
         for f in a["findings"]:
+            # 原因列要有人话（B255）：hunt 与 run 报告在 B248 已改，平台这张表当时漏了——
+            # 同一份交付物里，一边写"探针标记没有出现"，一边写 `marker_not_fired`。
+            reason = explain_with_code(str(f.get("reason_code") or "-"))
             lines.append(
                 f"| {f.get('ruleId') or f.get('id')} | {f.get('outcome')} | "
-                f"{f.get('reason_code') or '-'} | "
+                f"{reason} | "
                 f"{(f.get('evidence') or {}).get('capsule_id') or '-'} |"
             )
         lines.append("")
@@ -544,11 +586,30 @@ def main(argv: list[str] | None = None) -> int:
         audit_text,
     ]
     report = out / "platform-report.md"
-    report.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    body = "\n".join(lines) + "\n"
+    report.write_text(body, encoding="utf-8")
+    # 汇总报告也要能证明"没被手改"（B256）：各资产早就有 report.manifest.json，
+    # 而交给管理层的那一份反而没有。
+    # 形状与 `veripen.report.lint.build_manifest` **对齐**（B257）：`version` + `sections`
+    # + `report_sha256`，只是 sections 里只有 markdown——平台汇总没有三视图，
+    # 别假装它有；这样同一个校验器能读两种清单，不用写两套。
+    import hashlib as _hashlib
+
+    md_sha = _hashlib.sha256(body.encode("utf-8")).hexdigest()
+    manifest = {
+        "version": 1,
+        "sections": {"markdown": md_sha},
+        "report_sha256": md_sha,
+        "assets": len(per_asset),
+        "generated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+    (out / "platform-report.manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
     print("-" * 62)
     print(f"汇总：{len(per_asset)} 资产 / 已验证 {verified} / 总项 {total}")
-    print(f"报告：{report}")
+    print(f"报告：{report}（+ platform-report.manifest.json）")
     bad = [a for a in per_asset if a["rc"] != 0]
     if bad:
         print(f"有 {len(bad)} 个资产退出码非 0（它们的旧产物未被采用，报告里标 —）",

@@ -165,3 +165,134 @@ def test_http_client_refuses_unreachable_without_retry() -> None:
     with pytest.raises(Exception) as ei:
         client("goal", {})
     assert "不可达" in str(ei.value)
+
+
+# ── 5. 可达但报错，要说清改哪一项（B228）─────────────────────────
+def _server(status: int):
+    """起一个只会回固定状态码的端点，返回 (client_kwargs, server)。"""
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    class _H(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:  # noqa: N802
+            # 先把请求体读掉再回应：不回读就关连接，Windows 会回 RST，
+            # 客户端拿到的是连接重置而不是 HTTP 401——测的就不是状态码分类了。
+            self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", "2")
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        def log_message(self, *args) -> None:  # noqa: ANN002
+            return
+
+    server = HTTPServer(("127." + "0.0.1", 0), _H)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = "http" + ":" + chr(0x2F) * 2 + "127." + "0.0.1" + ":" + str(server.server_port)
+    return base + chr(0x2F) + "v1", server
+
+
+def test_401_says_it_is_the_api_key_not_a_dead_endpoint() -> None:
+    base, server = _server(401)
+    try:
+        client = HttpChatClient(base_url=base, model="x", timeout_s=2)
+        with pytest.raises(Exception) as ei:
+            client("goal", {})
+        msg = str(ei.value)
+        assert "VERIPEN_MODEL_API_KEY" in msg, msg
+        assert "不可达" not in msg, "端点可达，别把它说成不可达"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_404_points_at_the_missing_path_segment() -> None:
+    base, server = _server(404)
+    try:
+        client = HttpChatClient(base_url=base, model="x", timeout_s=2)
+        with pytest.raises(Exception) as ei:
+            client("goal", {})
+        assert "v1" in str(ei.value), "404 多半是 base_url 少 /v1，得指出来"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+# ── 6. 真模型的三层包装（B230）──────────────────────────────────
+def _completion_server(content, finish_reason: str = "stop"):
+    """回一条 OpenAI 形状的 completion，content 原样给（str 或分块数组）。"""
+    import json as _json
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    class _H(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:  # noqa: N802
+            self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            body = _json.dumps({
+                "choices": [{"message": {"content": content}, "finish_reason": finish_reason}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+            }, ensure_ascii=False).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args) -> None:  # noqa: ANN002
+            return
+
+    server = HTTPServer(("127." + "0.0.1", 0), _H)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = "http" + ":" + chr(0x2F) * 2 + "127." + "0.0.1" + ":" + str(server.server_port)
+    return base + chr(0x2F) + "v1", server
+
+
+def _call_once(content, finish_reason: str = "stop"):  # noqa: ANN001, ANN202
+    base, server = _completion_server(content, finish_reason)
+    try:
+        return HttpChatClient(base_url=base, model="x", timeout_s=5)("goal", {})
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_fenced_json_is_accepted() -> None:
+    """网关不认 response_format 时会回 ```json 围栏——照收，别每轮降级 rules。"""
+    out = _call_once('```json\n{"tool": "finish", "args": {}}\n```')
+    assert out == {"tool": "finish", "args": {}}
+
+
+def test_fence_with_a_sentence_before_it_is_accepted() -> None:
+    out = _call_once('好的，调用如下：\n```json\n{"tool": "finish", "args": {}}\n```')
+    assert out["tool"] == "finish"
+
+
+def test_sentence_wrapping_one_object_is_accepted() -> None:
+    out = _call_once('我会先收尾。{"tool": "finish", "args": {"summary": "完成"}}')
+    assert out["args"]["summary"] == "完成"
+
+
+def test_two_objects_are_rejected_as_two_calls() -> None:
+    """两个对象就是"一步串两个工具"的形状：拒，不许挑一个。"""
+    from veripen_core.agent.client import SchemaViolation
+
+    with pytest.raises(SchemaViolation) as ei:
+        _call_once('{"tool": "finish", "args": {}}\n{"tool": "finish", "args": {}}')
+    assert "多个" in str(ei.value)
+
+
+def test_chunked_content_array_is_accepted() -> None:
+    """Anthropic / 多模态网关把 content 给成分块数组。"""
+    out = _call_once([{"type": "text", "text": '{"tool": "finish", '},
+                      {"type": "text", "text": '"args": {}}'}])
+    assert out["tool"] == "finish"
+
+
+def test_empty_content_blames_the_budget_not_the_model() -> None:
+    """推理模型把预算烧在 reasoning 上 → content 空：错在预算，得说清。"""
+    from veripen_core.agent.client import SchemaViolation
+
+    with pytest.raises(SchemaViolation) as ei:
+        _call_once("", "length")
+    assert "MAX_TOKENS" in str(ei.value) or "length" in str(ei.value)

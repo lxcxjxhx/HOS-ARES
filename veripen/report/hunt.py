@@ -17,6 +17,8 @@
 
 from __future__ import annotations
 
+from .glossary import explain_with_code
+
 from typing import Any, Mapping, Sequence
 
 
@@ -93,7 +95,7 @@ def render_hunt_markdown(
             lines.append(
                 f"| `{f.get('oracle_id')}` | {f.get('face_index', 1)}/{f.get('faces_total', 1)} | "
                 f"`{_ref_tail(str(f.get('route_ref') or ''))}` | {f.get('verdict')} | "
-                f"{f.get('reason') or '-'} |"
+                f"{explain_with_code(str(f.get('reason') or '-'))} |"
             )
     else:
         lines.append("（无）")
@@ -104,7 +106,8 @@ def render_hunt_markdown(
         for oracle in sorted(not_confirmed):
             entry = not_confirmed[oracle] or {}
             lines.append(
-                f"- `{oracle}`：{entry.get('verdict') or '-'}——{entry.get('reason') or '-'}"
+                f"- `{oracle}`：{entry.get('verdict') or '-'}——"
+                f"{explain_with_code(str(entry.get('reason') or '-'))}"
             )
     lines.append("")
 

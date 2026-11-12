@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""veripen plugin-roundtrip —— A11「能力可扩展」的**验收命令**（`36`）。
+"""plugin-roundtrip（内部脚手架）—— A11「能力可扩展」的**验收命令**（`36`）。
+
+入口：`make plugin-roundtrip` 或 `python -m veripen_cli.cmd_plugin_roundtrip`。
 
 用法：python -m veripen_cli.cmd_plugin_roundtrip [--out out/plugins]
 
@@ -175,7 +177,7 @@ def _probe_remote_fetch() -> dict[str, object]:
     }
 
 def main(argv: list[str]) -> int:
-    ap = argparse.ArgumentParser(prog="veripen plugin-roundtrip")
+    ap = argparse.ArgumentParser(prog="python -m veripen_cli.cmd_plugin_roundtrip")
     ap.add_argument("--out", default=str(ROOT / "out" / "plugins"))
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)

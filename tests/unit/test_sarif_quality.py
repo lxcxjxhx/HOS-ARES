@@ -45,3 +45,19 @@ def test_result_message_is_what_we_observed() -> None:
     result = render_sarif(_report())["runs"][0]["results"][0]
     assert "secondary 读取 primary" in result["message"]["text"]
     assert result["message"]["text"] != "idor_cross_account 已验证"
+
+
+# ── B250：driver 的版本与占位链接 ────────────────────────────────
+def test_driver_carries_a_version() -> None:
+    """SARIF 消费者靠 driver.version 把结果对到某个构建上；空着就等于没有出处。"""
+    driver = render_sarif(_report())["runs"][0]["tool"]["driver"]
+    assert driver.get("version"), driver
+    assert str(driver["version"]).strip() == driver["version"], "版本里不能带空白"
+
+
+def test_driver_has_no_placeholder_information_uri() -> None:
+    """规则层的 `helpUri` 早就不许写 `about:blank`（B219）；driver 同一原则。"""
+    driver = render_sarif(_report())["runs"][0]["tool"]["driver"]
+    uri = driver.get("informationUri")
+    assert uri != "about:blank", driver
+    assert uri is None or str(uri).startswith(("http", "https")), driver
