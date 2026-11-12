@@ -160,6 +160,12 @@ def _manifest(target: Path) -> int:
     except (OSError, ValueError) as exc:
         return _fail(f"清单读不出来：{exc}")
 
+    from veripen.report.lint import verify_manifest_self
+
+    if not verify_manifest_self(manifest):
+        return _fail(f"{target.name} 的自哈希不符——清单本身被改过"
+                     f"（改哈希值再改文件，是最容易被忽略的一种）")
+
     files = manifest.get("files") or {}
     if not files:
         return _fail(f"{target.name} 里没有 files 段——这份清单证明不了文件没被改")
@@ -181,7 +187,8 @@ def _manifest(target: Path) -> int:
             print(f"  不符：{item}")
         print("说明：不一致表示文件被改过或不是同一批产物——**不是**\"漏洞结论变了\"")
         return 1
-    print("说明：这只证明这几份产物没被手改；**不**证明结论正确（那要看证据链与重放）")
+    print("说明：这只证明这几份产物没被手改、清单没被改过；**不**证明结论正确"
+          "（那要看证据链与重放）。有意改仍挡不住——那要签名")
     return 0
 
 

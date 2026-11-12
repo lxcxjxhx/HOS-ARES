@@ -146,7 +146,19 @@ def build_manifest(*, markdown: str, sarif: dict[str, Any], js: dict[str, Any]) 
         "findings.json": sections["json"],
         "report.sarif": sections["sarif"],
     }
-    return {"version": 1, "sections": sections, "files": files, "report_sha256": total}
+    body = {"version": 1, "sections": sections, "files": files, "report_sha256": total}
+    # 清单自哈希（B321）：改清单里某个哈希值时能被发现。**挡不住有意改**
+    # （改的人可以重算），挡的是手误与半途编辑——要挡有意改得签名，未做。
+    return {**body, "manifest_sha256": _sha(dumps_artifact(body))}
+
+
+def verify_manifest_self(manifest: Mapping[str, Any]) -> bool:
+    """核清单自哈希；没有该字段的旧清单返回 True（不因此判红）。"""
+    want = manifest.get("manifest_sha256")
+    if not want:
+        return True
+    body = {k: v for k, v in manifest.items() if k != "manifest_sha256"}
+    return bool(_sha(dumps_artifact(dict(body))) == want)
 
 
 def verify_manifest(manifest: Mapping[str, Any], *, markdown: str, sarif: dict[str, Any],

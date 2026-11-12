@@ -795,6 +795,11 @@ def main(argv: list[str]) -> int:
         "files": {"hunt.md": md_sha, "hunt.json": js_sha},
         "report_sha256": _hashlib.sha256((md_sha + js_sha).encode("utf-8")).hexdigest(),
     }
+    # 清单自哈希（B321）：与 run 那一路同形
+    import hashlib as _h2
+
+    manifest["manifest_sha256"] = _h2.sha256(
+        dumps_artifact(manifest).encode("utf-8")).hexdigest()
     (out / "hunt.manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8", newline=chr(10))
     cov_path = write_coverage(out, coverage)

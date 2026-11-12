@@ -209,3 +209,32 @@ def test_replay_manifest_refuses_a_manifest_without_files(tmp_path: Path) -> Non
     (tmp_path / "report.manifest.json").write_text(
         json.dumps({"version": 1, "sections": {}}), encoding="utf-8")
     assert replay_main(["--manifest", str(tmp_path)]) == 1
+
+
+# ── B321：清单自哈希——改清单里的哈希值也要被发现 ────────────────
+def test_manifest_self_hash_catches_an_edited_hash(tmp_path: Path) -> None:
+    from veripen.report.lint import build_manifest, dumps_artifact
+    from veripen_cli.cmd_replay import main as replay_main
+
+    md, sarif, js = "# 报告\n", {"version": "2.1.0"}, {"findings": []}
+    for name, text in (("report.md", md), ("report.sarif", dumps_artifact(sarif)),
+                       ("findings.json", dumps_artifact(js))):
+        (tmp_path / name).write_text(text, encoding="utf-8", newline=chr(10))
+    manifest = build_manifest(markdown=md, sarif=sarif, js=js)
+    path = tmp_path / "report.manifest.json"
+    path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8", newline=chr(10))
+    assert replay_main(["--manifest", str(tmp_path)]) == 0
+
+    tampered = dict(manifest)
+    tampered["files"] = {**manifest["files"], "report.md": "0" * 64}
+    path.write_text(json.dumps(tampered, ensure_ascii=False), encoding="utf-8", newline=chr(10))
+    assert replay_main(["--manifest", str(tmp_path)]) == 1
+
+
+def test_hunt_and_platform_manifests_carry_a_self_hash() -> None:
+    import inspect
+
+    from veripen_cli import cmd_hunt, cmd_platform
+
+    assert "manifest_sha256" in inspect.getsource(cmd_hunt.main)
+    assert "manifest_sha256" in inspect.getsource(cmd_platform.main)

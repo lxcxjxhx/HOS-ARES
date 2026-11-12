@@ -605,6 +605,11 @@ def main(argv: list[str] | None = None) -> int:
         "assets": len(per_asset),
         "generated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
+    # 清单自哈希（B321）：与 run/hunt 同形
+    from veripen.report.lint import dumps_artifact as _dumps
+
+    manifest["manifest_sha256"] = _hashlib.sha256(
+        _dumps(manifest).encode("utf-8")).hexdigest()
     (out / "platform-report.manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
     )
