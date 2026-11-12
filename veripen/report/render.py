@@ -134,6 +134,8 @@ class ReportInput:
     render_time: str = ""
     #: 报告头部"结论四态"计数来源
     route_sources_failed: Sequence[str] = ()
+    #: 操作员按 `--exclude` 排除的 oracle（B327）：不算缺口，但**审计要看得到**
+    excluded: Sequence[str] = ()
     #: 库层四态计数（``Store.counts_by_outcome()``）。给了就以库为准（B12.2），
     #: 没有就从 findings 现算——**两条路径都不许把 error/not_run 并进 reported**。
     outcome_counts: Mapping[str, int] = field(default_factory=dict)
@@ -553,6 +555,13 @@ def render_markdown(report: ReportInput) -> str:
     w("")
     w("> 禁止把 `error` / `not_run` 写进「未发现」或「安全」的表述附近。")
     w("")
+    if report.excluded:
+        # 排除要留痕（B327）：报告只写"适用 2 对"，读者不知道原本有 3 类——
+        # 操作员主动缩小范围这件事，必须写在交付物里，而不是只活在命令行历史里。
+        names = "、".join(f"`{x}`" for x in report.excluded)
+        w(f"> 本次按 `--exclude` 排除 {len(report.excluded)} 类 oracle：{names}。"
+          "它们**不算缺口**（是操作员的选择），但审计要看得到。")
+        w("")
 
     reported = [f for f in report.findings if f.outcome is Outcome.REPORTED]
     w("## 1. 摘要")

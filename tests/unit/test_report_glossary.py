@@ -103,3 +103,28 @@ def test_rendered_report_contains_the_glossary() -> None:
     md = render_markdown(report)
     assert "术语（正文里出现的机器词都在这里）" in md
     assert "`REFUTED`：测了、不成立" in md
+
+
+# ── B327：--exclude 要在交付物里留痕 ────────────────────────────
+def test_report_states_what_was_excluded() -> None:
+    """报告只写"适用 2 对"，读者不知道原本有 3 类——操作员主动缩小范围必须写在交付物里。"""
+    from veripen.report.render import ReportInput, render_markdown
+
+    report = ReportInput(
+        engagement="E", profile_hash="h", image_digest="d", root_sha256="a" * 64,
+        routeset_sha256=["b"], resolver_version="1", render_time="t", distribution="internal",
+        excluded=["sqli_bool_diff"],
+    )
+    md = render_markdown(report)
+    assert "本次按 `--exclude` 排除 1 类 oracle" in md, md[-400:]
+    assert "`sqli_bool_diff`" in md
+    assert "不算缺口" in md
+
+
+def test_no_exclusion_means_no_line() -> None:
+    from veripen.report.render import ReportInput, render_markdown
+
+    md = render_markdown(ReportInput(
+        engagement="E", profile_hash="h", image_digest="d", root_sha256="a" * 64,
+        routeset_sha256=["b"], resolver_version="1", render_time="t", distribution="internal"))
+    assert "--exclude" not in md

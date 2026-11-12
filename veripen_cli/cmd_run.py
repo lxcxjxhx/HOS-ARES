@@ -726,6 +726,7 @@ def main(argv: list[str] | None = None) -> int:
 
     report = ReportInput(
         engagement=host,
+        excluded=sorted(excluded),
         profile_hash="",
         image_digest="",
         root_sha256=(sealed[0].chain.self_sha256 if sealed else ""),
