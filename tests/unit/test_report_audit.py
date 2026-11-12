@@ -126,3 +126,31 @@ def test_empty_audit_text_does_not_touch_report() -> None:
 def test_degenerate_event_counts_do_not_crash(count: int) -> None:
     text = render_audit_section(_audit(events=_events()[:count]))
     assert "### 动作账" in text
+
+
+# ── B297：审计表的详情列不许倒 Python repr ──────────────────────
+def test_detail_column_is_flattened_not_python_repr() -> None:
+    """改前实测：`{'action_class': 'scope_expand', 'impact': {'assets': 'multi'}, …}`
+    挤在表格单元格里，带单引号与嵌套 dict，读者只能跳过。"""
+    from veripen.report.audit import _detail_text
+
+    text = _detail_text({"action_class": "scope_expand", "approval_id": "abc",
+                         "impact": {"assets": "multi"}, "phase": "request", "state": "PENDING"})
+    assert "{" not in text.replace('{"assets": "multi"}', ""), text
+    assert "action_class=scope_expand" in text
+    assert "state=PENDING" in text
+    assert "'" not in text, "还有 Python repr 的单引号"
+
+
+def test_detail_first_keys_lead_the_cell() -> None:
+    from veripen.report.audit import _detail_text
+
+    text = _detail_text({"zzz": 1, "action_class": "x"})
+    assert text.startswith("action_class=x"), text
+
+
+def test_non_mapping_detail_still_renders() -> None:
+    from veripen.report.audit import _detail_text
+
+    assert _detail_text("timeout") == "timeout"
+    assert _detail_text({}) == "-"
