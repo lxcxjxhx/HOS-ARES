@@ -44,6 +44,13 @@ from ._io import read_text_arg, setup_stdout  # noqa: E402
 from .cmd_hunt import _build_routeset, _host_of, _oracles_for, build_guard  # noqa: E402
 
 #: 证据目录名（相对 --out）
+#: 无可跑 oracle 的三种原因 → 各自该做什么（B278）
+_NO_ORACLE_NEXT = {
+    "no_tag": "这些面推不出类型。给契约（--openapi），或让发现阶段能从参数名/响应形状认出类型",
+    "no_oracle": "这些标签目前没有对应 oracle。换一类面，或看 coverage 里还缺哪些面",
+    "excluded": "对应 oracle 被 --exclude 排除了。去掉那条排除，或确认它确实该排除",
+}
+
 CAPSULE_DIR = "capsules"
 
 #: 默认排除：写类与压力类（与 hunt 同口径）。
@@ -448,18 +455,26 @@ def main(argv: list[str] | None = None) -> int:
         )
         write_coverage(out, empty)
         print("没有可跑的 oracle —— 逐面原因：", file=sys.stderr)
+        causes: set[str] = set()
         for binding in routeset.bindings:
             tags_of = tuple(getattr(binding, "semantic_tags", ()) or ())
             if not tags_of:
                 why = "这条面没有语义标签（响应形状推不出类型、也没有参数）"
+                causes.add("no_tag")
             else:
                 hit = sorted({oid for oid, sel in selectors.items() if sel and sel[0] in tags_of})
-                why = (
-                    "标签 " + ", ".join(tags_of) + " 没有对应 oracle"
-                    if not hit
-                    else "标签 " + ", ".join(tags_of) + " 的 oracle 全被 --exclude 排除"
-                )
+                if hit:
+                    why = "标签 " + ", ".join(tags_of) + " 的 oracle 全被 --exclude 排除"
+                    causes.add("excluded")
+                else:
+                    why = "标签 " + ", ".join(tags_of) + " 没有对应 oracle"
+                    causes.add("no_oracle")
             print(f"  - {str(getattr(binding, 'template', ''))[:70]}：{why}", file=sys.stderr)
+        # 三种原因对应三种下一步（B278）：只说"为什么没有"不够，
+        # 客户拿着这句话不知道该改契约、换面，还是去掉 --exclude。
+        for cause in ("no_tag", "no_oracle", "excluded"):
+            if cause in causes:
+                print(f"下一步：{_NO_ORACLE_NEXT[cause]}", file=sys.stderr)
         print(f"账本：{out / 'coverage.json'}（缺口 {len(empty['gaps'])} 条）", file=sys.stderr)
         return 1
 
