@@ -425,15 +425,20 @@ def main(argv: list[str] | None = None) -> int:
                 route_args.append("--submit-forms")
         else:
             route_args = ["--openapi", str(spec_path)]
-        t0 = time.time()
-        rc = cmd_run.main(["--target", target, *route_args, "--out", str(sub), *extra_args])
-        found: list[dict[str, Any]] = []
         findings_file = sub / "findings.json"
-        # **只采用这一轮真写出来的产物**（B159/B354）：目录里可能躺着上一轮的文件。
-        # 判据从「rc == 0」改成「文件的 mtime 属于这一轮」——因为 rc=1 现在有两种含义：
-        # 崩溃（什么都没写）与「写了但一项都没得出结论」（全被挡下）。后者若一律不采纳，
-        # 汇总会显示「总项 0」，把"3 项全被挡下"说成"什么都没测"。
-        fresh = findings_file.exists() and findings_file.stat().st_mtime >= t0 - 1
+        cov_file = sub / "coverage.json"
+
+        def _mtime(path: Path) -> float | None:
+            return path.stat().st_mtime if path.exists() else None
+
+        # 「这一轮有没有写产物」用**写之前/写之后的 mtime 差**判断（B363）：
+        # 之前用 `mtime >= t0 - 1`，1 秒容差太宽——重跑被拒（rc=2，什么都没写）时，
+        # 上一轮几秒前写的 findings.json 仍落在容差里，于是旧结论被当成新的采纳。
+        before_findings = _mtime(findings_file)
+        before_cov = _mtime(cov_file)
+        rc = cmd_run.main(["--target", target, *route_args, "--out", str(sub), *extra_args])
+        fresh = _mtime(findings_file) not in (None, before_findings)
+        found: list[dict[str, Any]] = []
         if fresh:
             data = json.loads(findings_file.read_text(encoding="utf-8"))
             found = list(data.get("findings", []))
@@ -443,8 +448,7 @@ def main(argv: list[str] | None = None) -> int:
         # 覆盖账本（B164）：单资产报告有"覆盖"一节，平台汇总里原来没有——
         # 于是"2 条结论"看上去像"只测了 2 项"，读者看不到分母。
         coverage: dict[str, Any] | None = None
-        cov_file = sub / "coverage.json"
-        if cov_file.exists() and cov_file.stat().st_mtime >= t0 - 1:
+        if _mtime(cov_file) not in (None, before_cov):
             try:
                 loaded = json.loads(cov_file.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError):

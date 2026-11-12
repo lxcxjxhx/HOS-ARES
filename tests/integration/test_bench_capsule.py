@@ -187,7 +187,10 @@ def test_sensitive_headers_are_redacted() -> None:
         confidence=0.9, template="http" + ":" + SEP * 2 + "h" + SEP + "api" + SEP + "x",
         method="GET", param_names=(), template_sha256="t" * 64, ttl_s=900,
     )
-    routeset = SimpleNamespace(routeset_sha256="r" * 64, resolver_version="1", asset_id="web-01")
+    # `route_block` 会 `find_binding(routeset, ref)`（B338 之后 build_capsule 走它），
+    # 所以这个假对象里必须有 bindings —— 否则测的是"假对象不像 RouteSet"，不是脱敏
+    routeset = SimpleNamespace(routeset_sha256="r" * 64, resolver_version="1",
+                               asset_id="web-01", bindings=[binding])
     trace = SimpleNamespace(status=200, body=b"{}")
     pair = SimpleNamespace(
         role="probe", variant=SimpleNamespace(binding_tag=""), baseline=trace, trace=trace,
