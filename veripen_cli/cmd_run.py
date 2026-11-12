@@ -864,12 +864,20 @@ def main(argv: list[str] | None = None) -> int:
     # 一条都没验证成功、而且有执行失败 → 这次运行不能算"跑完了"（B300）。
     # 实测：目标整台不可达时 exit=0、报告写着 `VERIFIED 0 / 共 3 项`，CI 会当成绿。
     errors = sum(1 for v in views if v.outcome.value == "error")
-    # 「一项都没跑成」的判据是**没有任何一项得出结论**（B353）：
-    # REFUTED 也算结论（测了、不成立），全被挡下（not_run）则什么都没证明。
-    # 实测：`--deny DENY_SET_DEFAULT` 把三项全挡下时，原来 exit=0，CI 会当绿。
-    refuted = sum(1 for v in views if v.outcome.value == "refuted")
-    blocked_count = sum(1 for v in views if v.outcome.value == "not_run")
-    if verified == 0 and refuted == 0 and (errors or blocked_count):
+    # 「一项都没跑成」的判据（B300/B353/B358）：**没得出结论 且 有东西没跑成**。
+    # REFUTED 也算结论（测了、不成立），但它和"被挡下"共用 not_run 这一格
+    # （09 §4 只有四态），所以必须靠 `refuted` 标志把两者拆开：
+    #   - 安全靶场全 REFUTED  → 有结论 → 0
+    #   - 全被黑名单挡下       → 没结论、有 blocked → 1
+    #   - 目标不可达           → 没结论、有 error   → 1
+    refuted = sum(1 for v in views if bool(getattr(v, "refuted", False)))
+    blocked_count = sum(
+        1 for v in views
+        if v.outcome.value == "not_run" and not bool(getattr(v, "refuted", False))
+    )
+    # `refuted` 不进这个判据：全 REFUTED 时 blocked=0、errors=0，自然落到 0；
+    # 而"有 error 或 有被挡下"本身就是"不能当覆盖"的理由，不该被别的结论抵消。
+    if verified == 0 and (errors or blocked_count):
         why = "、".join(
             x for x in (f"{errors} 项执行失败" if errors else "",
                         f"{blocked_count} 项被挡下未执行" if blocked_count else "") if x)

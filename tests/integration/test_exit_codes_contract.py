@@ -283,3 +283,24 @@ def test_run_report_has_no_excuse_when_it_concluded(lab, tmp_path: Path) -> None
               "--out", str(tmp_path / "ok")])
     md = (tmp_path / "ok" / "report.md").read_text(encoding="utf-8")
     assert "不等于「没有漏洞」" not in md
+
+
+# ── B358：全 REFUTED 是"有结论"，不许当"没跑成" ──────────────────
+def test_all_refuted_exits_zero(tmp_path: Path) -> None:
+    """安全靶场：3 项都测了、都不成立 → 0 已验证但**有结论**，退出码必须是 0。"""
+    from lab.app import App
+    from lab.net_server import LabServer
+    from veripen_cli.cmd_run import main as run_main
+
+    server = LabServer(App(secure=True)).start()
+    try:
+        rc = run_main(["--target", server.base_url,
+                       "--openapi", str(_spec(server.base_url, tmp_path / "s.json")),
+                       "--out", str(tmp_path / "run")])
+    finally:
+        server.stop()
+    assert rc == 0, rc
+    import json as _json
+
+    data = _json.loads((tmp_path / "run" / "findings.json").read_text(encoding="utf-8"))
+    assert data["counts"]["by_outcome"]["reported"] == 0
