@@ -172,3 +172,40 @@ def test_replay_chain_refuses_an_empty_target(tmp_path: Path) -> None:
     empty = tmp_path / "none"
     empty.mkdir()
     assert replay_main(["--chain", str(empty)]) == 1
+
+
+# ── B320：清单校验要有产品入口（以前只能手工 sha256sum）────────────
+def test_replay_manifest_verifies_a_clean_delivery(tmp_path: Path) -> None:
+    from veripen.report.lint import build_manifest, dumps_artifact
+    from veripen_cli.cmd_replay import main as replay_main
+
+    md, sarif, js = "# 报告\n", {"version": "2.1.0"}, {"findings": []}
+    (tmp_path / "report.md").write_text(md, encoding="utf-8", newline=chr(10))
+    (tmp_path / "report.sarif").write_text(dumps_artifact(sarif), encoding="utf-8", newline=chr(10))
+    (tmp_path / "findings.json").write_text(dumps_artifact(js), encoding="utf-8", newline=chr(10))
+    (tmp_path / "report.manifest.json").write_text(
+        json.dumps(build_manifest(markdown=md, sarif=sarif, js=js), ensure_ascii=False),
+        encoding="utf-8", newline=chr(10))
+    assert replay_main(["--manifest", str(tmp_path)]) == 0
+
+
+def test_replay_manifest_catches_a_tampered_file(tmp_path: Path) -> None:
+    from veripen.report.lint import build_manifest, dumps_artifact
+    from veripen_cli.cmd_replay import main as replay_main
+
+    md, sarif, js = "# 报告\n", {"version": "2.1.0"}, {"findings": []}
+    (tmp_path / "report.md").write_text(md + "手改\n", encoding="utf-8", newline=chr(10))
+    (tmp_path / "report.sarif").write_text(dumps_artifact(sarif), encoding="utf-8", newline=chr(10))
+    (tmp_path / "findings.json").write_text(dumps_artifact(js), encoding="utf-8", newline=chr(10))
+    (tmp_path / "report.manifest.json").write_text(
+        json.dumps(build_manifest(markdown=md, sarif=sarif, js=js), ensure_ascii=False),
+        encoding="utf-8", newline=chr(10))
+    assert replay_main(["--manifest", str(tmp_path)]) == 1
+
+
+def test_replay_manifest_refuses_a_manifest_without_files(tmp_path: Path) -> None:
+    from veripen_cli.cmd_replay import main as replay_main
+
+    (tmp_path / "report.manifest.json").write_text(
+        json.dumps({"version": 1, "sections": {}}), encoding="utf-8")
+    assert replay_main(["--manifest", str(tmp_path)]) == 1

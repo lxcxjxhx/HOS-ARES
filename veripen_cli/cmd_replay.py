@@ -138,6 +138,53 @@ def _chain(target: Path) -> int:
     return 0
 
 
+def _manifest(target: Path) -> int:
+    """校验交付清单：逐文件 sha256 对盘上字节（B320）。
+
+    支持三路的清单（`report.manifest.json` / `hunt.manifest.json` /
+    `platform-report.manifest.json`）：形状一致，所以一个校验器就够。
+    """
+    import hashlib
+
+    if target.is_dir():
+        candidates = sorted(target.glob("*.manifest.json"))
+        if not candidates:
+            return _fail(f"{target} 里没有 *.manifest.json（清单不在这个目录？）")
+        if len(candidates) > 1:
+            names = "、".join(p.name for p in candidates)
+            return _fail(f"这个目录有多份清单：{names}——指到具体一份")
+        target = candidates[0]
+
+    try:
+        manifest = json.loads(target.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return _fail(f"清单读不出来：{exc}")
+
+    files = manifest.get("files") or {}
+    if not files:
+        return _fail(f"{target.name} 里没有 files 段——这份清单证明不了文件没被改")
+
+    base = target.parent
+    bad: list[str] = []
+    for name, want in files.items():
+        path = base / name
+        if not path.is_file():
+            bad.append(f"{name}（文件不在）")
+            continue
+        got = hashlib.sha256(path.read_bytes()).hexdigest()
+        if got != want:
+            bad.append(f"{name}（哈希不符：{got[:12]} ≠ {str(want)[:12]}）")
+
+    print(f"清单：{target.name} · 覆盖 {len(files)} 份文件 · 一致={not bad}")
+    if bad:
+        for item in bad:
+            print(f"  不符：{item}")
+        print("说明：不一致表示文件被改过或不是同一批产物——**不是**\"漏洞结论变了\"")
+        return 1
+    print("说明：这只证明这几份产物没被手改；**不**证明结论正确（那要看证据链与重放）")
+    return 0
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(prog="veripen replay")
     ap.add_argument("--capsule", help="capsule JSON 路径")
@@ -147,6 +194,8 @@ def main(argv: list[str]) -> int:
     # 链校验（B293）：bench 一直在提示 `veripen evidence --verify-chain`，而那个子命令不存在。
     # 能力（verify_chain）早就在 core 里，缺的只是一个入口——放到 replay 下最自然。
     ap.add_argument("--chain", help="校验一整条证据链：给目录或通配符（如 out/x/capsules/r1）")
+    # 清单校验（B320）：三路交付都有 manifest，但以前只能手工 sha256sum。
+    ap.add_argument("--manifest", help="校验交付清单：给 manifest 文件或含它的目录")
     args = ap.parse_args(argv)
 
     if args.selftest:
@@ -162,6 +211,9 @@ def main(argv: list[str]) -> int:
         except CapsuleError as exc:
             return _fail(f"capsule 载入失败：{exc}")
         return _tamper_probe(cap, Path(args.out))
+
+    if args.manifest:
+        return _manifest(Path(args.manifest))
 
     if args.chain:
         return _chain(Path(args.chain))
