@@ -73,3 +73,33 @@ def test_advice_explains_refuted_inline() -> None:
         text = advice_text(severity)
         if "REFUTED" in text:
             assert "REFUTED（测了、不成立）" in text, (severity, text)
+
+
+# ── B296：报告附录要有术语表 ────────────────────────────────────
+def test_report_appendix_lists_the_machine_words() -> None:
+    """正文里会出现 reported/REFUTED/NEVER 这些机器词；没有一节统一解释，
+    就只能靠在每处就地打括号——那样迟早漏一处。"""
+    from veripen.report.render import TERMS
+
+    words = {t for t, _ in TERMS}
+    needed = "reported undetermined error not_run VERIFIED REFUTED BLOCKED INCONCLUSIVE NEVER PARTIAL"
+    for word in needed.split():
+        assert word in words, word
+    assert all(meaning.strip() for _, meaning in TERMS)
+
+
+def test_rendered_report_contains_the_glossary() -> None:
+    from veripen.report import FindingView, Outcome, ReportInput, render_markdown
+
+    report = ReportInput(
+        engagement="E", profile_hash="h", image_digest="d", root_sha256="a" * 64,
+        routeset_sha256=["b"], resolver_version="1", render_time="t", distribution="internal",
+        findings=[FindingView(
+            finding_id="f-1", title="t", asset_id="a", oracle_id="idor_cross_account",
+            cwe="CWE-639", severity="high", confidence=0.9, route_strength="contract",
+            route_ref="route://contract/abc", capsule_id="c", self_sha256="c" * 64,
+            replay_status="OK", situation="一句话", outcome=Outcome.REPORTED)],
+    )
+    md = render_markdown(report)
+    assert "术语（正文里出现的机器词都在这里）" in md
+    assert "`REFUTED`：测了、不成立" in md

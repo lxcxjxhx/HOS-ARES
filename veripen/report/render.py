@@ -459,6 +459,21 @@ def render_markdown_with_audit(report: ReportInput, audit_text: str) -> str:
     return body + chr(10) + chr(10) + audit_text.strip() + chr(10)
 
 
+#: 报告附录里的术语表（B296）。**加新机器词就往这里加一条**，别只写在某一处正文里。
+TERMS: tuple[tuple[str, str], ...] = (
+    ("reported", "已验证并出报告——结论由证据链支撑"),
+    ("undetermined", "跑了但判不了（证据不足或谓词算不出来）"),
+    ("error", "执行失败：没跑成，须附原因"),
+    ("not_run", "未执行：授权/预算/跳过，哪一类要写明"),
+    ("VERIFIED", "已验证：现象成立，证据可复查"),
+    ("REFUTED", "测了、不成立：目标没有该问题"),
+    ("BLOCKED", "缺输入（如符号未解析），没测成——不是「没有问题」"),
+    ("INCONCLUSIVE", "判不了：现象既不能证实也不能证伪"),
+    ("NEVER", "未重放：这份证据只做了自哈希校验"),
+    ("PARTIAL", "状态一致但字节不同：body 变了，结论仍可重算"),
+    ("predicate_not_recomputable", "谓词重算不了：不是「结论被推翻」"),
+)
+
 #: replay 状态 → 人话（B294）。`NEVER`/`PARTIAL` 这类内部枚举不该原样进报告正文。
 REPLAY_TEXT = {
     "OK": "已重放且一致",
@@ -605,6 +620,13 @@ def render_markdown(report: ReportInput) -> str:
     w("")
     w(f"`{str(report.root_sha256 or '')[:12] or '未计算'}` · {report.engagement} · "
           f"{report.render_time} · {report.distribution}")
+    w("")
+    # 术语表（B296）：报告里会出现 reported/undetermined/REFUTED/NEVER 这些机器词，
+    # 没有一节统一解释，就只能靠在每处就地打括号——那样迟早漏一处。
+    w("术语（正文里出现的机器词都在这里）")
+    w("")
+    for term, meaning in TERMS:
+        w(f"- `{term}`：{meaning}")
     w("")
     # 复现口径要写死：把"离线重判"当成"洞还在"是这类报告最常见的误读。
     w("复现口径：`--mode offline` 只用证据里存的状态与 body 哈希重算判定（不重发请求）；"
