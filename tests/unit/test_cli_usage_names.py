@@ -121,3 +121,31 @@ def test_readme_exit_table_covers_the_all_failed_rule() -> None:
     row = next(ln for ln in text.splitlines() if ln.startswith("| `veripen run` |"))
     assert "0 项验证成功且有执行失败" in row, row
     assert "证据自校验失败" in row, row
+
+
+# ── B302：长驻命令的退出码也要有据可查 ──────────────────────────
+def test_long_running_commands_exit_two_on_bad_input() -> None:
+    """chat / agent / console / tui 只有两档：0 = 正常结束或 Ctrl+C，2 = 起不来。
+    README 写了这条，就得有一条用例证明它成立。"""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    cases = {
+        "chat": ["chat", "--db"],
+        "agent": ["agent", "--root", "no/such/dir"],
+        "tui": ["tui", "--steps", "abc"],
+    }
+    for name, argv in cases.items():
+        proc = subprocess.run([sys.executable, "-m", "veripen_cli", *argv], cwd=str(root),
+                              capture_output=True, text=True, encoding="utf-8",
+                              errors="replace", timeout=60, stdin=subprocess.DEVNULL)
+        assert proc.returncode == 2, (name, proc.returncode, (proc.stderr or "")[-200:])
+
+
+def test_readme_documents_the_long_running_codes() -> None:
+    from pathlib import Path
+
+    text = (Path(__file__).resolve().parents[2] / "README.md").read_text(encoding="utf-8")
+    assert "长驻命令" in text and "Ctrl+C" in text, "退出码表没提长驻命令"
