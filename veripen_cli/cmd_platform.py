@@ -221,8 +221,15 @@ def main(argv: list[str] | None = None) -> int:
 
         try:
             profile = load_profile(args.profile)
-        except Exception as exc:  # noqa: BLE001 —— 档坏了要如实说，不猜
-            print(f"profile 解析失败：{type(exc).__name__}: {exc}", file=sys.stderr)
+        except FileNotFoundError:
+            # 档不存在是最常见的输入错（B343）：别把 Python 异常 repr 倒给客户
+            print(f"客户档不存在：{args.profile}", file=sys.stderr)
+            return 2
+        except ProfileError as exc:
+            print(f"客户档不合法：{exc}", file=sys.stderr)
+            return 2
+        except Exception as exc:  # noqa: BLE001 —— 其余异常如实说，不猜
+            print(f"客户档解析失败：{type(exc).__name__}: {exc}", file=sys.stderr)
             return 2
 
         resolved = {

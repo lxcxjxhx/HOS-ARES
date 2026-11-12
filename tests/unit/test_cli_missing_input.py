@@ -175,3 +175,28 @@ def test_broken_spec_message_is_one_line() -> None:
         assert "既不是 JSON 也不是 YAML" in str(exc)
     else:                                     # pragma: no cover
         raise AssertionError("坏契约应当报错")
+
+
+# ── B343：档不存在 / 档不合法，要说人话 ──────────────────────────
+def test_missing_profile_says_so_without_a_python_repr(tmp_path, capsys) -> None:  # noqa: ANN001
+    """改前：`profile 解析失败：FileNotFoundError: [Errno 2] …`。"""
+    from veripen_cli.cmd_platform import main as platform_main
+
+    rc = platform_main(["--profile", str(tmp_path / "nope.yaml"),
+                        "--openapi", "x.json", "--out", str(tmp_path / "o")])
+    err = capsys.readouterr().err
+    assert rc == 2
+    assert "客户档不存在" in err, err
+    assert "FileNotFoundError" not in err, err
+
+
+def test_invalid_profile_says_what_is_wrong(tmp_path, capsys) -> None:  # noqa: ANN001
+    from veripen_cli.cmd_platform import main as platform_main
+
+    bad = tmp_path / "bad.yaml"
+    bad.write_text("apiVersion: veripen.profile/v2\nmeta: {}\n", encoding="utf-8")
+    rc = platform_main(["--profile", str(bad), "--openapi", "x.json",
+                        "--out", str(tmp_path / "o")])
+    err = capsys.readouterr().err
+    assert rc == 2
+    assert "客户档不合法" in err, err
