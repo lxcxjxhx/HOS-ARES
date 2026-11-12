@@ -585,11 +585,11 @@ function renderReport(d) {
   const body = el("pre", { class: "report" }, String(d.text || ""));
   return el("div", {}, head, body);
 }
-
+// 兜底页要自报身份（B361）：只丢一坨 JSON，读者分不清"页面没做"还是"数据坏了"
 function renderGeneric(data) {
-  return el("pre", {}, JSON.stringify(data, null, 2));
+  return el("div", {}, el("p", { class: "muted" }, "这个页面还没有人话视图——下面是原始数据（排查用）。"),
+    el("pre", {}, JSON.stringify(data, null, 2)));
 }
-
 function setHash(next, { replace = false } = {}) {
   const hash = buildHash(next);
   if (locations(hash)) return;

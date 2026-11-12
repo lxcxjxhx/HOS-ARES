@@ -157,3 +157,14 @@ def test_error_view_uses_the_human_label() -> None:
     block = index[start:start + 400]
     assert "OP_LABEL" in block, "报错文案要走标签表，别直接印 op 名"
     assert "接口不可用" in block
+
+
+# ── B361：兜底页要自报身份 ──────────────────────────────────────
+def test_generic_view_says_it_has_no_human_view() -> None:
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    index = (root / "web" / "static" / "index.html").read_text(encoding="utf-8")
+    start = index.index("function renderGeneric")
+    block = index[start:start + 320]
+    assert "还没有人话视图" in block, "兜底页只丢 JSON，读者分不清「页面没做」还是「数据坏了」"
