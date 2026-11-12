@@ -755,6 +755,13 @@ def main(argv: list[str] | None = None) -> int:
     if bad:
         print(f"证据自校验失败 {len(bad)} 份", file=sys.stderr)
         return 1
+    # 一条都没验证成功、而且有执行失败 → 这次运行不能算"跑完了"（B300）。
+    # 实测：目标整台不可达时 exit=0、报告写着 `VERIFIED 0 / 共 3 项`，CI 会当成绿。
+    errors = sum(1 for v in views if v.outcome.value == "error")
+    if verified == 0 and errors:
+        print(f"没有任何一项验证成功，且有 {errors} 项执行失败——"
+              f"这次运行不能当作覆盖（先修可达性再重跑）", file=sys.stderr)
+        return 1
     return 0
 
 

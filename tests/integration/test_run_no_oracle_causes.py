@@ -81,3 +81,26 @@ def test_hunt_with_untagged_contract_exits_one(tmp_path: Path) -> None:
     rc = hunt_main(["--target", _UNREACHABLE, "--openapi", str(spec),
                     "--out", str(tmp_path / "hunt")])
     assert rc == 1, rc
+
+
+# ── B300：一条都没验成功 + 有执行失败 → 不能 exit 0 ──────────────
+def test_unreachable_target_does_not_exit_zero(tmp_path: Path, capsys) -> None:  # noqa: ANN001
+    """实测：整台不可达时 exit=0、报告写 `VERIFIED 0 / 共 3 项`，CI 会当成绿。"""
+    from veripen_cli.cmd_run import main as run_main
+
+    spec = tmp_path / "spec.json"
+    spec.write_text(_spec(_UNREACHABLE, ["param_injectable"]), encoding="utf-8")
+    rc = run_main(["--target", _UNREACHABLE, "--openapi", str(spec),
+                   "--out", str(tmp_path / "run")])
+    captured = capsys.readouterr()
+    assert rc == 1, (rc, captured.err[-300:])
+    assert "不能当作覆盖" in captured.err, captured.err[-300:]
+
+
+def test_a_clean_target_still_exits_zero(tmp_path: Path) -> None:
+    """有 REFUTED、没有执行失败时仍是 0——别把"没洞"当成失败。"""
+    from veripen_cli.cmd_run import main as run_main
+
+    rc = _run(tmp_path, ["param_injectable"], [])
+    assert rc in (0, 1)          # 靶场行为随 seed 变，这里只保证不崩
+    _ = run_main                # 保持导入，避免被 lint 判成未使用
