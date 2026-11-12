@@ -139,8 +139,11 @@ def test_pick_record_still_prefers_an_explicit_path(tmp_path) -> None:  # noqa: 
 def test_pick_record_returns_none_when_nothing_is_there(tmp_path, monkeypatch) -> None:  # noqa: ANN001
     from veripen_cli import desktop
 
+    # 这个用例不能受**仓库当前状态**影响：别的用例可能刚在 out/run 下产出过产物（B322 实测红过）。
+    # 把候选清空，等价于"到处都没有产物"。
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(desktop, "ROOT", tmp_path / "install")
+    monkeypatch.setattr(desktop, "DEFAULT_RECORDS", ())
     assert desktop.pick_record("") is None
 
 

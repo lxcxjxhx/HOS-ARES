@@ -185,8 +185,10 @@ report-demo:
 	$(PY) scripts/b11/build_demo_report.py out/b11/report
 
 # 手工改报告 → manifest 校验必须失败（这里验证"没改"的那一半）
+# 校验交付清单（B322）：默认验 run 的产物目录，可用 DIR= 指到任意一路
+DIR ?= out/run
 verify-report:
-	$(PY) scripts/b11/verify_manifest.py out/b11/report
+	$(PY) -m veripen_cli replay --manifest $(DIR)
 
 b11: report-test report-demo verify-report types-check lint
 

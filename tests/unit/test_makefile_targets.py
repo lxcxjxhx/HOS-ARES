@@ -116,3 +116,23 @@ def test_iss_sources_all_exist() -> None:
         if not (root / rel).exists():
             missing.append(rel)
     assert not missing, f"安装包引用了不存在的文件：{missing}"
+
+
+# ── B322：verify-report 要验真产物，不是写死的演示目录 ───────────
+def test_verify_report_uses_the_product_entry_and_a_variable() -> None:
+    """改前它指向写死的 `out/b11/report`——新检出的仓库里那个目录不存在，目标必红。"""
+    from pathlib import Path
+
+    mk = (Path(__file__).resolve().parents[2] / "Makefile").read_text(encoding="utf-8")
+    block = mk.split("\nverify-report:", 1)[1].split("\n\n", 1)[0]
+    assert "veripen_cli replay --manifest" in block, block
+    assert "$(DIR)" in block, "要能用 DIR= 指到任意一路产物"
+    assert "out/b11/report" not in block, "别再写死演示目录"
+
+
+def test_readme_lists_all_three_delivery_lines() -> None:
+    from pathlib import Path
+
+    text = (Path(__file__).resolve().parents[2] / "README.md").read_text(encoding="utf-8")
+    for artifact in ("report.manifest.json", "hunt.manifest.json", "platform-report.manifest.json"):
+        assert artifact in text, artifact

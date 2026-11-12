@@ -106,8 +106,15 @@ ubuntu 上跑快闸门，windows 上把测试分三段跑——避免"CI 跑的"
 | 面 | 命令 | 产物 |
 |---|---|---|
 | **自动化渗透** | `veripen run --target <url> --openapi <spec>` | `report.md` / `findings.json` / `report.sarif` / `report.manifest.json` / `capsules/` |
-| **企业编排** | `veripen platform --profile profiles/<档名>/profile.yaml --openapi <spec>` | `platform-report.md`（逐资产 + 审计五表） |
+| **智能体渗透** | `veripen hunt --target <url> --openapi <spec>` | `hunt.md` / `hunt.json` / `hunt.manifest.json` / `coverage.json` / `capsules/` |
+| **企业编排** | `veripen platform --profile profiles/<档名>/profile.yaml --openapi <spec>` | `platform-report.md` / `platform-report.manifest.json`（逐资产 + 审计五表） |
 | **对话界面** | `veripen chat` | 会话事件（`task_events`），可 `--resume` |
+
+四份清单同形（`sections` + `files` + `manifest_sha256`），一条命令就能核：
+
+    veripen replay --manifest <产物目录>
+
+它逐文件核 sha256、并先核清单自哈希；输出会写清"挡得住手误，挡不住有意改"。
 
 ### 退出码（写脚本 / 接 CI 用）
 
