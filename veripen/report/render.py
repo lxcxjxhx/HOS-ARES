@@ -555,6 +555,16 @@ def render_markdown(report: ReportInput) -> str:
     w("")
     w("> 禁止把 `error` / `not_run` 写进「未发现」或「安全」的表述附近。")
     w("")
+    # 「0 验证」必须解释（B357）：与平台报告同一句话术，别让读者把
+    # `reported 0` 读成「没有漏洞」——全被挡下时它意味着「一项都没测」。
+    if counts["reported"] == 0 and actually_not_run:
+        # 未执行的部分要单说：读者最容易把 `reported 0` 读成「没有漏洞」
+        parts = [f"{actually_not_run} 项未执行（请求没发出去）"]
+        if refuted_in_not_run:
+            parts.append(f"{refuted_in_not_run} 项已判否（跑过、无该问题）")
+        w(f"> 本轮 0 项已验证：其中 {'、'.join(parts)}——"
+          "「0 已验证」不等于「没有漏洞」；先补齐输入或解除黑名单再重跑。")
+        w("")
     if report.excluded:
         # 排除要留痕（B327）；措辞与 hunt 共用一份（B330）
         w("> " + exclusion_line(report.excluded, why="操作员按 `--exclude` 指定") + "。")

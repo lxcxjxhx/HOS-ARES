@@ -261,3 +261,25 @@ def test_healthy_run_has_no_such_excuse(lab, tmp_path: Path) -> None:  # noqa: A
                    "--out", str(tmp_path / "plat")])
     md = (tmp_path / "plat" / "platform-report.md").read_text(encoding="utf-8")
     assert "没有测" not in md
+
+
+# ── B357：单资产报告的「0 已验证」也要解释 ──────────────────────
+def test_run_report_explains_zero_verified(lab, tmp_path: Path) -> None:  # noqa: ANN001
+    from veripen_cli.cmd_run import main as run_main
+
+    run_main(["--target", lab.base_url,
+              "--openapi", str(_spec(lab.base_url, tmp_path / "s.json")),
+              "--out", str(tmp_path / "deny"), "--deny", "DENY_SET_DEFAULT"])
+    md = (tmp_path / "deny" / "report.md").read_text(encoding="utf-8")
+    assert "「0 已验证」不等于「没有漏洞」" in md, md[:600]
+    assert "项未执行" in md
+
+
+def test_run_report_has_no_excuse_when_it_concluded(lab, tmp_path: Path) -> None:  # noqa: ANN001
+    from veripen_cli.cmd_run import main as run_main
+
+    run_main(["--target", lab.base_url,
+              "--openapi", str(_spec(lab.base_url, tmp_path / "s.json")),
+              "--out", str(tmp_path / "ok")])
+    md = (tmp_path / "ok" / "report.md").read_text(encoding="utf-8")
+    assert "不等于「没有漏洞」" not in md
