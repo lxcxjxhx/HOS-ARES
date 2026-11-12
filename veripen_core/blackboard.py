@@ -12,6 +12,8 @@
 from __future__ import annotations
 
 import json
+import sqlite3
+import time
 from dataclasses import dataclass
 from typing import Any, Iterable, Mapping
 
@@ -285,17 +287,24 @@ class EventLog:
             raise FactError(f"未知事件 kind：{kind}（03 §1 的 kind 列）")
         ts = now()
         payload = json.dumps(dict(detail or {}), ensure_ascii=False, sort_keys=True)
-        with self.store.lock:
-            cur = self.store.conn.execute(
-                "INSERT INTO task_events"
-                " (task_id, ts, kind, oracle_id, tool, route_ref, elapsed_ms,"
-                "  tokens, ok, err_class, detail_json)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                (task_id, ts, kind, oracle_id, tool, route_ref, elapsed_ms,
-                 tokens, int(ok), err_class, payload),
-            )
-            self.store.conn.commit()
-            seq = int(cur.lastrowid or 0)
+        # `database is locked` 是可重试的（B336）：`lease.is_transient` 早就有这个判断，
+        # 但没有任何写入路径用它——并发跑两个入口时，事件会直接抛出来而不是重试。
+        from .lease import with_transient_retry
+
+        def _insert() -> int:
+            with self.store.lock:
+                cur = self.store.conn.execute(
+                    "INSERT INTO task_events"
+                    " (task_id, ts, kind, oracle_id, tool, route_ref, elapsed_ms,"
+                    "  tokens, ok, err_class, detail_json)"
+                    " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    (task_id, ts, kind, oracle_id, tool, route_ref, elapsed_ms,
+                     tokens, int(ok), err_class, payload),
+                )
+                self.store.conn.commit()
+                return int(cur.lastrowid or 0)
+
+        seq = with_transient_retry(_insert)
         return Event(seq=seq, task_id=task_id, ts=ts, kind=kind, ok=ok,
                      oracle_id=oracle_id, tool=tool, route_ref=route_ref,
                      elapsed_ms=elapsed_ms, tokens=tokens, err_class=err_class,
