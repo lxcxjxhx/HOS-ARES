@@ -78,9 +78,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     add_discovery_args(ap, include_enable=False, legacy_aliases=True)
     ap.add_argument("--rate", type=float, default=1.0, help="每秒请求上限（默认 1）")
     ap.add_argument("--burst", type=float, default=2.0, help="突发桶容量（默认 2）")
-    ap.add_argument("--out", default="", help="把发现结果写成 JSON（可选）")
+    # `--out` 在 discover 里是**文件**路径，而 run/hunt/platform 的 `--out` 是目录（B306）。
+    # 说清这一点，否则按兄弟命令的习惯传目录会直接炸在 write_text 上。
+    ap.add_argument("--out", default="",
+                    help="把发现结果写成 JSON 文件（注意：这里给的是**文件**，"
+                         "不是目录；run/hunt 的 --out 才是目录）")
     args = ap.parse_args(sys.argv[1:] if argv is None else argv)
     setup_stdout()
+
+    # `--out` 先校验再干活（B306）：原先爬完几页才在 write_text 上炸，
+    # 既浪费时间，又让"参数错"看起来像"目标有问题"。
+    if args.out:
+        early = Path(args.out)
+        if early.is_dir():
+            print(f"--out 需要一个**文件**路径，而 {early} 是目录。"
+                  f"例如 --out {early / 'discover.json'}", file=sys.stderr)
+            return 2
 
     host = _host_of(args.target)
     symbols = RouteSymbols({BASE_SYMBOL: args.target.rstrip(SEP)})
@@ -163,7 +176,14 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.out:
         out = Path(args.out)
-        out.parent.mkdir(parents=True, exist_ok=True)
+        if out.is_dir():          # 爬取期间可能被建出来，写之前再看一眼
+            print(f"--out 需要一个**文件**路径，而 {out} 是目录。", file=sys.stderr)
+            return 2
+        try:
+            out.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            print(f"--out 目录建不出来：{exc}", file=sys.stderr)
+            return 2
         out.write_text(
             json.dumps(
                 {
