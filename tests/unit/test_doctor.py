@@ -461,3 +461,16 @@ def test_browser_check_does_not_claim_more_than_it_checked(monkeypatch, tmp_path
     assert "未验证" in result.detail, result.detail
     assert "VERIPEN_DOCTOR_BROWSER=launch" in result.detail
     assert "playwright 可用" not in result.detail, "又写回「可用」了"
+
+
+# ── B291：skip 项也要给"怎么修" ──────────────────────────────────
+def test_every_skip_carries_a_fix_hint() -> None:
+    """fix 列留空等于没给下一步——而 skip 恰恰是客户最常看到的状态。"""
+    from veripen_cli.cmd_doctor import CHECKS
+
+    empty = []
+    for name, fn in CHECKS:
+        result = fn(Path("."))
+        if result.status.name == "SKIP" and not result.fix.strip():
+            empty.append(name)
+    assert not empty, f"这些 skip 项没有 fix：{empty}"

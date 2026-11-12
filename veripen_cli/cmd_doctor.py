@@ -387,8 +387,13 @@ def check_model_backend(root: Path) -> CheckResult:
     base = _os.environ.get("VERIPEN_MODEL_BASE_URL", "").strip().rstrip(_SEP)
     model = _os.environ.get("VERIPEN_MODEL", "").strip()
     if not base or not model:
-        return CheckResult("模型后端", Status.SKIP,
-                           "未配置（规则层可用）：设 VERIPEN_MODEL_BASE_URL + VERIPEN_MODEL 接真模型", "")
+        return CheckResult(
+            "模型后端", Status.SKIP,
+            "未配置（规则层可用）：设 VERIPEN_MODEL_BASE_URL + VERIPEN_MODEL 接真模型",
+            # fix 列不许留空（B291）：这一项是客户最可能看到的 skip，空着等于没给下一步
+            "设 VERIPEN_MODEL_BASE_URL 与 VERIPEN_MODEL（网关要 key 就再加 "
+            "VERIPEN_MODEL_API_KEY），然后 veripen doctor --only model",
+        )
     url = base + _SEP + "models"
     # 带了 key 就得把它发出去（B233）：旧探针只发 GET，遇到"要鉴权才能读 /models"
     # 的网关会回 401，于是检查报"检查 VERIPEN_MODEL_API_KEY"——而那个人明明已经配了。
@@ -437,7 +442,10 @@ def check_docker(root: Path) -> CheckResult:
     try:
         code, out = _run(["docker", "version", "--format", "{{.Server.Version}}"], cwd=root, timeout=20)
     except (FileNotFoundError, subprocess.SubprocessError, OSError):
-        return CheckResult("docker 运行时", Status.SKIP, "本机无 docker（离线包校验跳过）")
+        return CheckResult(
+            "docker 运行时", Status.SKIP, "本机无 docker（离线包校验跳过）",
+            "装 Docker Desktop 或 podman 后可验真隔离；只跑离线包之外的验证则不需要",
+        )
     return CheckResult(
         "docker 运行时", Status.OK if code == 0 else Status.SKIP,
         out.splitlines()[0][:60] if out else "无响应",
