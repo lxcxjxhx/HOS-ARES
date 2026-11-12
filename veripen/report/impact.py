@@ -23,14 +23,19 @@ _IMPACT: dict[str, str] = {
 }
 
 #: 建议：按严重度给下一步。三条都指向"修复后重跑本 oracle 应变为 REFUTED"这个可验证动作。
+#: `REFUTED` 第一次出现时就地解释（B295）：报告正文里没有术语表，
+#: 而"判定应变为 REFUTED"对没读过 hunt 报告的读者是一句黑话。
 _ADVICE: dict[str, str] = {
-    "high": "先在预发环境按复现命令确认影响面；修复后重跑本 oracle，判定应变为 REFUTED。",
-    "medium": "修复后重跑本 oracle 做回归，判定应变为 REFUTED；期间按证据限制该接口的访问范围。",
-    "low": "随版本回归时重跑本 oracle，判定应变为 REFUTED；仍为 VERIFIED 则升级严重度。",
+    "high": "先在预发环境按复现命令确认影响面；修复后重跑本 oracle，"
+            "判定应变为 REFUTED（测了、不成立）。",
+    "medium": "修复后重跑本 oracle 做回归，判定应变为 REFUTED（测了、不成立）；"
+              "期间按证据限制该接口的访问范围。",
+    "low": "随版本回归时重跑本 oracle，判定应变为 REFUTED（测了、不成立）；"
+           "仍为 VERIFIED（已验证）则升级严重度。",
 }
 
 _DEFAULT_IMPACT = "影响面未声明：该 oracle 没有给出写入等级，需人工判定。"
-_DEFAULT_ADVICE = "修复后重跑本 oracle 做回归，判定应变为 REFUTED。"
+_DEFAULT_ADVICE = "修复后重跑本 oracle 做回归，判定应变为 REFUTED（测了、不成立）。"
 
 
 def _value(raw: Any) -> str:

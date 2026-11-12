@@ -62,3 +62,14 @@ def test_unknown_replay_status_is_shown_verbatim() -> None:
 
     assert replay_text("SOMETHING_NEW") == "SOMETHING_NEW"
     assert replay_text("") == "-"
+
+
+# ── B295：报告正文里第一次出现的 verdict 词要就地解释 ─────────────
+def test_advice_explains_refuted_inline() -> None:
+    """报告没有术语表，"判定应变为 REFUTED"对没读过 hunt 报告的人是黑话。"""
+    from veripen.report.impact import advice_text
+
+    for severity in ("high", "medium", "low"):
+        text = advice_text(severity)
+        if "REFUTED" in text:
+            assert "REFUTED（测了、不成立）" in text, (severity, text)
