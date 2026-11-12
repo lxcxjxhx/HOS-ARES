@@ -97,11 +97,39 @@ def test_hunt_md_shows_blocked_note() -> None:
 
 
 def test_hunt_guard_splits_deny_like_run() -> None:
-    """`hunt --deny DENY_SET_DEFAULT` 以前照样把 3 个面跑完——它没走 split_deny。"""
+    """`hunt --deny DENY_SET_DEFAULT` 以前照样把 3 个面跑完——它没走 split_deny。
+
+    B335 之后 hunt 直接走 `build_guard`，拆分发生在那里，所以查的是 build_guard。
+    """
     import inspect
 
     from veripen_cli import cmd_hunt
 
+    src = inspect.getsource(cmd_hunt.build_guard)
+    assert "split_deny(" in src, "统一构造点要拆 deny"
+    assert "deny_nets=" in src
+
+
+# ── B335：ScopeGuard 只许有一个构造点 ───────────────────────────
+def test_hunt_builds_its_guard_through_build_guard() -> None:
+    """hunt 以前 inline 又建了一个 ScopeGuard，于是 B311 的修复完全没落到它身上。"""
+    import inspect
+    import re
+
+    from veripen_cli import cmd_hunt
+
     src = inspect.getsource(cmd_hunt.main)
-    assert "split_deny(" in src, "hunt 也要拆 deny"
-    assert "deny_nets=deny_nets" in src
+    assert "build_guard(" in src, "hunt 要走统一构造点"
+    assert not re.search(r"^\s+scope = ScopeGuard\(", src, re.MULTILINE), \
+        "main 里不许再自己 new ScopeGuard"
+
+
+def test_only_one_scope_guard_construction_site() -> None:
+    import inspect
+    import re
+
+    from veripen_cli import cmd_hunt
+
+    src = inspect.getsource(cmd_hunt)
+    hits = re.findall(r"scope = ScopeGuard\(", src)
+    assert len(hits) == 1, f"构造点应只有 build_guard 里那一个，实际 {len(hits)} 个"

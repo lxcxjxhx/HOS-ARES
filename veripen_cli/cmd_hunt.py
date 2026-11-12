@@ -591,27 +591,14 @@ def main(argv: list[str]) -> int:
     resolved = _resolve_ips(host)
     if resolved:
         print(f"解析：{len(resolved)} 个 IP —— {', '.join(sorted(resolved))}")
-    # 与 run 同一条口径（B334）：`--deny` 里既有资产 id 也有网段，
-    # 不拆开的话 `10.0.0.0/8` / `DENY_SET_DEFAULT` 在这里静默失效——
-    # 实测：`hunt --deny DENY_SET_DEFAULT` 照样把 3 个面跑完了。
-    from veripen_core.guard.scope import split_deny
-
-    deny_ids, deny_nets = split_deny(x.strip() for x in args.deny.split(",") if x.strip())
-    scope = ScopeGuard(
-        asset=AssetScope(id=host, host_keys=frozenset({host}), resolved_ips=resolved),
-        scope_in=frozenset({host}),
-        deny=deny_ids,
-        deny_nets=deny_nets,
-        min_confidence=0.0,
-        now=int(time.time()),
-    )
-    ctx = GuardContext(
-        scope=scope,
-        routeset=routeset,
-        plan=_plan_decision(scope, oracles, args.max_impact),
-        bucket=TokenBucket(ThrottleConfig(rate_per_s=args.rate, burst=args.burst)),
-        budget=Budget(),
-        now=int(time.time()),
+    # **只走 `build_guard` 这一个构造点**（B335）：以前这里 inline 又建了一个 ScopeGuard，
+    # 于是 B311 修好 run 的 deny 拆分后，hunt 这一路仍旧惰性——同一个对象两处构造，
+    # 修一处等于只修一半。
+    ctx = build_guard(
+        host, routeset, oracles,
+        rate=args.rate, burst=args.burst,
+        deny=[x.strip() for x in args.deny.split(",") if x.strip()],
+        ceiling=args.max_impact,
     )
 
     http_tool.install_guard(ctx)
