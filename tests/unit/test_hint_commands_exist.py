@@ -53,6 +53,29 @@ def test_every_mentioned_subcommand_exists() -> None:
         f"{f}:{n} `veripen {w}`" for f, n, w in bad)
 
 
+def test_docs_do_not_name_nonexistent_subcommands() -> None:
+    """B352：**用户面**文档里也会写不存在的命令。
+
+    只扫 README / exe-quickstart / delivery：`plan-veripen/` 是目标设计稿，
+    里面写 `veripen cases`、`veripen db` 这类"计划中的命令"是正常的，不该被当缺陷。
+    """
+    valid = _real_commands()
+    bad = []
+    docs = [ROOT / "README.md", ROOT / "exe-quickstart.txt"]
+    docs += sorted((ROOT / "delivery").rglob("*.md"))
+    for path in [d for d in docs if d.is_file()]:
+        text = path.read_text(encoding="utf-8")
+        for match in PATTERN.finditer(text):
+            line_start = text.rfind(chr(10), 0, match.start()) + 1
+            line_end = text.find(chr(10), match.end())
+            line = text[line_start:line_end if line_end != -1 else len(text)]
+            if any(word in line for word in NEGATIONS):
+                continue
+            if match.group(1) not in valid:
+                bad.append(f"{path.relative_to(ROOT)}: `veripen {match.group(1)}`")
+    assert not bad, "文档里出现了不存在的子命令：" + ", ".join(bad)
+
+
 def test_the_scan_actually_finds_something() -> None:
     """扫描器自己也要有信号：一条都扫不到说明正则或目录写错了。"""
     assert _scan(), "扫描没命中任何 veripen 子命令——口径失效"
