@@ -478,15 +478,20 @@ def main(argv: list[str]) -> int:
         if r.outcome in (Outcome.NOT_RUN, Outcome.ERROR)
     ]
     #: 有证据但重放对不上的用例：**点名**。只报一个数，那 6 条证据就成了噪声。
+    # PARTIAL 与"对不上"分开列（B292）：前者是已知边界，后者才要查。
+    partial_cases = [
+        r.case_id for r in rounds[0].results
+        if r.capsule_id and r.replay_status == "PARTIAL"
+    ]
     unreproduced = [
         f"{r.case_id}（{r.replay_status}）"
         for r in rounds[0].results
-        if r.capsule_id and r.replay_status not in ("OK", "NEVER")
+        if r.capsule_id and r.replay_status not in ("OK", "NEVER", "PARTIAL")
     ]
 
     md = render_bench_md(rounds, gates=gates, case_fp=fps, missed=missed,
                          capsules_dir=str(capsules_root),
-                         unreproduced=unreproduced)
+                         unreproduced=unreproduced, partial_cases=partial_cases)
     (out / "bench.md").write_text(md, encoding="utf-8")
     (out / "bench.json").write_text(
         json.dumps(to_json(rounds, gates=gates, case_fp=fps), ensure_ascii=False, indent=2),

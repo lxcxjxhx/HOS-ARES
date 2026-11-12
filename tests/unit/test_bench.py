@@ -331,12 +331,21 @@ def test_bench_md_points_at_capsule_dir() -> None:
 
 
 def test_bench_md_names_unreproduced_cases() -> None:
-    """只报"未复现 6"等于把 6 条证据变成噪声：要点名，读者才查得到。"""
+    """只报个数等于把证据变成噪声：要点名，读者才查得到。"""
     r = _round([_ok("P-01", "positive", "VERIFIED")])
     md = render_bench_md([r], gates=check_hard_gates([r]), case_fp="f" * 64,
-                         unreproduced=["P-07（PARTIAL）"])
-    assert "未复现用例" in md
-    assert "P-07（PARTIAL）" in md
+                         unreproduced=["N-02（FAILED）"])
+    assert "重放对不上的用例" in md
+    assert "N-02（FAILED）" in md
+
+
+def test_bench_md_separates_partial_from_mismatch() -> None:
+    """PARTIAL 是"状态一致、字节不同"的已知边界（06 §7），不许和"对不上"混成一个数。"""
+    r = _round([_ok("P-01", "positive", "VERIFIED")])
+    md = render_bench_md([r], gates=check_hard_gates([r]), case_fp="f" * 64,
+                         partial_cases=["P-07", "P-08"])
+    assert "状态一致但字节不同的用例：P-07、P-08" in md, md
+    assert "重放对不上的用例" not in md
 
 
 def test_save_round_chain_writes_one_verifiable_chain(tmp_path) -> None:  # noqa: ANN001

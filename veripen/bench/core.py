@@ -435,7 +435,8 @@ def score(*, precision: float, recall: float, cost_ratio: float, report_quality:
 def render_bench_md(rounds: Sequence[RoundResult], *, gates: GateResult,
                     case_fp: str, missed: Sequence[str] = (),
                     capsules_dir: str = "",
-                    unreproduced: Sequence[str] = ()) -> str:
+                    unreproduced: Sequence[str] = (),
+                    partial_cases: Sequence[str] = ()) -> str:
     lines: list[str] = []
     w = lines.append
     first = rounds[0] if rounds else None
@@ -492,20 +493,33 @@ def render_bench_md(rounds: Sequence[RoundResult], *, gates: GateResult,
     sealed = [r for rd in rounds for r in rd.results if r.capsule_id]
     ok = sum(1 for r in sealed if r.replay_status == "OK")
     if sealed:
+        # PARTIAL 不是"未复现"（B292）：它表示状态形状一致、结论能重算，只是 body 变了。
+        # capsule 只存 body 哈希不存正文（06 §7），所以这类差异是**已知边界**，
+        # 把它和"重放对不上"混成一个数，读者会把正常情况当事故。
+        partial = sum(1 for r in sealed if r.replay_status == "PARTIAL")
+        other = sum(1 for r in sealed
+                    if r.replay_status not in ("OK", "NEVER", "PARTIAL"))
         w(f"证据：capsule {len(sealed)} 份（sealed）· 重放通过 {ok}"
-          f" · 未复现 {sum(1 for r in sealed if r.replay_status not in ('OK', 'NEVER'))}"
+          f" · 状态一致但字节不同 {partial}"
+          f" · 重放对不上 {other}"
           f" · 未重放 {sum(1 for r in sealed if r.replay_status == 'NEVER')}"
           f"（未重放 = INCONCLUSIVE/BLOCKED：没有结论可复现）")
+        if partial:
+            w("  状态一致但字节不同 = PARTIAL：结论能由证据重算，但 body 变了——"
+              "capsule 只存 body 哈希不存正文（06 §7），这是已知边界，不是事故")
     if capsules_dir:
         # 只给数量不给位置 = 读者拿不到证据；"sealed" 不等于"存过"。
         root = capsules_dir.replace("\\", "/").rstrip("/")
         w(f"证据落盘：`{root}/r<轮次>/` · 每轮一条链（链头 prev 为全零）"
           f" · `veripen evidence --verify-chain {root}/r1/*.json` 可验"
           f" · 单份重放：`veripen replay --capsule <该文件>`")
+    if partial_cases:
+        w("状态一致但字节不同的用例：" + "、".join(partial_cases)
+          + "（结论可重算；body 变了，见上面的已知边界）")
     if unreproduced:
         # "未复现 6" 不点名等于把 6 条证据变成噪声：哪几条、卡在哪，得读得出来。
-        w("未复现用例：" + "、".join(unreproduced)
-          + "（证据在盘上，重放对不上；逐条看 capsule 里的步骤与 headers）")
+        w("重放对不上的用例：" + "、".join(unreproduced)
+          + "（证据在盘上；逐条看 capsule 里的步骤与 headers）")
     total_tokens = sum(r.tokens for r in rounds)
     if total_tokens == 0:
         # 0 不等于"没测"。不写这一行，读者会以为 token 列漏了数据；
