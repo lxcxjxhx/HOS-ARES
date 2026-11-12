@@ -766,22 +766,37 @@ def main(argv: list[str]) -> int:
         # 为什么"不完整"要跟着走：报告里只写"完整：否"而不给原因，读者会以为还有面没跑（B166）
         "caveats": list(coverage["completeness"]["caveats"]),
     }
-    (out / "hunt.json").write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
+    # 与 run 同口径（B319）：落盘字符串固定 LF、清单逐文件哈希——客户能 `sha256sum` 核。
+    from veripen.report.lint import dumps_artifact
+
+    hunt_text = dumps_artifact(record)
+    (out / "hunt.json").write_text(hunt_text, encoding="utf-8", newline=chr(10))
     # 可交付报告（B166）：与 hunt.json **同源渲染**，同一个 dict 进两份产物
     from veripen.report.hunt import render_hunt_markdown
 
     # 报告里的证据路径用**相对 `--out`** 的形式（B191）：与 run 的报告同口径
     cap_rel = "capsules"
     report_path = out / "hunt.md"
-    report_path.write_text(
-        render_hunt_markdown(
-            record,
-            # 相对 `--out`（B191）：与 run 的报告同口径，绝对路径换台机器就读不出来
-            capsules_dir=cap_rel,
-            generated_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"),
-        ),
-        encoding="utf-8",
+    md_text = render_hunt_markdown(
+        record,
+        # 相对 `--out`（B191）：与 run 的报告同口径，绝对路径换台机器就读不出来
+        capsules_dir=cap_rel,
+        generated_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"),
     )
+    report_path.write_text(md_text, encoding="utf-8", newline=chr(10))
+    # 清单（B319）：hunt 之前**没有**清单，于是"这两份产物没被手改"无从证明。
+    import hashlib as _hashlib
+
+    md_sha = _hashlib.sha256(md_text.encode("utf-8")).hexdigest()
+    js_sha = _hashlib.sha256(hunt_text.encode("utf-8")).hexdigest()
+    manifest = {
+        "version": 1,
+        "sections": {"markdown": md_sha, "json": js_sha},
+        "files": {"hunt.md": md_sha, "hunt.json": js_sha},
+        "report_sha256": _hashlib.sha256((md_sha + js_sha).encode("utf-8")).hexdigest(),
+    }
+    (out / "hunt.manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8", newline=chr(10))
     cov_path = write_coverage(out, coverage)
     print()
     cov_summary = coverage["summary"]
@@ -794,7 +809,7 @@ def main(argv: list[str]) -> int:
         for caveat in coverage["completeness"]["caveats"]:
             print(f"  注意：{caveat}")
     print(f"证据：{len(runtime.sealed)} 份 capsule → {capsules_dir}")
-    print(f"产物：{out / 'hunt.json'}")
+    print(f"产物：{out / 'hunt.json'} / {out / 'hunt.manifest.json'}")
     print(f"报告：{report_path}")
     return 0
 

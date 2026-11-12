@@ -67,3 +67,19 @@ def test_platform_manifest_matches_the_file_on_disk(lab, tmp_path: Path) -> None
     for name, want in manifest["files"].items():
         got = hashlib.sha256((out / name).read_bytes()).hexdigest()
         assert got == want, f"{name} 的哈希对不上盘上字节"
+
+
+def test_hunt_manifest_matches_the_files_on_disk(lab, tmp_path: Path) -> None:  # noqa: ANN001
+    """B319：hunt 之前没有清单，于是"这两份产物没被手改"无从证明。"""
+    from veripen_cli.cmd_hunt import main as hunt_main
+
+    out = tmp_path / "hunt"
+    rc = hunt_main(["--target", lab.base_url,
+                    "--openapi", str(_spec(lab.base_url, tmp_path / "s3.json")),
+                    "--out", str(out)])
+    assert rc in (0, 1), rc
+    manifest = json.loads((out / "hunt.manifest.json").read_text(encoding="utf-8"))
+    assert manifest.get("files"), "hunt 清单里要有逐文件哈希"
+    for name, want in manifest["files"].items():
+        got = hashlib.sha256((out / name).read_bytes()).hexdigest()
+        assert got == want, f"{name} 的哈希对不上盘上字节"
