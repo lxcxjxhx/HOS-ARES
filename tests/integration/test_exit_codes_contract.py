@@ -239,3 +239,25 @@ def test_platform_report_names_the_cli_deny_list(lab, tmp_path: Path) -> None:  
                    "--out", str(tmp_path / "plat"), "--deny", "DENY_SET_DEFAULT"])
     md = (tmp_path / "plat" / "platform-report.md").read_text(encoding="utf-8")
     assert "黑名单：`DENY_SET_DEFAULT`" in md, md[:400]
+
+
+# ── B356：「0 验证」必须解释，别被读成"没有漏洞" ──────────────────
+def test_zero_verified_all_blocked_is_explained(lab, tmp_path: Path) -> None:  # noqa: ANN001
+    from veripen_cli.cmd_platform import main as platform_main
+
+    platform_main(["--targets", lab.base_url,
+                   "--openapi", str(_spec(lab.base_url, tmp_path / "s.json")),
+                   "--out", str(tmp_path / "plat"), "--deny", "DENY_SET_DEFAULT"])
+    md = (tmp_path / "plat" / "platform-report.md").read_text(encoding="utf-8")
+    assert "这不是「没有漏洞」，是「没有测」" in md, md[:600]
+
+
+def test_healthy_run_has_no_such_excuse(lab, tmp_path: Path) -> None:  # noqa: ANN001
+    """正常跑出结论时不该挂这句——否则它变成套话，读者就不看了。"""
+    from veripen_cli.cmd_platform import main as platform_main
+
+    platform_main(["--targets", lab.base_url,
+                   "--openapi", str(_spec(lab.base_url, tmp_path / "s.json")),
+                   "--out", str(tmp_path / "plat")])
+    md = (tmp_path / "plat" / "platform-report.md").read_text(encoding="utf-8")
+    assert "没有测" not in md

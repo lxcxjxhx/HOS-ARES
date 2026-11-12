@@ -470,6 +470,9 @@ def main(argv: list[str] | None = None) -> int:
     from veripen.report.audit import AuditInput, render_audit_section
 
     total = sum(len(a["findings"]) for a in per_asset)
+    not_run = sum(
+        1 for a in per_asset for f in a["findings"] if f.get("outcome") == "not_run"
+    )
     verified = sum(
         len([f for f in a["findings"] if f.get("outcome") == "reported"]) for a in per_asset
     )
@@ -512,6 +515,13 @@ def main(argv: list[str] | None = None) -> int:
             if any(not a["produced"] for a in per_asset) else ""
         ),
         f"- 结论：已验证 **{verified}** / 总项 {total}",
+        # 「0 验证」必须解释（B356）：读者最容易把它读成"没有漏洞"，
+        # 而全被挡下时它其实意味着"一项都没测"。
+        *(
+            [f"- 说明：{not_run} 项全部未执行（被边界/输入挡下，请求没发出去）——"
+             "这不是「没有漏洞」，是「没有测」；解除黑名单或补齐输入后重跑"]
+            if verified == 0 and not_run and not_run >= total else []
+        ),
         # 覆盖率必须带分母（D3）：只写"2 条结论"会被读成"只测了 2 项"（B164）
         (
             f"- 覆盖合计：已判定 **{faces_covered}**/{faces_total} 面 · "
