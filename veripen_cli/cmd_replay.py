@@ -137,6 +137,13 @@ def _chain(target: Path) -> int:
             return 1
         caps.append(cap)
 
+    # 多条链混在一个目录里不是"被改过"（B350）：先数链头，说清是哪种情况
+    genesis = [c for c in caps if c.chain.prev_sha256 == "0" * 64]
+    if len(genesis) > 1:
+        print(f"注意：这一批里有 {len(genesis)} 个链头（多条链混在一起）——"
+              "这不是「证据被改过」，而是两轮证据放在了一起；分批校验更清楚",
+              file=sys.stderr)
+
     # **按血缘排序**（B349）：文件名字典序不是链序，直接排会把干净链判成断点。
     report = verify_chain(order_chain(caps))
     print(f"链：{len(caps)} 份 · 完整={report.ok} · 链头={report.head_sha256[:12] or '-'}")

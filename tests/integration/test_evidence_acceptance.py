@@ -315,3 +315,20 @@ def test_chain_reports_tampering_without_a_traceback(tmp_path: Path, capsys) -> 
     err = capsys.readouterr().err
     assert rc == 1
     assert "TAMPERED" in err and "Traceback" not in err, err
+
+
+# ── B350：多条链混在一起 ≠ 证据被改过 ───────────────────────────
+def test_multiple_genesis_gets_a_specific_hint(tmp_path: Path, capsys) -> None:  # noqa: ANN001
+    """两个独立链头放在一个目录里，断点信息会被读成"证据被改过"——要说清是哪种情况。"""
+    import capsule_fixture as F
+    from veripen_cli.cmd_replay import main as replay_main
+    from veripen_core.evidence import save_capsule, seal_capsule_doc
+
+    caps = tmp_path / "two"
+    caps.mkdir()
+    for item in ("41", "42"):
+        save_capsule(seal_capsule_doc(F.capsule(item_id=item), prev_sha256="0" * 64), caps)
+    rc = replay_main(["--chain", str(caps)])
+    err = capsys.readouterr().err
+    assert rc == 1
+    assert "2 个链头" in err and "不是「证据被改过」" in err, err
