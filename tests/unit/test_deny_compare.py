@@ -36,3 +36,18 @@ def test_render_row_has_all_four_numbers() -> None:
 def test_both_profiles_are_referenced() -> None:
     mod = _load()
     assert "demo-a" in mod.ALLOW_PROFILE and "demo-deny" in mod.DENY_PROFILE
+
+
+# ── B315：一条命令跑完（自建 lab）──────────────────────────────
+def test_lab_flag_is_documented_in_help() -> None:
+    import inspect
+
+    mod = _load()
+    src = inspect.getsource(mod.main)
+    assert '"--lab"' in src, "要能自己起靶场，否则调用方得先手动起一个"
+    assert "lab.stop()" in src, "自建靶场要收尾，别留进程"
+
+
+def test_missing_inputs_exit_two() -> None:
+    mod = _load()
+    assert mod.main(["--out", "out/x"]) == 2
