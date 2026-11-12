@@ -77,13 +77,22 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="veripen console", description="只读控制台")
     ap.add_argument("--port", type=int, default=8099)
     ap.add_argument("--host", default="127.0.0.1")
-    ap.add_argument("--hunt", default=str(ROOT / "out" / "b30" / "hunt.json"),
-                    help="运行产物（缺失则空态）")
+    # `--record` 是别名（B309）：desktop 那条路叫 --record，console 叫 --hunt，
+    # 而 load_file 两者都吃（文件/目录/platform 目录都行）。名字比行为窄，就统一给别名。
+    ap.add_argument("--hunt", "--record", dest="hunt", default="",
+                    help="运行产物：hunt.json / findings.json / 目录（与 desktop 的 --record 同义；"
+                         "缺省时按 out/hunt.json → out/run/findings.json → out/demo/findings.json 找）")
     ap.add_argument("--db", default="",
                     help="事件库（供 ui.audit 读取；缺省或库不存在时该页 source=unavailable）")
     args = ap.parse_args(argv)
 
-    state = load_file(args.hunt)
+    # 缺省不能写死某个历史路径（B309）：`out/b30/hunt.json` 早就没人产出了，
+    # 于是裸跑 `veripen console` 永远是空态，哪怕 `out/run/findings.json` 就在那儿。
+    from veripen_cli.desktop import pick_record
+
+    # 名字不能叫 `record`：下面还有个同名回调（审批落库），会把它盖掉（B309 实测踩到）。
+    record_path = args.hunt or str(pick_record("") or "")
+    state = load_file(record_path) if record_path else load_file("")
 
     audit_rows: list[dict[str, object]] = []
     db_note = "未接"
@@ -136,7 +145,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"控制台：http://{args.host}:{args.port}" + chr(0x2F) + "ui" + chr(0x2F) + "app")
     print(f"数据：{stats['total']} 条（{stats['verified']} 已确认 / "
           f"{stats['unverified']} 未验证，其中 blocked {stats['blocked']}）")
-    print(f"来源：{args.hunt}{artifact_note(args.hunt)}")
+    print(f"来源：{record_path or '（未找到产物，空态）'}"
+          f"{artifact_note(record_path) if record_path else ''}")
     print(f"审计事件：{db_note}")
 
     import uvicorn

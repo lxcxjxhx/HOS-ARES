@@ -142,3 +142,36 @@ def test_pick_record_returns_none_when_nothing_is_there(tmp_path, monkeypatch) -
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(desktop, "ROOT", tmp_path / "install")
     assert desktop.pick_record("") is None
+
+
+# ── B309：console 的产物参数与默认发现 ───────────────────────────
+def test_console_accepts_the_record_alias() -> None:
+    """desktop 叫 --record、console 叫 --hunt，而 load_file 两者都吃；
+    名字比行为窄，就统一给别名。"""
+    from veripen_cli import cmd_console
+
+    import inspect
+
+    src = inspect.getsource(cmd_console.main)
+    assert '"--hunt", "--record"' in src, src[:400]
+
+
+def test_console_default_is_not_a_stale_demo_path() -> None:
+    """`out/b30/hunt.json` 早就没人产出了——裸跑永远是空态，哪怕 out/run/findings.json 就在那儿。"""
+    from veripen_cli import cmd_console
+
+    import inspect
+
+    src = inspect.getsource(cmd_console.main)
+    assert "pick_record" in src, "缺省应复用 desktop 的产物发现顺序"
+    assert "out\" / \"b30" not in src and '"out/b30' not in src
+
+
+def test_console_source_line_uses_a_non_clashing_name() -> None:
+    """`record` 这个变量名与审批回调重名：改前来源行永远显示"未找到产物，空态"（实测过）。"""
+    import inspect
+
+    from veripen_cli import cmd_console
+
+    src = inspect.getsource(cmd_console.main)
+    assert "record_path" in src, "变量名不许与审批回调 record 冲突"
