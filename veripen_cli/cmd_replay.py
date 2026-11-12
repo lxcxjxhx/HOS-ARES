@@ -198,9 +198,19 @@ def _manifest(target: Path) -> int:
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(prog="veripen replay")
     ap.add_argument("--capsule", help="capsule JSON 路径")
-    ap.add_argument("--out", default="out/replay", help="输出目录")
-    ap.add_argument("--mode", choices=["live", "dry", "offline"], default="live")
-    ap.add_argument("--selftest", action="store_true", help="只做篡改证明（不需要靶场）")
+    ap.add_argument("--out", default="out/replay", help="输出目录（写 replay.json）")
+    ap.add_argument(
+        "--mode", choices=["live", "dry", "offline"], default="live",
+        help=(
+            "live：真发包（需注入 RouteSet 与 transport，缺件即拒）；"
+            "offline：不解析路由、不发包，用证据里存的状态与 body 哈希重跑判定纯函数"
+            "（能说「判定能否由证据重算」，不能说「洞还在」）；"
+            "dry：只给「将要发什么」，**不注入 RouteSet**（路由门必然 UNRESOLVED，"
+            "那是设计使然而非「路由没了」）"
+        ),
+    )
+    ap.add_argument("--selftest", action="store_true",
+                    help="只做篡改证明（不需要靶场）；**需要 --capsule**，它篡改的是真证据")
     # 链校验（B293）：bench 一直在提示 `veripen evidence --verify-chain`，而那个子命令不存在。
     # 能力（verify_chain）早就在 core 里，缺的只是一个入口——放到 replay 下最自然。
     ap.add_argument("--chain", help="校验一整条证据链：给目录或通配符（如 out/x/capsules/r1）")

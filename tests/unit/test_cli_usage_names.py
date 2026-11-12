@@ -129,3 +129,22 @@ def test_readme_documents_the_long_running_codes() -> None:
 
     text = (Path(__file__).resolve().parents[2] / "README.md").read_text(encoding="utf-8")
     assert "长驻命令" in text and "Ctrl+C" in text, "退出码表没提长驻命令"
+
+
+# ── B348：replay 的三个模式要写在帮助里 ──────────────────────────
+def test_replay_help_documents_all_three_modes() -> None:
+    """`--mode` 以前没有任何 help 文本——最需要解释的选项反而是空的。"""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    proc = subprocess.run([sys.executable, "-m", "veripen_cli", "replay", "--help"],
+                          cwd=str(root), capture_output=True, text=True,
+                          encoding="utf-8", errors="replace", timeout=60)
+    # argparse 会按宽度折行（"**不注入" / " RouteSet**"），先压平空白再断言
+    text = " ".join(proc.stdout.split())
+    for word in "live offline dry".split():
+        assert word in text, f"帮助里缺模式名：{word}"
+    assert "不注入 RouteSet" in text, "dry 的边界要写进帮助"
+    assert "需要 --capsule" in text, "--selftest 的前提要写进帮助"
