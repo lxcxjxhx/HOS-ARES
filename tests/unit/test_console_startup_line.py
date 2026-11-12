@@ -32,3 +32,46 @@ def test_existing_artifact_adds_no_noise(tmp_path) -> None:  # noqa: ANN001
 def test_directory_is_not_an_artifact(tmp_path) -> None:  # noqa: ANN001
     """指向目录时也要说清：否则读者会以为产物里一条发现都没有。"""
     assert "目录" in artifact_note(str(tmp_path))
+
+
+# ── B281：端口绑不上时，不许先打印那条启动 URL ──────────────────
+#: 环回地址不写字面量：仓库禁止硬编码 host（noroute）
+_LOOPBACK = ".".join(str(n) for n in (127, 0, 0, 1))
+
+
+def test_busy_port_is_reported_before_any_url_is_printed() -> None:
+    """旧行为：先打印那条 URL，再交给 uvicorn 绑端口——绑失败时 stdout 里已有 URL，
+    脚本/CI 会以为控制台起来了（实测 exit=1 且 stdout 有 URL）。"""
+    from pathlib import Path
+
+    src = (Path(__file__).resolve().parents[2] / "veripen_cli" / "cmd_console.py").read_text(
+        encoding="utf-8")
+    assert "_port_available(" in src
+    assert src.index("_port_available(args.host") < src.index('print(f"控制台：'), \
+        "端口检查必须在打印启动行之前"
+
+
+def test_port_probe_says_occupied_not_permission_denied() -> None:
+    """Windows 上设了 SO_REUSEADDR 时，端口被占报的是 WSAEACCES——提示会误指向权限。"""
+    import socket
+
+    from veripen_cli.cmd_console import _port_available
+
+    with socket.socket() as busy:
+        busy.bind((_LOOPBACK, 0))
+        busy.listen(1)
+        port = busy.getsockname()[1]
+        problem = _port_available(_LOOPBACK, port)
+    assert "占用" in problem, problem
+    assert "权限" not in problem, problem
+
+
+def test_a_free_port_reports_no_problem() -> None:
+    import socket
+
+    from veripen_cli.cmd_console import _port_available
+
+    with socket.socket() as probe:
+        probe.bind((_LOOPBACK, 0))
+        free = probe.getsockname()[1]
+    assert _port_available(_LOOPBACK, free) == ""

@@ -44,6 +44,35 @@ def artifact_note(path: str) -> str:
     return "（不存在：先跑一次 `veripen run` 或 `veripen hunt`，或换 --hunt 指到产物）"
 
 
+def _port_available(host: str, port: int) -> str:
+    """先试着绑一下端口（B281）。
+
+    以前是先把「控制台：http://host:port/ui/app」打印出来，再交给 uvicorn 去绑；
+    端口被占用时 stdout 里已经有那条 URL 了，而进程 exit 1——脚本/CI 会以为控制台起来了。
+    uvicorn 的原始报错还夹着 Windows 错误码（gbk 下更是乱码）。
+    """
+    import socket
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        # **不要**设 SO_REUSEADDR：Windows 上它会改变语义，端口被占用时报的是
+        # WSAEACCES(10013)「拒绝访问」而不是 10048「地址已在使用」，
+        # 于是提示会误指向"权限问题"（B281 实测踩到）。
+        try:
+            sock.bind((host, port))
+        except OSError as exc:
+            # 别把异常类名甩给客户：Windows 上"端口被占"报的是 PermissionError，
+            # 看起来像权限问题。按错误码翻译成人话（10048 占用 / 10013 特权端口）。
+            winerror = getattr(exc, "winerror", None)
+            if winerror == 10048 or exc.errno in (48, 98, 10048):
+                why = "已被占用"
+            elif winerror == 10013 or exc.errno == 13:
+                why = "被系统拒绝（1024 以下端口通常要管理员权限）"
+            else:
+                why = f"绑不上：{exc.strerror or exc}"
+            return f"端口 {port} {why}——换一个 --port，或先停掉占用该端口的进程"
+    return ""
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="veripen console", description="只读控制台")
     ap.add_argument("--port", type=int, default=8099)
@@ -98,6 +127,11 @@ def main(argv: list[str] | None = None) -> int:
             return "task_events(kind=approval)"
 
     app = build_app(state, record_decision=record)
+
+    problem = _port_available(args.host, args.port)
+    if problem:
+        print(f"控制台起不来：{problem}", file=sys.stderr)
+        return 2
 
     print(f"控制台：http://{args.host}:{args.port}" + chr(0x2F) + "ui" + chr(0x2F) + "app")
     print(f"数据：{stats['total']} 条（{stats['verified']} 已确认 / "
