@@ -277,3 +277,41 @@ def test_dry_mode_explains_the_unresolved_route(tmp_path: Path, capsys) -> None:
     assert rc in (0, 1), rc
     if "ROUTE_UNRESOLVED" in out:
         assert "刻意给空" in out, out
+
+
+# ── B349：--chain 要按血缘排序，且篡改不抛 traceback ──────────────
+def _two_capsule_chain(tmp_path: Path) -> Path:
+    import capsule_fixture as F
+    from veripen_core.evidence import save_capsule, seal_capsule_doc
+
+    caps = tmp_path / "caps"
+    caps.mkdir()
+    prev = "0" * 64
+    for _ in range(2):
+        cap = seal_capsule_doc(F.capsule(), prev_sha256=prev)
+        save_capsule(cap, caps)
+        prev = cap.chain.self_sha256
+    return caps
+
+
+def test_chain_is_ordered_by_lineage_not_filename(tmp_path: Path) -> None:
+    """文件名字典序不是链序——直接排会把干净链判成断点（实测过）。"""
+    from veripen_cli.cmd_replay import main as replay_main
+
+    assert replay_main(["--chain", str(_two_capsule_chain(tmp_path))]) == 0
+
+
+def test_chain_reports_tampering_without_a_traceback(tmp_path: Path, capsys) -> None:  # noqa: ANN001
+    import json as _json
+
+    from veripen_cli.cmd_replay import main as replay_main
+
+    caps = _two_capsule_chain(tmp_path)
+    first = sorted(caps.glob("*.json"))[0]
+    doc = _json.loads(first.read_text(encoding="utf-8"))
+    doc["finding_id"] = "tampered"
+    first.write_text(_json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    rc = replay_main(["--chain", str(caps)])
+    err = capsys.readouterr().err
+    assert rc == 1
+    assert "TAMPERED" in err and "Traceback" not in err, err

@@ -111,7 +111,12 @@ def _chain(target: Path) -> int:
     """
     import glob
 
-    from veripen_core.evidence import assert_self_sha, verify_chain
+    from veripen_core.evidence import (
+        CapsuleTampered,
+        assert_self_sha,
+        order_chain,
+        verify_chain,
+    )
 
     if target.is_dir():
         files = sorted(target.glob("*.json"))
@@ -122,11 +127,18 @@ def _chain(target: Path) -> int:
 
     caps = []
     for path in files:
-        cap = load_capsule(path)
-        assert_self_sha(cap)          # 单份完整性先过，再谈链
+        try:
+            cap = load_capsule(path)
+            assert_self_sha(cap)      # 单份完整性先过，再谈链
+        except CapsuleTampered as exc:
+            # 别抛 traceback（B349）：这是"证据被改过"，不是程序坏了
+            print(f"TAMPERED：{path.name} 的内容与 self_sha256 不符（{exc}）", file=sys.stderr)
+            print("说明：这说明这份证据被改过；**不是**「漏洞结论变了」", file=sys.stderr)
+            return 1
         caps.append(cap)
 
-    report = verify_chain(caps)
+    # **按血缘排序**（B349）：文件名字典序不是链序，直接排会把干净链判成断点。
+    report = verify_chain(order_chain(caps))
     print(f"链：{len(caps)} 份 · 完整={report.ok} · 链头={report.head_sha256[:12] or '-'}")
     print(f"链头 prev：{report.genesis_prev_sha256[:12]}（合法链恒为全零）")
     if not report.ok:
@@ -213,9 +225,13 @@ def main(argv: list[str]) -> int:
                     help="只做篡改证明（不需要靶场）；**需要 --capsule**，它篡改的是真证据")
     # 链校验（B293）：bench 一直在提示 `veripen evidence --verify-chain`，而那个子命令不存在。
     # 能力（verify_chain）早就在 core 里，缺的只是一个入口——放到 replay 下最自然。
-    ap.add_argument("--chain", help="校验一整条证据链：给目录或通配符（如 out/x/capsules/r1）")
+    ap.add_argument("--chain", help=(
+        "校验一整条证据链：给目录或通配符（如 out/x/capsules/r1）。"
+        "证明的是「顺序未断、每份自哈希一致」；**不**证明结论正确（那要看重放）"))
     # 清单校验（B320）：三路交付都有 manifest，但以前只能手工 sha256sum。
-    ap.add_argument("--manifest", help="校验交付清单：给 manifest 文件或含它的目录")
+    ap.add_argument("--manifest", help=(
+        "校验交付清单：给 manifest 文件或含它的目录。"
+        "逐文件核 sha256 并先核清单自哈希；挡得住手误与半途编辑，**挡不住有意改**（那要签名）"))
     args = ap.parse_args(argv)
 
     if args.selftest:
