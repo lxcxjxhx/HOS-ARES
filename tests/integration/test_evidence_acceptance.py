@@ -332,3 +332,37 @@ def test_multiple_genesis_gets_a_specific_hint(tmp_path: Path, capsys) -> None: 
     err = capsys.readouterr().err
     assert rc == 1
     assert "2 个链头" in err and "不是「证据被改过」" in err, err
+
+
+# ── B351：内容寻址让"环"不可能存在；改名也不影响链序 ────────────
+def test_a_cycle_is_impossible_by_construction() -> None:
+    """self_sha256 含 prev_sha256，所以 A.prev=B.self 且 B.prev=A.self 无解（哈希不动点）。"""
+    import capsule_fixture as F
+    from veripen_core.evidence import seal_capsule_doc
+
+    a = seal_capsule_doc(F.capsule(item_id="41"), prev_sha256="0" * 64)
+    b = seal_capsule_doc(F.capsule(item_id="42"), prev_sha256=a.chain.self_sha256)
+    # 若把 a 的 prev 改成 b 的自哈希，a 的自哈希就会变——链断而不是成环
+    a2 = seal_capsule_doc(F.capsule(item_id="41"), prev_sha256=b.chain.self_sha256)
+    assert a2.chain.self_sha256 != a.chain.self_sha256
+    assert b.chain.prev_sha256 == a.chain.self_sha256
+
+
+def test_renaming_capsule_files_does_not_break_the_chain(tmp_path: Path) -> None:
+    """文件名只是存放方式；链序由 prev 决定（B349 的排序就是为了这个）。"""
+    import capsule_fixture as F
+    from veripen_cli.cmd_replay import main as replay_main
+    from veripen_core.evidence import save_capsule, seal_capsule_doc
+
+    caps = tmp_path / "c"
+    caps.mkdir()
+    prev = "0" * 64
+    for i, item in enumerate(("41", "42")):
+        cap = seal_capsule_doc(F.capsule(item_id=item), prev_sha256=prev)
+        save_capsule(cap, caps)
+        prev = cap.chain.self_sha256
+    # 把文件名改成与链序相反
+    files = sorted(caps.glob("*.json"))
+    for i, f in enumerate(reversed(files)):
+        f.rename(caps / f"zz{i}.json")
+    assert replay_main(["--chain", str(caps)]) == 0
