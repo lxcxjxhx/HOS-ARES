@@ -164,3 +164,30 @@ def test_task_count_matches_the_doc() -> None:
     m = re.search(r"（`python scripts/tasks\.py --list` 看全部 (\d+) 条）", doc)
     assert m, "quickref 里那句计数说明没了"
     assert int(m.group(1)) == count, f"文档说 {m.group(1)} 条，实际 {count} 条"
+
+
+# ── B325：tasks.py 透传参数时不许把默认值也留着 ──────────────────
+def test_drop_overridden_removes_the_default_pair() -> None:
+    """改前会拼成 `--manifest out/run --manifest out/vr/run`：能跑，但打印出来像在跑两个目录。"""
+    import importlib.util
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    spec = importlib.util.spec_from_file_location("tasks_mod", root / "scripts" / "tasks.py")
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    argv = "-m veripen_cli replay --manifest out/run".split()
+    assert mod.drop_overridden(argv, ["--manifest", "out/vr/run"]) == [
+        "-m", "veripen_cli", "replay"]
+    assert mod.drop_overridden(argv, []) == argv
+    assert mod.drop_overridden(argv, ["--verbose"]) == argv, "不同名的不许动"
+
+
+def test_tasks_passes_extra_args_through() -> None:
+    from pathlib import Path
+
+    src = (Path(__file__).resolve().parents[2] / "scripts" / "tasks.py").read_text(encoding="utf-8")
+    assert "drop_overridden(argv, rest)" in src
+    assert "*rest]" in src
