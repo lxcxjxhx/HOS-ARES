@@ -549,6 +549,14 @@ exe:
 exe-check: exe
 	$(PY) scripts/check_exe.py
 
+# 安装包（B289）：CI 用 Inno Setup 打，本地同一条命令能复现。
+# 只在本地编译，不执行安装——装到系统里是要人点头的动作。
+ISCC ?= C:/Program Files (x86)/Inno Setup 6/ISCC.exe
+
+installer: exe
+	$(PY) -c "import pathlib, shutil; pathlib.Path('dist').mkdir(exist_ok=True); shutil.copy2('out/dist/HOS-ARES.exe', 'dist/HOS-ARES.exe')"
+	"$(ISCC)" /DMyAppVersion=0.0.0-dev packaging/HOS-ARES.iss
+
 # B59：平台可证 + 三对标可证
 platform-check: playbook-check blackboard-conflict context-compress report-audit
 

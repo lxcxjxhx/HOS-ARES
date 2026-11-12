@@ -83,3 +83,36 @@ def test_exe_check_script_targets_the_real_artifact() -> None:
         encoding="utf-8")
     assert '"dist" / "HOS-ARES.exe"' in src
     assert "parents[1]" in src, "根目录推错一层会找不到产物"
+
+
+# ── B289：安装包也要能在本地打 ──────────────────────────────────
+def test_installer_target_exists_and_never_installs() -> None:
+    """只编译、不安装：装到系统里是要人点头的动作，make 目标不该替他做。"""
+    from pathlib import Path
+
+    mk = (Path(__file__).resolve().parents[2] / "Makefile").read_text(encoding="utf-8")
+    assert "\ninstaller: exe" in mk, "安装包必须依赖打包"
+    assert "packaging/HOS-ARES.iss" in mk
+    assert "ISCC ?=" in mk, "ISCC 路径要可覆盖（不同机器装的位置不同）"
+    assert "VERYSILENT" not in mk, "不许在 make 里静默安装"
+
+
+def test_iss_sources_all_exist() -> None:
+    """`.iss` 里引用的文件必须真的在仓库里——改个文件名就能让安装包编译失败。"""
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    iss = (root / "packaging" / "HOS-ARES.iss").read_text(encoding="utf-8")
+    raw = re.findall(r'^Source: "\{#RepoRoot\}([^"]+)"', iss, re.MULTILINE)
+    assert raw, iss[:200]
+    missing = []
+    for item in raw:
+        rel = item.replace(chr(92), chr(0x2F)).lstrip(chr(0x2F))
+        if rel.startswith("dist"):
+            continue          # 构建产物：本地没跑过 make exe 时不存在
+        if "{" in rel:        # 还带 {#Define} 的，交给 ISCC 自己解析
+            continue
+        if not (root / rel).exists():
+            missing.append(rel)
+    assert not missing, f"安装包引用了不存在的文件：{missing}"
