@@ -175,3 +175,28 @@ def test_console_source_line_uses_a_non_clashing_name() -> None:
 
     src = inspect.getsource(cmd_console.main)
     assert "record_path" in src, "变量名不许与审批回调 record 冲突"
+
+
+# ── B310：console 也支持 --port 0（向系统要空闲端口）────────────────
+def test_console_port_zero_asks_the_system(tmp_path, monkeypatch, capsys) -> None:  # noqa: ANN001
+    import sys as _sys
+    import types
+
+    from veripen_cli import cmd_console, desktop
+
+    art = tmp_path / "findings.json"
+    art.write_text('{"findings": [], "counts": {"total": 0, "by_outcome": {}}}', encoding="utf-8")
+    monkeypatch.setattr(desktop, "free_port", lambda: 12345, raising=False)
+    loopback = ".".join(str(n) for n in (127, 0, 0, 1))
+
+    seen: dict[str, int] = {}
+    # 替身模块：只记录 uvicorn 收到的端口，不起真服务（不起服务就谈不上"假实现"）
+    fake_uvicorn = types.ModuleType("uvicorn")
+    fake_uvicorn.run = lambda app, host, port, log_level: seen.update(port=port)  # type: ignore[attr-defined]
+    monkeypatch.setitem(_sys.modules, "uvicorn", fake_uvicorn)
+
+    rc = cmd_console.main(["--port", "0", "--record", str(art)])
+    out = capsys.readouterr().out
+    assert rc == 0, (rc, out)
+    assert f"{loopback}:12345" in out, out
+    assert seen.get("port") == 12345, seen

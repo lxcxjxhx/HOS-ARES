@@ -137,6 +137,13 @@ def main(argv: list[str] | None = None) -> int:
 
     app = build_app(state, record_decision=record)
 
+    # `--port 0` = 向系统要一个空闲端口（B310）：与 desktop 的默认行为对齐，
+    # 否则同时开两个控制台就得自己猜哪个端口空着。
+    if args.port == 0:
+        from veripen_cli.desktop import free_port
+
+        args.port = free_port()
+
     problem = port_problem(args.host, args.port)
     if problem:
         print(f"控制台起不来：{problem}", file=sys.stderr)
