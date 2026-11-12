@@ -439,13 +439,14 @@ function renderAudit(data) {
 
 function renderBounds(data) {
   const wrap = el("div");
-  if (data.alert === "red") {
-    wrap.append(el("div", { class: "alert-red" }, `越界事件 ${data.count} 次 —— 这是事故，不是统计`));
-  } else {
-    wrap.append(el("p", { class: "muted" }, "越界事件：0（正常）"));
-  }
-  if (data.events && data.events.length) {
-    wrap.append(el("pre", {}, JSON.stringify(data.events, null, 2)));
+  wrap.append(data.alert === "red"
+    ? el("div", { class: "alert-red" }, `越界事件 ${data.count} 次 —— 这是事故，不是统计`)
+    : el("p", { class: "muted" }, "越界事件：0（正常）"));
+  if (data.events && data.events.length) wrap.append(el("pre", {}, JSON.stringify(data.events, null, 2)));
+  // 被边界挡下（B331）：不是事故，但得看得到，否则"0 事件"会被读成"边界没起作用"
+  if (data.blocked_count) {
+    wrap.append(el("p", {}, data.note || ""));
+    wrap.append(el("ul", {}, ...(data.blocked || []).map((b) => el("li", {}, `${b.oracle} · ${b.asset} · ${b.reason_text || b.reason}`))));
   }
   return wrap;
 }

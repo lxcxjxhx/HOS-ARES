@@ -378,3 +378,24 @@ def test_console_maps_approval_states_to_chinese() -> None:
                         ("rejected", "已驳回"), ("expired", "已过期")):
         assert f'{code}: "{label}"' in html, (code, label)
     assert "decisionText(" in html
+
+
+# ── B331：边界页要显示"被挡下"，不只是"越界事故" ─────────────────
+def test_bounds_view_reports_blocked_entries() -> None:
+    """run 的产物没有 guard 事件流，边界页只看 state.bounds 会显示 0——
+    而报告里明明写着 peer_in_deny。"""
+    from web.console import bounds_view
+
+    view = bounds_view([], blocked=[{"oracle": "sqli_bool_diff", "asset": "a",
+                                     "reason": "peer_in_deny"}])
+    assert view["count"] == 0 and view["alert"] is None
+    assert view["blocked_count"] == 1
+    assert "peer_in_deny" in view["blocked"][0]["reason_text"] or view["blocked"][0]["reason_text"]
+    assert "不是越界事故" in view["note"]
+
+
+def test_bounds_view_stays_empty_without_blocks() -> None:
+    from web.console import bounds_view
+
+    view = bounds_view([])
+    assert "blocked" not in view and "note" not in view

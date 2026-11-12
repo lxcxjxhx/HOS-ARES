@@ -275,15 +275,35 @@ def routes_view(bindings: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     }
 
 
-def bounds_view(events: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    """越界页：正常应为空；非空时页头标红（22 §2）。"""
-    return {
+#: 这些原因码代表"被边界挡下"（不是越界事故，是边界生效）
+BOUNDARY_CODES = "peer_in_deny peer_not_in_scope".split()
+
+
+def bounds_view(
+    events: Sequence[Mapping[str, Any]],
+    *,
+    blocked: Sequence[Mapping[str, Any]] = (),
+) -> dict[str, Any]:
+    """越界页：正常应为空；非空时页头标红（22 §2）。
+
+    `blocked` 是**被边界挡下**的条目（B331）：它们不是越界事故（请求没出去），
+    但边界页如果只显示"0 events"，读者会以为边界没起作用——而报告里明明写着 peer_in_deny。
+    """
+    view: dict[str, Any] = {
         "count": len(events),
         "alert": "red" if events else None,
         # 越界页是 P0 事故页：码要留，但旁边要有一句人话（B264）
         "events": [{**dict(e), "reason_text": explain(str(e.get("reason") or ""))}
                    for e in events],
     }
+    if blocked:
+        view["blocked"] = [
+            {**dict(b), "reason_text": explain(str(b.get("reason") or ""))} for b in blocked
+        ]
+        view["blocked_count"] = len(blocked)
+        view["note"] = ("下面这些是**被边界挡下**的（请求没发出去）："
+                        "它们是边界在起作用，不是越界事故")
+    return view
 
 
 def unverified_view(rows: Sequence[Row], *, asset: str = "") -> dict[str, Any]:
@@ -534,7 +554,15 @@ def build_app(
                         "本轮产物只记了绑定条数，没有逐条明细；重跑一次 `veripen hunt` 即可带上"
                         if total else "")}
         if op == "ui.bounds":
-            return bounds_view(state.bounds)
+            # 从 findings 里挑出被边界挡下的条目（B331）：run 的产物没有 guard 事件流，
+            # 但原因码在，边界页读得到才说得上"边界可证"。
+            # 名字不能叫 `blocked`：overview 分支里那个是 int（数量），同名会被 mypy 抓
+            blocked_rows = [
+                {"oracle": r.oracle_id, "asset": r.asset_id, "reason": r.reason_code}
+                for r in state.findings
+                if str(getattr(r, "reason_code", "")) in BOUNDARY_CODES
+            ]
+            return bounds_view(state.bounds, blocked=blocked_rows)
         if op == "ui.unverified":
             return unverified_view(
                 [r for r in state.findings if r.outcome != "reported"],
