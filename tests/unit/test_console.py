@@ -399,3 +399,41 @@ def test_bounds_view_stays_empty_without_blocks() -> None:
 
     view = bounds_view([])
     assert "blocked" not in view and "note" not in view
+
+
+# ── B332：越界事件要落盘并被控制台读到 ──────────────────────────
+def test_loader_reads_bounds_json(tmp_path) -> None:  # noqa: ANN001
+    """`ScopeGuard.events` 以前只活在内存里，进程一退就没了，边界页永远读到 0。"""
+    import json as _json
+
+    from web.loader import load_file
+
+    (tmp_path / "findings.json").write_text(
+        _json.dumps({"findings": [], "counts": {"total": 0}}), encoding="utf-8")
+    (tmp_path / "bounds.json").write_text(_json.dumps({
+        "count": 1,
+        "events": [{"kind": "scope", "ok": False,
+                    "detail": {"VIOLATION": "peer_in_deny", "ip": "x", "asset": "a"}}],
+    }), encoding="utf-8")
+    state = load_file(tmp_path / "findings.json")
+    assert len(state.bounds) == 1, state.bounds
+
+
+def test_loader_without_bounds_file_stays_empty(tmp_path) -> None:  # noqa: ANN001
+    import json as _json
+
+    from web.loader import load_file
+
+    (tmp_path / "findings.json").write_text(
+        _json.dumps({"findings": [], "counts": {"total": 0}}), encoding="utf-8")
+    assert load_file(tmp_path / "findings.json").bounds == ()
+
+
+def test_oracle_transport_records_violations() -> None:
+    """`live.py` 以前直接调模块函数，绕过了 `_record`——事件丢了。"""
+    import inspect
+
+    from veripen_oracles import live
+
+    src = inspect.getsource(live)
+    assert "ctx.scope.post_connect(" in src, src[:200]

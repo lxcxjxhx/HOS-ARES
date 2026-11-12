@@ -775,6 +775,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"结论：VERIFIED {verified} / 共 {len(views)} 项")
 
     cov_path = write_coverage(out, coverage)
+    # 越界事件落盘（B332）：以前只活在 ScopeGuard.events 里，进程一退就没了，
+    # 控制台的"边界页"因此永远读到 0。
+    violations = guard.scope.violations()
+    (out / "bounds.json").write_text(
+        json.dumps({"count": len(violations), "events": violations}, ensure_ascii=False, indent=2),
+        encoding="utf-8", newline=chr(10))
     cov_summary = coverage["summary"]
     print(
         f"覆盖：{cov_summary['faces_covered']}/{cov_summary['faces']} 面"

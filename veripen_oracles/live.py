@@ -22,7 +22,6 @@ from typing import Callable, Mapping
 
 from .common.harness import Trace
 
-from veripen_core.guard.scope import check_post_connect
 from veripen_core.routes.types import RouteBinding
 from veripen_core.tools import http as http_tool
 from urllib.parse import quote
@@ -117,12 +116,9 @@ class CoreTransport:
             )
 
         def _post_connect(peer_ip: str) -> None:
-            check_post_connect(
-                peer_ip=peer_ip,
-                asset=ctx.scope.asset,
-                deny_nets=getattr(ctx.scope, "deny_nets", ()),
-                explicit_ips=(r.host,),
-            )
+            # 走 `scope.post_connect`（B332）：只有走方法才会 `_record`，
+            # 否则越界事件只活在异常里，控制台的"边界页"永远读不到。
+            ctx.scope.post_connect(peer_ip, explicit_ips=(r.host,))
 
         hdrs: dict[str, str] = {"User-Agent": USER_AGENT}
         if self.token_for is not None:

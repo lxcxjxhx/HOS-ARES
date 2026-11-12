@@ -452,6 +452,17 @@ def load_file(path: str | Path) -> ConsoleState:
     report = load_report(p.parent)
     if report:
         state.report = report
+    # 越界事件（B332）：run 会写 `bounds.json`；老产物没有这个文件 → 保持空，
+    # 页面按"没有事件流"如实说，而不是假装查过。
+    bounds_file = p.parent / "bounds.json"
+    if bounds_file.is_file():
+        try:
+            got = json.loads(bounds_file.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            got = {}
+        events = got.get("events") if isinstance(got, Mapping) else None
+        if isinstance(events, list):
+            state.bounds = tuple(e for e in events if isinstance(e, Mapping))
     # 路由逐条摘要（B213）：以前产物只记条数，`ui.routes` 永远是空表。
     # 老产物没有这个字段 → 保持空，页面按"只有条数"如实说。
     detail = record.get("bindings_detail")
