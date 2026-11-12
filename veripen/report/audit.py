@@ -142,6 +142,11 @@ def render_audit_section(audit: AuditInput) -> str:
         _table(("预算", "已用", "上限"), budget_rows),
         "",
         "### 拒绝账",
+        # 表名沿用 H03 的口径（"被 guard 拦下的动作 + 原因码"），但实现里这里装的是
+        # **审批事件的两端**：请求=被拦下待批，决定=放行或拒绝（B298）。
+        # 不加这行说明，读者看到 state=APPROVED 会以为表格放错了。
+        "含审批两端：`phase=request`（被 guard 拦下、待批）与 `phase=decision`"
+        "（放行或拒绝，结论看 `state`）。",
         _table(("seq", "动作", "原因", "详情"), denied_rows),
         "",
         "### 冲突账",

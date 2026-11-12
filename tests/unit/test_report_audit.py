@@ -154,3 +154,16 @@ def test_non_mapping_detail_still_renders() -> None:
 
     assert _detail_text("timeout") == "timeout"
     assert _detail_text({}) == "-"
+
+
+# ── B298：拒绝账里装着审批两端，要说清楚 ────────────────────────
+def test_denial_ledger_explains_that_it_holds_both_approval_phases() -> None:
+    """表名沿用 H03 的口径，但实现里装的是审批的 request 与 decision 两端；
+    不加说明，读者看到 state=APPROVED 会以为表格放错了。"""
+    from veripen.report.audit import AuditInput, render_audit_section
+
+    text = render_audit_section(AuditInput(task_id="t", events=[
+        {"seq": 1, "kind": "approval", "ok": False, "detail": {"phase": "request", "state": "PENDING"}},
+        {"seq": 2, "kind": "approval", "ok": True, "detail": {"phase": "decision", "state": "APPROVED"}},
+    ]))
+    assert "phase=request" in text and "放行或拒绝" in text, text
