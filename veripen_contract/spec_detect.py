@@ -50,7 +50,10 @@ def load_spec(text: str) -> dict[str, Any]:
         try:
             data = yaml.safe_load(text)
         except yaml.YAMLError as exc:
-            raise SpecFormatError(f"既不是 JSON 也不是 YAML：{exc}") from exc
+            # 只留第一行（B342）：PyYAML 的完整错误带行号图与多个 caret 行，
+            # 整段倒进终端会把"哪一行错了"淹掉。
+            first = str(exc).strip().splitlines()[0] if str(exc).strip() else "解析失败"
+            raise SpecFormatError(f"既不是 JSON 也不是 YAML：{first}") from exc
     if not isinstance(data, dict):
         raise SpecFormatError("契约根不是对象")
     return data

@@ -349,11 +349,14 @@ def _resolve_ips(host: str) -> frozenset[str]:
 
 
 def _host_of(target: str) -> str:
+    # 参数不合法属"输入有问题"（退出码 2），不是"跑完了"（1）——B342
     parts = urlsplit(target)
     if not parts.hostname:
-        raise SystemExit(f"--target 没有主机名：{target}")
+        print(f"--target 没有主机名：{target}", file=sys.stderr)
+        raise SystemExit(2)
     if parts.scheme.lower() not in ("http", "https"):
-        raise SystemExit(f"--target 只接受 http/https：{target}")
+        print(f"--target 只接受 http/https：{target}", file=sys.stderr)
+        raise SystemExit(2)
     return parts.hostname.lower()
 
 

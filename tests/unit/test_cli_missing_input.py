@@ -149,3 +149,29 @@ def test_discover_does_not_call_an_unreachable_target_a_success(capsys) -> None:
     assert "抓取成功" not in out, f"目标整台不可达却写着抓取成功：{out[:400]}"
     assert "拿到响应 0 页" in out, out[:400]
     assert code != 0, "一条面都没攒到就不该是 0"
+
+
+# ── B342：参数不合法的退出码是 2，不是 1 ────────────────────────
+def test_bad_target_exits_two(capsys) -> None:  # noqa: ANN001
+    """`--target not-a-url` 以前 exit=1（读起来像"跑完了"），应属"输入有问题"= 2。"""
+    import pytest
+
+    from veripen_cli.cmd_run import main as run_main
+
+    with pytest.raises(SystemExit) as exc:
+        run_main("--target not-a-url --openapi x.json --out out/x".split())
+    assert exc.value.code == 2
+    assert "没有主机名" in capsys.readouterr().err
+
+
+def test_broken_spec_message_is_one_line() -> None:
+    """PyYAML 的完整错误带 caret 图，整段倒出来会把"哪一行错了"淹掉。"""
+    from veripen_contract.spec_detect import SpecFormatError, load_spec
+
+    try:
+        load_spec("{ not json")
+    except SpecFormatError as exc:
+        assert len(str(exc).splitlines()) == 1, str(exc)
+        assert "既不是 JSON 也不是 YAML" in str(exc)
+    else:                                     # pragma: no cover
+        raise AssertionError("坏契约应当报错")
