@@ -145,3 +145,15 @@ def test_nav_buttons_use_human_labels() -> None:
     assert "OP_LABEL[op]" in index, "按钮文字要走标签表"
     for label in ("总览", "边界", "审批"):
         assert label in router, f"缺标签：{label}"
+
+
+# ── B360：报错里也不许出现内部 op 名 ────────────────────────────
+def test_error_view_uses_the_human_label() -> None:
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    index = (root / "web" / "static" / "index.html").read_text(encoding="utf-8")
+    start = index.index("function renderError")
+    block = index[start:start + 400]
+    assert "OP_LABEL" in block, "报错文案要走标签表，别直接印 op 名"
+    assert "接口不可用" in block

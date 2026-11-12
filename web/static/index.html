@@ -518,7 +518,7 @@ function renderFinding(d) {
 
 function renderError(op, status) {
   return el("div", { class: "state-error", role: "alert" },
-    el("p", {}, `接口不可用：${op} 返回 ${status}`),
+    el("p", {}, `接口不可用：${OP_LABEL[String(op).replace(/^ui\./, "")] || op} 返回 ${status}`),  // 人话页面名（B360）
     el("p", { class: "muted" }, "这是环境或契约问题，不是「没有发现」。"),
     el("p", {}, el("a", { href: "#/overview" }, "回到概览")));
 }
