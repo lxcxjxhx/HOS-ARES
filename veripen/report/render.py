@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 
-from .glossary import explain
+from .glossary import exclusion_line, explain
 
 import hashlib
 import json
@@ -556,11 +556,8 @@ def render_markdown(report: ReportInput) -> str:
     w("> 禁止把 `error` / `not_run` 写进「未发现」或「安全」的表述附近。")
     w("")
     if report.excluded:
-        # 排除要留痕（B327）：报告只写"适用 2 对"，读者不知道原本有 3 类——
-        # 操作员主动缩小范围这件事，必须写在交付物里，而不是只活在命令行历史里。
-        names = "、".join(f"`{x}`" for x in report.excluded)
-        w(f"> 本次按 `--exclude` 排除 {len(report.excluded)} 类 oracle：{names}。"
-          "它们**不算缺口**（是操作员的选择），但审计要看得到。")
+        # 排除要留痕（B327）；措辞与 hunt 共用一份（B330）
+        w("> " + exclusion_line(report.excluded, why="操作员按 `--exclude` 指定") + "。")
         w("")
 
     reported = [f for f in report.findings if f.outcome is Outcome.REPORTED]

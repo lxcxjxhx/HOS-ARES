@@ -116,7 +116,8 @@ def test_report_states_what_was_excluded() -> None:
         excluded=["sqli_bool_diff"],
     )
     md = render_markdown(report)
-    assert "本次按 `--exclude` 排除 1 类 oracle" in md, md[-400:]
+    # 措辞与 hunt 共用一份（B330）
+    assert "已排除 1 类 oracle" in md, md[-400:]
     assert "`sqli_bool_diff`" in md
     assert "不算缺口" in md
 
@@ -128,3 +129,29 @@ def test_no_exclusion_means_no_line() -> None:
         engagement="E", profile_hash="h", image_digest="d", root_sha256="a" * 64,
         routeset_sha256=["b"], resolver_version="1", render_time="t", distribution="internal"))
     assert "--exclude" not in md
+
+
+# ── B330：三路的"排除"措辞共用一份 ──────────────────────────────
+def test_exclusion_line_is_shared_by_run_and_hunt() -> None:
+    from veripen.report.glossary import exclusion_line
+
+    line = exclusion_line(["a", "b"], why="操作员按 `--exclude` 指定")
+    assert line.startswith("已排除 2 类 oracle：`a`、`b`")
+    assert "不算缺口" in line
+    assert exclusion_line([], why="x") == "", "没排除就别返回半句"
+
+
+def test_both_renderers_use_the_same_wording() -> None:
+    from veripen.report.hunt import render_hunt_markdown
+    from veripen.report.render import ReportInput, render_markdown
+
+    md = render_markdown(ReportInput(
+        engagement="E", profile_hash="h", image_digest="d", root_sha256="a" * 64,
+        routeset_sha256=["b"], resolver_version="1", render_time="t", distribution="internal",
+        excluded=["x"]))
+    hunt = render_hunt_markdown(
+        {"target_host": "a", "source": "contract", "decision": "converged", "reason": "d",
+         "oracles": [], "excluded": ["x"], "faces_run": []},
+        capsules_dir="capsules", generated_at="t")
+    assert "已排除 1 类 oracle：`x`" in md
+    assert "已排除 1 类 oracle：`x`" in hunt

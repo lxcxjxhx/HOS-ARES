@@ -69,11 +69,10 @@ def render_hunt_markdown(
     ]
     excluded = list(record.get("excluded") or [])
     if excluded:
-        # 排除是操作员的选择，**不算缺口**，但必须写在交付物里（B329）
-        lines.append(
-            f"- 已排除 {len(excluded)} 类 oracle："
-            + "、".join(f"`{x}`" for x in excluded)
-            + "（写类/压力类，默认不动；不算缺口）")
+        # 排除是操作员的选择，**不算缺口**，但必须写在交付物里（B329/B330 共用一份措辞）
+        from .glossary import exclusion_line
+
+        lines.append("- " + exclusion_line(excluded, why="写类/压力类，默认不动"))
     lines += [
         "",
         "## 1. 结论",

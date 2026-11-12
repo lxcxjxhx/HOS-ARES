@@ -11,6 +11,8 @@
 
 from __future__ import annotations
 
+from typing import Sequence
+
 
 GLOSS: dict[str, str] = {
     # ── 缺输入/对照 ────────────────────────────────────────────
@@ -89,3 +91,15 @@ def explain_with_code(code: str) -> str:
 
 
 __all__ = ["GLOSS", "explain", "explain_with_code"]
+
+def exclusion_line(names: Sequence[str], *, why: str) -> str:
+    """`已排除 N 类 oracle：…（why；不算缺口，但审计要看得到）`（B330）。
+
+    三路交付各自写过这句话，措辞还不一样（run「按 --exclude 排除」、hunt「已排除」）。
+    同一件事就一份措辞，改一处三处一起变。
+    """
+    if not names:
+        return ""
+    listed = "、".join(f"`{x}`" for x in names)
+    return (f"已排除 {len(names)} 类 oracle：{listed}"
+            f"（{why}；不算缺口，但审计要看得到）")
