@@ -268,8 +268,10 @@ def step3_evidence(runtime: DemoRuntime, out: Path) -> list:  # noqa: ANN201
     chained = chain_capsules(caps)
     paths = [save_capsule(c, out / "capsules") for c in chained]
     report = verify_chain(chained)
+    # B240：以前这里打的是链头的 prev（合法链恒为全零），观众看到的是 12 个 0。
+    # 链的身份是**链头自哈希**；顺带把链尾也露出来（链尾缺口只能靠它看）。
     _say("1:30", f"证据：{len(chained)} 个 capsule，链完整={report.ok}，"
-                 f"root={report.root_sha256[:12]}")
+                 f"head={report.head_sha256[:12]} · tip={report.tip_sha256[:12]}")
     return list(zip(chained, paths))
 
 
@@ -343,7 +345,7 @@ def step4_report(profile, sealed, out: Path, *, ledger=None, store=None) -> Path
     (out / "report.sarif").write_text(json.dumps(sarif, ensure_ascii=False, indent=2), encoding="utf-8")
     (out / "report.json").write_text(json.dumps(js, ensure_ascii=False, indent=2), encoding="utf-8")
     (out / "report.manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-    _say("1:30", f"报告三视图：{len(findings)} 条，零地址命中={len(hits)}，"
+    _say("1:40", f"报告三视图：{len(findings)} 条，零地址命中={len(hits)}，"
                  f"manifest={manifest['report_sha256'][:12]}")
     return out / "report.md"
 
@@ -451,7 +453,7 @@ def step2b_leads(sealed, store) -> object:  # noqa: ANN001
         store.conn.commit()
         to_dead_letter(store, tid, error_class="retryable", error_code="VP-7004")
 
-    _say("1:10", f"线索账本：{len(sealed)} 条全部闭环；"
+    _say("1:35", f"线索账本：{len(sealed)} 条全部闭环；"
                  f"死信 {1 if blocked else 0} 条（单列，演示重试耗尽路径）")
     return ledger
 

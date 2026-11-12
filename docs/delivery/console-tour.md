@@ -1,6 +1,6 @@
 # 控制台巡检录屏（B65）
 
-一条命令产出**能看的界面**：10 个只读页、真数据、真 Chromium 渲染。
+一条命令产出**能看的界面**：11 个只读页、真数据、真浏览器渲染（B269 更新：新增了 `report` 页，数字与时长按实测改过）。
 
 ```bash
 python scripts/demo/record_console.py
@@ -10,8 +10,8 @@ python scripts/demo/record_console.py
 
 | 文件 | 用途 |
 |---|---|
-| `console-tour.mp4` | 1280×720 / 27.4s / H.264，每页停留 2.5s |
-| `pages/NN-<op>.png` | 10 张逐页截图，可直接贴进报告 |
+| `console-tour.mp4` | 1280×720 / 30.0s / H.264，每页停留 2.5s |
+| `pages/NN-<op>.png` | 11 张逐页截图，可直接贴进报告 |
 | `manifest.json` | 页序列、关键数值、视频规格 —— **机器可判的那份** |
 
 ## 为什么是三件套
@@ -59,9 +59,9 @@ python scripts/demo/record_console.py
 | # | 判据 | 怎么验 |
 |---|---|---|
 | A | 视频 ≥25s、1280×720、H.264 | `validate_manifest` + `ffprobe` |
-| B | 10 页按 `OPS` 顺序各出现一次 | manifest 的 `page_order` |
+| B | 11 页按 `OPS` 顺序各出现一次 | manifest 的 `page_order` |
 | C | findings / events / approvals 三项都 > 0 | manifest 的 `counts` |
-| D | 两次运行页序列与 counts 逐字相同 | 手动跑两次比对（**不要求视频字节相同**，编码器非确定） |
+| D | 两次运行页序列与 counts 逐字相同 | 自动：脚本读上一轮 manifest 比对，写进 `repeatable` 字段（B269；**不要求视频字节相同**，编码器非确定） |
 | E | 全程只连 `127.0.0.1` | 端口从 18080 顺序取，不解析外部域名 |
 
 实测（2026-11-05）：

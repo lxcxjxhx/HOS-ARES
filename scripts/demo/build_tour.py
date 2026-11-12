@@ -1,6 +1,6 @@
 """B70 · 成片与一键演示（`H15 B70`）。
 
-把两段素材（B65 控制台 10 页、B69 三幕终端）与章节卡合成一支成片。
+把两段素材（B65 控制台 11 页、B69 五幕终端）与章节卡合成一支成片。
 
 **不重编码素材的假设是错的**：卡片 PNG 与 mp4 流参数不一致时直接进 concat
 会在接缝处花屏。所以卡片先各自转成同参数（1280×720/30fps/yuv420p）的 mp4，
@@ -40,11 +40,12 @@ SEGMENTS: list[dict[str, Any]] = [
      "bullets": ["判定要硬（VeriPen）", "执行要能打（strix）",
                  "工作台要能写能跑（codex）", "平台要能指挥能复盘（驭智）"]},
     {"kind": "card", "id": "ch-console", "duration": 1.5,
-     "title": "01 · 控制台", "sub": "10 个只读页",
+     "title": "01 · 控制台", "sub": "",          # sub 由 _counts() 填，别手写数字
      "bullets": ["未验证不冒充高危", "审批是唯一写入点", "审计页接事件表"]},
     {"kind": "video", "id": "console", "path": OUT / "console-tour.mp4"},
     {"kind": "card", "id": "ch-terminal", "duration": 1.5,
-     "title": "02 · 三幕终端", "sub": "run / agent / platform",
+     "title": "02 · 终端", "sub": "",            # 幕数同样由 _counts() 填
+
      "bullets": ["run：给目标，跑完给交付物", "agent：一条指令一次动作，可恢复",
                  "platform：多资产 + 审批阻断 + 审计节"]},
     {"kind": "video", "id": "terminal", "path": OUT / "terminal" / "terminal-tour.mp4"},
@@ -53,6 +54,33 @@ SEGMENTS: list[dict[str, Any]] = [
      "bullets": ["make demo", "证据：out/demo/（视频 · 帧 · manifest）",
                  "账本：.veripen/batches.jsonl"]},
 ]
+
+
+_CN = "零一二三四五六七八九十"
+
+
+def _cn(n: int) -> str:
+    return _CN[n] if 0 <= n <= 10 else str(n)
+
+
+def _counts() -> tuple[int | None, int | None]:
+    """从两段素材的 manifest 里读**实际**页数与幕数（B271）。
+
+    章节卡的页数/幕数以前是手写常量：素材长到 11 页、五幕之后，片上还烧着
+    `10 个只读页` / `三幕终端`——文档能改，画面里的字不会自己改。
+    现在改成读 manifest；读不到就给 None，卡片退回不写数字的说法。
+    """
+    import json
+
+    def _load(path: Path) -> dict[str, Any]:
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+
+    pages = _load(OUT / "manifest.json").get("page_order") or []
+    scenes = _load(OUT / "terminal" / "manifest.json").get("scenes") or []
+    return (len(pages) or None, len(scenes) or None)
 
 
 def _esc(s: str) -> str:
@@ -85,13 +113,32 @@ li::before {{ content:"›"; position:absolute; left:0; color:{ACCENT}; }}
 </div></body></html>"""
 
 
+def _launch(pw):  # noqa: ANN001, ANN201
+    """起浏览器：先 playwright 自带 chromium，再退到系统 Edge / Chrome（B270）。
+
+    第三个录屏脚本，第三个写死点（B267 终端、B269 控制台、这里）——同一行代码
+    在三处各写了一遍，就三处一起坏。
+    """
+    errors = []
+    try:
+        return pw.chromium.launch()
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"chromium: {type(exc).__name__}")
+    for channel in ("msedge", "chrome"):
+        try:
+            return pw.chromium.launch(channel=channel)
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"{channel}: {type(exc).__name__}")
+    raise RuntimeError("起不了浏览器：" + "；".join(errors))
+
+
 def _render_cards(cards_dir: Path) -> dict[str, Path]:
     from playwright.sync_api import sync_playwright
 
     cards_dir.mkdir(parents=True, exist_ok=True)
     out: dict[str, Path] = {}
     with sync_playwright() as pw:
-        browser = pw.chromium.launch()
+        browser = _launch(pw)
         page = browser.new_context(viewport={"width": W, "height": H}).new_page()
         for seg in SEGMENTS:
             if seg["kind"] != "card":
@@ -167,15 +214,54 @@ def validate_manifest(m: dict[str, Any]) -> list[str]:
     return problems
 
 
+def staleness() -> list[str]:
+    """成片比素材旧的地方（B272）。
+
+    卡片上的页数/幕数是**出片那一刻**从 manifest 读的（B271）。素材之后重录、成片没重出，
+    画面里的数字就与素材不符——而这件事没有任何报错。`--check` 就是查这个。
+    """
+    video = OUT / "hos-ares-tour.mp4"
+    if not video.exists():
+        return ["还没有成片"]
+    made = video.stat().st_mtime
+    stale = []
+    for path in (OUT / "manifest.json", OUT / "console-tour.mp4",
+                 OUT / "terminal" / "manifest.json", OUT / "terminal" / "terminal-tour.mp4"):
+        if path.exists() and path.stat().st_mtime > made + 1:
+            stale.append(path.relative_to(ROOT).as_posix())
+    return stale
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
     ap = argparse.ArgumentParser(description="成片合成")
     ap.add_argument("--skip-check", action="store_true", help="素材缺失时只报警不退出")
+    ap.add_argument("--check", action="store_true", help="只查成片是否比素材新，不重新合成")
     args = ap.parse_args(sys.argv[1:] if argv is None else argv)
+
+    if args.check:
+        stale = staleness()
+        if not stale:
+            print("成片比素材新：无需重出")
+            return 0
+        print("成片已过期（素材更新过）：")
+        for item in stale:
+            print(f"  {item}")
+        print("重出：python scripts/demo/build_tour.py")
+        return 1
 
     if not shutil.which("ffmpeg"):
         raise RuntimeError("缺 ffmpeg")
+
+    # 卡片文案按素材实测填（B271）：页数/幕数从 manifest 读，读不到就不写数字
+    pages, scenes = _counts()
+    for seg in SEGMENTS:
+        if seg["id"] == "ch-console":
+            seg["sub"] = f"{pages} 个只读页" if pages else "只读 · 真数据 · 真浏览器渲染"
+        elif seg["id"] == "ch-terminal":
+            seg["sub"] = (f"{_cn(scenes)}幕终端" if scenes else "终端实录")
+            seg["title"] = f"02 · {_cn(scenes)}幕终端" if scenes else "02 · 终端"
 
     missing = [str(s["path"]) for s in SEGMENTS
                if s["kind"] == "video" and not Path(s["path"]).exists()]

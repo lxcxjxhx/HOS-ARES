@@ -64,7 +64,8 @@ def main(argv: list[str]) -> int:
               f" template={cap.route.template_sha256[:12] if cap.route else '-'}")
 
     report = verify_chain(caps)
-    print(f"chain ok={report.ok} root={report.root_sha256[:16]} breaks={len(report.breaks)}")
+    print(f"chain ok={report.ok} head={report.head_sha256[:16]} "
+      f"tip={report.tip_sha256[:16]} breaks={len(report.breaks)}")
     if not report.ok:
         for line in report.breaks:
             print(f"  BREAK {line}")

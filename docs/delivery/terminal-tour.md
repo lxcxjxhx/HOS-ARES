@@ -1,6 +1,6 @@
 # 终端体验录屏（B69）
 
-一条命令产出三支柱的**执行过程**视频：
+一条命令产出五幕的**执行过程**视频（B267 更新：脚本新增了 `profile` 与 `chat` 两幕，文档这次跟上）：
 
 ```bash
 python scripts/demo/record_terminal.py
@@ -10,17 +10,19 @@ python scripts/demo/record_terminal.py
 
 | 文件 | 用途 |
 |---|---|
-| `terminal-tour.mp4` | 1280×720 / 15.1s / 三幕 |
-| `frames/` | 42 张逐帧 PNG（每幕 14 帧） |
+| `terminal-tour.mp4` | 1280×720 / 24.9s / 五幕 |
+| `frames/` | 70 张逐帧 PNG（每幕 14 帧） |
 | `manifest.json` | 场景、行数、关键行 —— **机器可判的那份** |
 
-## 三幕
+## 五幕
 
 | 幕 | 命令 | 画面里能看到 |
 |---|---|---|
 | 1 `run` | `cmd_run --target … --openapi …` | 路由数 / 逐 oracle 判定 / `VERIFIED 2` / capsule 数 |
 | 2 `agent` | `cmd_agent --db …` | `ok write` → `ok read`，末行"最近一步" |
 | 3 `platform` | `cmd_platform --targets a,b --require-approval --approve` | 审批 APPROVED / 两资产进度 / `汇总：2 资产` |
+| 4 `profile` | `cmd_platform --profile profiles/demo-a` | 客户档身份 / 档策略 / 按档跑完 |
+| 5 `chat` | `cmd_chat` | 计划 → 工具 → 结论，末行会话结束 |
 
 ![run 幕](../out/demo/terminal/frames/013-run-12.png)
 ![platform 幕](../out/demo/terminal/frames/040-platform-11.png)
@@ -45,12 +47,12 @@ python scripts/demo/record_terminal.py
 | # | 判据 | 怎么验 |
 |---|---|---|
 | A | ≥12s、1280×720、H.264 | `validate_manifest` + `ffprobe` |
-| B | 三条命令串都在画面里 | `manifest.scenes[].prompt` |
+| B | 五条命令串都在画面里 | `manifest.scenes[].prompt` |
 | C | 关键结果可见（`VERIFIED 2` / `ok  write` / `汇总：2 资产`） | `manifest.all_lines` |
-| D | 两次运行场景序列与行数一致 | 手动跑两次比对（不要求视频字节一致） |
+| D | 两次运行场景序列与行数一致 | 自动：脚本读上一轮 manifest 比对，结果写进 `repeatable` 字段（B268；不要求视频字节一致） |
 | E | 只连 `127.0.0.1` | 靶场由 `LabServer` 起在环回 |
 
-实测：`场景 ['run','agent','platform'] / 51 行 / 42 帧 / 15.07s`。
+实测：`场景 ['run','agent','platform','profile','chat'] / 95 行 / 70 帧 / 24.87s`（1280×720 · 30fps · 451 KB）。
 
 ## 期间踩到的三个坑（都写进了代码注释）
 
