@@ -56,3 +56,29 @@ def test_weak_face_prefix_still_leads_the_sentence() -> None:
     text = _situation(_META, "xss_marker", weak, result)
     assert text.startswith("弱面（crawl）"), text
     assert "页面上出现了探针标记" in text, text
+
+
+# ── B329：hunt 的排除也要写进交付物 ────────────────────────────
+def test_hunt_md_states_excluded_oracles() -> None:
+    from veripen.report.hunt import render_hunt_markdown
+
+    md = render_hunt_markdown(
+        {"target_host": "a", "source": "contract", "decision": "converged", "reason": "done",
+         "oracles": ["sqli_bool_diff"], "excluded": ["mass_assignment"],
+         "faces_run": []},
+        capsules_dir="capsules", generated_at="t",
+    )
+    assert "已排除 1 类 oracle" in md, md[:400]
+    assert "`mass_assignment`" in md
+    assert "不算缺口" in md
+
+
+def test_hunt_md_has_no_exclusion_line_when_nothing_excluded() -> None:
+    from veripen.report.hunt import render_hunt_markdown
+
+    md = render_hunt_markdown(
+        {"target_host": "a", "source": "contract", "decision": "converged", "reason": "done",
+         "oracles": ["sqli_bool_diff"], "faces_run": []},
+        capsules_dir="capsules", generated_at="t",
+    )
+    assert "已排除" not in md

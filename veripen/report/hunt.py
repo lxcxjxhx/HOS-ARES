@@ -66,6 +66,15 @@ def render_hunt_markdown(
         "- 命令：`veripen hunt`（agent 逐步推进，逐面判定）",
         f"- 路由来源：{'主动探测（无契约）' if source == 'discover' else '契约'}",
         f"- 决策：{decision}（{reason}）",
+    ]
+    excluded = list(record.get("excluded") or [])
+    if excluded:
+        # 排除是操作员的选择，**不算缺口**，但必须写在交付物里（B329）
+        lines.append(
+            f"- 已排除 {len(excluded)} 类 oracle："
+            + "、".join(f"`{x}`" for x in excluded)
+            + "（写类/压力类，默认不动；不算缺口）")
+    lines += [
         "",
         "## 1. 结论",
         "",

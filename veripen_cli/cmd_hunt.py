@@ -731,6 +731,9 @@ def main(argv: list[str]) -> int:
             for b in routeset.bindings[:BINDINGS_DETAIL_MAX]
         ],
         "oracles": list(oracles),
+        # 排除要留痕（B329）：终端打了"已排除：…"，而 hunt.json / hunt.md 里一个字都没有，
+        # 读者看到"可跑 2 个"不知道原本有 5 个。
+        "excluded": sorted(excluded),
         "decision": result.decision.value,
         "reason": result.reason,
         "findings": findings,
