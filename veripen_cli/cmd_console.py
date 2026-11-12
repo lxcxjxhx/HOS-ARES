@@ -141,7 +141,16 @@ def main(argv: list[str] | None = None) -> int:
 
     import uvicorn
 
-    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    try:
+        uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    except OSError as exc:
+        # 探针到绑定之间仍有极小窗口（B281 的开口）：端口在这中间被抢走时，
+        # uvicorn 会抛原始 OSError。上面那行 URL 已经打出去了，所以必须**当场否认它**，
+        # 否则日志里留下一条假消息。
+        winerror = getattr(exc, "winerror", None)
+        why = "已被占用" if winerror == 10048 or exc.errno in (48, 98, 10048) else str(exc)
+        print(f"控制台起不来：端口 {args.port} {why}——上面那行 URL 没有生效", file=sys.stderr)
+        return 2
     return 0
 
 

@@ -75,3 +75,19 @@ def test_a_free_port_reports_no_problem() -> None:
         probe.bind((_LOOPBACK, 0))
         free = probe.getsockname()[1]
     assert _port_available(_LOOPBACK, free) == ""
+
+
+def test_a_bind_failure_after_the_banner_denies_the_url(monkeypatch, tmp_path) -> None:  # noqa: ANN001
+    """探针与绑定之间仍有窗口：这时必须当场否认上面那行 URL，别留假消息。"""
+    import uvicorn
+
+    from veripen_cli import cmd_console
+
+    def boom(*_a, **_k):  # noqa: ANN002, ANN003, ANN202
+        raise OSError(10048, "address in use")
+
+    monkeypatch.setattr(uvicorn, "run", boom)
+    monkeypatch.setattr(cmd_console, "_port_available", lambda host, port: "")
+    rc = cmd_console.main(["--port", "18199", "--host", _LOOPBACK,
+                           "--hunt", str(tmp_path / "nope.json")])
+    assert rc == 2, rc
