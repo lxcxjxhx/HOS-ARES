@@ -62,3 +62,24 @@ def test_phony_covers_the_screencast_target() -> None:
     text = MAKEFILE.read_text(encoding="utf-8")
     phony = next(line for line in text.splitlines() if line.startswith(".PHONY:"))
     assert "demo-record" in phony, phony
+
+
+# ── B284：本地要能复现 CI 的单文件打包 ───────────────────────────
+def test_exe_targets_exist_and_use_the_same_spec() -> None:
+    """CI 走 build-exe.yml；本地没有入口的话，"打包声明漏包"只能等 CI 才发现。"""
+    from pathlib import Path
+
+    mk = (Path(__file__).resolve().parents[2] / "Makefile").read_text(encoding="utf-8")
+    assert "\nexe:" in mk
+    assert "packaging/HOS-ARES.spec" in mk
+    assert "\nexe-check: exe" in mk, "自检必须依赖打包，别跑一个旧产物"
+    assert "scripts/check_exe.py" in mk
+
+
+def test_exe_check_script_targets_the_real_artifact() -> None:
+    from pathlib import Path
+
+    src = (Path(__file__).resolve().parents[2] / "scripts" / "check_exe.py").read_text(
+        encoding="utf-8")
+    assert '"dist" / "HOS-ARES.exe"' in src
+    assert "parents[1]" in src, "根目录推错一层会找不到产物"

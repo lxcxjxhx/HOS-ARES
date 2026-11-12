@@ -541,6 +541,14 @@ package-light:
 package-browser:
 	$(PY) scripts/package_offline.py --profile browser --version 0.0.0-dev --out out/pkg-browser
 
+# 单文件 exe（B284）：CI 走 .github/workflows/build-exe.yml，本地要能复现同一条命令。
+# 打包声明写错（`[tool.setuptools] packages` 漏包）在 CI 上才暴露，本地一条命令就能查。
+exe:
+	$(PY) -m PyInstaller packaging/HOS-ARES.spec --noconfirm --distpath out/dist --workpath out/build/pyi
+
+exe-check: exe
+	$(PY) scripts/check_exe.py
+
 # B59：平台可证 + 三对标可证
 platform-check: playbook-check blackboard-conflict context-compress report-audit
 
