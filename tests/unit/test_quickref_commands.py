@@ -50,3 +50,15 @@ def test_quickref_does_not_promise_that_every_target_exists() -> None:
 def test_checklist_points_at_the_task_list() -> None:
     text = _CHECKLIST.read_text(encoding="utf-8")
     assert "tasks.py" in text and "--list" in text, text[:200]
+
+
+# ── B323：quickref 里对 make 目标的描述要与目标实际做的事一致 ────
+def test_verify_report_description_matches_what_it_does() -> None:
+    """零地址那半句现在由 lint-noroute 管，不在 verify-report 里。"""
+    from pathlib import Path
+
+    text = (Path(__file__).resolve().parents[2] / "docs" / "delivery" / "quickref.md").read_text(
+        encoding="utf-8")
+    line = next(ln for ln in text.splitlines() if "make verify-report" in ln)
+    assert "清单" in line and "哈希" in line, line
+    assert "零地址" not in line, "零地址不归这个目标管"
