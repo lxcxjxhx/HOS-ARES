@@ -82,14 +82,37 @@ def _do_glob(wb: Workbench, arg: str) -> tuple[bool, str]:
     return True, f"{len(paths)} 个文件 :: {head}"
 
 
+def _split_grep_arg(arg: str) -> tuple[str, str]:
+    """`grep <正则> [路径]` → (正则, glob)。
+
+    只在"最后一段看起来像路径"时才拆（含 `*` 或带 `.` 扩展名或 `/`），
+    否则整串当正则——正则里带空格是常见的（`def main`）。
+    """
+    if not arg:
+        return "", "**/*"
+    head, _, tail = arg.rpartition(" ")
+    if not head:
+        return arg, "**/*"
+    looks_like_path = ("*" in tail) or (chr(0x2F) in tail) or (chr(92) in tail) or (
+        "." in tail and not tail.startswith("."))
+    if not looks_like_path:
+        return arg, "**/*"
+    return head.strip(), tail.strip()
+
+
 def _do_grep(wb: Workbench, arg: str) -> tuple[bool, str]:
-    """搜内容：返回**行号与原文**，不返回文件全量。"""
-    pattern = arg.strip()
+    """搜内容：`grep <正则> [路径]`，返回**行号与原文**，不返回文件全量。
+
+    路径是可选的（B308）：只把整串当正则时，`grep strict pyproject.toml`
+    会被当成"搜字面量 strict pyproject.toml"，得到 0 处却报 ok——用户以为没匹配到。
+    """
+    pattern, glob_pattern = _split_grep_arg(arg.strip())
     if not pattern:
-        return False, "用法：grep <正则>"
-    matches = wb.grep(pattern)
+        return False, "用法：grep <正则> [路径，如 pyproject.toml 或 docs/*.md]"
+    matches = wb.grep(pattern, glob_pattern=glob_pattern)
     if not matches:
-        return True, f"0 处匹配（pattern={pattern}）"
+        where = f"，范围 {glob_pattern}" if glob_pattern != "**/*" else ""
+        return True, f"0 处匹配（pattern={pattern}{where}）"
     first = matches[0]
     # BOM 要去掉：Windows 上带 BOM 的文件会把 \ufeff 送到摘要里（实测过）
     text = first.text.strip().lstrip("\ufeff")
