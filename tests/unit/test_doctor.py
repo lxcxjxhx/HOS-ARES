@@ -150,7 +150,9 @@ def test_crashing_check_does_not_break_the_report(monkeypatch: pytest.MonkeyPatc
 def test_repo_doctor_has_no_failures() -> None:
     """本仓当前状态：**不许有 fail**。skip 允许（docker 可能没有）。"""
     rep = run_doctor(ROOT)
-    assert rep.failed == [], [r.as_dict() for r in rep.failed]
+    # 失败时要一眼看出**哪一项**、卡在哪（B305）：整份 dict 在控制台上会被编码搅成乱码，
+    # 于是这条用例偶尔红一次也查不出原因。
+    assert rep.failed == [], [f"{r.name}：{r.detail[:80]}" for r in rep.failed]
 
 
 def test_repo_doctor_json_is_serialisable() -> None:
