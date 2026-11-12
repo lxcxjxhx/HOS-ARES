@@ -136,3 +136,31 @@ def test_readme_lists_all_three_delivery_lines() -> None:
     text = (Path(__file__).resolve().parents[2] / "README.md").read_text(encoding="utf-8")
     for artifact in ("report.manifest.json", "hunt.manifest.json", "platform-report.manifest.json"):
         assert artifact in text, artifact
+
+
+# ── B324：tasks.py 与 Makefile 的同名目标要干同一件事 ─────────────
+def test_tasks_and_make_agree_on_verify_report() -> None:
+    """改前 tasks.py 也指向写死的 `out/b11/report`——两个入口同一处漂移。"""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    tasks = (root / "scripts" / "tasks.py").read_text(encoding="utf-8")
+    mk = (root / "Makefile").read_text(encoding="utf-8")
+    assert '"verify-report": ("-m", "veripen_cli", "replay", "--manifest", "out/run"),' in tasks
+    assert "veripen_cli replay --manifest $(DIR)" in mk
+    assert "out/b11/report" not in tasks, "tasks.py 别再写死演示目录"
+
+
+def test_task_count_matches_the_doc() -> None:
+    """quickref 说"12 条"，就得真有 12 条（计数漂移靠用例守）。"""
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    tasks = (root / "scripts" / "tasks.py").read_text(encoding="utf-8")
+    block = tasks.split("TASKS", 1)[1] if "TASKS" in tasks else tasks
+    count = len(re.findall(r'^\s{4}"[a-z-]+": \(', block, re.MULTILINE))
+    doc = (root / "docs" / "delivery" / "quickref.md").read_text(encoding="utf-8")
+    m = re.search(r"（`python scripts/tasks\.py --list` 看全部 (\d+) 条）", doc)
+    assert m, "quickref 里那句计数说明没了"
+    assert int(m.group(1)) == count, f"文档说 {m.group(1)} 条，实际 {count} 条"

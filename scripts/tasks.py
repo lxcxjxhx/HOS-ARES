@@ -51,7 +51,9 @@ TASKS: dict[str, tuple[str, ...]] = {
                  "--out", "out/demo-alt"),
     "demo-offline": ("scripts/demo.py", "--out", "out/demo", "--offline-only"),
     "bench": ("scripts/b12/run_bench.py", "--rounds", "3", "--out", "out/b12"),
-    "verify-report": ("scripts/b11/verify_manifest.py", "out/b11/report"),
+    # 与 Makefile 的 verify-report 同一个动作（B324）：
+    # 以前这里指向一个写死的演示目录（新检出的仓库里没有它）。
+    "verify-report": ("-m", "veripen_cli", "replay", "--manifest", "out/run"),
     "replay-offline": ("-m", "veripen_core.evidence", "--offline-fixture"),
     "exec-isolation": ("-m", "pytest", "tests/unit/test_sandbox_policy.py",
                        "tests/integration/test_sandbox_isolation.py", "-q"),

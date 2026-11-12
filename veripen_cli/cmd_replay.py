@@ -146,6 +146,9 @@ def _manifest(target: Path) -> int:
     """
     import hashlib
 
+    if not target.exists():
+        return _fail(f"没有这个路径：{target}（先跑一次 run / hunt / platform 产出产物）")
+
     if target.is_dir():
         candidates = sorted(target.glob("*.manifest.json"))
         if not candidates:
