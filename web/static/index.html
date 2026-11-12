@@ -106,7 +106,7 @@
 <main id="main" tabindex="-1" aria-live="polite"><p class="muted" role="status">加载中…</p></main>
 <script type="module">
 // 页面清单、URL 状态、筛选排序全部来自 router.js（纯函数，可 node 测试）
-import { OPS, DEFAULT_SORT, parseHash, buildHash, isRouteHash, viewRows } from "./router.js?v=2";
+import { OPS, OP_LABEL, DEFAULT_SORT, parseHash, buildHash, isRouteHash, viewRows } from "./router.js?v=3";
 
 const main = document.getElementById("main");
 const nav = document.getElementById("nav");
@@ -636,7 +636,7 @@ async function render() {
 }
 
 for (const op of OPS) {
-  const btn = el("button", { "data-op": op }, op);
+  const btn = el("button", { "data-op": op }, OP_LABEL[op] || op);   // 人话标签（B359）
   btn.addEventListener("click", () => setHash({ op, params: {} }));
   nav.append(btn);
 }

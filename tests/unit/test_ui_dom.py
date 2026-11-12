@@ -131,3 +131,17 @@ _SECTIONS = "① 断言|② 复现|③ 三条 trace 摘要|④ 路由来源|⑤ 
 @pytest.mark.parametrize("op", _RENDERED)
 def test_structure_each_page_has_renderer(op: str) -> None:
     assert re.search(r"function render\w+\(", SRC) is not None
+
+
+# ── B359：导航按钮不许印内部 op 名 ──────────────────────────────
+def test_nav_buttons_use_human_labels() -> None:
+    """以前按钮文字就是 `overview` / `bounds` / `audit`——内部标识符直接上屏。"""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    router = (root / "web" / "static" / "router.js").read_text(encoding="utf-8")
+    index = (root / "web" / "static" / "index.html").read_text(encoding="utf-8")
+    assert "OP_LABEL" in router, "标签表要在 router.js 里"
+    assert "OP_LABEL[op]" in index, "按钮文字要走标签表"
+    for label in ("总览", "边界", "审批"):
+        assert label in router, f"缺标签：{label}"
