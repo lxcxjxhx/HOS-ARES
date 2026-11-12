@@ -179,3 +179,38 @@ def test_platform_deny_is_honoured_per_asset(lab, tmp_path: Path) -> None:  # no
     assert rc == 1, rc
     bounds = _json.loads((tmp_path / "plat" / "asset-1" / "bounds.json").read_text(encoding="utf-8"))
     assert bounds["count"] >= 1, bounds
+
+
+# ── B354：全被挡下时"总项"不能变成 0 ────────────────────────────
+def test_platform_total_survives_an_all_blocked_asset(lab, tmp_path: Path, capsys) -> None:  # noqa: ANN001
+    """改前：rc=1 → 不采纳产物 → 汇总写「总项 0」，把"3 项全被挡下"说成"什么都没测"。"""
+    from veripen_cli.cmd_platform import main as platform_main
+
+    rc = platform_main(["--targets", lab.base_url,
+                        "--openapi", str(_spec(lab.base_url, tmp_path / "s.json")),
+                        "--out", str(tmp_path / "plat"), "--deny", "DENY_SET_DEFAULT"])
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "总项 3" in out, out[-400:]
+    assert "总项 0" not in out
+
+
+def test_platform_still_refuses_stale_artifacts(tmp_path: Path, capsys) -> None:  # noqa: ANN001
+    """B159 的意图要保住：目录里上一轮的产物不许被当成这一轮的结果。"""
+    import time
+
+    from veripen_cli.cmd_platform import main as platform_main
+
+    lab = _lab()
+    try:
+        spec = _spec(lab.base_url, tmp_path / "s.json")
+        assert platform_main(["--targets", lab.base_url, "--openapi", str(spec),
+                              "--out", str(tmp_path / "plat")]) == 0
+    finally:
+        lab.stop()
+    time.sleep(1.2)
+    rc = platform_main(["--targets", LOOPBACK_DEAD, "--openapi", str(spec),
+                        "--out", str(tmp_path / "plat")])
+    err = capsys.readouterr().err
+    assert rc == 1
+    assert "不采用" in err, err

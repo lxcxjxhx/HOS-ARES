@@ -425,23 +425,26 @@ def main(argv: list[str] | None = None) -> int:
                 route_args.append("--submit-forms")
         else:
             route_args = ["--openapi", str(spec_path)]
+        t0 = time.time()
         rc = cmd_run.main(["--target", target, *route_args, "--out", str(sub), *extra_args])
         found: list[dict[str, Any]] = []
         findings_file = sub / "findings.json"
-        # **rc != 0 就不读 findings.json**（B159）：目录里躺着的是上一轮的产物，
-        # 这一轮什么都没发生。照旧读会把"重跑被拒"渲染成跟成功那次一模一样的数字
-        # ——rc 那一列说 2，结论列说"已验证 2"，自相矛盾。
-        if rc == 0 and findings_file.exists():
+        # **只采用这一轮真写出来的产物**（B159/B354）：目录里可能躺着上一轮的文件。
+        # 判据从「rc == 0」改成「文件的 mtime 属于这一轮」——因为 rc=1 现在有两种含义：
+        # 崩溃（什么都没写）与「写了但一项都没得出结论」（全被挡下）。后者若一律不采纳，
+        # 汇总会显示「总项 0」，把"3 项全被挡下"说成"什么都没测"。
+        fresh = findings_file.exists() and findings_file.stat().st_mtime >= t0 - 1
+        if fresh:
             data = json.loads(findings_file.read_text(encoding="utf-8"))
             found = list(data.get("findings", []))
-        elif rc != 0:
+        elif findings_file.exists():
             print(f"  资产 {i} 退出码 {rc}：本轮没有产出，不采用 {findings_file.name} 里的旧结论",
                   file=sys.stderr)
         # 覆盖账本（B164）：单资产报告有"覆盖"一节，平台汇总里原来没有——
         # 于是"2 条结论"看上去像"只测了 2 项"，读者看不到分母。
         coverage: dict[str, Any] | None = None
         cov_file = sub / "coverage.json"
-        if rc == 0 and cov_file.exists():
+        if cov_file.exists() and cov_file.stat().st_mtime >= t0 - 1:
             try:
                 loaded = json.loads(cov_file.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError):
