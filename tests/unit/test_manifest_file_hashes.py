@@ -45,3 +45,14 @@ def test_manifest_is_json_round_trippable() -> None:
     again = json.loads(json.dumps(manifest, ensure_ascii=False, indent=2))
     ok, problems = verify_manifest(again, markdown=md, sarif=sarif, js=js)
     assert ok, problems
+
+
+# ── B317：平台汇总报告的清单也要能对盘上字节核 ──────────────────
+def test_platform_manifest_has_a_files_section() -> None:
+    import inspect
+
+    from veripen_cli import cmd_platform
+
+    src = inspect.getsource(cmd_platform.main)
+    assert '"files": {"platform-report.md": md_sha}' in src, src[-800:]
+    assert "newline=chr(10)" in src, "写盘要固定 LF，否则哈希对不上"

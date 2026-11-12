@@ -587,7 +587,7 @@ def main(argv: list[str] | None = None) -> int:
     ]
     report = out / "platform-report.md"
     body = "\n".join(lines) + "\n"
-    report.write_text(body, encoding="utf-8")
+    report.write_text(body, encoding="utf-8", newline=chr(10))
     # 汇总报告也要能证明"没被手改"（B256）：各资产早就有 report.manifest.json，
     # 而交给管理层的那一份反而没有。
     # 形状与 `veripen.report.lint.build_manifest` **对齐**（B257）：`version` + `sections`
@@ -599,6 +599,8 @@ def main(argv: list[str] | None = None) -> int:
     manifest = {
         "version": 1,
         "sections": {"markdown": md_sha},
+        # 逐文件哈希（B317）：与 run 那一路同形，客户可直接 `sha256sum` 核。
+        "files": {"platform-report.md": md_sha},
         "report_sha256": md_sha,
         "assets": len(per_asset),
         "generated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
