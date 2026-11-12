@@ -644,10 +644,13 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 results.append((oracle_id, oracle.meta, result, primary))
                 if db_events is not None:
+                    # `ok` 的含义是**执行成功**，不是"有洞"（B341）：
+                    # REFUTED 是"测了、不成立"，它跑得好好的，不该进异常账。
                     db_events.record(
-                        task_id=db_task, kind="oracle", ok=verdict == "VERIFIED",
+                        task_id=db_task, kind="oracle",
+                        ok=verdict in ("VERIFIED", "REFUTED"),
                         oracle_id=oracle_id, route_ref=str(getattr(primary, "ref", "")),
-                        err_class=None if verdict != "BLOCKED" else "blocked",
+                        err_class=None if verdict in ("VERIFIED", "REFUTED") else "blocked",
                         detail={"verdict": verdict, "reason": str(getattr(result, "reason", ""))[:80]},
                     )
                 from veripen_core.coverage import FaceRun
@@ -798,6 +801,8 @@ def main(argv: list[str] | None = None) -> int:
                 "requests": len(render_state["sent"]),
                 "elapsed_s": round(time.time() - started, 1),
                 "steps": len(results),
+                # run 不调模型：tokens **确实是 0**（B341）——"未提供"会被读成没统计
+                "tokens": 0,
             },
         ))
         if audit_text.strip():

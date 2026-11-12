@@ -133,3 +133,24 @@ def test_run_audit_budget_shows_real_numbers(tmp_path: Path) -> None:
     assert "| requests |" in block
     line = next(ln for ln in block.splitlines() if ln.startswith("| requests |"))
     assert "未提供" not in line.split("|")[2], f"requests 应当有真数：{line}"
+
+
+# ── B341：异常账只装"没跑成"，不装"测了不成立" ──────────────────
+def test_refuted_is_not_an_anomaly(tmp_path: Path) -> None:
+    """REFUTED 是"测了、不成立"——它跑得好好的，不该进异常账。"""
+    rc = _run(tmp_path, ["param_injectable"], ["--db", str(tmp_path / "e.db")])
+    assert rc in (0, 1), rc
+    md = (tmp_path / "run" / "report.md").read_text(encoding="utf-8")
+    i = md.find("### 异常账")
+    assert i > 0
+    block = md[i:i + 600]
+    assert "REFUTED" not in block, block[:400]
+
+
+def test_run_audit_reports_tokens_as_zero_not_missing(tmp_path: Path) -> None:
+    """run 不调模型：tokens 确实是 0，"未提供"会被读成没统计。"""
+    rc = _run(tmp_path, ["param_injectable"], ["--db", str(tmp_path / "e.db")])
+    assert rc in (0, 1), rc
+    md = (tmp_path / "run" / "report.md").read_text(encoding="utf-8")
+    line = next(ln for ln in md.splitlines() if ln.startswith("| tokens |"))
+    assert line.split("|")[2].strip() == "0", line
