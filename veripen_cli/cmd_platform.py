@@ -482,6 +482,12 @@ def main(argv: list[str] | None = None) -> int:
             f"- 档策略：可用 oracle {len(profile.allowed_oracles())} 类 / "
             f"需审批 {len(profile.oracles.needs_approval)} 类",
         ]
+        # 黑名单也要写进报告（B328）：终端打了、报告没写，接手的人就不知道
+        # "这批资产里哪些是被边界挡下的"。命中的资产整面 BLOCKED、不发包。
+        if profile.deny:
+            lines.append(
+                f"- 黑名单：`{'`、`'.join(sorted(profile.deny))}` —— "
+                "命中的资产整面 BLOCKED（不发包）")
     lines += [
         f"- 资产数：{len(per_asset)}"
         + (
