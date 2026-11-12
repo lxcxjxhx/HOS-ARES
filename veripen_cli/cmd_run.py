@@ -760,12 +760,25 @@ def main(argv: list[str] | None = None) -> int:
     sarif = render_sarif(report)
     from veripen.report.lint import dumps_artifact
 
-    manifest = build_manifest(markdown=md_text, sarif=sarif, js=js_payload)
     # 落盘必须与算哈希用同一份字符串，且换行固定 LF（B316）：
     # 否则 Windows 上的 CRLF 翻译会让 `sha256sum` 与 manifest 对不上。
     (out / "findings.json").write_text(dumps_artifact(js_payload), encoding="utf-8", newline=chr(10))
     (out / "report.md").write_text(md_text, encoding="utf-8", newline=chr(10))
     (out / "report.sarif").write_text(dumps_artifact(sarif), encoding="utf-8", newline=chr(10))
+
+    # 越界事件落盘（B332）：以前只活在 ScopeGuard.events 里，进程一退就没了。
+    violations = guard.scope.violations()
+    bounds_text = json.dumps({"count": len(violations), "events": violations},
+                             ensure_ascii=False, indent=2)
+    (out / "bounds.json").write_text(bounds_text, encoding="utf-8", newline=chr(10))
+
+    # 清单最后写，并把 bounds.json 也纳进来（B333）：它是审计证据，被改也要能发现
+    import hashlib as _hashlib
+
+    manifest = build_manifest(
+        markdown=md_text, sarif=sarif, js=js_payload,
+        extra_files={"bounds.json": _hashlib.sha256(bounds_text.encode("utf-8")).hexdigest()},
+    )
     (out / "report.manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
     )
@@ -775,12 +788,6 @@ def main(argv: list[str] | None = None) -> int:
     print(f"结论：VERIFIED {verified} / 共 {len(views)} 项")
 
     cov_path = write_coverage(out, coverage)
-    # 越界事件落盘（B332）：以前只活在 ScopeGuard.events 里，进程一退就没了，
-    # 控制台的"边界页"因此永远读到 0。
-    violations = guard.scope.violations()
-    (out / "bounds.json").write_text(
-        json.dumps({"count": len(violations), "events": violations}, ensure_ascii=False, indent=2),
-        encoding="utf-8", newline=chr(10))
     cov_summary = coverage["summary"]
     print(
         f"覆盖：{cov_summary['faces_covered']}/{cov_summary['faces']} 面"

@@ -56,3 +56,19 @@ def test_platform_manifest_has_a_files_section() -> None:
     src = inspect.getsource(cmd_platform.main)
     assert '"files": {"platform-report.md": md_sha}' in src, src[-800:]
     assert "newline=chr(10)" in src, "写盘要固定 LF，否则哈希对不上"
+
+
+# ── B333：审计证据（bounds.json）也要进清单 ────────────────────
+def test_extra_files_join_the_manifest() -> None:
+    md, sarif, js = _payload()
+    extra = {"bounds.json": "a" * 64}
+    manifest = build_manifest(markdown=md, sarif=sarif, js=js, extra_files=extra)
+    assert manifest["files"]["bounds.json"] == "a" * 64
+    assert "report.md" in manifest["files"], "原有三份不许被覆盖"
+
+
+def test_extra_files_cannot_override_the_three() -> None:
+    md, sarif, js = _payload()
+    manifest = build_manifest(markdown=md, sarif=sarif, js=js,
+                              extra_files={"report.md": "0" * 64})
+    assert manifest["files"]["report.md"] != "0" * 64, "三视图的哈希不许被外部覆盖"

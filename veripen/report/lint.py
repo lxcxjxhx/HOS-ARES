@@ -126,7 +126,8 @@ def dumps_artifact(obj: Any) -> str:
     return json.dumps(obj, ensure_ascii=False, indent=2)
 
 
-def build_manifest(*, markdown: str, sarif: dict[str, Any], js: dict[str, Any]) -> dict[str, Any]:
+def build_manifest(*, markdown: str, sarif: dict[str, Any], js: dict[str, Any],
+                   extra_files: Mapping[str, str] | None = None) -> dict[str, Any]:
     """每节 sha256 + 总哈希 + **逐文件哈希**。改一个字符即校验失败。
 
     `files` 里的值可以直接用 `sha256sum` 对盘上文件核（B316）：
@@ -146,6 +147,8 @@ def build_manifest(*, markdown: str, sarif: dict[str, Any], js: dict[str, Any]) 
         "findings.json": sections["json"],
         "report.sarif": sections["sarif"],
     }
+    # 追加文件（B333）：`bounds.json` 这类审计证据也要能被清单核
+    files.update({k: v for k, v in (extra_files or {}).items() if k not in files})
     body = {"version": 1, "sections": sections, "files": files, "report_sha256": total}
     # 清单自哈希（B321）：改清单里某个哈希值时能被发现。**挡不住有意改**
     # （改的人可以重算），挡的是手误与半途编辑——要挡有意改得签名，未做。
