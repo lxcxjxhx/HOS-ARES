@@ -110,10 +110,5 @@ def sort_key(b: Any) -> tuple[float, int, str]:
     return (-b.confidence, source_rank(b.source), b.template_sha256)
 
 
-def canonicalize_bindings(bindings: list[Any]) -> None:
-    """统一排序（唯一排序规范，27 §3.6），原地。"""
-    bindings.sort(key=sort_key)
-
-
 def canonical_json(obj: Any) -> str:
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)

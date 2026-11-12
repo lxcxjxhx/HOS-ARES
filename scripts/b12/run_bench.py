@@ -384,11 +384,6 @@ def _seal_round(results: list[CaseResult], directory: Path) -> list[CaseResult]:
     return out
 
 
-def findings_snapshot(rounds: list[RoundResult]) -> list[str]:
-    """旧格式快照：向后再比一轮才叫"前后为空"。"""
-    return findings_fingerprint(rounds)
-
-
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--rounds", type=int, default=3)

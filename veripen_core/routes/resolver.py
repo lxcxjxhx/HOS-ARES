@@ -297,9 +297,5 @@ def resolve_routes(
     return r.resolve(q, now, profile_hash)
 
 
-def sort_bindings(bindings: list[RouteBinding]) -> list[RouteBinding]:
-    return sorted(bindings, key=sort_key)
-
-
 def rank(binding: RouteBinding) -> int:
     return source_rank(binding.source)
