@@ -483,6 +483,11 @@ def load_capsule(path: str | Path) -> CapsuleDoc:
     原样抛出去，CLI 就只能打一屏 traceback——客户既看不出是哪份文件，也看不出该改什么。
     """
     p = Path(path)
+    # 目录要先判（B275）：Windows 上对目录 read_bytes 抛的是 PermissionError，
+    # 于是客户看到「读不出这份证据：out（Permission denied）」——以为权限配错了，
+    # 其实是把目录当成了 capsule 文件。
+    if p.is_dir():
+        raise CapsuleIncomplete(f"这是个目录，不是 capsule 文件：{p}（指到其中的 *.json）")
     try:
         raw = p.read_bytes()
     except FileNotFoundError as exc:

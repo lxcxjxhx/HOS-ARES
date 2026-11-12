@@ -304,3 +304,15 @@ def test_cli_reports_tampered(tmp_path, capsys) -> None:
 
     assert evidence_main(["--capsule", str(path), "--offline-fixture"]) == 1
     assert "TAMPERED" in capsys.readouterr().out
+
+
+# ── B275：把目录当 capsule 传进来，要说清是目录 ──────────────────
+def test_directory_capsule_path_says_it_is_a_directory(tmp_path) -> None:  # noqa: ANN001
+    """Windows 上对目录 read_bytes 抛 PermissionError，旧文案会让客户去查权限。"""
+    from veripen_core.evidence import CapsuleIncomplete, load_capsule
+
+    with pytest.raises(CapsuleIncomplete) as ei:
+        load_capsule(tmp_path)
+    msg = str(ei.value)
+    assert "目录" in msg, msg
+    assert "Permission" not in msg, "别把目录说成权限问题"
