@@ -131,6 +131,8 @@ ubuntu 上跑快闸门，windows 上把测试分三段跑——避免"CI 跑的"
 长驻命令（`chat` / `agent` / `console` / `tui`）只有两档：`0` = 正常结束或 Ctrl+C 中断；
 `2` = 起不来（参数不对 / 端口被占 / 工作根不存在）。
 
+这张表有对应的可执行契约：`tests/integration/test_exit_codes_contract.py`（12 格逐格真跑，改坏了会红）。
+
 
 配合：
 

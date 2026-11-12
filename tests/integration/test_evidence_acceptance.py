@@ -259,3 +259,21 @@ def test_build_capsule_refuses_a_ref_not_in_the_routeset() -> None:
             pairs=(), baseline_params={}, routeset=rs,
             route_ref="route://contract/" + "f" * 16, binding=binding,
         )
+
+
+# ── B347：dry 模式的 ROUTE_UNRESOLVED 是设计使然，要说清 ────────────
+def test_dry_mode_explains_the_unresolved_route(tmp_path: Path, capsys) -> None:  # noqa: ANN001
+    """dry 刻意不注入 RouteSet，路由门必然 UNRESOLVED——不说明会被读成"路由没了"。"""
+    import capsule_fixture as F
+    from veripen_cli.cmd_replay import main as replay_main
+    from veripen_core.evidence import save_capsule, seal_capsule_doc
+
+    caps = tmp_path / "c"
+    caps.mkdir()
+    save_capsule(seal_capsule_doc(F.capsule(), prev_sha256="0" * 64), caps)
+    path = next(caps.glob("*.json"))
+    rc = replay_main(["--capsule", str(path), "--mode", "dry", "--out", str(tmp_path / "o")])
+    out = capsys.readouterr().out
+    assert rc in (0, 1), rc
+    if "ROUTE_UNRESOLVED" in out:
+        assert "刻意给空" in out, out

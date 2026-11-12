@@ -293,6 +293,11 @@ def main(argv: list[str]) -> int:
     print(f"含义    : {STATE_MEANING.get(result.state.value, '')}")
     if result.reason:
         print(f"原因    : {result.reason}")
+    if mode is ReplayMode.DRY and result.state.value == "ROUTE_UNRESOLVED":
+        # dry 模式刻意不注入 RouteSet（见上面的注释），路由门必然 UNRESOLVED（B347）：
+        # 不说明的话，用户会以为"我的环境里这条路没了"。
+        print("说明    : dry 不注入 RouteSet（刻意给空），路由门必然 UNRESOLVED——"
+              "这不是「路由没了」；要按真实环境校验路由，用 --mode offline 或注入绑定")
     if mode is ReplayMode.OFFLINE and result.fingerprint:
         # 让人看见"算了哪些"，才知道"没算哪些"不是被悄悄放过。
         print("谓词    : " + " ".join(f"{k}={v}" for k, v in sorted(result.fingerprint.items())))
