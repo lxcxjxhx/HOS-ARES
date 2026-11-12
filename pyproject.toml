@@ -39,7 +39,19 @@ dev = ["pytest>=8.0", "cryptography>=42", "mypy>=1.8", "types-PyYAML>=6",
        "httpx2>=0.1"]
 
 [tool.setuptools]
-packages = ["veripen_core", "api"]
+# 只声明了 veripen_core 与 api（B283）：`pip install` 出来的包里**没有 veripen_cli**，
+# 于是 `veripen` 这个 console script 一跑就 ModuleNotFoundError——产品装不上。
+# 显式列全，别用自动发现（仓库里还有 tests/ scripts/ out/ 这些不该进包的目录）。
+packages = [
+    "api",
+    "veripen",
+    "veripen_cli",
+    "veripen_contract",
+    "veripen_core",
+    "veripen_oracles",
+    "web",
+    "worker",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
