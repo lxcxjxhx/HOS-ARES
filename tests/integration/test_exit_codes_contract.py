@@ -155,3 +155,27 @@ def test_console_busy_port_is_two() -> None:
         assert proc.returncode == 2, (proc.returncode, proc.stderr[-200:])
     finally:
         sock.close()
+
+
+def test_all_blocked_by_deny_is_one(lab, tmp_path: Path) -> None:  # noqa: ANN001
+    """全被黑名单挡下 = 什么都没证明 → 1（改前是 0，CI 会当绿）。"""
+    from veripen_cli.cmd_run import main as run_main
+
+    rc = run_main(["--target", lab.base_url,
+                   "--openapi", str(_spec(lab.base_url, tmp_path / "s.json")),
+                   "--out", str(tmp_path / "run"), "--deny", "DENY_SET_DEFAULT"])
+    assert rc == 1, rc
+
+
+def test_platform_deny_is_honoured_per_asset(lab, tmp_path: Path) -> None:  # noqa: ANN001
+    """平台原来没有 --deny 入口（只有客户档能写）——多资产最危险，入口最弱。"""
+    import json as _json
+
+    from veripen_cli.cmd_platform import main as platform_main
+
+    rc = platform_main(["--targets", lab.base_url,
+                        "--openapi", str(_spec(lab.base_url, tmp_path / "s.json")),
+                        "--out", str(tmp_path / "plat"), "--deny", "DENY_SET_DEFAULT"])
+    assert rc == 1, rc
+    bounds = _json.loads((tmp_path / "plat" / "asset-1" / "bounds.json").read_text(encoding="utf-8"))
+    assert bounds["count"] >= 1, bounds

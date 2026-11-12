@@ -864,9 +864,16 @@ def main(argv: list[str] | None = None) -> int:
     # 一条都没验证成功、而且有执行失败 → 这次运行不能算"跑完了"（B300）。
     # 实测：目标整台不可达时 exit=0、报告写着 `VERIFIED 0 / 共 3 项`，CI 会当成绿。
     errors = sum(1 for v in views if v.outcome.value == "error")
-    if verified == 0 and errors:
-        print(f"没有任何一项验证成功，且有 {errors} 项执行失败——"
-              f"这次运行不能当作覆盖（先修可达性再重跑）", file=sys.stderr)
+    # 「一项都没跑成」的判据是**没有任何一项得出结论**（B353）：
+    # REFUTED 也算结论（测了、不成立），全被挡下（not_run）则什么都没证明。
+    # 实测：`--deny DENY_SET_DEFAULT` 把三项全挡下时，原来 exit=0，CI 会当绿。
+    refuted = sum(1 for v in views if v.outcome.value == "refuted")
+    blocked_count = sum(1 for v in views if v.outcome.value == "not_run")
+    if verified == 0 and refuted == 0 and (errors or blocked_count):
+        why = "、".join(
+            x for x in (f"{errors} 项执行失败" if errors else "",
+                        f"{blocked_count} 项被挡下未执行" if blocked_count else "") if x)
+        print(f"没有任何一项得出结论（{why}）——这次运行不能当作覆盖", file=sys.stderr)
         return 1
     return 0
 

@@ -182,6 +182,10 @@ def main(argv: list[str] | None = None) -> int:
         help="签字人（聊天入口代签时传 chat；审计里\"谁批的\"这一栏据实写）",
     )
     ap.add_argument("--exclude", default="", help="透传给单资产链路的 oracle 黑名单")
+    # 与 run / hunt 同一口径（B353）：平台是最危险的一条（多资产），
+    # 却原来只能靠客户档写 deny——不带档就没有任何黑名单入口。
+    ap.add_argument("--deny", default="",
+                    help="逗号分隔：资产 id / 主机名 / CIDR（如 DENY_SET_DEFAULT），透传给每个资产")
     ap.add_argument(
         "--token", default="",
         help="主身份 token（**单资产**用；多资产默认拒绝透传，见 --token-for）",
@@ -335,7 +339,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # 档的 scope.deny（B187）：原来只写进档的哈希，没有任何代码把它交给闸门——
     # 也就是"配了黑名单"，但闸门的 deny 永远是空集。现在按资产映射成主机传下去。
-    deny_hosts: list[str] = []
+    deny_hosts: list[str] = [x.strip() for x in args.deny.split(",") if x.strip()]
     if profile is not None and profile.deny:
         # deny 里既可以写资产 id，也可以直接写主机名：两种都收
         def _host_of(url: str) -> str:
@@ -349,7 +353,8 @@ def main(argv: list[str] | None = None) -> int:
             if a.id in set(profile.deny)
         } - {""}
         # 资产 id 映射成主机；不是资产的条目（主机名）原样留着
-        deny_hosts = sorted(mapped | (set(profile.deny) - profile_asset_ids))
+        deny_hosts = sorted(set(deny_hosts) | mapped | (set(profile.deny) - profile_asset_ids))
+    if deny_hosts:
         print(f"黑名单：{', '.join(deny_hosts)} —— 命中的资产整面 BLOCKED（不发包）")
 
     # 限速：命令行 --qps 优先，其次档里的 policy.qps，最后留 0（= run 的默认 1.0，不改口径）
