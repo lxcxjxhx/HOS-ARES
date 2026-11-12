@@ -111,3 +111,13 @@ def test_bare_veripen_still_works() -> None:
     code, out = _run([])
     assert code == 0
     assert "用法：veripen" in out, out[:200]
+
+
+# ── B301：退出码表要覆盖新规则（B300 先改行为，文档随后） ─────────
+def test_readme_exit_table_covers_the_all_failed_rule() -> None:
+    from pathlib import Path
+
+    text = (Path(__file__).resolve().parents[2] / "README.md").read_text(encoding="utf-8")
+    row = next(ln for ln in text.splitlines() if ln.startswith("| `veripen run` |"))
+    assert "0 项验证成功且有执行失败" in row, row
+    assert "证据自校验失败" in row, row
