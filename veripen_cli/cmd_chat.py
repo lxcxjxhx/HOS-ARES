@@ -338,6 +338,10 @@ def main(argv: list[str] | None = None) -> int:
     _say(f"{C_BOLD}HOS-ARES chat{C_OFF} · {layer} · 工作根 {root}")
     _say(f"{C_DIM}会话 {sess.task_id} · 已录 {len(sess.turns)} 步"
          f" · /help 看用法 · Ctrl+C 中断当前轮{C_OFF}")
+    if not model_name:
+        # 规则模式要说怎么升级（B362）：光看 `model: rules` 不知道这是"没配"还是"就是这样"
+        _say(f"{C_DIM}（规则模式：设 VERIPEN_MODEL_BASE_URL + VERIPEN_MODEL 接真模型，"
+             f"要鉴权再加 VERIPEN_MODEL_API_KEY；/help 有说明）{C_OFF}")
     _say()
 
     history: list[str] = [t.instruction for t in sess.turns]
