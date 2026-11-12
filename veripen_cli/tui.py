@@ -46,6 +46,10 @@ def render_panels(state: TuiState) -> str:
         used = state.budget.get(key, 0)
         limit = state.limits.get(key, "-")
         budget_bits.append(f"{key}={used}/{limit}")
+    # 没有任何上限也没有用量时，别打一行 `steps=0/- requests=0/- …`（B290）：
+    # 它看起来像"真的用了 0"，而同一屏的动作流又说"共 1 步"。
+    budget_unknown = all(state.limits.get(k) in (None, "-") for k in BUDGET_KEYS) and not any(
+        state.budget.get(k) for k in BUDGET_KEYS)
 
     window = list(state.events)[-STEP_WINDOW:]
     action_lines = [
@@ -60,9 +64,15 @@ def render_panels(state: TuiState) -> str:
         else f"  pending leads: 0 · 已闭环 {state.closed_loops}"
     )
 
+    # 头部那个数字以前是 `--steps` 传进来的**上限**，却写成"N 步"（B290）：
+    # 同一屏会出现三个步数（上限 2 / 动作流共 1 / 预算 steps=0）。
+    head = f"┌ 任务区 ─ {state.task_id} · {state.phase} · {len(state.events)} 步"
+    if state.steps:
+        head += f"（上限 {state.steps}）"
     lines = [
-        f"┌ 任务区 ─ {state.task_id} · {state.phase} · {state.steps} 步",
-        "  " + "  ".join(budget_bits),
+        head,
+        "  预算：未接（--db 指向事件库后才有）" if budget_unknown
+        else "  " + "  ".join(budget_bits),
         f"├ 动作流 ─ 最近 {min(len(state.events), STEP_WINDOW)} 步 / 共 {len(state.events)} 步",
         *action_lines,
         "├ 线索区",
