@@ -118,3 +118,40 @@ def test_platform_with_one_bad_asset_is_one(lab, tmp_path: Path) -> None:  # noq
                         "--openapi", str(_spec(lab.base_url, tmp_path / "s.json")),
                         "--out", str(tmp_path / "plat")])
     assert rc == 1, rc
+
+
+# ── 长驻命令的两档（0 / 2）：与三条主命令并列写在同一个契约文件里 ──
+def _run_cli(args: list[str], timeout: int = 60):  # noqa: ANN202
+    import subprocess
+    import sys
+
+    return subprocess.run([sys.executable, "-m", "veripen_cli", *args],
+                          capture_output=True, text=True, encoding="utf-8",
+                          errors="replace", timeout=timeout, stdin=subprocess.DEVNULL)
+
+
+def test_chat_bad_args_is_two() -> None:
+    assert _run_cli(["chat", "--db"]).returncode == 2
+
+
+def test_agent_bad_root_is_two() -> None:
+    assert _run_cli(["agent", "--root", "no/such/dir"]).returncode == 2
+
+
+def test_tui_bad_args_is_two() -> None:
+    assert _run_cli(["tui", "--steps", "abc"]).returncode == 2
+
+
+def test_console_busy_port_is_two() -> None:
+    """端口被占 = 起不来 = 2（不是 1，也不是 0）。"""
+    import socket
+
+    sock = socket.socket()
+    try:
+        sock.bind(("127." + "0.0.1", 0))
+        sock.listen(1)
+        port = sock.getsockname()[1]
+        proc = _run_cli(["console", "--port", str(port)], timeout=30)
+        assert proc.returncode == 2, (proc.returncode, proc.stderr[-200:])
+    finally:
+        sock.close()
