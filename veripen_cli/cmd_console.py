@@ -35,6 +35,11 @@ def artifact_note(path: str) -> str:
     if p.is_file():
         return ""
     if p.exists():
+        # 指到 run/hunt 的**输出目录**是最常见的用法错误（B276）：
+        # 那里面的 findings.json 才是产物，光说"是目录"等于没说下一步。
+        inside = p / "findings.json"
+        if inside.is_file():
+            return f"（是目录，不是产物文件——指到其中的 {inside.as_posix()}）"
         return "（是目录，不是产物文件）"
     return "（不存在：先跑一次 `veripen run` 或 `veripen hunt`，或换 --hunt 指到产物）"
 
