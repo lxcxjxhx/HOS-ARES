@@ -190,11 +190,22 @@ def _discover_routeset(args: Any, host: str) -> Any:
         # 抓了却一条都没成，必须说清为什么（B221）：否则下一句"没有可跑的 oracle"
         # 会把"目标连不上"读成"目标没有可测的面"，用户会去改错的东西
         if step.fetched and not step.records:
+            # 日志被管道接走时 stdout 是块缓冲、stderr 是无缓冲：不先 flush，
+            # 这段解释会跑到它解释的那一行**前面**（CI 日志里看就是倒序）。
+            sys.stdout.flush()
             reasons: dict[str, int] = {}
             for _tpl, why in getattr(step, "skipped", ()):
                 reasons[str(why)] = reasons.get(str(why), 0) + 1
             detail = "、".join(f"{k}×{v}" for k, v in sorted(reasons.items())) or "未记录原因"
-            print(f"  这一轮一页都没抓成：{detail}", file=sys.stderr)
+            # 「没拿到响应」与「拿到了但不是能测的页」是两件事（B277）：
+            # 前者去查网络，后者去查目标是不是 404/非 HTML。混成一句话，
+            # 上面刚说的"拿到响应 3 页"就在同一屏里自相矛盾。
+            if step.responded:
+                print(f"  拿到响应，但没有可解析的页：{detail}", file=sys.stderr)
+                print("  404/非 HTML 都算这一类——目标在线，只是没给能测的面：",
+                      file=sys.stderr)
+            else:
+                print(f"  这一轮一页都没抓成：{detail}", file=sys.stderr)
             if set(reasons) == {"fetch_failed"}:
                 print("  连接层面就没过——先确认目标可达（端口/证书/代理）再谈覆盖面：",
                       file=sys.stderr)
