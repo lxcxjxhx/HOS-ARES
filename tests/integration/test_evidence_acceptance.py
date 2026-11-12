@@ -238,3 +238,24 @@ def test_hunt_and_platform_manifests_carry_a_self_hash() -> None:
 
     assert "manifest_sha256" in inspect.getsource(cmd_hunt.main)
     assert "manifest_sha256" in inspect.getsource(cmd_platform.main)
+
+
+# ── B338：造 capsule 必须走校验版 route_block ─────────────────────
+def test_build_capsule_refuses_a_ref_not_in_the_routeset() -> None:
+    """"证据不得凭空生成 route 块"：以前 build_capsule 直接把 route_ref 与 binding 拼上，
+    两者对不上也照样出证。"""
+    import pytest
+
+    import capsule_fixture as F
+    from veripen.bench.capsule import build_capsule
+    from veripen_core.evidence import CapsuleIncomplete
+
+    rs = F.routeset()
+    binding = rs.bindings[0]
+    with pytest.raises(CapsuleIncomplete):
+        build_capsule(
+            case_id="c", oracle_id="idor_cross_account", oracle_version="1",
+            verdict=F.Verdict.VERIFIED, judgement=type("J", (), {"assertion": {}})(),
+            pairs=(), baseline_params={}, routeset=rs,
+            route_ref="route://contract/" + "f" * 16, binding=binding,
+        )

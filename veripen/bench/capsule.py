@@ -32,6 +32,7 @@ from veripen_core.evidence import (
     OracleBlock,
     RedactionBlock,
     RouteBlock,
+    route_block,
     TargetBlock,
     build_request,
     build_response,
@@ -154,17 +155,11 @@ def build_capsule(
         finding_id=f"bench-{case_id}",
         created_at=created_at,
         oracle=OracleBlock(id=oracle_id, version=oracle_version, cwe=cwe),
-        route=RouteBlock(
-            routeset_sha256=routeset.routeset_sha256,
-            ref=route_ref,
-            source=binding.source,
-            sources_all=list(binding.sources_all),
-            confidence=binding.confidence,
-            template_sha256=binding.template_sha256,
-            resolver_version=routeset.resolver_version,
-            resolved_at=created_at,
-            ttl_s=binding.ttl_s,
-        ),
+        # 走 `evidence.route_block`（B338）：它会 `find_binding(routeset, ref)`，
+        # 找不到就抛 `CapsuleIncomplete`——"证据不得凭空生成 route 块"。
+        # 以前这里直接 new RouteBlock，把 `route_ref` 与 `binding` 原样拼上，
+        # 两者对不上也照样出证。
+        route=route_block(routeset=routeset, ref=route_ref, resolved_at=created_at),
         target=TargetBlock(
             asset_id=str(getattr(routeset, "asset_id", "")),
             frame_method=str(getattr(binding, "method", "GET")).upper(),
