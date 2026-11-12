@@ -461,7 +461,9 @@ def main(argv: list[str] | None = None) -> int:
         per_asset.append({
             "target": target, "rc": rc, "dir": sub.name,
             "findings": found, "capsules": len(cap_ids),
-            "produced": rc == 0, "coverage": coverage,
+            # `produced` 的语义是"这一轮写没写产物"，不是"跑得成不成"（B355）：
+            # 全被挡下时 rc=1 但产物齐全，写"本轮未产出"会让报告自相矛盾。
+            "produced": fresh, "coverage": coverage,
         })
 
     # ── 汇总报告 ────────────────────────────────────────────────
@@ -497,12 +499,12 @@ def main(argv: list[str] | None = None) -> int:
             f"- 档策略：可用 oracle {len(profile.allowed_oracles())} 类 / "
             f"需审批 {len(profile.oracles.needs_approval)} 类",
         ]
-        # 黑名单也要写进报告（B328）：终端打了、报告没写，接手的人就不知道
-        # "这批资产里哪些是被边界挡下的"。命中的资产整面 BLOCKED、不发包。
-        if profile.deny:
-            lines.append(
-                f"- 黑名单：`{'`、`'.join(sorted(profile.deny))}` —— "
-                "命中的资产整面 BLOCKED（不发包）")
+    # 黑名单也要写进报告（B328/B355）：终端打了、报告没写，接手的人就不知道
+    # "这批资产里哪些是被边界挡下的"。放在档块**外面**——命令行 `--deny` 也要算。
+    if deny_hosts:
+        lines.append(
+            f"- 黑名单：`{'`、`'.join(sorted(deny_hosts))}` —— "
+            "命中的资产整面 BLOCKED（不发包）")
     lines += [
         f"- 资产数：{len(per_asset)}"
         + (

@@ -214,3 +214,28 @@ def test_platform_still_refuses_stale_artifacts(tmp_path: Path, capsys) -> None:
     err = capsys.readouterr().err
     assert rc == 1
     assert "不采用" in err, err
+
+
+# ── B355：全被挡下时报告不能说"本轮未产出" ──────────────────────
+def test_platform_report_counts_the_blocked_asset(lab, tmp_path: Path) -> None:  # noqa: ANN001
+    """rc=1 但产物齐全：报告里「资产数」不许写"本轮未产出"、逐资产行不许是「—」。"""
+    from veripen_cli.cmd_platform import main as platform_main
+
+    rc = platform_main(["--targets", lab.base_url,
+                        "--openapi", str(_spec(lab.base_url, tmp_path / "s.json")),
+                        "--out", str(tmp_path / "plat"), "--deny", "DENY_SET_DEFAULT"])
+    assert rc == 1
+    md = (tmp_path / "plat" / "platform-report.md").read_text(encoding="utf-8")
+    assert "本轮未产出" not in md, md[:400]
+    assert "| 1 |" in md and "| 3 | 0 |" in md.replace("`", ""), md[:900]
+
+
+def test_platform_report_names_the_cli_deny_list(lab, tmp_path: Path) -> None:  # noqa: ANN001
+    """黑名单行原来只在"有客户档"时写；命令行 --deny 也得写进报告。"""
+    from veripen_cli.cmd_platform import main as platform_main
+
+    platform_main(["--targets", lab.base_url,
+                   "--openapi", str(_spec(lab.base_url, tmp_path / "s.json")),
+                   "--out", str(tmp_path / "plat"), "--deny", "DENY_SET_DEFAULT"])
+    md = (tmp_path / "plat" / "platform-report.md").read_text(encoding="utf-8")
+    assert "黑名单：`DENY_SET_DEFAULT`" in md, md[:400]
