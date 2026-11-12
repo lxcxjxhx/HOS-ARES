@@ -98,7 +98,7 @@ def _dispatch(
         check_post_connect(
             peer_ip=peer_ip,
             asset=ctx.scope.asset,
-            deny_nets=getattr(ctx.scope, "deny_nets", ()),
+            deny_nets=ctx.scope.deny_nets,
             explicit_ips=(r.host,),
         )
 

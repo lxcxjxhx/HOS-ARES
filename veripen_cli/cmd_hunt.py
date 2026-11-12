@@ -418,6 +418,7 @@ def build_guard(
     burst: float = 2.0,
     deny: Iterable[str] = (),
     ceiling: str = "read_only",
+    deny_nets: Iterable[str] = (),
 ) -> GuardContext:
     """装配出网闸门（`hunt` 与 `run` 共用）。
 
@@ -425,10 +426,16 @@ def build_guard(
     所以两个入口必须走同一个构造函数，否则新入口会漏装。
     """
     resolved = _resolve_ips(host)
+    # `deny` 里混着"资产 id"与"网段"两种写法（B311）：拆开，网段进 ④ 的对端校验。
+    # 以前整串只按资产 id 比对，`10.0.0.0/8` 与 `DENY_SET_DEFAULT` 都静默失效。
+    from veripen_core.guard.scope import split_deny
+
+    deny_ids, nets_from_deny = split_deny(deny)
     scope = ScopeGuard(
         asset=AssetScope(id=host, host_keys=frozenset({host}), resolved_ips=resolved),
         scope_in=frozenset({host}),
-        deny=frozenset(deny),
+        deny=deny_ids,
+        deny_nets=nets_from_deny | frozenset(deny_nets),
         min_confidence=0.0,
         now=int(time.time()),
     )

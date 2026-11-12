@@ -118,6 +118,11 @@ def _findings_view(
     # verdict 只有四值，没有 ERROR，所以在映射这一层按原因码纠回来。
     if str(getattr(result, "reason", "") or "").startswith("transport_error:"):
         outcome = Outcome.ERROR
+    # 边界拒绝 = 未执行（授权/跳过那一类），不是"跑了但判不了"（B311）
+    from veripen.report.glossary import SCOPE_CODES
+
+    if str(getattr(result, "reason", "") or "") in SCOPE_CODES:
+        outcome = Outcome.NOT_RUN
     return FindingView(
         finding_id=f"F-{oracle_id}-{_ref_tail(binding)}",
         title=str(_meta(meta, "name", oracle_id)),
@@ -583,7 +588,14 @@ def main(argv: list[str] | None = None) -> int:
 
                     # 传输层失败（连不上/超时）不是"缺输入"，也不该把 Windows 异常串
                     # 当原因码（B299）：给它一个稳定码，报告里才读得出该去查网络。
-                    if isinstance(exc, _Missing):
+                    from veripen_core.guard.errors import ScopeViolation as _Scope
+
+                    if isinstance(exc, _Scope):
+                        # 被边界挡下是**明确拒绝**，不是"判不了"（B311）：
+                        # 原因码用稳定值（peer_in_deny / peer_not_in_scope），
+                        # 不把异常 repr 与 dict 塞进报告。
+                        reason = getattr(exc, "reason", "") or "scope_violation"
+                    elif isinstance(exc, _Missing):
                         reason = f"symbol_missing:{exc}"
                     elif isinstance(exc, (ConnectionError, TimeoutError, OSError)):
                         kind = {
