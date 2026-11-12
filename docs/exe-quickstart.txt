@@ -20,7 +20,8 @@
 
     然后：
       HOS-ARES.exe --record out/hunt.json
-    或把产物放到 out\hunt.json（默认会去找它）。
+    或把 out\hunt.json 放到**你当前所在的目录**（程序会先找当前目录，再找程序旁边）。
+    双击启动时"当前目录"是安装目录，所以双击用的话，推荐用 --record 指过去。
 
 四、常用参数
       --record <path>   指定产物（hunt.json 或 findings.json）

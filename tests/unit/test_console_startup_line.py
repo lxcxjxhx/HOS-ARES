@@ -112,3 +112,33 @@ def test_desktop_confirms_its_own_endpoint() -> None:
         encoding="utf-8")
     assert "def app_answers(" in src
     assert "app_answers(port)" in src
+
+
+# ── B287：产物要能在**当前目录**被找到 ──────────────────────────
+def test_pick_record_finds_artifacts_in_the_working_directory(tmp_path, monkeypatch) -> None:  # noqa: ANN001
+    """双击装好的 exe 时 cwd 是安装目录（Program Files），只找"程序旁边"等于永远找不到。"""
+    from veripen_cli import desktop
+
+    work = tmp_path / "work"
+    (work / "out").mkdir(parents=True)
+    target = work / "out" / "hunt.json"
+    target.write_text("{}", encoding="utf-8")
+    monkeypatch.chdir(work)
+    monkeypatch.setattr(desktop, "ROOT", tmp_path / "install")
+    assert desktop.pick_record("") == target
+
+
+def test_pick_record_still_prefers_an_explicit_path(tmp_path) -> None:  # noqa: ANN001
+    from veripen_cli import desktop
+
+    explicit = tmp_path / "x.json"
+    explicit.write_text("{}", encoding="utf-8")
+    assert desktop.pick_record(str(explicit)) == explicit
+
+
+def test_pick_record_returns_none_when_nothing_is_there(tmp_path, monkeypatch) -> None:  # noqa: ANN001
+    from veripen_cli import desktop
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(desktop, "ROOT", tmp_path / "install")
+    assert desktop.pick_record("") is None

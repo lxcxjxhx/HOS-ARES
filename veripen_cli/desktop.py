@@ -65,13 +65,22 @@ def free_port() -> int:
 
 
 def pick_record(explicit: str, root: Path = ROOT) -> Path | None:
-    """选数据源：显式的优先；否则按默认顺序找第一个存在的；都没有 → None（空态）。"""
+    """选数据源：显式 > **当前目录**下的默认位置 > 程序旁边的默认位置 > 空态。
+
+    只找"程序旁边"是不够的（B287）：双击安装好的 exe 时 cwd 是安装目录
+    （通常在 Program Files 下，没人会往那里放产物），于是"把产物放到 out/hunt.json
+    就会自动找到"这句说明在实际使用中永远不成立。先看 cwd，再看程序旁边。
+    """
     if explicit:
         return Path(explicit)
-    for rel in DEFAULT_RECORDS:
-        candidate = root / rel
-        if candidate.exists():
-            return candidate
+    roots = [Path.cwd()]
+    if root not in roots:
+        roots.append(root)
+    for base in roots:
+        for rel in DEFAULT_RECORDS:
+            candidate = base / rel
+            if candidate.exists():
+                return candidate
     return None
 
 
