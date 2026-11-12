@@ -93,3 +93,28 @@ def test_platform_input_error_is_two(tmp_path: Path) -> None:
     rc = platform_main(["--profile", str(tmp_path / "nope.yaml"),
                         "--openapi", "x.json", "--out", str(tmp_path / "o")])
     assert rc == 2, rc
+
+
+def test_hunt_contract_without_tags_is_one(tmp_path: Path) -> None:
+    """表里的另一格：契约里没有带语义标签的 operation → 1（不是 2，参数没错）。"""
+    from veripen_cli.cmd_hunt import main as hunt_main
+
+    spec = tmp_path / "untagged.json"
+    spec.write_text(json.dumps({
+        "openapi": "3.0.0", "info": {"title": "x", "version": "1"},
+        "servers": [{"url": LOOPBACK_DEAD}],
+        "paths": {f"{SEP}plain": {"get": {}}},
+    }), encoding="utf-8")
+    rc = hunt_main(["--target", LOOPBACK_DEAD, "--openapi", str(spec),
+                    "--out", str(tmp_path / "hunt")])
+    assert rc == 1, rc
+
+
+def test_platform_with_one_bad_asset_is_one(lab, tmp_path: Path) -> None:  # noqa: ANN001
+    """一个资产跑成功、另一个不可达 → 有资产退出码非 0，报告里标 —，整体 1。"""
+    from veripen_cli.cmd_platform import main as platform_main
+
+    rc = platform_main(["--targets", f"{lab.base_url},{LOOPBACK_DEAD}",
+                        "--openapi", str(_spec(lab.base_url, tmp_path / "s.json")),
+                        "--out", str(tmp_path / "plat")])
+    assert rc == 1, rc
