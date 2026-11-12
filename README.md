@@ -17,7 +17,7 @@
 # 1. 装依赖（Python 3.11+）
 pip install -e ".[dev]"
 
-# 2. 环境自检（24 项，缺条件的记 skip 不记 fail）
+# 2. 环境自检（25 项，缺条件的记 skip 不记 fail）
 veripen doctor
 
 # 3. 坐下干活
@@ -105,7 +105,7 @@ ubuntu 上跑快闸门，windows 上把测试分三段跑——避免"CI 跑的"
 
 | 面 | 命令 | 产物 |
 |---|---|---|
-| **自动化渗透** | `veripen run --target <url> --openapi <spec>` | `report.md` / `findings.json` / `capsules/` |
+| **自动化渗透** | `veripen run --target <url> --openapi <spec>` | `report.md` / `findings.json` / `report.sarif` / `report.manifest.json` / `capsules/` |
 | **企业编排** | `veripen platform --profile profiles/<档名>/profile.yaml --openapi <spec>` | `platform-report.md`（逐资产 + 审计五表） |
 | **对话界面** | `veripen chat` | 会话事件（`task_events`），可 `--resume` |
 

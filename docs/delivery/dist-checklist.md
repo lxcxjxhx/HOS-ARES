@@ -1,7 +1,7 @@
 # 分发前十项
 
-> 没有 `make` 的机器（Windows 安装包环境）用 `python scripts/tasks.py <同名任务>`。
-- [ ] `make doctor` 24 项全绿
+> 没有 `make` 的机器（Windows 安装包环境）用 `python scripts/tasks.py <任务名>`；任务清单见 `--list`（12 条，覆盖交付常用动作，不含开发用 make 目标）。
+- [ ] `make doctor` 25 项全绿
 - [ ] `make lint`（零地址 / 禁数据桩 / 绑定覆盖 / 默认关闭 / policy）
 - [ ] `make bench` FP=0、越界=0、routeset 三轮一致
 - [ ] `make demo` 与 `make demo-alt` 均跑通
