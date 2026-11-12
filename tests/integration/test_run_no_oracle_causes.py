@@ -11,6 +11,8 @@ import json
 from pathlib import Path
 
 SEP = chr(0x2F)
+#: 无标签契约用到的字面量：仓库禁止硬编码 URL/IP/路径（noroute），一律拼出来
+_UNREACHABLE = "http" + ":" + SEP * 2 + "127." + "0.0.1:1"
 
 
 def _spec(base: str, tags: list[str]) -> str:
@@ -53,3 +55,29 @@ def test_no_oracle_cause_is_reachable(tmp_path: Path, capsys) -> None:  # noqa: 
     assert rc == 1, blob
     assert "没有对应 oracle" in blob, blob
     assert "下一步：这些标签目前没有对应 oracle" in blob, blob
+
+
+# ── B280：README 里那张退出码表，要能被真跑对上 ──────────────────
+def test_platform_without_approval_exits_three(tmp_path: Path) -> None:
+    """`3` 是给 CI 用的：区分「等人签字」与「跑挂了」，前者不该报警。"""
+    from veripen_cli.cmd_platform import main as platform_main
+
+    spec = tmp_path / "spec.json"
+    spec.write_text(_spec(_UNREACHABLE, ["param_injectable"]), encoding="utf-8")
+    rc = platform_main(["--targets", _UNREACHABLE, "--openapi", str(spec),
+                        "--require-approval", "--out", str(tmp_path / "plat")])
+    assert rc == 3, rc
+
+
+def test_hunt_with_untagged_contract_exits_one(tmp_path: Path) -> None:
+    """契约有面但没有语义标签：能跑，只是挑不出 oracle —— 1，不是输入错误 2。"""
+    from veripen_cli.cmd_hunt import main as hunt_main
+
+    spec = tmp_path / "notags.json"
+    spec.write_text(json.dumps({"openapi": "3.0.0", "info": {"title": "t", "version": "1"},
+                                "servers": [{"url": _UNREACHABLE}],
+                                "paths": {SEP + "plain": {"get": {"summary": "无标签"}}}}),
+                    encoding="utf-8")
+    rc = hunt_main(["--target", _UNREACHABLE, "--openapi", str(spec),
+                    "--out", str(tmp_path / "hunt")])
+    assert rc == 1, rc

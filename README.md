@@ -109,6 +109,19 @@ ubuntu 上跑快闸门，windows 上把测试分三段跑——避免"CI 跑的"
 | **企业编排** | `veripen platform --profile profiles/<档名>/profile.yaml --openapi <spec>` | `platform-report.md`（逐资产 + 审计五表） |
 | **对话界面** | `veripen chat` | 会话事件（`task_events`），可 `--resume` |
 
+### 退出码（写脚本 / 接 CI 用）
+
+三条主命令的退出码是**分开的语义**，别把 1 和 2 都当"失败"：
+
+| 命令 | 0 | 1 | 2 | 3 |
+|---|---|---|---|---|
+| `veripen run` | 跑完并产出交付物 | 一项都没跑成，或证据自校验失败 | 输入有问题（契约/目标/档） | — |
+| `veripen hunt` | 本轮结束（含模型降级） | 契约里没有带语义标签的 operation | 输入有问题 | — |
+| `veripen platform` | 全部资产跑完 | 有资产退出码非 0（报告里标 —） | 输入有问题 | **审批 PENDING，未执行** |
+
+`3` 单独留出来，是为了让 CI 能区分"等人签字"与"跑挂了"——前者不该报警。
+
+
 配合：
 
 ```bash
