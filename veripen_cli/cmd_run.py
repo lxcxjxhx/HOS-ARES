@@ -73,6 +73,28 @@ def _meta(oracle: Any, key: str, default: Any = "") -> Any:
     return getattr(meta, key, default)
 
 
+def _show(path: str | Path) -> str:
+    """尽量用相对 cwd 的形式显示路径（B303）：绝对路径会把机器布局写进终端输出。"""
+    try:
+        return Path(path).relative_to(Path.cwd()).as_posix()
+    except ValueError:
+        return str(path)
+
+
+def _next_out(current: str) -> str:
+    """给"换个 --out"举一个**贴着用户当前路径**的例子（B303）。
+
+    能在 cwd 下表示就写相对路径：绝对路径会把操作员的机器布局写进终端输出
+    （与 B189/B247 对交付物的口径一致）。
+    """
+    path = Path(current)
+    nxt = path.with_name(path.name + "-2")
+    try:
+        return nxt.relative_to(Path.cwd()).as_posix()
+    except ValueError:
+        return str(nxt)
+
+
 def _findings_view(
     *, asset_id: str, oracle_id: str, meta: Any, result: Any,
     binding: Any, capsule: CapsuleDoc | None,
@@ -384,7 +406,10 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"拒绝重跑：{Path(args.out) / CAPSULE_DIR} 里已有 {len(stale)} 份 capsule。\n"
             "  证据是内容寻址的：同一目录跑两次会变成两条链，报告里的份数也对不上盘上。\n"
-            "  换个 --out（例如 out/run-2），或先把上一轮移走（mv out/run out/run-1）。",
+            # 例子要按**用户实际给的** --out 推（B303）：platform 调进来时目录是
+            # `out/<批次>/asset-N`，写死 "out/run-2" 会把人指到一个不存在的地方。
+            f"  换个 --out（例如 {_next_out(args.out)}），"
+            f"或先把上一轮移走（mv {_show(args.out)} {_next_out(args.out)}）。",
             file=sys.stderr,
         )
         return 2

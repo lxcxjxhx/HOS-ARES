@@ -88,3 +88,21 @@ def test_transport_reason_has_a_human_sentence() -> None:
 
     text = explain("transport_error:connection_refused")
     assert "连不上" in text and "端口" in text, text
+
+
+# ── B303：重跑提示要贴着用户给的 --out，且不泄漏绝对路径 ──────────
+def test_next_out_examples_follow_the_actual_path() -> None:
+    """platform 调进来时目录是 `out/<批次>/asset-N`；写死 `out/run-2` 会把人指到不存在的地方。"""
+    from veripen_cli.cmd_run import _next_out
+
+    assert _next_out("out/run").endswith("run-2")
+    assert "asset-1-2" in _next_out("out/twice/asset-1")
+
+
+def test_show_prefers_a_relative_path() -> None:
+    from pathlib import Path
+
+    from veripen_cli.cmd_run import _show
+
+    inside = Path.cwd() / "out" / "x"
+    assert _show(inside) == "out/x"
