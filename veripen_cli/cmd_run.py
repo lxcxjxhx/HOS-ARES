@@ -789,7 +789,17 @@ def main(argv: list[str] | None = None) -> int:
              "elapsed_ms": e.elapsed_ms, "detail": dict(e.detail or {})}
             for e in db_events.for_task(db_task)
         ]
-        audit_text = render_audit_section(AuditInput(task_id=db_task, events=audit_events))
+        # 预算账要有真数（B340）：只传 events 时五行全是"未提供"，
+        # 读者看不出这一轮发了多少请求、跑了多久。
+        audit_text = render_audit_section(AuditInput(
+            task_id=db_task,
+            events=audit_events,
+            budget={
+                "requests": len(render_state["sent"]),
+                "elapsed_s": round(time.time() - started, 1),
+                "steps": len(results),
+            },
+        ))
         if audit_text.strip():
             from veripen.report.render import render_markdown_with_audit
 

@@ -120,3 +120,16 @@ def test_run_without_db_has_no_audit_section(tmp_path: Path) -> None:
     assert rc in (0, 1)
     md = (tmp_path / "run" / "report.md").read_text(encoding="utf-8")
     assert "智能体行为审计" not in md, "没给 --db 就别假装有审计"
+
+
+# ── B340：审计的预算账要有真数，不能五行全"未提供" ────────────────
+def test_run_audit_budget_shows_real_numbers(tmp_path: Path) -> None:
+    rc = _run(tmp_path, ["param_injectable"], ["--db", str(tmp_path / "e.db")])
+    assert rc in (0, 1), rc
+    md = (tmp_path / "run" / "report.md").read_text(encoding="utf-8")
+    i = md.find("### 预算账")
+    assert i > 0, "没有预算账"
+    block = md[i:i + 400]
+    assert "| requests |" in block
+    line = next(ln for ln in block.splitlines() if ln.startswith("| requests |"))
+    assert "未提供" not in line.split("|")[2], f"requests 应当有真数：{line}"
