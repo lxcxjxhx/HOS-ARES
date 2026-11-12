@@ -21,9 +21,22 @@ def test_there_are_demo_profiles() -> None:
     assert PROFILES, "profiles/ 下没有演示档"
 
 
+#: 这个档**故意**用默认拒绝集——它的用途就是演示"被边界挡下"（B313）
+DENY_DEMO = "demo-deny"
+
+
 @pytest.mark.parametrize("path", PROFILES, ids=[p.parent.name for p in PROFILES])
-def test_demo_profile_does_not_deny_loopback(path: Path) -> None:
+def test_demo_profile_deny_policy_matches_its_purpose(path: Path) -> None:
     prof = load_profile(path)
-    assert "DENY_SET_DEFAULT" not in prof.deny, (
-        "演示档写 DENY_SET_DEFAULT 会把回环靶场整段拒掉（0 验证 0 证据）")
     assert prof.deny, "演示档也该有黑名单，别留空"
+    if path.parent.name == DENY_DEMO:
+        assert "DENY_SET_DEFAULT" in prof.deny, "这个档的用途就是演示拒绝"
+    else:
+        assert "DENY_SET_DEFAULT" not in prof.deny, (
+            "演示档写 DENY_SET_DEFAULT 会把回环靶场整段拒掉（0 验证 0 证据）")
+
+
+def test_the_deny_demo_exists() -> None:
+    names = {p.parent.name for p in PROFILES}
+    assert DENY_DEMO in names, "拒绝演示档被删了，边界就没法演示"
+    assert "demo-a" in names, "放行那一半也要留一个档"
