@@ -104,3 +104,19 @@ def test_a_clean_target_still_exits_zero(tmp_path: Path) -> None:
     rc = _run(tmp_path, ["param_injectable"], [])
     assert rc in (0, 1)          # 靶场行为随 seed 变，这里只保证不崩
     _ = run_main                # 保持导入，避免被 lint 判成未使用
+
+
+# ── B339：`run --db` 要有审计五表（render_markdown_with_audit 以前没人用）──
+def test_run_with_db_appends_the_audit_section(tmp_path: Path) -> None:
+    rc = _run(tmp_path, ["param_injectable"], ["--db", str(tmp_path / "e.db")])
+    assert rc in (0, 1), rc
+    md = (tmp_path / "run" / "report.md").read_text(encoding="utf-8")
+    assert "智能体行为审计" in md, md[-600:]
+    assert "### 动作账" in md
+
+
+def test_run_without_db_has_no_audit_section(tmp_path: Path) -> None:
+    rc = _run(tmp_path, ["param_injectable"], [])
+    assert rc in (0, 1)
+    md = (tmp_path / "run" / "report.md").read_text(encoding="utf-8")
+    assert "智能体行为审计" not in md, "没给 --db 就别假装有审计"

@@ -354,6 +354,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out", default=str(ROOT / "out" / "run"),
                     help="产物目录。证据目录只属于一轮：已有 capsule 的目录会被拒绝（B153）")
     ap.add_argument("--exclude", default=DEFAULT_EXCLUDE, help="逗号分隔的 oracle 黑名单")
+    # 审计库（B339）：平台那一路有，run 没有——于是"这一轮做了什么"只能靠 stdout 回忆。
+    ap.add_argument("--db", default="", help="事件库（给了就把本轮事件落库，并在报告里附审计五表）")
     ap.add_argument("--token", default="", help="主身份 token（可空；空则相关 oracle 落 BLOCKED）")
     ap.add_argument(
         "--strict-requires", action="store_true",
@@ -527,6 +529,15 @@ def main(argv: list[str] | None = None) -> int:
                         deny=[x.strip() for x in args.deny.split(",") if x.strip()],
                         ceiling=args.max_impact)
     http_tool.install_guard(guard)
+    # 事件库（B339）：给了 --db 就落库；不给就完全不变（不新增副作用）
+    db_events = None
+    db_task = ""
+    if args.db:
+        from veripen_core.blackboard import EventLog
+        from veripen_core.store import Store
+
+        db_task = f"run-{int(time.time())}"
+        db_events = EventLog(Store(str(args.db)).init())
     started = time.time()
     results: list[tuple[str, Any, Any, Any]] = []   # (oracle_id, meta, result, binding)
     render_state: dict[str, Any] = {"thread": None, "sent": []}
@@ -609,6 +620,10 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"  {oracle_id:<24} {'BLOCKED':<14} {reason[:60]}")
                     blocked = _Run(_V.BLOCKED, reason, None, (), {})
                     results.append((oracle_id, oracle.meta, blocked, primary))
+                    if db_events is not None:
+                        db_events.record(task_id=db_task, kind="oracle", ok=False,
+                                         oracle_id=oracle_id, err_class="blocked",
+                                         detail={"verdict": "BLOCKED", "reason": reason[:80]})
                     from veripen_core.coverage import FaceRun as _Face
 
                     face_runs.append(_Face(
@@ -628,6 +643,13 @@ def main(argv: list[str] | None = None) -> int:
                     f"{str(getattr(result, 'reason', ''))[:36]:<36} {face}"
                 )
                 results.append((oracle_id, oracle.meta, result, primary))
+                if db_events is not None:
+                    db_events.record(
+                        task_id=db_task, kind="oracle", ok=verdict == "VERIFIED",
+                        oracle_id=oracle_id, route_ref=str(getattr(primary, "ref", "")),
+                        err_class=None if verdict != "BLOCKED" else "blocked",
+                        detail={"verdict": verdict, "reason": str(getattr(result, "reason", ""))[:80]},
+                    )
                 from veripen_core.coverage import FaceRun
 
                 face_runs.append(FaceRun(
@@ -756,6 +778,22 @@ def main(argv: list[str] | None = None) -> int:
     # CI（SARIF 是扫描平台读的），也没法证明"报告没被手改"（manifest 是那件事的凭据）。
     # 演示里怎么写，产品里就怎么写：同一份 dict 进三份产物。
     md_text = render_markdown(report)
+    audit_text = ""
+    if db_events is not None and db_task:
+        from veripen.report.audit import AuditInput, render_audit_section
+
+        # `for_task` 给的是 Event 对象，审计渲染吃 dict（与平台那一路同口径）
+        audit_events = [
+            {"seq": e.seq, "kind": e.kind, "ok": e.ok, "tool": e.tool,
+             "oracle_id": e.oracle_id, "route_ref": e.route_ref,
+             "elapsed_ms": e.elapsed_ms, "detail": dict(e.detail or {})}
+            for e in db_events.for_task(db_task)
+        ]
+        audit_text = render_audit_section(AuditInput(task_id=db_task, events=audit_events))
+        if audit_text.strip():
+            from veripen.report.render import render_markdown_with_audit
+
+            md_text = render_markdown_with_audit(report, audit_text)
     js_payload = render_json(report)
     sarif = render_sarif(report)
     from veripen.report.lint import dumps_artifact
@@ -799,6 +837,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  注意：{caveat}")
 
     print(f"证据：{len(sealed)} 份 capsule → {capsules_dir}")
+    if db_events is not None:
+        print(f"审计：{len(db_events.for_task(db_task))} 条事件 → {args.db}（报告里附审计五表）")
     print(f"交付：{(out / 'report.md').name} / {(out / 'findings.json').name}"
           f" / {(out / 'report.sarif').name} / {(out / 'report.manifest.json').name}")
     print(f"耗时：{time.time() - started:.1f}s")
