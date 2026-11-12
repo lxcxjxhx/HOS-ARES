@@ -474,3 +474,19 @@ def test_every_skip_carries_a_fix_hint() -> None:
         if result.status.name == "SKIP" and not result.fix.strip():
             empty.append(name)
     assert not empty, f"这些 skip 项没有 fix：{empty}"
+
+
+# ── B304：doctor 提示里的 --only 名字必须真的存在 ────────────────
+def test_only_names_in_hints_are_real_checks() -> None:
+    """B291 我写了「veripen doctor --only model」，而检查名是 `model_backend`——
+    照着提示敲会得到「可用项：…」，跟 B293 是同一族错。"""
+    import re
+
+    from veripen_cli import cmd_doctor
+
+    valid = {name for name, _ in cmd_doctor.CHECKS}
+    text = " ".join(
+        f"{r.detail} {r.fix}" for r in (fn(Path(".")) for _, fn in cmd_doctor.CHECKS)
+    )
+    used = set(re.findall(r"--only ([a-z_]+)", text))
+    assert used <= valid, f"提示里出现了不存在的检查名：{sorted(used - valid)}"

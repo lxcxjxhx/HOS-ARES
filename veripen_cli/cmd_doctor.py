@@ -392,7 +392,7 @@ def check_model_backend(root: Path) -> CheckResult:
             "未配置（规则层可用）：设 VERIPEN_MODEL_BASE_URL + VERIPEN_MODEL 接真模型",
             # fix 列不许留空（B291）：这一项是客户最可能看到的 skip，空着等于没给下一步
             "设 VERIPEN_MODEL_BASE_URL 与 VERIPEN_MODEL（网关要 key 就再加 "
-            "VERIPEN_MODEL_API_KEY），然后 veripen doctor --only model",
+            "VERIPEN_MODEL_API_KEY），然后 veripen doctor --only model_backend",
         )
     url = base + _SEP + "models"
     # 带了 key 就得把它发出去（B233）：旧探针只发 GET，遇到"要鉴权才能读 /models"
