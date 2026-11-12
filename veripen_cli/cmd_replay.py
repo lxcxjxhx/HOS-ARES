@@ -104,12 +104,49 @@ def _tamper_probe(cap: CapsuleDoc, out: Path) -> int:
     return _fail("篡改 1 字节后仍通过自哈希校验——A4 不成立")
 
 
+def _chain(target: Path) -> int:
+    """校验一整条证据链：目录 / 通配符 / 一串文件（B293）。
+
+    **它验的是"证据没被改、顺序没断"**，不是"漏洞还在"——和单份重放同一条边界。
+    """
+    import glob
+
+    from veripen_core.evidence import assert_self_sha, verify_chain
+
+    if target.is_dir():
+        files = sorted(target.glob("*.json"))
+    else:
+        files = sorted(Path(p) for p in glob.glob(str(target)))
+    if not files:
+        return _fail(f"没找到 capsule：{target}（给目录、通配符，或一份 .json）")
+
+    caps = []
+    for path in files:
+        cap = load_capsule(path)
+        assert_self_sha(cap)          # 单份完整性先过，再谈链
+        caps.append(cap)
+
+    report = verify_chain(caps)
+    print(f"链：{len(caps)} 份 · 完整={report.ok} · 链头={report.head_sha256[:12] or '-'}")
+    print(f"链头 prev：{report.genesis_prev_sha256[:12]}（合法链恒为全零）")
+    if not report.ok:
+        for brk in report.breaks:
+            print(f"  断点：{brk}")
+        print("说明：断点表示证据顺序或内容被改过；这**不是**\"漏洞没了\"的判断")
+        return 1
+    print("说明：这只证明证据自洽且顺序未断；**不**证明洞还在（那要 live 重放）")
+    return 0
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(prog="veripen replay")
     ap.add_argument("--capsule", help="capsule JSON 路径")
     ap.add_argument("--out", default="out/replay", help="输出目录")
     ap.add_argument("--mode", choices=["live", "dry", "offline"], default="live")
     ap.add_argument("--selftest", action="store_true", help="只做篡改证明（不需要靶场）")
+    # 链校验（B293）：bench 一直在提示 `veripen evidence --verify-chain`，而那个子命令不存在。
+    # 能力（verify_chain）早就在 core 里，缺的只是一个入口——放到 replay 下最自然。
+    ap.add_argument("--chain", help="校验一整条证据链：给目录或通配符（如 out/x/capsules/r1）")
     args = ap.parse_args(argv)
 
     if args.selftest:
@@ -125,6 +162,9 @@ def main(argv: list[str]) -> int:
         except CapsuleError as exc:
             return _fail(f"capsule 载入失败：{exc}")
         return _tamper_probe(cap, Path(args.out))
+
+    if args.chain:
+        return _chain(Path(args.chain))
 
     if not args.capsule:
         return _fail("需要 --capsule <path>（重放一份证据）；"

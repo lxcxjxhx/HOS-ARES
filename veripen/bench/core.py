@@ -511,7 +511,7 @@ def render_bench_md(rounds: Sequence[RoundResult], *, gates: GateResult,
         # 只给数量不给位置 = 读者拿不到证据；"sealed" 不等于"存过"。
         root = capsules_dir.replace("\\", "/").rstrip("/")
         w(f"证据落盘：`{root}/r<轮次>/` · 每轮一条链（链头 prev 为全零）"
-          f" · `veripen evidence --verify-chain {root}/r1/*.json` 可验"
+          f" · `veripen replay --chain {root}/r1` 可验"
           f" · 单份重放：`veripen replay --capsule <该文件>`")
     if partial_cases:
         w("状态一致但字节不同的用例：" + "、".join(partial_cases)

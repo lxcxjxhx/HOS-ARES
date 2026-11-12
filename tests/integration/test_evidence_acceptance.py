@@ -148,3 +148,27 @@ def test_replay_status_written_back(tmp_path) -> None:
         assert path.read_bytes() == E.dumps_capsule(cap), "回写不得改动 capsule 文件"
     finally:
         store.close()
+
+
+# ── B293：链校验要有产品入口（bench 一直提示的那个命令不存在）────────
+def test_replay_chain_verifies_a_directory(tmp_path: Path) -> None:
+    """`veripen evidence --verify-chain` 是条不存在的命令；能力在 core 里，缺的是入口。"""
+    from veripen_cli.cmd_replay import main as replay_main
+    from veripen_core.evidence import save_capsule, seal_capsule_doc
+
+    caps_dir = tmp_path / "capsules"
+    caps_dir.mkdir()
+    prev = "0" * 64
+    for _ in range(2):
+        cap = seal_capsule_doc(F.capsule(), prev_sha256=prev)
+        save_capsule(cap, caps_dir)
+        prev = cap.chain.self_sha256
+    assert replay_main(["--chain", str(caps_dir)]) == 0
+
+
+def test_replay_chain_refuses_an_empty_target(tmp_path: Path) -> None:
+    from veripen_cli.cmd_replay import main as replay_main
+
+    empty = tmp_path / "none"
+    empty.mkdir()
+    assert replay_main(["--chain", str(empty)]) == 1

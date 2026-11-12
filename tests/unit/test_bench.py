@@ -325,7 +325,8 @@ def test_bench_md_points_at_capsule_dir() -> None:
         capsules_dir="out/x/capsules",
     )
     assert "证据落盘" in with_dir
-    assert "out/x/capsules/r1/*.json" in with_dir
+    assert "out/x/capsules/r1" in with_dir, "要给出可复跑的链校验路径"
+    assert "veripen replay --chain" in with_dir, "提示的命令必须真的存在（B293）"
     without = render_bench_md([r], gates=check_hard_gates([r]), case_fp="f" * 64)
     assert "证据落盘" not in without
 
