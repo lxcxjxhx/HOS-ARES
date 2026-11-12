@@ -44,7 +44,7 @@ def artifact_note(path: str) -> str:
     return "（不存在：先跑一次 `veripen run` 或 `veripen hunt`，或换 --hunt 指到产物）"
 
 
-def _port_available(host: str, port: int) -> str:
+def port_problem(host: str, port: int) -> str:
     """先试着绑一下端口（B281）。
 
     以前是先把「控制台：http://host:port/ui/app」打印出来，再交给 uvicorn 去绑；
@@ -128,7 +128,7 @@ def main(argv: list[str] | None = None) -> int:
 
     app = build_app(state, record_decision=record)
 
-    problem = _port_available(args.host, args.port)
+    problem = port_problem(args.host, args.port)
     if problem:
         print(f"控制台起不来：{problem}", file=sys.stderr)
         return 2

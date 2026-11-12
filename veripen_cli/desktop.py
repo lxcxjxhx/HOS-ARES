@@ -19,6 +19,8 @@ import sys
 import threading
 import time
 import webbrowser
+
+from veripen_cli.cmd_console import port_problem
 from pathlib import Path
 from typing import Any
 
@@ -129,6 +131,30 @@ def wait_ready(port: int, timeout_s: float = 20.0, *, host: str = _HOST) -> bool
     return False
 
 
+def app_answers(port: int, timeout_s: float = 20.0, *, host: str = _HOST) -> bool:
+    """端口能连上 ≠ 我们的服务起来了（B285）。
+
+    `wait_ready` 只做 TCP 连接：端口被**别人**占着时它也返回 True，
+    于是 desktop 打印「控制台已启动」并打开浏览器——而那个端口上跑的不是我们。
+    这里再向自己的概览页要一次 JSON，键对得上才算起来。
+    """
+    import json
+    import urllib.request
+
+    deadline = time.time() + timeout_s
+    url = base_url(port) + _SEP + "ui" + _SEP + "overview"
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(url, timeout=1.0) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            if isinstance(data, dict) and isinstance(data.get("data"), dict):
+                return True
+        except Exception:  # noqa: BLE001 - 还没起来就继续等
+            pass
+        time.sleep(0.05)
+    return False
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         prog="veripen-desktop",
@@ -145,9 +171,17 @@ def main(argv: list[str] | None = None) -> int:
     state = build_state(record)
     port = args.port or free_port()
 
+    if args.port:
+        problem = port_problem(_HOST, port)
+        if problem:
+            print(f"启动失败：{problem}", file=sys.stderr)
+            return 2
+
     serving = serve(state, port)
-    if not wait_ready(port):
+    if not wait_ready(port) or not app_answers(port):
         print(f"启动失败：{timeout_s_hint(port)}", file=sys.stderr)
+        if serving.alive():
+            serving.stop()
         return 1
 
     url = base_url(port) + _SEP + _APP

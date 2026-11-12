@@ -46,8 +46,8 @@ def test_busy_port_is_reported_before_any_url_is_printed() -> None:
 
     src = (Path(__file__).resolve().parents[2] / "veripen_cli" / "cmd_console.py").read_text(
         encoding="utf-8")
-    assert "_port_available(" in src
-    assert src.index("_port_available(args.host") < src.index('print(f"控制台：'), \
+    assert "port_problem(" in src
+    assert src.index("port_problem(args.host") < src.index('print(f"控制台：'), \
         "端口检查必须在打印启动行之前"
 
 
@@ -55,13 +55,13 @@ def test_port_probe_says_occupied_not_permission_denied() -> None:
     """Windows 上设了 SO_REUSEADDR 时，端口被占报的是 WSAEACCES——提示会误指向权限。"""
     import socket
 
-    from veripen_cli.cmd_console import _port_available
+    from veripen_cli.cmd_console import port_problem
 
     with socket.socket() as busy:
         busy.bind((_LOOPBACK, 0))
         busy.listen(1)
         port = busy.getsockname()[1]
-        problem = _port_available(_LOOPBACK, port)
+        problem = port_problem(_LOOPBACK, port)
     assert "占用" in problem, problem
     assert "权限" not in problem, problem
 
@@ -69,12 +69,12 @@ def test_port_probe_says_occupied_not_permission_denied() -> None:
 def test_a_free_port_reports_no_problem() -> None:
     import socket
 
-    from veripen_cli.cmd_console import _port_available
+    from veripen_cli.cmd_console import port_problem
 
     with socket.socket() as probe:
         probe.bind((_LOOPBACK, 0))
         free = probe.getsockname()[1]
-    assert _port_available(_LOOPBACK, free) == ""
+    assert port_problem(_LOOPBACK, free) == ""
 
 
 def test_a_bind_failure_after_the_banner_denies_the_url(monkeypatch, tmp_path) -> None:  # noqa: ANN001
@@ -87,7 +87,28 @@ def test_a_bind_failure_after_the_banner_denies_the_url(monkeypatch, tmp_path) -
         raise OSError(10048, "address in use")
 
     monkeypatch.setattr(uvicorn, "run", boom)
-    monkeypatch.setattr(cmd_console, "_port_available", lambda host, port: "")
+    monkeypatch.setattr(cmd_console, "port_problem", lambda host, port: "")
     rc = cmd_console.main(["--port", "18199", "--host", _LOOPBACK,
                            "--hunt", str(tmp_path / "nope.json")])
     assert rc == 2, rc
+
+
+# ── B285：desktop（双击那条路）也不许"说起来了其实没起来" ─────────
+def test_desktop_refuses_a_busy_fixed_port(monkeypatch) -> None:  # noqa: ANN001
+    """实测：端口被别人占着时，wait_ready 只做 TCP 连接 → 返回 True，
+    于是打印「控制台已启动」并打开浏览器，而那个端口上跑的不是我们。"""
+    from veripen_cli import desktop
+
+    monkeypatch.setattr(desktop, "port_problem", lambda host, port: "端口 18188 已被占用")
+    rc = desktop.main("--no-browser --wait-s 1 --port 18188".split())
+    assert rc == 2, rc
+
+
+def test_desktop_confirms_its_own_endpoint() -> None:
+    """光"端口能连"不够：还要自己的概览页返回 JSON。"""
+    from pathlib import Path
+
+    src = (Path(__file__).resolve().parents[2] / "veripen_cli" / "desktop.py").read_text(
+        encoding="utf-8")
+    assert "def app_answers(" in src
+    assert "app_answers(port)" in src
