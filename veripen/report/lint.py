@@ -116,15 +116,37 @@ def _sha(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def dumps_artifact(obj: Any) -> str:
+    """**落盘用**的 JSON 序列化——与写文件、与算哈希必须是同一份字符串（B316）。
+
+    以前 manifest 用 `sort_keys=True` 算哈希、文件用 `indent=2` 无排序写出，
+    于是 `sha256sum findings.json` 与 manifest 里的值永远对不上——
+    客户按常规办法验，只会得出"文件被改过"的结论。
+    """
+    return json.dumps(obj, ensure_ascii=False, indent=2)
+
+
 def build_manifest(*, markdown: str, sarif: dict[str, Any], js: dict[str, Any]) -> dict[str, Any]:
-    """每节 sha256 + 总哈希。**改一个字符即校验失败。**"""
+    """每节 sha256 + 总哈希 + **逐文件哈希**。改一个字符即校验失败。
+
+    `files` 里的值可以直接用 `sha256sum` 对盘上文件核（B316）：
+    哈希算的就是落盘那一串字节（文本按 `
+` 换行写，不做平台翻译）。
+    """
+    sarif_text = dumps_artifact(sarif)
+    js_text = dumps_artifact(js)
     sections = {
         "markdown": _sha(markdown),
-        "sarif": _sha(json.dumps(sarif, ensure_ascii=False, sort_keys=True)),
-        "json": _sha(json.dumps(js, ensure_ascii=False, sort_keys=True)),
+        "sarif": _sha(sarif_text),
+        "json": _sha(js_text),
     }
     total = _sha("".join(sections[k] for k in sorted(sections)))
-    return {"version": 1, "sections": sections, "report_sha256": total}
+    files = {
+        "report.md": sections["markdown"],
+        "findings.json": sections["json"],
+        "report.sarif": sections["sarif"],
+    }
+    return {"version": 1, "sections": sections, "files": files, "report_sha256": total}
 
 
 def verify_manifest(manifest: Mapping[str, Any], *, markdown: str, sarif: dict[str, Any],

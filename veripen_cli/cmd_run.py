@@ -757,14 +757,14 @@ def main(argv: list[str] | None = None) -> int:
     md_text = render_markdown(report)
     js_payload = render_json(report)
     sarif = render_sarif(report)
+    from veripen.report.lint import dumps_artifact
+
     manifest = build_manifest(markdown=md_text, sarif=sarif, js=js_payload)
-    (out / "findings.json").write_text(
-        json.dumps(js_payload, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
-    (out / "report.md").write_text(md_text, encoding="utf-8")
-    (out / "report.sarif").write_text(
-        json.dumps(sarif, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    # 落盘必须与算哈希用同一份字符串，且换行固定 LF（B316）：
+    # 否则 Windows 上的 CRLF 翻译会让 `sha256sum` 与 manifest 对不上。
+    (out / "findings.json").write_text(dumps_artifact(js_payload), encoding="utf-8", newline=chr(10))
+    (out / "report.md").write_text(md_text, encoding="utf-8", newline=chr(10))
+    (out / "report.sarif").write_text(dumps_artifact(sarif), encoding="utf-8", newline=chr(10))
     (out / "report.manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
     )
