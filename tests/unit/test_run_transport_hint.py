@@ -60,3 +60,31 @@ def test_each_cause_is_recorded_where_it_is_decided() -> None:
     block = src[start:end]
     assert block.count("causes.add(") == 3, block
     assert "hit == []" not in block, "又写回靠猜的条件式了"
+
+
+# ── B299：连不上 ≠ 跑了判不了，也不该把 Windows 异常串当原因码 ────
+def test_transport_failure_maps_to_error_with_a_stable_code() -> None:
+    from veripen.report.render import Outcome
+    from veripen_cli.cmd_run import _findings_view
+    from veripen_oracles.common.harness import RunResult
+    from veripen_core.models import Verdict
+
+    class Meta:
+        id = "sqli_bool_diff"
+        name = "布尔差分"
+        cwe = "CWE-89"
+        impact = "read_only"
+        severity = "high"
+
+    result = RunResult(Verdict.BLOCKED, "transport_error:connection_refused", None, (), {})
+    view = _findings_view(asset_id="a", oracle_id="sqli_bool_diff", meta=Meta(),
+                          result=result, binding=None, capsule=None)
+    assert view.outcome is Outcome.ERROR, view.outcome
+    assert view.reason_code == "transport_error:connection_refused"
+
+
+def test_transport_reason_has_a_human_sentence() -> None:
+    from veripen.report.glossary import explain
+
+    text = explain("transport_error:connection_refused")
+    assert "连不上" in text and "端口" in text, text

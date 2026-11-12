@@ -71,6 +71,10 @@ def explain(code: str) -> str:
         return SCOPE_CODES[key]
     # 带参数的码：`symbol_missing:SAFE_FILE` / `SymbolMissing: SAFE_FILE`（异常串是驼峰+空格）
     low = key.lower().replace(" ", "")
+    for prefix in ("transport_error:", "transporterror:"):
+        if low.startswith(prefix):
+            kind = key.split(":", 1)[1].strip()
+            return f"连不上目标（{kind}）：先确认端口/证书/代理，再谈覆盖面"
     for prefix in ("symbol_missing:", "symbolmissing:"):
         if low.startswith(prefix):
             tail = key.split(":", 1)[1].strip()

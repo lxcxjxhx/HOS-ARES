@@ -92,6 +92,10 @@ def _findings_view(
         outcome = Outcome.NOT_RUN
     else:
         outcome = Outcome.ERROR
+    # 传输层失败 = 没跑成（error），不是"跑了但判不了"（B299）：
+    # verdict 只有四值，没有 ERROR，所以在映射这一层按原因码纠回来。
+    if str(getattr(result, "reason", "") or "").startswith("transport_error:"):
+        outcome = Outcome.ERROR
     return FindingView(
         finding_id=f"F-{oracle_id}-{_ref_tail(binding)}",
         title=str(_meta(meta, "name", oracle_id)),
@@ -552,11 +556,19 @@ def main(argv: list[str] | None = None) -> int:
                     from veripen_oracles.common.harness import RunResult as _Run
                     from veripen_oracles.common.harness import SymbolMissing as _Missing
 
-                    reason = (
-                        f"symbol_missing:{exc}"
-                        if isinstance(exc, _Missing)
-                        else f"{type(exc).__name__}: {str(exc)[:80]}"
-                    )
+                    # 传输层失败（连不上/超时）不是"缺输入"，也不该把 Windows 异常串
+                    # 当原因码（B299）：给它一个稳定码，报告里才读得出该去查网络。
+                    if isinstance(exc, _Missing):
+                        reason = f"symbol_missing:{exc}"
+                    elif isinstance(exc, (ConnectionError, TimeoutError, OSError)):
+                        kind = {
+                            "ConnectionRefusedError": "connection_refused",
+                            "ConnectionResetError": "connection_reset",
+                            "TimeoutError": "timeout",
+                        }.get(type(exc).__name__, type(exc).__name__.lower())
+                        reason = f"transport_error:{kind}"
+                    else:
+                        reason = f"{type(exc).__name__}: {str(exc)[:80]}"
                     print(f"  {oracle_id:<24} {'BLOCKED':<14} {reason[:60]}")
                     blocked = _Run(_V.BLOCKED, reason, None, (), {})
                     results.append((oracle_id, oracle.meta, blocked, primary))
