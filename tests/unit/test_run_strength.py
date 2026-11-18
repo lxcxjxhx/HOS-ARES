@@ -14,16 +14,16 @@ from typing import Any
 
 import pytest
 
-from veripen_core.routes.resolver import Resolver
-from veripen_core.routes.sources import CrawlSource, StaticSource
-from veripen_core.routes.sources.base import ObservedRecord
-from veripen_core.routes.types import (
+from hos_ares_core.routes.resolver import Resolver
+from hos_ares_core.routes.sources import CrawlSource, StaticSource
+from hos_ares_core.routes.sources.base import ObservedRecord
+from hos_ares_core.routes.types import (
     AssetRef,
     RouteCandidate,
     RouteProvenance,
     RouteQuery,
 )
-from veripen_cli.cmd_run import _severity_of, _strength_of
+from hos_ares_cli.cmd_run import _severity_of, _strength_of
 
 S = chr(0x2F)
 
@@ -86,7 +86,7 @@ def test_unknown_rule_falls_back_with_visible_basis() -> None:
 
 # ── B98：`_meta` 必须同时认 oracle 与 oracle.meta ───────────────────
 def test_meta_reads_oracle_and_meta_shapes() -> None:
-    from veripen_cli.cmd_run import _meta
+    from hos_ares_cli.cmd_run import _meta
 
     class _M:
         cwe = "CWE-639"
@@ -101,7 +101,7 @@ def test_meta_reads_oracle_and_meta_shapes() -> None:
 
 def test_meta_does_not_silently_return_default() -> None:
     """回归：再取一次 .meta 会得到 None，于是**每条** finding 的 cwe 都是空串。"""
-    from veripen_cli.cmd_run import _meta
+    from hos_ares_cli.cmd_run import _meta
 
     class _M:
         cwe = "CWE-79"
@@ -111,7 +111,7 @@ def test_meta_does_not_silently_return_default() -> None:
 
 # ── B100：finding id 里必须是面的可辨识尾巴，不能是 "route://" ──────
 def test_ref_tail_is_not_the_scheme() -> None:
-    from veripen_cli.cmd_run import _ref_tail
+    from hos_ares_cli.cmd_run import _ref_tail
 
     class _B:
         ref = "route://contract/abcd1234ef56"
@@ -120,7 +120,7 @@ def test_ref_tail_is_not_the_scheme() -> None:
 
 
 def test_ref_tail_without_ref_is_stable() -> None:
-    from veripen_cli.cmd_run import _ref_tail
+    from hos_ares_cli.cmd_run import _ref_tail
 
     class _B:
         ref = ""
@@ -129,7 +129,7 @@ def test_ref_tail_without_ref_is_stable() -> None:
 
 # ── B104：hunt 与 run 共用同一条强度规则 ─────────────────────────
 def test_hunt_strength_matches_run_rule() -> None:
-    from veripen_cli.cmd_hunt import _strength_of as hunt_strength
+    from hos_ares_cli.cmd_hunt import _strength_of as hunt_strength
 
     assert hunt_strength(_contract_binding()) == "contract"
     assert hunt_strength(_crawl_binding()) == "crawl"

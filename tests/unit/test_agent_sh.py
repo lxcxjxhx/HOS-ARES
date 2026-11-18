@@ -29,7 +29,7 @@ WIN = sys.platform == "win32"
 
 
 def _sh(tmp_path: Path, arg: str) -> tuple[bool, str]:
-    from veripen_cli.cmd_agent import _do_sh
+    from hos_ares_cli.cmd_agent import _do_sh
 
     return _do_sh(tmp_path, arg)
 

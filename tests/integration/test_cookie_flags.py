@@ -21,14 +21,14 @@ SEP = chr(0x2F)
 
 
 def _rows(lab: Any, tmp_path: Path, path_name: str) -> list[tuple[str, str, str]]:
-    from veripen_cli.cmd_run import main as run_main
+    from hos_ares_cli.cmd_run import main as run_main
 
     tmp_path.mkdir(parents=True, exist_ok=True)
     spec = tmp_path / "s.json"
     spec.write_text(json.dumps({
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": lab.base_url}],
-        "paths": {path_name: {"get": {"x-veripen-tags": ["token_issue"]}}},
+        "paths": {path_name: {"get": {"x-hos_ares-tags": ["token_issue"]}}},
     }), encoding="utf-8")
     out = tmp_path / "run"
     run_main(["--target", lab.base_url, "--openapi", str(spec), "--out", str(out)])
@@ -79,7 +79,7 @@ def test_code_replay_does_not_fire_on_a_login_face(vulnerable, tmp_path: Path) -
 
 def test_secure_flag_is_not_required_over_http() -> None:
     """http 目标上缺 Secure 不算缺陷（浏览器也不会把 Secure cookie 发回来）。"""
-    from veripen_oracles.auth.checks import judge_cookie_flags
+    from hos_ares_oracles.auth.checks import judge_cookie_flags
 
     assert judge_cookie_flags(missing=(), https=False).verdict == "REFUTED"
     assert judge_cookie_flags(missing=("httponly",), https=False).verdict == "VERIFIED"
@@ -89,8 +89,8 @@ def test_samesite_none_counts_as_missing() -> None:
     """`SameSite=None` 等于没设：跨站照样带上。"""
     from types import SimpleNamespace
 
-    from veripen_oracles.auth.cookie_flags import CookieFlags
-    from veripen_oracles.common.harness import Pair
+    from hos_ares_oracles.auth.cookie_flags import CookieFlags
+    from hos_ares_oracles.common.harness import Pair
 
     trace = SimpleNamespace(
         status=200, error=None, body=b"{}", scheme="http",

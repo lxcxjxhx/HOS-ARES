@@ -36,7 +36,7 @@ def _capsule_dir(out: Path, run: Path) -> Path:
 
 
 def _verify(directory: Path) -> None:
-    from veripen_core.evidence import load_capsule, order_chain, verify_chain
+    from hos_ares_core.evidence import load_capsule, order_chain, verify_chain
 
     caps = [load_capsule(p) for p in sorted(directory.glob("*.json"))]
     report = verify_chain(order_chain(caps))
@@ -79,14 +79,14 @@ def test_method_override_is_recorded_and_replayed(case_id: str) -> None:
     "复现不了"，而那被记成"判定不稳"，其实是证据记错了方法。
     """
     import run_bench as RB
-    from veripen.bench import load_cases
-    from veripen.bench.capsule import build_capsule, step_params, StepParamsTransport
-    from veripen_core.evidence import ReplayEnv, ReplayMode, replay, seal_capsule_doc
+    from hos_ares.bench import load_cases
+    from hos_ares.bench.capsule import build_capsule, step_params, StepParamsTransport
+    from hos_ares_core.evidence import ReplayEnv, ReplayMode, replay, seal_capsule_doc
     from lab.app import make_token
     from lab.net_server import LabServer
     from lab.net_transport import NetTransport
-    from veripen.bench.faces import extra_tags
-    from veripen_oracles.oob import LabOob
+    from hos_ares.bench.faces import extra_tags
+    from hos_ares_oracles.oob import LabOob
 
     case = next(c for c in load_cases(ROOT / "tests" / "bench" / "cases.yaml")
                 if c.case_id == case_id)

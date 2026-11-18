@@ -54,7 +54,7 @@ def run_dir(tmp_path_factory: pytest.TempPathFactory):  # noqa: ANN201
     port = srv.server_address[1]
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     try:
-        from veripen_cli.cmd_run import main
+        from hos_ares_cli.cmd_run import main
 
         main([
             "--target", HTTP + f"{LOOPBACK}:{port}",
@@ -67,7 +67,7 @@ def run_dir(tmp_path_factory: pytest.TempPathFactory):  # noqa: ANN201
 
 
 def _chain(run_dir) -> list:  # noqa: ANN001
-    from veripen_core.evidence import load_capsule
+    from hos_ares_core.evidence import load_capsule
 
     caps = [load_capsule(str(f)) for f in sorted((run_dir / "capsules").rglob("*.json"))]
     by_self = {c.chain.self_sha256: c for c in caps}
@@ -87,7 +87,7 @@ def _chain(run_dir) -> list:  # noqa: ANN001
 
 
 def test_chain_is_intact(run_dir) -> None:  # noqa: ANN001
-    from veripen_core.evidence import verify_chain
+    from hos_ares_core.evidence import verify_chain
 
     order = _chain(run_dir)
     assert len(order) >= 2, "多面才有意义"
@@ -95,14 +95,14 @@ def test_chain_is_intact(run_dir) -> None:  # noqa: ANN001
 
 
 def test_reversed_chain_is_rejected(run_dir) -> None:  # noqa: ANN001
-    from veripen_core.evidence import verify_chain
+    from hos_ares_core.evidence import verify_chain
 
     order = _chain(run_dir)
     assert not verify_chain(list(reversed(order))).ok, "逆序必须被拒"
 
 
 def test_chain_with_gap_is_rejected(run_dir) -> None:  # noqa: ANN001
-    from veripen_core.evidence import verify_chain
+    from hos_ares_core.evidence import verify_chain
 
     order = _chain(run_dir)
     assert not verify_chain(order[:1] + order[2:]).ok, "缺条必须被拒"
@@ -114,7 +114,7 @@ def test_removed_head_is_rejected(run_dir) -> None:  # noqa: ANN001
     剩下的条 `prev` 两两对得上，只查"中间没断"会让整根链自洽：
     少了一份证据，校验器却说"完整"——这比报错更糟。
     """
-    from veripen_core.evidence import verify_chain
+    from hos_ares_core.evidence import verify_chain
 
     order = _chain(run_dir)
     report = verify_chain(order[1:])
@@ -124,7 +124,7 @@ def test_removed_head_is_rejected(run_dir) -> None:  # noqa: ANN001
 
 def test_report_root_is_chain_head(run_dir) -> None:  # noqa: ANN001
     """报告头的 `root_sha256` 必须就是链头：两个出口（报告 / verify-chain）逐字对上。"""
-    from veripen_core.evidence import verify_chain
+    from hos_ares_core.evidence import verify_chain
 
     order = _chain(run_dir)
     report = verify_chain(order)

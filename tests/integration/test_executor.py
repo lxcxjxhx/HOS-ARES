@@ -17,12 +17,12 @@ from pathlib import Path
 
 import pytest
 
-from veripen_core.workbench.executor import (
+from hos_ares_core.workbench.executor import (
     ExecutorError,
     make_action_runner,
     make_subprocess_executor,
 )
-from veripen_core.workbench.shell import (
+from hos_ares_core.workbench.shell import (
     ApprovalPolicy,
     Interp,
     SandboxMode,

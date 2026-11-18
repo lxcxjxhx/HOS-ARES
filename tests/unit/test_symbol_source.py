@@ -10,16 +10,16 @@ from __future__ import annotations
 
 import pytest
 
-from veripen_core.routes import (
+from hos_ares_core.routes import (
     AssetRef,
     Resolver,
     RouteHints,
     RouteProvenance,
     RouteQuery,
 )
-from veripen_core.routes.sources.base import StaticSource
-from veripen_core.routes.sources.symbols import SymbolSource, SymbolTable
-from veripen_core.routes.types import RouteCandidate
+from hos_ares_core.routes.sources.base import StaticSource
+from hos_ares_core.routes.sources.symbols import SymbolSource, SymbolTable
+from hos_ares_core.routes.types import RouteCandidate
 
 SEP = chr(0x2F)
 BASE_SYM = "LAB_BASE"

@@ -9,8 +9,8 @@ def test_expected_flips_with_the_verdict_direction() -> None:
     """
     from types import SimpleNamespace
 
-    from veripen_oracles.common.harness import Pair
-    from veripen_oracles.tier_headers import CspAbsent
+    from hos_ares_oracles.common.harness import Pair
+    from hos_ares_oracles.tier_headers import CspAbsent
 
     def _pair(role: str, headers: dict[str, str]) -> Pair:
         trace = SimpleNamespace(status=200, headers=headers, error=None, body=b"{}",

@@ -40,7 +40,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 #: 任务名 → 命令行（与 Makefile 同名目标等价）
 TASKS: dict[str, tuple[str, ...]] = {
-    "doctor": ("-m", "veripen_cli.cmd_doctor"),
+    "doctor": ("-m", "hos_ares_cli.cmd_doctor"),
     # `make lint` = bindings-check + verify 里的七道 lint（B208）
     "lint": ("scripts/verify.py", "--only",
              "lint-noroute,lint-nodata,lint-ui,lint-netimports,lint-noleak,lint-lock,spec-drift"),
@@ -53,11 +53,11 @@ TASKS: dict[str, tuple[str, ...]] = {
     "bench": ("scripts/b12/run_bench.py", "--rounds", "3", "--out", "out/b12"),
     # 与 Makefile 的 verify-report 同一个动作（B324）：
     # 以前这里指向一个写死的演示目录（新检出的仓库里没有它）。
-    "verify-report": ("-m", "veripen_cli", "replay", "--manifest", "out/run"),
-    "replay-offline": ("-m", "veripen_core.evidence", "--offline-fixture"),
+    "verify-report": ("-m", "hos_ares_cli", "replay", "--manifest", "out/run"),
+    "replay-offline": ("-m", "hos_ares_core.evidence", "--offline-fixture"),
     "exec-isolation": ("-m", "pytest", "tests/unit/test_sandbox_policy.py",
                        "tests/integration/test_sandbox_isolation.py", "-q"),
-    "console": ("-m", "veripen_cli.cmd_console"),
+    "console": ("-m", "hos_ares_cli.cmd_console"),
 }
 
 

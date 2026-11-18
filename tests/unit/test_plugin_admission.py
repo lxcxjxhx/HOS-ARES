@@ -14,8 +14,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from veripen_core.actions import BINARY_WHITELIST
-from veripen_core.plugins.admission import (
+from hos_ares_core.actions import BINARY_WHITELIST
+from hos_ares_core.plugins.admission import (
     BENCH_CASES,
     ORACLE_INVARIANTS,
     SOURCE_INVARIANTS,
@@ -29,7 +29,7 @@ from veripen_core.plugins.admission import (
     default_policies,
     oracle_bench_gate,
 )
-from veripen_core.plugins.registry import (
+from hos_ares_core.plugins.registry import (
     Mount,
     PluginRecord,
     Registry,

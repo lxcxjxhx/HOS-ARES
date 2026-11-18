@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""一次性：把 B80 追加进 .veripen/batches.jsonl（只增不改）。"""
+"""一次性：把 B80 追加进 .hos-ares/batches.jsonl（只增不改）。"""
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-LEDGER = Path(__file__).resolve().parents[2] / ".veripen" / "batches.jsonl"
+LEDGER = Path(__file__).resolve().parents[2] / ".hos-ares" / "batches.jsonl"
 
 ROW = {
     "batch": "B80",
@@ -15,8 +15,8 @@ ROW = {
     "agent": "little-code-sauce",
     "scope": "多步计划与会话延续：一句话两三步（然后/接着）、失败即停、/history",
     "files": [
-        "veripen_core/agent/intent.py",
-        "veripen_cli/cmd_chat.py",
+        "hos_ares_core/agent/intent.py",
+        "hos_ares_cli/cmd_chat.py",
         "tests/unit/test_chat_multistep.py",
     ],
     "dod": "A(含然后/接着产多步计划) OK；B(任一步失败立即停止并说明停在第几步/剩几步) OK；C(--resume 启动显示历史) OK；D(/history 列出步骤) OK；E(单句单步与 B77 一致) OK",

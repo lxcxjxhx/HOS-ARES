@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from veripen_core.briefing import build_knowledge, knowledge_text
-from veripen_core.context import (
+from hos_ares_core.briefing import build_knowledge, knowledge_text
+from hos_ares_core.context import (
     KNOWLEDGE_SEGMENT,
     MAX_BYTES,
     MAX_PER_STEP,
@@ -20,8 +20,8 @@ from veripen_core.context import (
     knowledge_free,
     verdict_fingerprint,
 )
-from veripen_core.plugins.lifecycle import Lifecycle, PluginSpec
-from veripen_core.tools.surface import build_surface
+from hos_ares_core.plugins.lifecycle import Lifecycle, PluginSpec
+from hos_ares_core.tools.surface import build_surface
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -36,8 +36,8 @@ def _lc() -> Lifecycle:
 
 # ── A：生产调用 ────────────────────────────────────────────────
 def test_with_knowledge_has_production_caller() -> None:
-    briefing = (REPO / "veripen_core" / "briefing.py").read_text(encoding="utf-8")
-    hunt = (REPO / "veripen_cli" / "cmd_hunt.py").read_text(encoding="utf-8")
+    briefing = (REPO / "hos_ares_core" / "briefing.py").read_text(encoding="utf-8")
+    hunt = (REPO / "hos_ares_cli" / "cmd_hunt.py").read_text(encoding="utf-8")
     assert "with_knowledge(" in briefing, "briefing 必须真正调用 with_knowledge"
     assert "build_knowledge(" in hunt, "cmd_hunt 必须调用 build_knowledge"
 

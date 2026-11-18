@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from veripen_core.plugins.registry import (
+from hos_ares_core.plugins.registry import (
     COOLDOWN_S,
     MAX_REFRESH_REQUESTS,
     Mount,

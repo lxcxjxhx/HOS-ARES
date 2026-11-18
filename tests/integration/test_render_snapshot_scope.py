@@ -18,7 +18,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
-from veripen_core.render import BrowserRenderer
+from hos_ares_core.render import BrowserRenderer
 
 S = chr(0x2F)
 LOOPBACK = "127" + "." + "0" + "." + "0" + "." + "1"
@@ -59,7 +59,7 @@ def test_open_shadow_root_is_visible_in_snapshot() -> None:
     port = srv.server_address[1]
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     try:
-        from veripen_core.render.worker import RenderThread
+        from hos_ares_core.render.worker import RenderThread
 
         with RenderThread() as renderer:
             cap = renderer.capture(url=HTTP + f"{LOOPBACK}:{port}{S}", wait="networkidle")

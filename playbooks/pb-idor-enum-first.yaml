@@ -1,4 +1,4 @@
-apiVersion: veripen.playbook/v1
+apiVersion: hos-ares.playbook/v1
 id: pb-idor-enum-first
 version: 1.0.0
 title: 先枚举真实对象 id，再用低权账号试（IDOR）

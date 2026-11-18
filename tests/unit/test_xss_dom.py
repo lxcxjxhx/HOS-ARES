@@ -10,9 +10,9 @@ import json
 
 import pytest
 
-from veripen_core.models import Verdict
-from veripen_oracles.common.harness import Pair, Trace, Variant
-from veripen_oracles.tier_dom import MARKER, PAYLOAD, XssDom
+from hos_ares_core.models import Verdict
+from hos_ares_oracles.common.harness import Pair, Trace, Variant
+from hos_ares_oracles.tier_dom import MARKER, PAYLOAD, XssDom
 
 
 def _trace(

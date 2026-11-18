@@ -28,7 +28,7 @@ def test_noroute_flags_a_hardcoded_address(tmp_path: Path) -> None:
     import noroute
 
     # 闸门只扫产品目录（含 web）：样本要放在里面
-    bad = tmp_path / "veripen_core" / "bad.py"
+    bad = tmp_path / "hos_ares_core" / "bad.py"
     bad.parent.mkdir(parents=True, exist_ok=True)
     bad.write_text('TARGET = "http' + ":" + SEP + SEP + 'example.invalid"\n',
                    encoding="utf-8")
@@ -39,7 +39,7 @@ def test_noroute_flags_a_hardcoded_address(tmp_path: Path) -> None:
 def test_noroute_passes_a_clean_file(tmp_path: Path) -> None:
     import noroute
 
-    good = tmp_path / "veripen_core" / "good.py"
+    good = tmp_path / "hos_ares_core" / "good.py"
     good.parent.mkdir(parents=True, exist_ok=True)
     good.write_text('SEP = chr(0x2F)\nPATH = "web" + SEP + "static"\n', encoding="utf-8")
     assert noroute._scan(tmp_path) == [], "干净样本不该被误伤"
@@ -51,8 +51,8 @@ def test_nodata_flags_a_compound_name_in_product_code(tmp_path: Path,
     import nodata_stub
 
     root = tmp_path
-    (root / "veripen_core").mkdir(parents=True)
-    bad = root / "veripen_core" / "bad.py"
+    (root / "hos_ares_core").mkdir(parents=True)
+    bad = root / "hos_ares_core" / "bad.py"
     word = "Fa" + "ke"
     bad.write_text(f"class {word}Transport:\n    pass\n", encoding="utf-8")
     monkeypatch.setattr(nodata_stub, "ROOT", root)
@@ -90,8 +90,8 @@ def test_nodata_allows_test_helper_names(tmp_path: Path,
 def test_nodata_passes_clean_names(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import nodata_stub
 
-    (tmp_path / "veripen_core").mkdir(parents=True)
-    good = tmp_path / "veripen_core" / "good.py"
+    (tmp_path / "hos_ares_core").mkdir(parents=True)
+    good = tmp_path / "hos_ares_core" / "good.py"
     good.write_text("def record_runner():\n    return 1\n", encoding="utf-8")
     monkeypatch.setattr(nodata_stub, "ROOT", tmp_path)
     assert nodata_stub._check_banned([good]) == []
@@ -132,7 +132,7 @@ def test_spec_drift_flags_a_missing_file_and_a_missing_symbol() -> None:
         "tests/unit/test_contracts.py::no_such_test"
     )
     # DDL: 标记只校验文件存在
-    assert spec_drift.evidence_problem("veripen_core/store.py::DDL:blackboard_facts") == ""
+    assert spec_drift.evidence_problem("hos_ares_core/store.py::DDL:blackboard_facts") == ""
 
 
 # ── B196：lint-ui 也要能红 ─────────────────────────────────────

@@ -13,8 +13,8 @@ import subprocess
 
 import pytest
 
-from veripen_core.sandbox import runner as runner_mod
-from veripen_core.sandbox.runner import (
+from hos_ares_core.sandbox import runner as runner_mod
+from hos_ares_core.sandbox.runner import (
     DockerRunner,
     RuntimeUnavailable,
     select_executor,
@@ -89,13 +89,13 @@ def test_no_runtime_raises_instead_of_falling_back(monkeypatch: pytest.MonkeyPat
 
 # ── 加固参数（判据 B/C 的一半）─────────────────────────────────
 def test_argv_is_hardened_by_default() -> None:
-    argv = _argv_runner().build_argv(["python", "-c", "print(1)"], image="veripen-sandbox:test")
+    argv = _argv_runner().build_argv(["python", "-c", "print(1)"], image="hos_ares-sandbox:test")
     joined = " ".join(argv)
     for flag in _HARDENING:
         assert flag in joined, f"缺少加固项 {flag}"
     assert "--privileged" not in joined
     assert "--network host" not in joined
-    assert "veripen-sandbox:test python -c print(1)" in joined, "命令必须落在镜像之后"
+    assert "hos_ares-sandbox:test python -c print(1)" in joined, "命令必须落在镜像之后"
 
 
 def test_mounts_are_read_only() -> None:
@@ -142,7 +142,7 @@ def test_nonzero_exit_maps_to_error(monkeypatch: pytest.MonkeyPatch) -> None:
 # ── 真实隔离（本机无运行时 → 未验）────────────────────────────
 @needs_runtime
 def test_host_has_no_side_effects(tmp_path: object) -> None:  # pragma: no cover - 需运行时
-    marker = "/tmp/veripen-sandbox-marker"
+    marker = "/tmp/hos_ares-sandbox-marker"
     runner = DockerRunner()
     result = runner.run(["sh", "-c", f"touch {marker} && echo done"], image="python:3.13-slim")
     if result.outcome != "ok":

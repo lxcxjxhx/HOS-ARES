@@ -1,4 +1,4 @@
-# VeriPen 一页速查
+# HOS-ARES 一页速查
 
 ## 8 条命令
 

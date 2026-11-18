@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from negative_samples import BAD_URL, SEP
-from veripen_cli.offline import (
+from hos_ares_cli.offline import (
     REQUIRED_ENTRIES,
     Manifest,
     PackageError,
@@ -73,7 +73,7 @@ def test_manifest_json_is_serialisable(pkg: Path) -> None:
     import json
 
     blob = json.loads((pkg / "manifest.json").read_text(encoding="utf-8"))
-    assert blob["schema"] == "veripen.offline/v1"
+    assert blob["schema"] == "hos_ares.offline/v1"
     assert blob["file_count"] == len(blob["entries"])
 
 
@@ -123,7 +123,7 @@ def test_verify_passes_when_manifest_is_right(pkg: Path) -> None:
     # wheels/ 也必须真有东西：空目录 verify 会如实报出来（B202）
     (pkg / "wheels" / "demo-1.0-py3-none-any.whl").write_bytes(b"placeholder-wheel")
     build_manifest = collect(pkg)
-    from veripen_cli.offline import Entry
+    from hos_ares_cli.offline import Entry
 
     sums = (pkg / "SHA256SUMS").read_text(encoding="utf-8").splitlines()
     lines = [ln for ln in sums if "SHA256SUMS" not in ln]
@@ -213,7 +213,7 @@ def test_uninstall_keeps_data() -> None:
 # 4 完成度判定
 # ══════════════════════════════════════════════════════════════════
 def test_verify_result_render_is_actionable() -> None:
-    from veripen_cli.offline import VerifyResult
+    from hos_ares_cli.offline import VerifyResult
 
     bad = VerifyResult(False, ("images/ 无镜像 tar", "内容被改动：x"), 3)
     text = bad.render()
@@ -242,7 +242,7 @@ def test_build_without_wheels_says_so(tmp_path: Path) -> None:
 
 
 def test_build_with_wheels_copies_them(tmp_path: Path) -> None:
-    from veripen_cli.offline import Manifest
+    from hos_ares_cli.offline import Manifest
 
     src_wheels = tmp_path / "src-wheels"
     src_wheels.mkdir()
@@ -265,7 +265,7 @@ def test_build_rejects_an_empty_wheels_dir(tmp_path: Path) -> None:
 
 def test_offline_pip_install_is_allowed_but_online_is_not(tmp_path: Path) -> None:
     """`pip install --no-index` 是离线装；不带 --no-index 就是联网装。"""
-    from veripen_cli.offline import check_scripts
+    from hos_ares_cli.offline import check_scripts
 
     scripts = tmp_path / "s"
     scripts.mkdir()

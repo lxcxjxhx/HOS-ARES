@@ -1,7 +1,7 @@
 """真实回环监听测试（B5）。
 
 放在 ``tests/lab`` 是因为这里必须写出回环地址与端口拼装——那是**被测物**的一部分，
-而 ``noroute`` 只允许靶场目录存在这类字面量。产品代码（``veripen_oracles``）里
+而 ``noroute`` 只允许靶场目录存在这类字面量。产品代码（``hos_ares_oracles``）里
 ``HttpListener`` 的 host 由调用方注入，本身不含任何回环字面量。
 """
 
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import urllib.request
 
-from veripen_oracles.oob import HttpListener, OobProbe
+from hos_ares_oracles.oob import HttpListener, OobProbe
 
 LOOPBACK = "127.0.0.1"
 

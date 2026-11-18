@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from veripen.report.render import ROUTE_SCHEME, FindingView
+from hos_ares.report.render import ROUTE_SCHEME, FindingView
 
 
 def _view(ref: str | None) -> FindingView:

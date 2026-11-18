@@ -8,14 +8,14 @@ from __future__ import annotations
 
 import pytest
 
-from veripen_core.blackboard import EventLog
-from veripen_core.guard.approval import (
+from hos_ares_core.blackboard import EventLog
+from hos_ares_core.guard.approval import (
     ApprovalGate,
     ApprovalRequired,
     ApprovalState,
     ApprovalTTLExpired,
 )
-from veripen_core.store import Store
+from hos_ares_core.store import Store
 
 
 def _gate(*, ttl_s: int = 3600) -> tuple[ApprovalGate, Store]:

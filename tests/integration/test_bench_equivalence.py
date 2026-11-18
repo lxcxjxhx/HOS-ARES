@@ -20,15 +20,15 @@ from lab.net_transport import NetTransport
 from lab.routes import candidates
 from lab.transport_oob import LabTransport
 
-from veripen_core.routes import (
+from hos_ares_core.routes import (
     AssetRef,
     Resolver,
     RouteHints,
     RouteProvenance,
     RouteQuery,
 )
-from veripen_core.routes.sources.base import StaticSource
-from veripen_core.routes.sources.symbols import SymbolSource, SymbolTable
+from hos_ares_core.routes.sources.base import StaticSource
+from hos_ares_core.routes.sources.symbols import SymbolSource, SymbolTable
 
 SEP = chr(0x2F)
 
@@ -166,8 +166,8 @@ def test_vhost_templates_stay_distinct() -> None:
     这里会立刻红——两个不同主机的同名路径被合成一条，等于把低权结论
     套到高权面上，是直接的 FP 来源（27 §3.4 记过同类碰撞）。
     """
-    from veripen_core.routes.sources.base import StaticSource
-    from veripen_core.routes.types import RouteCandidate
+    from hos_ares_core.routes.sources.base import StaticSource
+    from hos_ares_core.routes.types import RouteCandidate
 
     def vhost(host: str) -> RouteCandidate:
         return RouteCandidate(
@@ -196,7 +196,7 @@ def test_capsule_route_ref_survives_a_port_change() -> None:
 
     所以这里不比对 hash，而**走 replay 真正用的那条查找**。
     """
-    from veripen_core.evidence import RouteBlock, find_binding
+    from hos_ares_core.evidence import RouteBlock, find_binding
 
     a = _routeset_with_base("http" + ":" + SEP * 2 + "h:1111", ("object_read",))
     b = _routeset_with_base("http" + ":" + SEP * 2 + "h:2222", ("object_read",))
@@ -271,7 +271,7 @@ def test_net_transport_marks_oob_seen() -> None:
     """
     from lab.app import make_token
     from lab.routes import binding_for
-    from veripen_oracles.oob import LabOob
+    from hos_ares_oracles.oob import LabOob
 
     app = App(secure=False)
     srv = LabServer(app).start()

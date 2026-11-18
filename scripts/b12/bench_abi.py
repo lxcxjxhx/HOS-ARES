@@ -19,15 +19,15 @@ for extra in (ROOT, ROOT / "tests", ROOT / "tests" / "unit"):
     if str(extra) not in sys.path:
         sys.path.insert(0, str(extra))
 
-from veripen.bench import load_cases  # noqa: E402
-from veripen_core.agents import (  # noqa: E402
+from hos_ares.bench import load_cases  # noqa: E402
+from hos_ares_core.agents import (  # noqa: E402
     AgentError,
     FindingRecord,
     TaskSuggestion,
     assert_abi_equal,
     orchestrate,
 )
-from veripen_core.outcome import Outcome  # noqa: E402
+from hos_ares_core.outcome import Outcome  # noqa: E402
 
 
 def _run(s: TaskSuggestion) -> FindingRecord:

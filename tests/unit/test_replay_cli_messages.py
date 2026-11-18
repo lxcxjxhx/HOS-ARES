@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-SRC = (Path(__file__).resolve().parents[2] / "veripen_cli" / "cmd_replay.py"
+SRC = (Path(__file__).resolve().parents[2] / "hos_ares_cli" / "cmd_replay.py"
        ).read_text(encoding="utf-8")
 
 

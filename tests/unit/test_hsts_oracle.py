@@ -7,9 +7,9 @@ http 目标上问"缺不缺 HSTS"没有意义（浏览器不认），judge 必�
 
 from __future__ import annotations
 
-from veripen_core.models import Verdict
-from veripen_oracles.common.harness import Pair, Trace, Variant
-from veripen_oracles.tier_headers import HstsAbsent
+from hos_ares_core.models import Verdict
+from hos_ares_oracles.common.harness import Pair, Trace, Variant
+from hos_ares_oracles.tier_headers import HstsAbsent
 
 S = chr(0x2F)
 

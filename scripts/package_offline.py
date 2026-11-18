@@ -2,8 +2,8 @@
 """B13 · 离线包 CLI（A3「内网能装」）。
 
 用法：
-    python scripts/package_offline.py --version 1.0.0 --out dist/veripen-1.0.0-offline
-    python scripts/package_offline.py --verify dist/veripen-1.0.0-offline
+    python scripts/package_offline.py --version 1.0.0 --out dist/hos_ares-1.0.0-offline
+    python scripts/package_offline.py --verify dist/hos_ares-1.0.0-offline
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from veripen_cli.offline import PackageError, build, verify  # noqa: E402
+from hos_ares_cli.offline import PackageError, build, verify  # noqa: E402
 
 
 def main(argv: list[str]) -> int:
@@ -42,7 +42,7 @@ def main(argv: list[str]) -> int:
         print(res.render())
         return 0 if res.ok else 1
 
-    out = Path(args.out or ROOT / "dist" / f"veripen-{args.version}-offline")
+    out = Path(args.out or ROOT / "dist" / f"hos_ares-{args.version}-offline")
     profiles: list[Path] = []
     pdir = Path(args.profiles)
     if pdir.is_dir():

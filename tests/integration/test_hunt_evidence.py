@@ -5,7 +5,7 @@
 `f"sha256:{oracle_id}"`——形如 `sha256:csp_absent` 的假号。
 
 这条最坏的地方是它的去处：工具结果会进**模型上下文**
-（`veripen_core/tools/registry.py` → `ToolResult.data`），模型会把它当证据引用；
+（`hos_ares_core/tools/registry.py` → `ToolResult.data`），模型会把它当证据引用；
 报告读者照着去 `out/capsules/` 找，什么也没有。
 
 修法不是"少说点"，而是说清楚：`capsule_id=None` + `evidence="not_sealed"`。
@@ -31,10 +31,10 @@ def _routeset(faces: int = 1):  # noqa: ANN202
     """n 条 crawl 面：本用例不打网络，`run_oracle` 会被替身接管。"""
     import time
 
-    from veripen_core.routes import (
+    from hos_ares_core.routes import (
         AssetRef, Resolver, RouteCandidate, RouteHints, RouteProvenance, RouteQuery,
     )
-    from veripen_core.routes.sources import StaticSource
+    from hos_ares_core.routes.sources import StaticSource
 
     cands = [
         RouteCandidate(
@@ -58,19 +58,19 @@ class _TransportStub:
 
 def _verified(oracle, binding, transport, **kw):  # noqa: ANN001, ANN003, ANN202
     """替身只负责"判出 VERIFIED"，证据构造由 `build_capsule` 的替身接管。"""
-    from veripen_core.models import Verdict
-    from veripen_oracles.common.harness import RunResult
+    from hos_ares_core.models import Verdict
+    from hos_ares_oracles.common.harness import RunResult
 
     return RunResult(Verdict.VERIFIED, "verified_for_test", object(), (object(),), {})
 
 
 def test_hunt_tool_result_has_no_fake_capsule(monkeypatch) -> None:
     """没接证据目录 → 结果里必须说 `not_sealed`，而不是编一个 sha256 号。"""
-    from veripen_cli import cmd_hunt
+    from hos_ares_cli import cmd_hunt
 
     monkeypatch.setattr(cmd_hunt, "run_oracle", _verified)
     rt = cmd_hunt.HuntRuntime(_routeset(), transport=_TransportStub(),
-                              symbols=__import__("veripen_oracles").SymbolTable())
+                              symbols=__import__("hos_ares_oracles").SymbolTable())
     out = rt.run_oracle("sqli_bool_diff", "", None)
 
     assert out["verdict"] == "VERIFIED"
@@ -87,8 +87,8 @@ def test_hunt_seals_verified_results_into_one_chain(tmp_path, monkeypatch) -> No
     """
     import capsule_fixture as F
 
-    from veripen_cli import cmd_hunt
-    from veripen_core.evidence import ZERO_SHA, load_capsule
+    from hos_ares_cli import cmd_hunt
+    from hos_ares_core.evidence import ZERO_SHA, load_capsule
 
     monkeypatch.setattr(cmd_hunt, "build_capsule",
                         lambda **kw: F.capsule(probe_body=str(kw["case_id"])))
@@ -96,7 +96,7 @@ def test_hunt_seals_verified_results_into_one_chain(tmp_path, monkeypatch) -> No
 
     capsules = tmp_path / "capsules"
     rt = cmd_hunt.HuntRuntime(_routeset(2), _TransportStub(),
-                              __import__("veripen_oracles").SymbolTable(),
+                              __import__("hos_ares_oracles").SymbolTable(),
                               capsules_dir=capsules)
     first = rt.run_oracle("sqli_bool_diff", "", None)
     second = rt.run_oracle("sqli_bool_diff", "", None)
@@ -120,7 +120,7 @@ def test_hunt_seals_verified_results_into_one_chain(tmp_path, monkeypatch) -> No
 
 def test_seal_failure_does_not_fake_an_id(tmp_path, monkeypatch) -> None:  # noqa: ANN001
     """证据造不出来 → 明说哪一步没成，仍然不给假 id。"""
-    from veripen_cli import cmd_hunt
+    from hos_ares_cli import cmd_hunt
 
     def boom(**kw):  # noqa: ANN003, ANN202
         raise RuntimeError("judgement missing route")
@@ -129,7 +129,7 @@ def test_seal_failure_does_not_fake_an_id(tmp_path, monkeypatch) -> None:  # noq
     monkeypatch.setattr(cmd_hunt, "run_oracle", _verified)
 
     rt = cmd_hunt.HuntRuntime(_routeset(), _TransportStub(),
-                              __import__("veripen_oracles").SymbolTable(),
+                              __import__("hos_ares_oracles").SymbolTable(),
                               capsules_dir=tmp_path / "capsules")
     out = rt.run_oracle("sqli_bool_diff", "", None)
     assert out["verdict"] == "VERIFIED"
@@ -141,7 +141,7 @@ def test_seal_failure_does_not_fake_an_id(tmp_path, monkeypatch) -> None:  # noq
 
 def test_hunt_refuses_to_reuse_an_evidence_dir(tmp_path, capsys) -> None:  # noqa: ANN001
     """hunt 现在也会落证据 → 同一个 --out 跑第二次必须被拒（与 run 同一条规矩）。"""
-    from veripen_cli.cmd_hunt import main
+    from hos_ares_cli.cmd_hunt import main
 
     out = tmp_path / "hunt"
     (out / "capsules").mkdir(parents=True)

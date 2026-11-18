@@ -14,16 +14,16 @@ phases:
     stage: intake
     produces:
       - name: task
-        schema: veripen.task/v1
+        schema: hos_ares.task/v1
       - name: idem_key
-        schema: veripen.idem/v1
+        schema: hos_ares.idem/v1
 
   - id: lease
     stage: lease
     needs: [intake]
     produces:
       - name: lease
-        schema: veripen.lease/v1
+        schema: hos_ares.lease/v1
     gate: 每任务只有一张未过期租约
     event_kind: plan
 
@@ -32,7 +32,7 @@ phases:
     needs: [lease]
     produces:
       - name: routeset
-        schema: veripen.routeset/v1
+        schema: hos_ares.routeset/v1
     # 空/部分空 → 三档降级（08 §1.1）：允许跳过，但跳过必须落 task_events
     gate: routeset_sha256 非空且可复算
     gate_skippable: true
@@ -43,7 +43,7 @@ phases:
     needs: [discovery]
     produces:
       - name: next_action
-        schema: veripen.action/v1
+        schema: hos_ares.action/v1
     event_kind: plan
 
   - id: gate
@@ -51,7 +51,7 @@ phases:
     needs: [plan]
     produces:
       - name: preflight
-        schema: veripen.preflight/v1
+        schema: hos_ares.preflight/v1
     # scope / 预算 / 限流 / 审批四道都在这里，过不去不许执行
     gate: 四道闸全过
     event_kind: preflight
@@ -61,9 +61,9 @@ phases:
     needs: [gate]
     produces:
       - name: pairs
-        schema: veripen.pairs/v1
+        schema: hos_ares.pairs/v1
       - name: leads
-        schema: veripen.leads/v1
+        schema: hos_ares.leads/v1
     event_kind: http
 
   - id: judge
@@ -71,7 +71,7 @@ phases:
     needs: [exec]
     produces:
       - name: judgement
-        schema: veripen.judgement/v1
+        schema: hos_ares.judgement/v1
     # 33 §2 阶段⑦是枢纽：act.* 走到这里只记账、不判——判不了就是没有 judgement
     gate: act.* 不产出 judgement（只产 lead）
     gate_skippable: true
@@ -82,9 +82,9 @@ phases:
     needs: [judge]
     produces:
       - name: capsule
-        schema: veripen.capsule/v1
+        schema: hos_ares.capsule/v1
       - name: events
-        schema: veripen.events/v1
+        schema: hos_ares.events/v1
     event_kind: capsule
 
   - id: converge
@@ -92,7 +92,7 @@ phases:
     needs: [record]
     produces:
       - name: verdict
-        schema: veripen.verdict/v1
+        schema: hos_ares.verdict/v1
     gate: pending_leads == 0 才允许 DONE（35 §3）
     event_kind: budget
 

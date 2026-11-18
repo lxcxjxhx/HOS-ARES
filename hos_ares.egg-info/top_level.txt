@@ -1,0 +1,8 @@
+api
+hos_ares
+hos_ares_cli
+hos_ares_contract
+hos_ares_core
+hos_ares_oracles
+web
+worker

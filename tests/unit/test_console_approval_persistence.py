@@ -94,9 +94,9 @@ def test_a_broken_recorder_is_reported_not_swallowed() -> None:
 
 # ── 真正落库那条：写进去的必须是能查的 ──────────────────────────
 def test_cli_recorder_writes_an_auditable_event(tmp_path: Path) -> None:
-    from veripen_core.audit_source import load_audit
-    from veripen_core.blackboard import EventLog
-    from veripen_core.store import Store
+    from hos_ares_core.audit_source import load_audit
+    from hos_ares_core.blackboard import EventLog
+    from hos_ares_core.store import Store
 
     db = tmp_path / "c.db"
     Store(str(db)).init().close()

@@ -2,7 +2,7 @@
 
 > 目的：把用户点名的开源 Harness / 安全 Agent 生态**有据可查地拉进项目**，并把每个工具映射到
 > 「借鉴什么 → 落到哪篇规格 / 哪个批次 / 哪条不变量」。
-> 本文遵守 `plan-veripen/28-逆向对标与借鉴规格.md` 的隔离铁律 Q1–Q4：
+> 本文遵守 `plan-hos-legacy/28-逆向对标与借鉴规格.md` 的隔离铁律 Q1–Q4：
 > 源码只用于**结构研究**，任何 URL/host/路径常量只落在 `docs/research/re/`，不进代码。
 >
 > 拉取方式：`bash scripts/vendor-fetch.sh`（读 `vendor.lock.json`，逐 commit 从官方仓库取 tarball，可复现）。
@@ -35,7 +35,7 @@
 | `cyber-harness` | chainreactors/cyber-harness | AGPL-3.0 | F1 F3 | 同为 cyber 场景通用 Harness 的**扩展式架构/工具总线**（比 Strix 更贴）；AGPL → **只读结构，不复制代码** | `08 §1` 控制平面 / `01` 工具边界 |
 | `wshobson-agents` | wshobson/agents | MIT | — | 开发期 skill 库（评审/调试/安全/测试/编排），降低常见开发与规划失误 | `.dsh/skills/`（见 §4） |
 
-> 许可纪律：AGPL 的 `cyber-harness` 只做**结构阅读**，不把代码搬进 `veripen_*`；
+> 许可纪律：AGPL 的 `cyber-harness` 只做**结构阅读**，不把代码搬进 `hos-ares_*`；
 > 其余 Apache/MIT 可借鉴实现细节但仍按 `28 §5` 七段式产出、不复制字符串。
 
 ## 2. 对标绿盟 AI-PTS 2.0（驭智·HARNESS）的三道结构性缺口 → 用谁补

@@ -19,7 +19,7 @@ ANSI = re.compile(r"\x1b\[[0-9;]*m")
 @pytest.fixture()
 def chat(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):  # noqa: ANN201
     def _run(script: str, *extra: str) -> str:
-        from veripen_cli.cmd_chat import main
+        from hos_ares_cli.cmd_chat import main
 
         monkeypatch.setattr("sys.stdin", io.StringIO(script))
         main(["--root", str(tmp_path), "--db", str(tmp_path / "c.db"),
@@ -63,7 +63,7 @@ def test_banner_states_decision_layer(chat: Any, capsys: pytest.CaptureFixture[s
 # ── B：计划先于执行 + 可否决 ──────────────────────────────────
 def test_plan_shown_before_execution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
                                      capsys: pytest.CaptureFixture[str]) -> None:
-    from veripen_cli.cmd_chat import main
+    from hos_ares_cli.cmd_chat import main
 
     monkeypatch.setattr("sys.stdin", io.StringIO("往 p.txt 写 x\nn\n/quit\n"))
     main(["--root", str(tmp_path), "--db", str(tmp_path / "c.db")])

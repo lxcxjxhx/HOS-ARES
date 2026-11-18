@@ -13,8 +13,8 @@ from __future__ import annotations
 
 import json
 import time
-from veripen.report.glossary import explain
-from veripen_core.routes.types import short_ref
+from hos_ares.report.glossary import explain
+from hos_ares_core.routes.types import short_ref
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Mapping, Sequence
@@ -386,7 +386,7 @@ def unverified_view(rows: Sequence[Row], *, asset: str = "") -> dict[str, Any]:
 
 def _capability_limits() -> list[dict[str, str]]:
     """能力边界清单（延迟导入：只在真的要看覆盖时才付这份代价）。"""
-    from veripen.report.limits import capability_limits  # noqa: PLC0415
+    from hos_ares.report.limits import capability_limits  # noqa: PLC0415
 
     return [
         {"kind": kind, "check": check_id, "why": why}
@@ -580,7 +580,7 @@ def build_app(
     serve_static: bool = True,
     record_decision: Callable[[Mapping[str, Any]], str] | None = None,
 ) -> FastAPI:
-    app = FastAPI(title="veripen console", docs_url=None, redoc_url=None)
+    app = FastAPI(title="hos-ares console", docs_url=None, redoc_url=None)
     paths = {op: (op_paths or {}).get(op) or _path_for(op) for op in UI_OPS}
     # 审批决定是本控制台**唯一**的写入：内存里记最后状态（不落库、不碰发现）
     decided: dict[str, Approval] = {}
@@ -598,7 +598,7 @@ def build_app(
             return {**view, "total": total,
                     "detail_available": bool(state.bindings),
                     "note": "" if state.bindings else (
-                        "本轮产物只记了绑定条数，没有逐条明细；重跑一次 `veripen hunt` 即可带上"
+                        "本轮产物只记了绑定条数，没有逐条明细；重跑一次 `hos-ares hunt` 即可带上"
                         if total else "")}
         if op == "ui.bounds":
             # 从 findings 里挑出被边界挡下的条目（B331）：run 的产物没有 guard 事件流，
@@ -707,7 +707,7 @@ def build_app(
                 # 复现命令必须**跑得通**（B157）：`make replay ID=` 要的是 capsule 文件，
                 # 而这里原来塞的是 finding_id——那条命令照抄必然报"载入失败"。
                 "repro": (
-                    f"veripen replay --capsule {_repro_evidence(picked.capsule_path)}"
+                    f"hos-ares replay --capsule {_repro_evidence(picked.capsule_path)}"
                     " --mode offline"
                     if picked.capsule_path else ""
                 ),
@@ -729,7 +729,7 @@ def build_app(
                 "name": "",
                 "bytes": 0,
                 "text": "",
-                "empty_hint": "还没有报告——跑一次 `veripen run` / `hunt` / `platform` 后重开",
+                "empty_hint": "还没有报告——跑一次 `hos-ares run` / `hunt` / `platform` 后重开",
             }
         if op == "ui.audit":
             # 恒空的页签不允许留：有事件源就报 state，没有就显式 source=unavailable

@@ -63,7 +63,7 @@ def site():  # noqa: ANN201
 
 def test_discover_finds_faces_from_real_html(site: str, tmp_path: Path,
                                              capsys: pytest.CaptureFixture[str]) -> None:
-    from veripen_cli.cmd_discover import main
+    from hos_ares_cli.cmd_discover import main
 
     out = tmp_path / "d.json"
     rc = main(["--target", site, "--max-rounds", "2", "--max-pages", "6",
@@ -88,7 +88,7 @@ def test_summary_separates_success_from_skip(site: str, tmp_path: Path,
     整台不可达时也会写出「抓取成功 3 页」+「跳过 3 条：fetch_failed×3」。现在两句话分开：
     「尝试 N 页 · 拿到响应 M 页」。
     """
-    from veripen_cli.cmd_discover import main
+    from hos_ares_cli.cmd_discover import main
 
     main(["--target", site, "--max-rounds", "1", "--max-pages", "4",
           "--rate", "20", "--out", str(tmp_path / "d.json")])

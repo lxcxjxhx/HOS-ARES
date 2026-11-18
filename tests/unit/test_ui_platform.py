@@ -1,4 +1,4 @@
-"""B167：控制台要能打开 `veripen platform` 的产物。
+"""B167：控制台要能打开 `hos-ares platform` 的产物。
 
 平台是"多资产"那个出口，产物形状是 `<root>/asset-N/findings.json`。
 控制台原来只能开单资产目录：把 `out/platform` 指过去，页面是空的。
@@ -24,7 +24,7 @@ for extra in (ROOT, ROOT / "tests", ROOT / "tests" / "unit"):
 def _asset(root: Path, name: str, oracle: str, *, with_capsule: bool) -> str:
     import capsule_fixture as F
 
-    from veripen_core.evidence import save_capsule, seal_capsule_doc
+    from hos_ares_core.evidence import save_capsule, seal_capsule_doc
 
     sub = root / name
     sub.mkdir(parents=True)
@@ -33,7 +33,7 @@ def _asset(root: Path, name: str, oracle: str, *, with_capsule: bool) -> str:
     if with_capsule:
         save_capsule(cap, sub / "capsules")
     doc = {
-        "schema": "veripen.report/v1",
+        "schema": "hos-ares.report/v1",
         "engagement": name,
         "findings": [{
             "id": "F-1", "oracle": oracle, "title": oracle, "severity": "high",

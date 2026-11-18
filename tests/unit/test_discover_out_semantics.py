@@ -1,6 +1,6 @@
 """B306/B307 · discover 的 `--out` 两用：给文件写文件，给目录写其中的 discover.json。
 
-改前实测：`veripen discover --target … --out out/disc`（目录）→
+改前实测：`hos_ares discover --target … --out out/disc`（目录）→
 `PermissionError: [Errno 13] Permission denied`（指向那个目录）的原始 traceback，
 而且是在爬完几页之后才炸——参数错看起来像目标有问题。
 
@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from veripen_cli.cmd_discover import main as discover_main
+from hos_ares_cli.cmd_discover import main as discover_main
 
 TARGET = "http" + ":" + chr(0x2F) * 2 + "127." + "0.0.1:1"
 

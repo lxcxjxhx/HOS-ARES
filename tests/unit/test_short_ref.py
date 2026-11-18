@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 
-from veripen_core.routes.types import short_ref
+from hos_ares_core.routes.types import short_ref
 
 S = chr(0x2F)
 SCHEME = "route" + ":" + S * 2
@@ -47,7 +47,7 @@ def test_full_hash_never_leaks_in_either_form() -> None:
 
 
 def test_json_artifact_carries_full_ref_and_short_form() -> None:
-    from veripen.report.render import FindingView, Outcome, ReportInput, render_json
+    from hos_ares.report.render import FindingView, Outcome, ReportInput, render_json
 
     view = FindingView(
         finding_id="F-1",

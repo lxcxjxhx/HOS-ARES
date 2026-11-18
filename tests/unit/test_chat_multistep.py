@@ -19,7 +19,7 @@ ANSI = re.compile(chr(27) + r"\[[0-9;]*m")
 
 # ── A：一句话多步 ──────────────────────────────────────────────
 def test_conjunction_produces_two_steps() -> None:
-    from veripen_core.agent.intent import parse
+    from hos_ares_core.agent.intent import parse
 
     p = parse(f"把 a.txt 里的 x 改成 y 然后读一下")
     assert len(p.steps) == 2, [(s.tool, s.args) for s in p.steps]
@@ -29,7 +29,7 @@ def test_conjunction_produces_two_steps() -> None:
 
 
 def test_three_steps() -> None:
-    from veripen_core.agent.intent import parse
+    from hos_ares_core.agent.intent import parse
 
     p = parse("往 a.txt 写 hi 然后读一下 接着看状态")
     tools = [s.tool for s in p.steps]
@@ -38,7 +38,7 @@ def test_three_steps() -> None:
 
 # ── 任一段解析不出就退回单步 ──────────────────────────────────
 def test_failed_segment_falls_back_to_single_step() -> None:
-    from veripen_core.agent.intent import parse
+    from hos_ares_core.agent.intent import parse
 
     p = parse("看下 a.txt 然后把这件事办一下")
     # 第二段解析不出 → 不拼多步（宁可整句按单步/没听懂处理）
@@ -47,7 +47,7 @@ def test_failed_segment_falls_back_to_single_step() -> None:
 
 # ── E：单句单步不受影响 ────────────────────────────────────────
 def test_single_step_unchanged() -> None:
-    from veripen_core.agent.intent import parse
+    from hos_ares_core.agent.intent import parse
 
     p = parse("看下 a.txt")
     assert len(p.steps) == 1 and p.steps[0].tool == "read"
@@ -56,7 +56,7 @@ def test_single_step_unchanged() -> None:
 # ── B：失败即停（CLI 行为）────────────────────────────────────
 def test_failure_stops_remaining_steps(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
                                        capsys: pytest.CaptureFixture[str]) -> None:
-    from veripen_cli.cmd_chat import main
+    from hos_ares_cli.cmd_chat import main
 
     # 第 1 步写成功、第 2 步读不存在的文件 → 第 3 步不该执行
     script = ("往 ok.txt 写 hi 然后看下 missing.txt 接着看状态\n"
@@ -74,7 +74,7 @@ def test_failure_stops_remaining_steps(tmp_path: Path, monkeypatch: pytest.Monke
 def test_failure_message_names_step_index(tmp_path: Path,
                                           monkeypatch: pytest.MonkeyPatch,
                                           capsys: pytest.CaptureFixture[str]) -> None:
-    from veripen_cli.cmd_chat import main
+    from hos_ares_cli.cmd_chat import main
 
     script = ("往 ok.txt 写 hi 然后看下 missing.txt\n" + SEP + "quit\n")
     monkeypatch.setattr("sys.stdin", io.StringIO(script))
@@ -86,7 +86,7 @@ def test_failure_message_names_step_index(tmp_path: Path,
 # ── D：/history ───────────────────────────────────────────────
 def test_history_command_lists_steps(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
                                      capsys: pytest.CaptureFixture[str]) -> None:
-    from veripen_cli.cmd_chat import main
+    from hos_ares_cli.cmd_chat import main
 
     script = f"往 h.txt 写 v\n{SEP}history\n{SEP}quit\n"
     monkeypatch.setattr("sys.stdin", io.StringIO(script))

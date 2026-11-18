@@ -1,5 +1,5 @@
 #!/bin/sh
-# VeriPen 离线安装（内网 / 断网环境）
+# HOS-ARES 离线安装（内网 / 断网环境）
 #
 # 三条纪律（12 §2）：
 #   1. 本脚本**不联网**：不 curl、不 wget、不 docker pull；pip 只许 `--no-index`（离线装本地 wheels）。
@@ -80,5 +80,5 @@ fi
 
 echo
 echo "安装完成。下一步："
-echo "  python -m veripen_cli.cmd_doctor      # 25 项自检，红了先别跑"
+echo "  python -m hos_ares_cli.cmd_doctor      # 25 项自检，红了先别跑"
 echo "  回滚上一版： sh install.sh --rollback"

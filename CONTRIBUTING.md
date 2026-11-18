@@ -4,10 +4,10 @@
 
 ```bash
 pip install -e ".[dev]"     # Python 3.11+
-veripen doctor              # 25 项自检；缺条件的记 skip，不记 fail
+hos-ares doctor              # 25 项自检；缺条件的记 skip，不记 fail
 ```
 
-没装进 PATH 时，把 `veripen` 换成 `python -m veripen_cli`，效果相同。
+没装进 PATH 时，把 `hos-ares` 换成 `python -m hos_ares_cli`，效果相同。
 
 ## 提交之前
 
@@ -21,7 +21,7 @@ python scripts/verify.py --with-tests    # 再加三段 pytest（全量，本机
 
 **用哪个解释器**：仓库根若有 `.venv`，用它跑（`.venv/Scripts/python scripts/verify.py`）。
 全局 python 往往缺 `playwright` / `mypy`，得到的是"环境红"而不是代码红（实测：同一个提交
-换解释器 = 6 failed / 16 skipped ↔ 全绿）。`verify.py` 与 `veripen doctor` 第一行都会打印
+换解释器 = 6 failed / 16 skipped ↔ 全绿）。`verify.py` 与 `hos-ares doctor` 第一行都会打印
 它在用哪个解释器；不是 `.venv` 时会明说。
 分段跑：
 
@@ -51,7 +51,7 @@ feat(delivery): 交付材料的第一步就跑不通（Windows 上没有 make）
 - [ ] `python scripts/verify.py` 全绿（或说明哪一项为何跳过）
 - [ ] 新增行为带对应用例；用例放在 `tests/` 下按分段组织，能被 `--only <chunk>` 选中
 - [ ] 改了 `scripts/verify.py` 的检查项时，同步更新 `.github/workflows/verify.yml` 的注释
-- [ ] 不提交 `out/`、`.veripen/` 下的运行产物
+- [ ] 不提交 `out/`、`.hos-ares/` 下的运行产物
 - [ ] 改动了判定逻辑时，在 PR 描述里说明「哪些输入的行为变了」——这是纯函数内核，行为变化要可枚举
 
 ## 安全

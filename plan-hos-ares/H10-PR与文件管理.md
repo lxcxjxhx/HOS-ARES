@@ -9,19 +9,19 @@
 
 ```
 HOS-ARES/
-├─ plan-veripen/                ★ 冻结（plan-v3.7）：判定内核规格 + B1–B34 账本
+├─ plan-hos-ares/                ★ 冻结（plan-v3.7）：判定内核规格 + B1–B34 账本
 │                                 只许 B44/B59 动两处：16 §4.1 断言行、check-plan.cjs 阈值
 ├─ plan-hos-ares/               ★ 本包（plan-hos-v1.0）：总规划 H00–H10 + 自检
-├─ plan-veripen-ui/             ✗ 已撤销（内容并入 H06/H07，目录不保留）
-├─ veripen_core/sandbox/        ☆ 新（B45）：runner / backend / policy
-├─ veripen_core/render/         ☆ 新（B46）：浏览器执行体（归一化 + 证据）
-├─ veripen_core/blackboard.py   ← B51/B57 扩展（不是重写）
-├─ veripen_core/context.py      ← B52 扩展
-├─ veripen_core/tools/surface.py ☆ 新（B47）：唯一工具面
-├─ veripen_core/agents/orchestrator.py ← B49 扩展（三段式 role 不改）
+├─ plan-hos-ares-ui/             ✗ 已撤销（内容并入 H06/H07，目录不保留）
+├─ hos_ares_core/sandbox/        ☆ 新（B45）：runner / backend / policy
+├─ hos_ares_core/render/         ☆ 新（B46）：浏览器执行体（归一化 + 证据）
+├─ hos_ares_core/blackboard.py   ← B51/B57 扩展（不是重写）
+├─ hos_ares_core/context.py      ← B52 扩展
+├─ hos_ares_core/tools/surface.py ☆ 新（B47）：唯一工具面
+├─ hos_ares_core/agents/orchestrator.py ← B49 扩展（三段式 role 不改）
 ├─ playbooks/                   ☆ 新（B50）：三个 yaml 资产
-├─ veripen_cli/tui.py           ☆ 新（B56）
-├─ veripen_cli/cmd_console.py   ☆ 新（B37）
+├─ hos_ares_cli/tui.py           ☆ 新（B56）
+├─ hos_ares_cli/cmd_console.py   ☆ 新（B37）
 ├─ web/loader.py                ☆ 新（B37）
 ├─ web/console.py               ← B35/B36/B40/B54
 ├─ web/static/index.html        ← B38–B42（单文件 ≤700 行）
@@ -30,10 +30,10 @@ HOS-ARES/
 ├─ tests/unit/test_ui_*.py      ☆ 新
 ├─ tests/integration/test_{sandbox_isolation,browser_render}.py ☆ 新
 ├─ Makefile                     追加目标，不改已有目标语义
-└─ .veripen/batches.jsonl       append-only，每批一行
+└─ .hos-ares/batches.jsonl       append-only，每批一行
 ```
 
-**冻结规则的四种例外**（其余一律不许动 `plan-veripen/`）：
+**冻结规则的四种例外**（其余一律不许动 `plan-hos-ares/`）：
 
 | 例外 | 谁批准 | 附带要求 |
 |---|---|---|
@@ -71,7 +71,7 @@ HOS-ARES/
 - 快照 diff（有视觉改动时，`-/+` 各 ≤20 行）
 
 ## 账本
-- [ ] `.veripen/batches.jsonl` 已 append（dod/evidence/open/notes）
+- [ ] `.hos-ares/batches.jsonl` 已 append（dod/evidence/open/notes）
 
 ## 回滚
 - 单提交 revert / 需连带回滚项
@@ -88,7 +88,7 @@ HOS-ARES/
 node plan-hos-ares/check-plan.cjs                # 本包结构 + 能力矩阵/批次一致性 + 锚点 + MANIFEST
 python -m pytest tests/unit/test_console.py -q   # 23 例基线
 python -m pytest tests/unit/test_ui_*.py -q      # 本批新增
-node plan-veripen/check-plan.cjs                 # 旧包机械门仍绿（B44/B59 前应始终绿）
+node plan-hos-ares/check-plan.cjs                 # 旧包机械门仍绿（B44/B59 前应始终绿）
 curl -s -o /dev/null -w "%{http_code}\n" -X POST http://127.0.0.1:8099/ui/findings   # 405
 ```
 
@@ -107,7 +107,7 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST http://127.0.0.1:8099/ui/findin
 | 容器镜像定义 | `sandbox/`（Dockerfile 等） | ✅ | **不含地址** |
 | 本批 raw 输出 | `out/<batch>/*` | ❌（gitignore） | — |
 | 截图（人工） | 贴 PR | ❌ | — |
-| 账本 | `.veripen/batches.jsonl` | ✅ append-only | — |
+| 账本 | `.hos-ares/batches.jsonl` | ✅ append-only | — |
 
 ---
 
@@ -174,7 +174,7 @@ make exec-isolation
 node plan-hos-ares/check-plan.cjs
 
 # 3 账本 append → 提交
-git add veripen_core/sandbox tests/integration/test_sandbox_isolation.py Makefile .veripen/batches.jsonl
+git add hos_ares_core/sandbox tests/integration/test_sandbox_isolation.py Makefile .hos-ares/batches.jsonl
 git commit -m "feat(exec): 容器隔离执行" -m "判据A-E 见 H07 B45；podman 未测记未验"
 
 # 4 推 + PR

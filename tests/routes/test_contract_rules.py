@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from veripen_core.routes import (
+from hos_ares_core.routes import (
     AssetRef,
     Resolver,
     RouteHints,
@@ -20,11 +20,11 @@ from veripen_core.routes import (
     RouteQuery,
     StaticSource,
 )
-from veripen_core.routes.types import RouteCandidate
+from hos_ares_core.routes.types import RouteCandidate
 
 ROOT = Path(__file__).resolve().parents[2]
-CORE = ROOT / "veripen_core"
-ORACLES = ROOT / "veripen_oracles"
+CORE = ROOT / "hos_ares_core"
+ORACLES = ROOT / "hos_ares_oracles"
 TEMPLATES = json.loads(
     (Path(__file__).resolve().parent / "fixtures" / "templates.json").read_text(encoding="utf-8")
 )
@@ -40,7 +40,7 @@ def _py_files(*roots: Path) -> list[Path]:
 
 def test_routes_contract_n1_routetext_hidden() -> None:
     with pytest.raises(ImportError):
-        from veripen_core.routes import RouteText  # type: ignore[attr-defined]  # noqa: F401
+        from hos_ares_core.routes import RouteText  # type: ignore[attr-defined]  # noqa: F401
 
 
 def test_routes_contract_n2_resolver_only_builder() -> None:
@@ -54,7 +54,7 @@ def test_routes_contract_n2_resolver_only_builder() -> None:
             name = getattr(func, "id", None) or getattr(func, "attr", None)
             if name == "RouteBinding":
                 builders.add(p.relative_to(ROOT).as_posix())
-    assert builders == {"veripen_core/routes/resolver.py"}
+    assert builders == {"hos_ares_core/routes/resolver.py"}
 
 
 def test_routes_contract_n4_no_retry_symbol() -> None:

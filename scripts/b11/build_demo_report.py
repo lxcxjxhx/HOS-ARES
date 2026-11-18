@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from veripen.report import (  # noqa: E402
+from hos_ares.report import (  # noqa: E402
     FindingView,
     Outcome,
     ReportInput,
@@ -75,7 +75,7 @@ def sample() -> ReportInput:
         routeset_sha256=["6d20" + "0" * 60],
         resolver_version="1.0.0",
         findings=findings,
-        rules={"veripen/idor_cross_account/CWE-639": {
+        rules={"hos_ares/idor_cross_account/CWE-639": {
             "short": "对象级越权", "full": "对象级授权缺失（BOLA）", "owasp": ["WSTG-ATHZ-02"]}},
         coverage={
             "zero_hit_tags": ["graphql_endpoint", "content_write"],

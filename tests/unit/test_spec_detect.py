@@ -17,8 +17,8 @@ import json
 
 import pytest
 
-from veripen_contract.parser import parse_openapi
-from veripen_contract.spec_detect import (
+from hos_ares_contract.parser import parse_openapi
+from hos_ares_contract.spec_detect import (
     SpecFormatError,
     as_openapi_text,
     classify,

@@ -24,7 +24,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-LEDGER = ROOT / ".veripen" / "batches.jsonl"
+LEDGER = ROOT / ".hos-ares" / "batches.jsonl"
 SKIP_DIRS = {"out", ".venv", "vendor", ".git", "node_modules", "__pycache__"}
 
 #: 反引号里的名字最可靠；再补两类常见标识符（CamelCase / 带下划线的函数名）。

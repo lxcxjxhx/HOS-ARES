@@ -1,11 +1,11 @@
-"""B180：`veripen --help` 里的项数和它对不上的那张表。
+"""B180：`hos_ares --help` 里的项数和它对不上的那张表。
 
 判据（同一件事，三个数）：
 
 ```
-veripen --help            → 部署自检（19 项）
-veripen doctor            → 实际跑 20 项（ok 17 / fail 0 / skip 3）
-veripen.doctor（另一个实现）→ CHECKS 16 项，只有测试在用
+hos_ares --help            → 部署自检（19 项）
+hos-ares doctor            → 实际跑 20 项（ok 17 / fail 0 / skip 3）
+hos-ares.doctor（另一个实现）→ CHECKS 16 项，只有测试在用
 ```
 
 用户读到的数字必须是真数字，否则「自检 19 项」这句话本身就没被自检。
@@ -28,13 +28,13 @@ _PAIR = re.compile(r"（(\d+) 面 × (\d+) 项）")
 
 
 def _desc() -> dict[str, str]:
-    from veripen_cli.__main__ import COMMANDS
+    from hos_ares_cli.__main__ import COMMANDS
 
     return {name: desc for name, _mod, desc in COMMANDS}
 
 
 def test_doctor_count_in_help_matches_the_real_list() -> None:
-    from veripen_cli.cmd_doctor import CHECKS
+    from hos_ares_cli.cmd_doctor import CHECKS
 
     desc = _desc()["doctor"]
     match = _NUM.search(desc)
@@ -56,7 +56,7 @@ def test_console_count_in_help_matches_ui_ops() -> None:
 
 
 def test_parity_count_in_help_matches_items() -> None:
-    from veripen_cli.cmd_parity import ITEMS
+    from hos_ares_cli.cmd_parity import ITEMS
 
     desc = _desc()["parity"]
     match = _PAIR.search(desc)
@@ -67,10 +67,10 @@ def test_parity_count_in_help_matches_items() -> None:
 
 
 def test_every_subcommand_has_a_loadable_main() -> None:
-    """清单里登记的每个子命令都必须能 import 且带 main——否则 `veripen <x>` 是坏的。"""
+    """清单里登记的每个子命令都必须能 import 且带 main——否则 `hos_ares <x>` 是坏的。"""
     import importlib
 
-    from veripen_cli.__main__ import COMMANDS
+    from hos_ares_cli.__main__ import COMMANDS
 
     for name, module, _desc in COMMANDS:
         mod = importlib.import_module(module)
@@ -83,7 +83,7 @@ def _readme() -> str:
 
 
 def test_readme_doctor_count_matches() -> None:
-    from veripen_cli.cmd_doctor import CHECKS
+    from hos_ares_cli.cmd_doctor import CHECKS
 
     match = re.search(r"环境自检（(\d+) 项", _readme())
     assert match, "README 里没有「环境自检（N 项」"
@@ -91,7 +91,7 @@ def test_readme_doctor_count_matches() -> None:
 
 
 def test_readme_subcommand_count_matches() -> None:
-    from veripen_cli.__main__ import COMMANDS
+    from hos_ares_cli.__main__ import COMMANDS
 
     match = re.search(r"统一 CLI（(\d+) 个子命令）", _readme())
     assert match, "README 里没有「统一 CLI（N 个子命令）}"
@@ -118,7 +118,7 @@ _DOC_COUNT = re.compile(r"(\d+)\s*项(?:自检|全绿)")
 
 def test_delivery_docs_state_the_real_doctor_count() -> None:
     """`make doctor` 是 20 项；交付材料里写 16 会让客户以为跑少了一半。"""
-    from veripen_cli.cmd_doctor import CHECKS
+    from hos_ares_cli.cmd_doctor import CHECKS
 
     root = Path(__file__).resolve().parents[2]
     wrong: list[str] = []
@@ -142,21 +142,21 @@ def test_delivery_docs_state_the_real_doctor_count() -> None:
 def test_every_subcommand_survives_a_non_utf8_console() -> None:
     """B200/B206 都是同一个坑：往 cp1252 控制台打中文 → UnicodeEncodeError。
 
-    这里把 `veripen <子命令> --help` 全部在 `PYTHONIOENCODING=cp1252` 下跑一遍：
+    这里把 `hos_ares <子命令> --help` 全部在 `PYTHONIOENCODING=cp1252` 下跑一遍：
     退出码只能是 0（正常）或 2（用法错误），绝不能是被编码打死的 1。
     """
     import os
     import subprocess
     import sys
 
-    from veripen_cli.__main__ import COMMANDS
+    from hos_ares_cli.__main__ import COMMANDS
 
     root = Path(__file__).resolve().parents[2]
     env = {**os.environ, "PYTHONIOENCODING": "cp1252"}
     bad: list[str] = []
     for name, _module, _desc in COMMANDS:
         proc = subprocess.run(          # noqa: S603 - 固定 argv
-            [sys.executable, "-m", "veripen_cli", name, "--help"],
+            [sys.executable, "-m", "hos_ares_cli", name, "--help"],
             cwd=str(root), env=env, capture_output=True, text=True,
             encoding="utf-8", errors="replace", timeout=120,
         )
@@ -168,18 +168,18 @@ def test_every_subcommand_survives_a_non_utf8_console() -> None:
 
 # ── B220：模块在、命令不在 = 摸不到的能力 ──────────────────────
 def test_every_cmd_module_is_reachable_from_the_cli() -> None:
-    """`veripen_cli/cmd_*.py` 里有 `main` 的，都要能在 `veripen <名字>` 摸到。
+    """`hos_ares_cli/cmd_*.py` 里有 `main` 的，都要能在 `hos_ares <名字>` 摸到。
 
     以前 `cmd_coverage.py` 只有 `make coverage-matrix` 能调，命令行里
-    `veripen coverage` 报"未知子命令"——设计文档写的却是这个形式。
+    `hos-ares coverage` 报"未知子命令"——设计文档写的却是这个形式。
     """
-    from veripen_cli.__main__ import COMMANDS, INTERNAL_MODULES
+    from hos_ares_cli.__main__ import COMMANDS, INTERNAL_MODULES
 
     root = Path(__file__).resolve().parents[2]
     reachable = {module for _name, module, _desc in COMMANDS} | set(INTERNAL_MODULES)
     missing: list[str] = []
-    for path in sorted((root / "veripen_cli").glob("cmd_*.py")):
-        module = f"veripen_cli.{path.stem}"
+    for path in sorted((root / "hos_ares_cli").glob("cmd_*.py")):
+        module = f"hos_ares_cli.{path.stem}"
         src = path.read_text(encoding="utf-8")
         if "def main(" not in src:
             continue
@@ -189,12 +189,12 @@ def test_every_cmd_module_is_reachable_from_the_cli() -> None:
 
 
 def test_coverage_subcommand_runs() -> None:
-    """注册了就要真能跑：`veripen coverage` 出矩阵（退出码由缺口决定，0 或 1）。"""
+    """注册了就要真能跑：`hos-ares coverage` 出矩阵（退出码由缺口决定，0 或 1）。"""
     import subprocess
     import sys
 
     root = Path(__file__).resolve().parents[2]
-    proc = subprocess.run([sys.executable, "-m", "veripen_cli", "coverage", "--json"],  # noqa: S603
+    proc = subprocess.run([sys.executable, "-m", "hos_ares_cli", "coverage", "--json"],  # noqa: S603
                           cwd=str(root), capture_output=True, text=True,
                           encoding="utf-8", errors="replace", timeout=180)
     assert proc.returncode in (0, 1), proc.stderr[-400:]
@@ -203,8 +203,8 @@ def test_coverage_subcommand_runs() -> None:
 
 def test_internal_modules_carry_reasons() -> None:
     """白名单不是逃生门：每条都要写清为什么不做成子命令。"""
-    from veripen_cli.__main__ import INTERNAL_MODULES
+    from hos_ares_cli.__main__ import INTERNAL_MODULES
 
     for module, reason in INTERNAL_MODULES.items():
         assert reason.strip(), f"{module} 没写理由"
-        assert module.startswith("veripen_cli.cmd_"), module
+        assert module.startswith("hos_ares_cli.cmd_"), module

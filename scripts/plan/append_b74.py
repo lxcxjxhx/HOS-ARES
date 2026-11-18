@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""一次性：把 B74 追加进 .veripen/batches.jsonl（只增不改）。"""
+"""一次性：把 B74 追加进 .hos-ares/batches.jsonl（只增不改）。"""
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-LEDGER = Path(__file__).resolve().parents[2] / ".veripen" / "batches.jsonl"
+LEDGER = Path(__file__).resolve().parents[2] / ".hos-ares" / "batches.jsonl"
 
 ROW = {
     "batch": "B74",
@@ -15,7 +15,7 @@ ROW = {
     "agent": "little-code-sauce",
     "scope": "报告面的显示：route_short 保留 scheme+来源段+id前8位，不再只有 route://",
     "files": [
-        "veripen/report/render.py",
+        "hos_ares/report/render.py",
         "tests/unit/test_report_route_short.py",
     ],
     "dod": "A(route://contract/<hex> -> route://contract/<前8位>) OK；B(无 scheme 的 ref 仍前 8 位) OK；C(空 ref 返回空串) OK；D(完整 id 不透出) OK",

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""一次性：把 B73 追加进 .veripen/batches.jsonl（只增不改）。"""
+"""一次性：把 B73 追加进 .hos-ares/batches.jsonl（只增不改）。"""
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-LEDGER = Path(__file__).resolve().parents[2] / ".veripen" / "batches.jsonl"
+LEDGER = Path(__file__).resolve().parents[2] / ".hos-ares" / "batches.jsonl"
 
 ROW = {
     "batch": "B73",
@@ -16,7 +16,7 @@ ROW = {
     "scope": "录屏第四幕：platform --profile（按客户档跑），档身份与档策略进画面",
     "files": [
         "scripts/demo/record_terminal.py",
-        "veripen_cli/cmd_platform.py",
+        "hos_ares_cli/cmd_platform.py",
         "tests/unit/test_terminal_tour.py",
     ],
     "dod": "A(19.93s >= 18s) OK；B(四幕序 run/agent/platform/profile) OK；C(画面含 客户档： 与 档策略：可用 oracle) OK；D(两次运行场景序列与行数一致) OK；E(VP_ASSET_WEB_01 注入 lab 地址，只连环回) OK",

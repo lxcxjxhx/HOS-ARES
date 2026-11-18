@@ -16,10 +16,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from veripen_core.coverage import Claim, Observation, build_coverage, write_coverage
-from veripen_core.routes.resolver import Resolver
-from veripen_core.routes.sources.base import StaticSource
-from veripen_core.routes.types import (
+from hos_ares_core.coverage import Claim, Observation, build_coverage, write_coverage
+from hos_ares_core.routes.resolver import Resolver
+from hos_ares_core.routes.sources.base import StaticSource
+from hos_ares_core.routes.types import (
     AssetRef,
     RouteCandidate,
     RouteProvenance,
@@ -194,7 +194,7 @@ def test_clean_run_is_complete() -> None:
 
 def test_report_section_names_the_gaps() -> None:
     """账本不能只活在侧车 JSON 里：报告第 4 节要把缺口点出来。"""
-    from veripen.report.render import ReportInput, render_markdown
+    from hos_ares.report.render import ReportInput, render_markdown
 
     bindings = _bindings([(p("api", "users", "{p1}"), ("object_read",))])
     doc = _doc(bindings, [])
@@ -216,7 +216,7 @@ def test_report_section_names_the_gaps() -> None:
 
 
 def test_completion_status_only_trusts_an_explicit_finish() -> None:
-    from veripen_core.coverage import completion_status
+    from hos_ares_core.coverage import completion_status
 
     assert completion_status("converged", "finished") == "completed"
     assert completion_status("budget", "budget_exhausted:steps") == "budget"
@@ -233,11 +233,11 @@ def test_budget_exhaustion_makes_the_ledger_incomplete() -> None:
 # ── B143：缺口数要对得上（summary.gaps vs caveat）──────────────��──
 def _run(kind_counts: dict[str, int]) -> dict:
     """造一个 gaps 分档分布确定的账本。"""
-    from veripen_core.coverage import (
+    from hos_ares_core.coverage import (
         Observation,
         build_coverage,
     )
-    from veripen_core.routes import (
+    from hos_ares_core.routes import (
         AssetRef,
         Resolver,
         RouteCandidate,
@@ -245,7 +245,7 @@ def _run(kind_counts: dict[str, int]) -> dict:
         RouteProvenance,
         RouteQuery,
     )
-    from veripen_core.routes.sources import StaticSource
+    from hos_ares_core.routes.sources import StaticSource
     import time
 
     cands = [
@@ -290,7 +290,7 @@ def test_oracles_outside_the_14_class_spec_are_named() -> None:
     实测：本轮接入 `session_fixation` 后，矩阵仍是 14/14——新能力在表里**看不见**。
     这条钉住"表外能力要报名字"，否则接入再多也不会有读者知道。
     """
-    from veripen_cli.cmd_coverage import build_report
+    from hos_ares_cli.cmd_coverage import build_report
 
     report = build_report([])
     outside = set(report["outside_spec"])
@@ -307,8 +307,8 @@ def test_oracles_with_unselectable_tags_are_named() -> None:
     它们注册着、bench 里能跑，`run` 里却永远选不到——"我们有 CSP 检测"这句话
     在产品路径上是空的（`H33-待裁规格事项 §1`）。
     """
-    from veripen_cli.cmd_coverage import build_report
-    from veripen_core.stream import SELECTOR_TAGS
+    from hos_ares_cli.cmd_coverage import build_report
+    from hos_ares_core.stream import SELECTOR_TAGS
 
     report = build_report([])
     # B403 把这一名单拆成了两层：这四条属于"契约写不进、但结构发现能选中"，
@@ -316,7 +316,7 @@ def test_oracles_with_unselectable_tags_are_named() -> None:
     assert {"csp_absent", "frame_opt_absent", "nosniff_absent", "hsts_absent"} <= set(
         report["discoverable"]), report["discoverable"]
     # 两层加起来 = 字表外的那一批：名单必须与字表算出来的一致，不许手写
-    from veripen_oracles import ALL_ORACLES
+    from hos_ares_oracles import ALL_ORACLES
 
     expect = {c.meta.id for c in ALL_ORACLES
               if c.meta.selector_tags and not (set(c.meta.selector_tags) & SELECTOR_TAGS)}
@@ -333,7 +333,7 @@ def test_oracles_whose_tags_the_contract_drops_are_named() -> None:
     于是 `cors_misconfig` 写进 OpenAPI 也拿不到绑定——对外宣称"支持 CORS 检测"，
     契约路径上却选不中。这条与"标签不在字表"是两种不同的选不中，都得点名。
     """
-    from veripen_cli.cmd_coverage import build_report
+    from hos_ares_cli.cmd_coverage import build_report
 
     report = build_report([])
     assert report["contract_dropped"] == ["cors_misconfig"], report["contract_dropped"]
@@ -348,9 +348,9 @@ def test_structural_tags_match_what_infer_tags_actually_appends() -> None:
     import re
     from pathlib import Path
 
-    from veripen_core.routes.tagging import STRUCTURAL_TAGS
+    from hos_ares_core.routes.tagging import STRUCTURAL_TAGS
 
-    src = Path("veripen_core/routes/tagging.py").read_text(encoding="utf-8")
+    src = Path("hos_ares_core/routes/tagging.py").read_text(encoding="utf-8")
     body = src.split("def infer_tags(", 1)[1]
     appended = set(re.findall(r'tags\.append\("([^"]+)"\)', body))
     assert appended == set(STRUCTURAL_TAGS), (sorted(appended), sorted(STRUCTURAL_TAGS))
@@ -362,12 +362,12 @@ def test_header_oracles_are_reachable_by_structural_discovery() -> None:
     以前 coverage 只说"在产品路径选不中"——这句话把 `--discover` 也算成没戏，
     而它其实是可跑的（B403：实测 `infer_tags(content_type="text/html")` 就回 `html_document`）。
     """
-    from veripen_core.routes.tagging import infer_tags
+    from hos_ares_core.routes.tagging import infer_tags
 
     html_tags = infer_tags(method="GET", template=chr(0x2F) + "p", content_type="text/html")
     assert "html_document" in html_tags, html_tags
 
-    from veripen_cli.cmd_coverage import build_report
+    from hos_ares_cli.cmd_coverage import build_report
 
     report = build_report([])
     assert set(report["discoverable"]) == {

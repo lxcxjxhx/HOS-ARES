@@ -1,4 +1,4 @@
-# VeriPen Playbook（现场四段，每段五步）
+# HOS-ARES Playbook（现场四段，每段五步）
 
 ## 一、装不上
 

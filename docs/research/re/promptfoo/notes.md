@@ -8,7 +8,7 @@
 
 - [x] 0 建目录 + manifest.json
 - [ ] 1 身份（inspect_* / sha256 / 打包形态）
-- [ ] 2 字符串分类计数 + 过程索引（plan-veripen/28 §3.1）
+- [ ] 2 字符串分类计数 + 过程索引（plan-hos-ares/28 §3.1）
 - [ ] 2b grep 调用点再读实现
 - [ ] 3 定点结构分析（F1–F6 选 1–2）
 - [ ] 4 导出 evidence bundle

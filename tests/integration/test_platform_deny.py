@@ -38,7 +38,7 @@ def _spec(tmp_path: Path) -> Path:
     path.write_text(json.dumps({
         "openapi": "3.0.0", "info": {"title": "x", "version": "1"},
         "servers": [{"url": DEAD}],
-        "paths": {SEP + "api" + SEP + "x": {"get": {"x-veripen-tags": ["param_injectable"]}}},
+        "paths": {SEP + "api" + SEP + "x": {"get": {"x-hos_ares-tags": ["param_injectable"]}}},
     }), encoding="utf-8")
     return path
 
@@ -46,7 +46,7 @@ def _spec(tmp_path: Path) -> Path:
 # ── 闸门真的收到 deny ─────────────────────────────────────────
 def test_run_passes_deny_into_the_guard(monkeypatch: pytest.MonkeyPatch,
                                         tmp_path: Path) -> None:
-    import veripen_cli.cmd_run as cmd_run
+    import hos_ares_cli.cmd_run as cmd_run
 
     seen: dict[str, Any] = {}
 
@@ -65,7 +65,7 @@ def test_run_passes_deny_into_the_guard(monkeypatch: pytest.MonkeyPatch,
 
 def test_run_without_deny_stays_empty(monkeypatch: pytest.MonkeyPatch,
                                       tmp_path: Path) -> None:
-    import veripen_cli.cmd_run as cmd_run
+    import hos_ares_cli.cmd_run as cmd_run
 
     seen: dict[str, Any] = {}
 
@@ -95,7 +95,7 @@ def profile_with_deny(tmp_path: Path) -> tuple[Path, str]:
 
 
 def _platform(tmp_path: Path, profile: Path, spec: Path, *extra: str) -> int:
-    from veripen_cli.cmd_platform import main
+    from hos_ares_cli.cmd_platform import main
 
     return main(["--profile", str(profile), "--openapi", str(spec),
                  "--out", str(tmp_path / "out"), "--db", str(tmp_path / "out" / "p.db"),
@@ -105,7 +105,7 @@ def _platform(tmp_path: Path, profile: Path, spec: Path, *extra: str) -> int:
 def test_platform_forwards_profile_deny(profile_with_deny: tuple[Path, str],
                                         tmp_path: Path,
                                         monkeypatch: pytest.MonkeyPatch) -> None:
-    from veripen_cli import cmd_run
+    from hos_ares_cli import cmd_run
 
     profile, asset_id = profile_with_deny
     monkeypatch.setenv("VP_ASSET_WEB_01", DEAD)
@@ -125,7 +125,7 @@ def test_platform_forwards_profile_deny(profile_with_deny: tuple[Path, str],
 def test_platform_passes_host_style_deny_through(tmp_path: Path,
                                                  monkeypatch: pytest.MonkeyPatch) -> None:
     """deny 里也可以直接写主机名：原样传下去，别当未知资产拒跑。"""
-    from veripen_cli import cmd_run
+    from hos_ares_cli import cmd_run
 
     raw = (ROOT / "profiles" / "demo-a" / "profile.yaml").read_text(encoding="utf-8")
     raw = raw.replace("deny: [169.254.169.254/32]", "deny: [other.invalid]")
@@ -143,8 +143,8 @@ def test_platform_passes_host_style_deny_through(tmp_path: Path,
 
 # ── 闸门的 plan 之前根本没被调用过（B187 的真正缺陷）──────────
 def test_guard_plan_actually_blocks_a_denied_host() -> None:
-    from veripen_core.guard.scope import RouteSet
-    from veripen_cli.cmd_hunt import build_guard
+    from hos_ares_core.guard.scope import RouteSet
+    from hos_ares_cli.cmd_hunt import build_guard
 
     routeset = RouteSet(bindings=(), asset_id="probe", resolver_version="1",
                         query_hash="0" * 64, created_at=0, expires_at=0,
@@ -157,8 +157,8 @@ def test_guard_plan_actually_blocks_a_denied_host() -> None:
 
 
 def test_guard_plan_enforces_the_impact_ceiling() -> None:
-    from veripen_core.guard.scope import RouteSet
-    from veripen_cli.cmd_hunt import build_guard
+    from hos_ares_core.guard.scope import RouteSet
+    from hos_ares_cli.cmd_hunt import build_guard
 
     routeset = RouteSet(bindings=(), asset_id="probe", resolver_version="1",
                         query_hash="0" * 64, created_at=0, expires_at=0,

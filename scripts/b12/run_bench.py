@@ -43,7 +43,7 @@ from lab.app import App, make_token  # noqa: E402
 from lab.net_server import LabServer  # noqa: E402
 from lab.net_transport import NetTransport  # noqa: E402
 
-from veripen.bench import (  # noqa: E402
+from hos_ares.bench import (  # noqa: E402
     CaseResult,
     Outcome,
     RoundResult,
@@ -55,34 +55,34 @@ from veripen.bench import (  # noqa: E402
     render_bench_md,
     to_json,
 )
-from veripen_core.routes import (  # noqa: E402
+from hos_ares_core.routes import (  # noqa: E402
     AssetRef,
     Resolver,
     RouteHints,
     RouteProvenance,
     RouteQuery,
 )
-from veripen_core.routes.sources.symbols import SymbolSource as SymSource  # noqa: E402
-from veripen_core.routes.sources.symbols import SymbolTable as RouteSymbols  # noqa: E402
-from veripen.bench.capsule import (  # noqa: E402
+from hos_ares_core.routes.sources.symbols import SymbolSource as SymSource  # noqa: E402
+from hos_ares_core.routes.sources.symbols import SymbolTable as RouteSymbols  # noqa: E402
+from hos_ares.bench.capsule import (  # noqa: E402
     StepParamsTransport,
     build_capsule,
     save_round_chain,
     step_params,
 )
-from veripen.bench.faces import extra_tags  # noqa: E402
-from veripen_core.evidence import (  # noqa: E402
+from hos_ares.bench.faces import extra_tags  # noqa: E402
+from hos_ares_core.evidence import (  # noqa: E402
     CapsuleDoc,
     ReplayEnv,
     ReplayMode,
     replay,
     seal_capsule_doc,
 )
-from veripen_oracles import ALL_ORACLES  # noqa: E402
-from veripen_oracles.common.harness import SymbolTable, run as run_oracle  # noqa: E402
-from veripen_oracles.oob import LabOob  # noqa: E402
+from hos_ares_oracles import ALL_ORACLES  # noqa: E402
+from hos_ares_oracles.common.harness import SymbolTable, run as run_oracle  # noqa: E402
+from hos_ares_oracles.oob import LabOob  # noqa: E402
 
-#: 需要第二条面的 oracle 由 ``veripen.bench.faces`` 从 ``selector_tags`` 派生。
+#: 需要第二条面的 oracle 由 ``hos_ares.bench.faces`` 从 ``selector_tags`` 派生。
 #: 这里不再留本地副本——它曾经有四份，其中 demo 那份已经分叉。
 
 SYMBOLS = SymbolTable(
@@ -396,7 +396,7 @@ def uncovered_oracles(case_oracles: set[str]) -> list[str]:
     code_replay）在矩阵里"有名字、能跑"，但 bench 从没量过它们——不点名，
     读者会把"没量"读成"没问题"。
     """
-    from veripen_oracles import ALL_ORACLES
+    from hos_ares_oracles import ALL_ORACLES
 
     registered = [c.meta.id for c in ALL_ORACLES]
     return sorted(oid for oid in registered if oid not in case_oracles)

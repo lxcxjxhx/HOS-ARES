@@ -52,9 +52,9 @@ def build_demo_db(path: Path) -> dict[str, int]:
     用真库而不是内存态——audit 页读的是 ``task_events``，
     内存态的 ``ConsoleState`` 只能骗页面，骗不了判据 C。
     """
-    from veripen_core.blackboard import EventLog
-    from veripen_core.guard.approval import ApprovalGate, ApprovalRequired
-    from veripen_core.store import Store
+    from hos_ares_core.blackboard import EventLog
+    from hos_ares_core.guard.approval import ApprovalGate, ApprovalRequired
+    from hos_ares_core.store import Store
 
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists():
@@ -122,7 +122,7 @@ def build_demo_db(path: Path) -> dict[str, int]:
 
 def load_approvals(db_path: Path) -> list[Any]:
     """``approvals`` 表 → 控制台的 ``Approval`` 行。"""
-    from veripen_core.store import Store
+    from hos_ares_core.store import Store
     from web.console import Approval
 
     store = Store(str(db_path))
@@ -177,8 +177,8 @@ def console_state():
     """与 ``cmd_console`` 同源的状态装配：产物 + audit + approvals。"""
     from dataclasses import replace
 
-    from veripen_core.audit_source import load_audit
-    from veripen_core.store import Store
+    from hos_ares_core.audit_source import load_audit
+    from hos_ares_core.store import Store
     from web.loader import load_file
 
     state = load_file(str(ROOT / "out" / "b30" / "hunt.json"))

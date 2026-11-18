@@ -25,7 +25,7 @@ SPEC = {
     "paths": {
         S + "files": {
             "get": {
-                "x-veripen-tags": ["file_read"],
+                "x-hos_ares-tags": ["file_read"],
                 "parameters": [
                     {"name": "name", "in": "query", "required": True,
                      "schema": {"type": "string"}}
@@ -39,8 +39,8 @@ SPEC = {
 
 def test_symbol_missing_becomes_blocked(tmp_path: pathlib.Path,
                                         monkeypatch: pytest.MonkeyPatch) -> None:
-    import veripen_cli.cmd_run as run_mod
-    from veripen_oracles.common.harness import SymbolMissing
+    import hos_ares_cli.cmd_run as run_mod
+    from hos_ares_oracles.common.harness import SymbolMissing
 
     def _raise(*_a: object, **_kw: object) -> None:
         raise SymbolMissing("SAFE_FILE")

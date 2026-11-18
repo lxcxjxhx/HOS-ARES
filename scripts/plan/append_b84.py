@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""一次性：把 B84 追加进 .veripen/batches.jsonl（只增不改）。"""
+"""一次性：把 B84 追加进 .hos-ares/batches.jsonl（只增不改）。"""
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-LEDGER = Path(__file__).resolve().parents[2] / ".veripen" / "batches.jsonl"
+LEDGER = Path(__file__).resolve().parents[2] / ".hos-ares" / "batches.jsonl"
 
 ROW = {
     "batch": "B84",
@@ -15,9 +15,9 @@ ROW = {
     "agent": "little-code-sauce",
     "scope": "无容器时的受限执行：Windows Job Object（进程数/内存上限 + 整组回收），isolation 如实标 job-object",
     "files": [
-        "veripen_core/sandbox/win_job.py",
-        "veripen_core/sandbox/runner.py",
-        "veripen_cli/cmd_doctor.py",
+        "hos_ares_core/sandbox/win_job.py",
+        "hos_ares_core/sandbox/runner.py",
+        "hos_ares_cli/cmd_doctor.py",
         "tests/unit/test_sandbox_job.py",
     ],
     "dod": "A(有 docker 仍优先 docker) OK；B(无 docker 走 job-object 且如实标 isolation) OK；C(进程数上限真生效：上限4起8个被拒) OK；D(超时整组杀，tasklist 无残留) OK；E(doctor 区分 docker/job-object/none 三态) OK",

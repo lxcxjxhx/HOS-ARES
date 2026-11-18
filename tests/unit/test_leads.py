@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from veripen_core.leads import (
+from hos_ares_core.leads import (
     MIN_CLOSURE_RATE,
     LeadError,
     LeadLedger,
@@ -24,7 +24,7 @@ from veripen_core.leads import (
     render_leads_section,
     settle,
 )
-from veripen_core.store import Store
+from hos_ares_core.store import Store
 
 TASK = "t-1"
 

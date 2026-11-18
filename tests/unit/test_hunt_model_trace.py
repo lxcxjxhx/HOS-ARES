@@ -17,7 +17,7 @@ from __future__ import annotations
 import contextlib
 import io
 
-from veripen_cli.cmd_hunt import main as hunt_main
+from hos_ares_cli.cmd_hunt import main as hunt_main
 
 #: 夹具契约的 host（走契约路才不触发发现），以及一个必然拒连的端点
 _CONTRACT = "tests/fixtures/contract/sample.json"
@@ -26,8 +26,8 @@ _DEAD_MODEL = "http" + ":" + chr(0x2F) * 2 + "127." + "0.0.1:1" + chr(0x2F) + "v
 
 
 def _run_live_model(monkeypatch, tmp_path) -> str:  # noqa: ANN001
-    monkeypatch.setenv("VERIPEN_MODEL_BASE_URL", _DEAD_MODEL)
-    monkeypatch.setenv("VERIPEN_MODEL", "demo")
+    monkeypatch.setenv("HOS_ARES_MODEL_BASE_URL", _DEAD_MODEL)
+    monkeypatch.setenv("HOS_ARES_MODEL", "demo")
     out = io.StringIO()
     with contextlib.redirect_stdout(out):
         hunt_main(["--target", _TARGET, "--openapi", _CONTRACT, "--model", "live",

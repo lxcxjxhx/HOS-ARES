@@ -45,7 +45,7 @@ for _stream in (sys.stdout, sys.stderr):
 ROOT = Path(__file__).resolve().parents[1]
 PY = sys.executable
 
-MYPP_TARGETS = ("veripen_core/", "worker/", "veripen_oracles/", "veripen/", "veripen_cli/", "web/")
+MYPP_TARGETS = ("hos_ares_core/", "worker/", "hos_ares_oracles/", "hos_ares/", "hos_ares_cli/", "web/")
 
 
 @dataclass(frozen=True)
@@ -85,7 +85,7 @@ GATES: tuple[Gate, ...] = (
     # 却没重生成它的 `MANIFEST.md`，于是那 54 个文件的哈希表过期了——一直没人
     # 知道，因为这行不在清单里（B232）。两个包各有各的 MANIFEST，得各跑一遍。
     Gate("plan-old-manifest", ("node", "_verify-manifest.cjs"),
-         needs="node", cwd="plan-veripen"),
+         needs="node", cwd="plan-hos-legacy"),
 )
 
 #: 测试分三段跑：本机单进程全量约 30 分钟，超过一条命令的观察窗口。

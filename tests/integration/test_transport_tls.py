@@ -29,8 +29,8 @@ from lab.app import App
 from lab.net_server import LOOPBACK, LabServer
 from lab.tls import make_cert
 
-from veripen_core.routes.types import RouteBinding
-from veripen_core.tools import transport
+from hos_ares_core.routes.types import RouteBinding
+from hos_ares_core.tools import transport
 
 SEP = chr(0x2F)
 PREFIX = SEP + "api" + SEP + "ping"
@@ -173,18 +173,18 @@ def test_verdict_is_identical_over_https(certs: tuple[Path, Path], trusted: None
     from lab.net_transport import NetTransport
     from lab.routes import candidates as lab_candidates
 
-    from veripen_core.routes import (
+    from hos_ares_core.routes import (
         AssetRef,
         Resolver,
         RouteHints,
         RouteProvenance,
         RouteQuery,
     )
-    from veripen_core.routes.sources.symbols import SymbolSource, SymbolTable
-    from veripen_oracles import ALL_ORACLES
-    from veripen_oracles.common.harness import SymbolTable as HS
-    from veripen_oracles.common.harness import run as run_oracle
-    from veripen_oracles.oob import LabOob
+    from hos_ares_core.routes.sources.symbols import SymbolSource, SymbolTable
+    from hos_ares_oracles import ALL_ORACLES
+    from hos_ares_oracles.common.harness import SymbolTable as HS
+    from hos_ares_oracles.common.harness import run as run_oracle
+    from hos_ares_oracles.oob import LabOob
 
     def run_once(base: str, tls: tuple[Path, Path] | None) -> tuple[str, str]:
         app = App(secure=False)

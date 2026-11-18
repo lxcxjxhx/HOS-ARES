@@ -29,10 +29,10 @@ def _spec(base: str) -> str:
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": base}],
         "paths": {
-            f"{SEP}api{SEP}search": {"get": {"x-veripen-tags": ["param_injectable"]}},
-            f"{SEP}api{SEP}read": {"get": {"x-veripen-tags": ["file_read"]}},
-            f"{SEP}api{SEP}fetch": {"get": {"x-veripen-tags": ["url_fetch"]}},
-            f"{SEP}portal{SEP}token": {"get": {"x-veripen-tags": ["token_issue"]}},
+            f"{SEP}api{SEP}search": {"get": {"x-hos_ares-tags": ["param_injectable"]}},
+            f"{SEP}api{SEP}read": {"get": {"x-hos_ares-tags": ["file_read"]}},
+            f"{SEP}api{SEP}fetch": {"get": {"x-hos_ares-tags": ["url_fetch"]}},
+            f"{SEP}portal{SEP}token": {"get": {"x-hos_ares-tags": ["token_issue"]}},
         },
     }, ensure_ascii=False)
 
@@ -51,7 +51,7 @@ def labs() -> Any:
 
 
 def test_strix_run_produces_findings_and_report(labs: Any, tmp_path: Path) -> None:
-    from veripen_cli.cmd_run import main
+    from hos_ares_cli.cmd_run import main
 
     spec = tmp_path / "spec.json"
     spec.write_text(_spec(labs[0].base_url), encoding="utf-8")
@@ -67,7 +67,7 @@ def test_strix_run_produces_findings_and_report(labs: Any, tmp_path: Path) -> No
 
 
 def test_strix_hunt_takes_steps(labs: Any, tmp_path: Path) -> None:
-    from veripen_cli.cmd_hunt import main
+    from hos_ares_cli.cmd_hunt import main
 
     spec = tmp_path / "spec.json"
     spec.write_text(_spec(labs[0].base_url), encoding="utf-8")
@@ -82,7 +82,7 @@ def test_strix_hunt_takes_steps(labs: Any, tmp_path: Path) -> None:
 
 
 def test_platform_covers_two_assets(labs: Any, tmp_path: Path) -> None:
-    from veripen_cli.cmd_platform import main
+    from hos_ares_cli.cmd_platform import main
 
     spec = tmp_path / "spec.json"
     spec.write_text(_spec(labs[0].base_url), encoding="utf-8")
@@ -97,7 +97,7 @@ def test_platform_covers_two_assets(labs: Any, tmp_path: Path) -> None:
 
 
 def test_chat_executes_a_tool(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from veripen_cli.cmd_chat import main
+    from hos_ares_cli.cmd_chat import main
 
     monkeypatch.setattr("sys.stdin", io.StringIO("往 notes.txt 写 hello\n/quit\n"))
     rc = main(["--root", str(tmp_path), "--db", str(tmp_path / "c.db"), "--yes"])

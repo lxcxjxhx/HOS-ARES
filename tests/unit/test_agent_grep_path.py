@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from veripen_cli.cmd_agent import _split_grep_arg
+from hos_ares_cli.cmd_agent import _split_grep_arg
 
 
 @pytest.mark.parametrize(("arg", "pattern", "glob"), [
@@ -24,9 +24,9 @@ def test_split(arg: str, pattern: str, glob: str) -> None:
 
 
 def test_grep_with_a_path_scopes_the_search(tmp_path, monkeypatch) -> None:  # noqa: ANN001
-    from veripen_core.workbench.fs import Workbench
+    from hos_ares_core.workbench.fs import Workbench
 
-    from veripen_cli.cmd_agent import _do_grep
+    from hos_ares_cli.cmd_agent import _do_grep
 
     (tmp_path / "a.txt").write_text("needle\n", encoding="utf-8")
     (tmp_path / "b.txt").write_text("needle\n", encoding="utf-8")

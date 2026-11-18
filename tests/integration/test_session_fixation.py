@@ -27,13 +27,13 @@ def _spec(base: str, path: Path, tag: str, path_name: str) -> Path:
     path.write_text(json.dumps({
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": base}],
-        "paths": {path_name: {"get": {"x-veripen-tags": [tag]}}},
+        "paths": {path_name: {"get": {"x-hos_ares-tags": [tag]}}},
     }), encoding="utf-8")
     return path
 
 
 def _run(lab: Any, tmp_path: Path, *, path_name: str, tag: str = "token_issue") -> dict[str, Any]:
-    from veripen_cli.cmd_run import main as run_main
+    from hos_ares_cli.cmd_run import main as run_main
 
     out = tmp_path / "run"
     rc = run_main(["--target", lab.base_url,
@@ -97,8 +97,8 @@ def test_login_without_a_session_cookie_is_inconclusive() -> None:
     """
     from types import SimpleNamespace
 
-    from veripen_oracles.auth.session import SessionFixation
-    from veripen_oracles.common.harness import Pair
+    from hos_ares_oracles.auth.session import SessionFixation
+    from hos_ares_oracles.common.harness import Pair
 
     def _pair(role: str, headers: dict[str, str]) -> Any:
         trace = SimpleNamespace(status=200, headers=headers, error=None, body=b"{}")

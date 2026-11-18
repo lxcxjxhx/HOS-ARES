@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>VeriPen 控制台（只读）</title>
+<title>HOS-ARES 控制台（只读）</title>
 <style>
   /* ── 设计令牌（B41）：所有颜色/间距/字号只在这里定义，别处一律 var() ── */
   :root {
@@ -97,7 +97,7 @@
 <body>
 <a class="skip" href="#main">跳到主内容</a>
 <header>
-  <strong>VeriPen</strong>
+  <strong>HOS-ARES</strong>
   <span class="badge">只读</span>
   <span class="muted">控制台是「看和审」，不是「改」</span>
   <button id="density" type="button" aria-pressed="false">密度：舒适</button>
@@ -637,10 +637,10 @@ function applyDensity(value) {
   document.body.dataset.density = compact ? "compact" : "comfortable";
   densityBtn.textContent = compact ? "密度：紧凑" : "密度：舒适";
   densityBtn.setAttribute("aria-pressed", compact ? "true" : "false");
-  try { localStorage.setItem("veripen.density", compact ? "compact" : "comfortable"); } catch (_) { /* 隐私模式 */ }
+  try { localStorage.setItem("hos-ares.density", compact ? "compact" : "comfortable"); } catch (_) { /* 隐私模式 */ }
 }
 let density = "comfortable";
-try { density = localStorage.getItem("veripen.density") || "comfortable"; } catch (_) { /* 隐私模式 */ }
+try { density = localStorage.getItem("hos-ares.density") || "comfortable"; } catch (_) { /* 隐私模式 */ }
 applyDensity(density);
 densityBtn.addEventListener("click", () =>
   applyDensity(document.body.dataset.density === "compact" ? "comfortable" : "compact"));

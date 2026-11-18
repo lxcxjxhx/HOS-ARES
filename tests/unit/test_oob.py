@@ -8,10 +8,10 @@ from __future__ import annotations
 import pytest
 from conftest import Lab
 
-from veripen_oracles.common.harness import SymbolMissing, SymbolTable, run
-from veripen_oracles.oob import LabOob, OobProbe
-from veripen_oracles import tierA
-from veripen_core.models import Verdict
+from hos_ares_oracles.common.harness import SymbolMissing, SymbolTable, run
+from hos_ares_oracles.oob import LabOob, OobProbe
+from hos_ares_oracles import tierA
+from hos_ares_core.models import Verdict
 
 
 # ── 符号表 ──────────────────────────────────────────────────────────

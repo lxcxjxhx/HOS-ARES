@@ -1,4 +1,4 @@
-"""B5 用例矩阵驱动测试（``veripen_oracles/cases/tierA.json``）。
+"""B5 用例矩阵驱动测试（``hos_ares_oracles/cases/tierA.json``）。
 
 07 §0.5 的要求：正样本 ≥4 条且覆盖三种难度；负样本 ≥2 条且含"看似漏洞实则安全"
 与"环境退化"两类。这里把矩阵当数据跑，用例不写在代码里。
@@ -12,10 +12,10 @@ from pathlib import Path
 import pytest
 from conftest import Lab
 
-from veripen_oracles import ALL_ORACLES
-from veripen_oracles.common.harness import run
-from veripen_core.models import Verdict
-from veripen.bench.faces import extra_tags, primary_tag
+from hos_ares_oracles import ALL_ORACLES
+from hos_ares_oracles.common.harness import run
+from hos_ares_core.models import Verdict
+from hos_ares.bench.faces import extra_tags, primary_tag
 
 def _by_id(oracle_id: str, **params: object) -> object:
     """按 id 构造（覆盖已注册的全部档位，不只 TierA 前 4 类）。"""
@@ -26,7 +26,7 @@ def _by_id(oracle_id: str, **params: object) -> object:
     raise KeyError(oracle_id)
 
 
-CASES_PATH = Path(__file__).resolve().parents[2] / "veripen_oracles" / "cases" / "tierA.json"
+CASES_PATH = Path(__file__).resolve().parents[2] / "hos_ares_oracles" / "cases" / "tierA.json"
 CASES: dict = json.loads(CASES_PATH.read_text(encoding="utf-8"))
 
 def _lab(kind: str) -> Lab:
@@ -77,12 +77,12 @@ def test_faces_have_no_handwritten_copies() -> None:
         for marker in banned:
             if marker in text:
                 offenders.append(f"{path.relative_to(root)}: {marker}")
-    assert offenders == [], f"出现手工面字典副本（应改用 veripen.bench.faces）：{offenders}"
+    assert offenders == [], f"出现手工面字典副本（应改用 hos_ares.bench.faces）：{offenders}"
 
 
 def test_derived_faces_match_oracle_metadata() -> None:
     """派生结果必须与 oracle 类自己的 ``selector_tags`` 逐项一致。"""
-    from veripen.bench.faces import TAGS_BY_ORACLE
+    from hos_ares.bench.faces import TAGS_BY_ORACLE
 
     for cls in ALL_ORACLES:
         tags = tuple(cls.meta.selector_tags)
@@ -103,12 +103,12 @@ def test_every_multi_face_oracle_is_covered_somewhere() -> None:
     """
     from pathlib import Path
 
-    from veripen.bench.faces import extra_tags
+    from hos_ares.bench.faces import extra_tags
 
     root = Path(__file__).resolve().parents[2]
     corpus = "\n".join(
         p.read_text(encoding="utf-8", errors="replace")
-        for p in list(root.glob("tests/**/*.py")) + list(root.glob("veripen_oracles/cases/*.json"))
+        for p in list(root.glob("tests/**/*.py")) + list(root.glob("hos_ares_oracles/cases/*.json"))
         if "__pycache__" not in str(p) and p.name != "test_oracle_cases.py"
     )
     uncovered: list[str] = []

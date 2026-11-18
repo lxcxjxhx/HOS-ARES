@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from veripen_cli.offline import PROFILES, PackageError, build, verify
+from hos_ares_cli.offline import PROFILES, PackageError, build, verify
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "packaging" / "offline"
@@ -63,7 +63,7 @@ def test_both_profiles_verify_and_report_the_known_gap(tmp_path: Path, profile: 
 
 
 def test_doctor_reports_sandbox_and_browser_separately() -> None:
-    from veripen.doctor import run_all
+    from hos_ares.doctor import run_all
 
     detail = {c.name: c.detail for c in run_all().checks}["deps"]
     assert "sandbox: " in detail and "browser: " in detail

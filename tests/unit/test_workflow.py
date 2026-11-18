@@ -12,9 +12,9 @@ from pathlib import Path
 
 import pytest
 
-from veripen_core.blackboard import EventLog
-from veripen_core.store import Store
-from veripen_core.workflow import (
+from hos_ares_core.blackboard import EventLog
+from hos_ares_core.store import Store
+from hos_ares_core.workflow import (
     STAGES,
     WAVES,
     Phase,
@@ -30,8 +30,8 @@ from veripen_core.workflow import (
 
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG = ROOT / "config" / "workflow.yaml"
-DOC18 = ROOT / "plan-veripen" / "18-Oracle目录（14类判定矩阵）.md"
-DOC33 = ROOT / "plan-veripen" / "33-Harness架构总图与装配规格.md"
+DOC18 = ROOT / "plan-hos-legacy" / "18-Oracle目录（14类判定矩阵）.md"
+DOC33 = ROOT / "plan-hos-legacy" / "33-Harness架构总图与装配规格.md"
 
 
 @pytest.fixture(scope="module")
@@ -65,7 +65,7 @@ def test_every_gate_guards_a_declared_product(wf: Workflow) -> None:
 def test_every_product_has_a_schema(wf: Workflow) -> None:
     for p in wf.phases:
         for prod in p.produces:
-            assert prod.schema.startswith("veripen."), f"{p.id}:{prod.name} schema 不合规"
+            assert prod.schema.startswith("hos_ares."), f"{p.id}:{prod.name} schema 不合规"
 
 
 # ── 2 环检测 ────────────────────────────────────────────────────

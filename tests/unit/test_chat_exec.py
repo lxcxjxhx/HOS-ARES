@@ -12,9 +12,9 @@ from typing import Any
 
 import pytest
 
-from veripen_core.agent.intent import Step
-from veripen_core.workbench.fs import Workbench
-from veripen_cli import cmd_chat, cmd_run
+from hos_ares_core.agent.intent import Step
+from hos_ares_core.workbench.fs import Workbench
+from hos_ares_cli import cmd_chat, cmd_run
 
 SEP = chr(0x2F)
 #: scheme 拼出来：测试目录也在零地址闸门扫描范围内。

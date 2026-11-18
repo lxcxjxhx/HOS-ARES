@@ -68,7 +68,7 @@ def _channel() -> str | None:
 def console_base(tmp_path: Path) -> Any:
     from lab.app import App
     from lab.net_server import LabServer
-    from veripen_cli.cmd_run import main as run_main
+    from hos_ares_cli.cmd_run import main as run_main
 
     lab = LabServer(App(secure=False)).start()
     spec = tmp_path / "s.json"
@@ -76,9 +76,9 @@ def console_base(tmp_path: Path) -> Any:
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": lab.base_url}],
         "paths": {
-            f"{SEP}portal{SEP}authorize": {"get": {"x-veripen-tags": ["token_issue"]}},
-            f"{SEP}portal{SEP}token": {"get": {"x-veripen-tags": ["token_issue"]}},
-            f"{SEP}portal{SEP}admin": {"get": {"x-veripen-tags": ["token_issue"]}},
+            f"{SEP}portal{SEP}authorize": {"get": {"x-hos_ares-tags": ["token_issue"]}},
+            f"{SEP}portal{SEP}token": {"get": {"x-hos_ares-tags": ["token_issue"]}},
+            f"{SEP}portal{SEP}admin": {"get": {"x-hos_ares-tags": ["token_issue"]}},
         },
     }), encoding="utf-8")
     out = tmp_path / "run"
@@ -86,7 +86,7 @@ def console_base(tmp_path: Path) -> Any:
 
     port = _free_port()
     proc = subprocess.Popen(
-        [sys.executable, "-m", "veripen_cli.cmd_console",
+        [sys.executable, "-m", "hos_ares_cli.cmd_console",
          "--port", str(port), "--hunt", str(out / "findings.json")],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )

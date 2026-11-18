@@ -28,14 +28,14 @@ def _spec(base: str, path: Path) -> Path:
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": base}],
         "paths": {
-            f"{SEP}portal{SEP}token": {"get": {"x-veripen-tags": ["token_issue"]}},
+            f"{SEP}portal{SEP}token": {"get": {"x-hos_ares-tags": ["token_issue"]}},
         },
     }), encoding="utf-8")
     return path
 
 
 def _row(lab: Any, tmp_path: Path) -> dict[str, Any]:
-    from veripen_cli.cmd_run import main as run_main
+    from hos_ares_cli.cmd_run import main as run_main
 
     out = tmp_path / "run"
     rc = run_main(["--target", lab.base_url,
@@ -89,8 +89,8 @@ def test_first_exchange_failure_is_inconclusive_not_clean() -> None:
     """第一次就没换成功：只能说"判不了"，不许当成"不能重放"。"""
     from types import SimpleNamespace
 
-    from veripen_oracles.auth.oauth import CodeReplay
-    from veripen_oracles.common.harness import Pair
+    from hos_ares_oracles.auth.oauth import CodeReplay
+    from hos_ares_oracles.common.harness import Pair
 
     def _pair(role: str, status: int) -> Any:
         # 一个"像 Trace"的替身：判定里用到 is_normal()，缺了它测的就不是判定

@@ -22,7 +22,7 @@ class _Recorder:
 
 
 def test_setup_stdio_uses_utf8_sig(monkeypatch: pytest.MonkeyPatch) -> None:
-    from veripen_cli import _io
+    from hos_ares_cli import _io
 
     recorder = _Recorder()
     monkeypatch.setattr(_io.sys, "stdin", recorder)
@@ -32,7 +32,7 @@ def test_setup_stdio_uses_utf8_sig(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_agent_wires_stdin_not_only_stdout(monkeypatch: pytest.MonkeyPatch) -> None:
     """回归：cmd_agent 曾只调 setup_stdout，管道输入的首条指令带 BOM。"""
-    from veripen_cli import cmd_agent
+    from hos_ares_cli import cmd_agent
 
     called: list[str] = []
     monkeypatch.setattr(cmd_agent, "setup_stdio", lambda: called.append("stdio"))

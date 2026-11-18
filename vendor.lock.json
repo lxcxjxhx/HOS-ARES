@@ -1,7 +1,7 @@
 {
   "schema": "hos-ares.vendor-lock/v1",
   "generated": "2026-10-30",
-  "note": "生态源码只用于结构研究与移植参考（plan-veripen/28 隔离铁律 Q1-Q4）。源码不入 git，按本文件用 scripts/vendor-fetch.sh 复现。",
+  "note": "生态源码只用于结构研究与移植参考（plan-hos-ares/28 隔离铁律 Q1-Q4）。源码不入 git，按本文件用 scripts/vendor-fetch.sh 复现。",
   "targets": [
     {
       "slug": "rea",

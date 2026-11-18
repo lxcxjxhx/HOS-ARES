@@ -12,7 +12,7 @@ def test_hunt_json_carries_capability_limits(tmp_path: Path) -> None:
 
     from lab.app import App
     from lab.net_server import LabServer
-    from veripen_cli import cmd_hunt
+    from hos_ares_cli import cmd_hunt
 
     srv = LabServer(App(secure=False)).start()
     try:
@@ -20,7 +20,7 @@ def test_hunt_json_carries_capability_limits(tmp_path: Path) -> None:
         spec.write_text(json.dumps({
             "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
             "servers": [{"url": srv.base_url}],
-            "paths": {f"{SEP}api{SEP}me": {"get": {"x-veripen-tags": ["protected_read"]}}},
+            "paths": {f"{SEP}api{SEP}me": {"get": {"x-hos_ares-tags": ["protected_read"]}}},
         }), encoding="utf-8")
         out = tmp_path / "hunt"
         cmd_hunt.main(["--target", srv.base_url, "--openapi", str(spec), "--out", str(out)])

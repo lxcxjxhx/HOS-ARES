@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from veripen_core.blackboard import Fact
-from veripen_core.compression import (
+from hos_ares_core.blackboard import Fact
+from hos_ares_core.compression import (
     STEP_LINES,
     compress,
     estimate_tokens,
@@ -82,14 +82,14 @@ def test_token_estimate_is_cheap_and_monotone() -> None:
 
 # ── D 判定不受压缩影响 ────────────────────────────────────────
 def test_verdict_fingerprint_unchanged_by_compression() -> None:
-    from veripen_core.context import verdict_fingerprint
+    from hos_ares_core.context import verdict_fingerprint
 
     result = compress(facts=_facts(5), events=_events(5), capsule_ids=[], verdicts=VERDICTS)
     assert result.verdicts_fingerprint == verdict_fingerprint(VERDICTS)
 
 
 def test_fallback_truncation_also_keeps_verdicts() -> None:
-    from veripen_core.context import verdict_fingerprint
+    from hos_ares_core.context import verdict_fingerprint
 
     result = compress(facts=_facts(30), events=_events(30), capsule_ids=[],
                       verdicts=VERDICTS, summarize=False)

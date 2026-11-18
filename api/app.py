@@ -10,8 +10,8 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from veripen_core.models import TaskState
-from veripen_core.store import Store
+from hos_ares_core.models import TaskState
+from hos_ares_core.store import Store
 
 from .bindings import BindingTable, load_table
 from .ops import OP
@@ -41,7 +41,7 @@ def _error(status: int, code: str, message: str, **detail: Any) -> HTTPException
 
 def create_app(store: Store, table: BindingTable, env: dict[str, str] | None = None) -> FastAPI:
     """按绑定表解析路径并注册。任一 op 未解析即抛 ``BindingsUnresolved``（fail-closed）。"""
-    app = FastAPI(title="VeriPen", version=table.api_version or "0")
+    app = FastAPI(title="HOS-ARES", version=table.api_version or "0")
 
     paths: dict[str, str] = {op: table.get(op).resolve_path(env) for op in (
         OP.TASK_SUBMIT,
@@ -117,6 +117,6 @@ def build_default_app() -> FastAPI:
     """生产装配：读绑定文件 + 环境 + 默认库路径。"""
     import os
 
-    db_path = os.environ.get("VERIPEN_DB", "out/veripen.db")
+    db_path = os.environ.get("HOS_ARES_DB", "out/hos_ares.db")
     store = Store(db_path).init()
     return create_app(store, load_table(CONFIG_BINDINGS_PATH))

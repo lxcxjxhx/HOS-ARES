@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from veripen_core.context import (
+from hos_ares_core.context import (
     KNOWLEDGE_SEGMENT,
     MAX_BYTES,
     MAX_PER_STEP,

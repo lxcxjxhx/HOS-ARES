@@ -19,11 +19,11 @@ body:
     id: repro
     attributes:
       label: 复现步骤
-      description: 命令 + 输入文件（或最小片段）。能贴 `veripen doctor` 的输出更好。
+      description: 命令 + 输入文件（或最小片段）。能贴 `hos-ares doctor` 的输出更好。
       placeholder: |
         ```bash
-        veripen doctor
-        python -m veripen_cli ...
+        hos-ares doctor
+        python -m hos_ares_cli ...
         ```
     validations:
       required: true
@@ -32,7 +32,7 @@ body:
     id: version
     attributes:
       label: 版本
-      description: `veripen --version` 或 `git rev-parse --short HEAD`
+      description: `hos-ares --version` 或 `git rev-parse --short HEAD`
     validations:
       required: true
 

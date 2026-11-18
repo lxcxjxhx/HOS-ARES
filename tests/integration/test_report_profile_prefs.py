@@ -37,7 +37,7 @@ def _spec(tmp_path: Path) -> Path:
     path.write_text(json.dumps({
         "openapi": "3.0.0", "info": {"title": "x", "version": "1"},
         "servers": [{"url": DEAD}],
-        "paths": {SEP + "api" + SEP + "x": {"get": {"x-veripen-tags": ["param_injectable"]}}},
+        "paths": {SEP + "api" + SEP + "x": {"get": {"x-hos_ares-tags": ["param_injectable"]}}},
     }), encoding="utf-8")
     return path
 
@@ -52,7 +52,7 @@ def lab_run(tmp_path: Path):  # noqa: ANN201
     spec.write_text(json.dumps({
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": srv.base_url}],
-        "paths": {SEP + "api" + SEP + "search": {"get": {"x-veripen-tags": ["param_injectable"]}}},
+        "paths": {SEP + "api" + SEP + "search": {"get": {"x-hos_ares-tags": ["param_injectable"]}}},
     }), encoding="utf-8")
     try:
         yield srv.base_url, spec
@@ -61,7 +61,7 @@ def lab_run(tmp_path: Path):  # noqa: ANN201
 
 
 def test_run_renders_the_compliance_section(lab_run, tmp_path: Path) -> None:  # noqa: ANN001
-    from veripen_cli.cmd_run import main
+    from hos_ares_cli.cmd_run import main
 
     base, spec = lab_run
     out = tmp_path / "run"
@@ -79,7 +79,7 @@ def test_run_renders_the_compliance_section(lab_run, tmp_path: Path) -> None:  #
 
 
 def test_run_without_frameworks_has_no_compliance_section(lab_run, tmp_path: Path) -> None:  # noqa: ANN001
-    from veripen_cli.cmd_run import main
+    from hos_ares_cli.cmd_run import main
 
     base, spec = lab_run
     out = tmp_path / "run"
@@ -89,7 +89,7 @@ def test_run_without_frameworks_has_no_compliance_section(lab_run, tmp_path: Pat
 
 
 def test_profile_distribution_is_parsed_and_validated(tmp_path: Path) -> None:
-    from veripen_core.profile import load_profile, validate_profile
+    from hos_ares_core.profile import load_profile, validate_profile
 
     raw = (ROOT / "profiles" / "demo-a" / "profile.yaml").read_text(encoding="utf-8")
     assert "distribution: internal" in raw
@@ -103,7 +103,7 @@ def test_profile_distribution_is_parsed_and_validated(tmp_path: Path) -> None:
     bad = raw.replace("distribution: internal", "distribution: public")
     path.write_text(bad, encoding="utf-8")
     prof = load_profile(path)
-    from veripen_oracles import ALL_ORACLES
+    from hos_ares_oracles import ALL_ORACLES
 
     issues = validate_profile(
         prof,
@@ -115,7 +115,7 @@ def test_profile_distribution_is_parsed_and_validated(tmp_path: Path) -> None:
 
 def test_platform_forwards_profile_report_prefs(tmp_path: Path,
                                                 monkeypatch: pytest.MonkeyPatch) -> None:
-    from veripen_cli import cmd_run
+    from hos_ares_cli import cmd_run
 
     raw = (ROOT / "profiles" / "demo-a" / "profile.yaml").read_text(encoding="utf-8")
     raw = raw.replace("distribution: internal", "distribution: partner")
@@ -126,7 +126,7 @@ def test_platform_forwards_profile_report_prefs(tmp_path: Path,
 
     seen: list[list[str]] = []
     monkeypatch.setattr(cmd_run, "main", lambda argv: seen.append(list(argv)) or 0)
-    from veripen_cli.cmd_platform import main
+    from hos_ares_cli.cmd_platform import main
 
     assert main(["--profile", str(profile), "--openapi", str(_spec(tmp_path)),
                  "--out", str(tmp_path / "out"), "--db", str(tmp_path / "out" / "p.db"),

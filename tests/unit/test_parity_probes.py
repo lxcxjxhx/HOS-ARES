@@ -2,9 +2,9 @@
 
 判据（同一个问法：**这条检查有没有可能失败？**）：
 
-* V4 覆盖：`from veripen_cli.cmd_coverage import main` → 只要 import 成功就绿；
+* V4 覆盖：`from hos_ares_cli.cmd_coverage import main` → 只要 import 成功就绿；
 * E5 并行：只看 `parallel.py` 在不在文件系统里 —— 连"能不能跑"都没验；
-* P1 平台：`from veripen_core.workflow import __name__` → 同上。
+* P1 平台：`from hos_ares_core.workflow import __name__` → 同上。
 
 三条现在都真跑：算矩阵、跑三个任务比指纹、加载 DAG 并检查依赖未满足集。
 这一组用例钉住"能红"的那一面——探针在有问题的输入上必须返回 RED。
@@ -25,7 +25,7 @@ RED = "red"
 
 
 def test_v4_matrix_is_really_computed() -> None:
-    from veripen_cli.cmd_parity import _coverage
+    from hos_ares_cli.cmd_parity import _coverage
 
     status, detail = _coverage()
     assert status == GREEN, detail
@@ -33,8 +33,8 @@ def test_v4_matrix_is_really_computed() -> None:
 
 
 def test_v4_goes_red_on_an_empty_case_library(monkeypatch) -> None:  # noqa: ANN001
-    import veripen.bench.core as bench
-    import veripen_cli.cmd_parity as parity
+    import hos_ares.bench.core as bench
+    import hos_ares_cli.cmd_parity as parity
 
     monkeypatch.setattr(bench, "load_cases", lambda *_a, **_k: [])
     status, detail = parity._coverage()
@@ -42,7 +42,7 @@ def test_v4_goes_red_on_an_empty_case_library(monkeypatch) -> None:  # noqa: ANN
 
 
 def test_e5_parallel_probe_compares_fingerprints() -> None:
-    from veripen_cli.cmd_parity import _parallel
+    from hos_ares_cli.cmd_parity import _parallel
 
     status, detail = _parallel()
     assert status == GREEN, detail
@@ -50,8 +50,8 @@ def test_e5_parallel_probe_compares_fingerprints() -> None:
 
 
 def test_e5_goes_red_when_concurrency_changes_the_result(monkeypatch) -> None:  # noqa: ANN001
-    import veripen_core.parallel as parallel
-    import veripen_cli.cmd_parity as parity
+    import hos_ares_core.parallel as parallel
+    import hos_ares_cli.cmd_parity as parity
 
     calls = {"n": 0}
 
@@ -65,7 +65,7 @@ def test_e5_goes_red_when_concurrency_changes_the_result(monkeypatch) -> None:  
 
 
 def test_p1_control_plane_runs_the_dag() -> None:
-    from veripen_cli.cmd_parity import _control_plane
+    from hos_ares_cli.cmd_parity import _control_plane
 
     status, detail = _control_plane()
     assert status == GREEN, detail
@@ -73,8 +73,8 @@ def test_p1_control_plane_runs_the_dag() -> None:
 
 
 def test_p1_goes_red_on_an_empty_workflow(monkeypatch) -> None:  # noqa: ANN001
-    import veripen_cli.cmd_parity as parity
-    import veripen_core.workflow as workflow
+    import hos_ares_cli.cmd_parity as parity
+    import hos_ares_core.workflow as workflow
 
     monkeypatch.setattr(workflow, "load", lambda _p: workflow.Workflow(version=1))
     status, detail = parity._control_plane()
@@ -83,7 +83,7 @@ def test_p1_goes_red_on_an_empty_workflow(monkeypatch) -> None:  # noqa: ANN001
 
 # ── B177：P3 压缩 / G3 断言表，也都改成"能红"的探针 ─────────────
 def test_p3_compression_probe_reports_real_numbers() -> None:
-    from veripen_cli.cmd_parity import _compression
+    from hos_ares_cli.cmd_parity import _compression
 
     status, detail = _compression()
     assert status == GREEN, detail
@@ -91,8 +91,8 @@ def test_p3_compression_probe_reports_real_numbers() -> None:
 
 
 def test_p3_goes_red_when_compression_inflates(monkeypatch) -> None:  # noqa: ANN001
-    import veripen_core.compression as compression
-    import veripen_cli.cmd_parity as parity
+    import hos_ares_core.compression as compression
+    import hos_ares_cli.cmd_parity as parity
 
     class _Out:
         tokens_before = 10
@@ -106,7 +106,7 @@ def test_p3_goes_red_when_compression_inflates(monkeypatch) -> None:  # noqa: AN
 
 
 def test_g3_assertion_table_rows_are_counted() -> None:
-    from veripen_cli.cmd_parity import _assertions
+    from hos_ares_cli.cmd_parity import _assertions
 
     status, detail = _assertions()
     assert status == GREEN, detail
@@ -114,9 +114,9 @@ def test_g3_assertion_table_rows_are_counted() -> None:
 
 
 def test_g3_goes_red_on_a_truncated_table(monkeypatch, tmp_path) -> None:  # noqa: ANN001
-    import veripen_cli.cmd_parity as parity
+    import hos_ares_cli.cmd_parity as parity
 
-    plan = tmp_path / "plan-veripen"
+    plan = tmp_path / "plan-hos-legacy"
     plan.mkdir()
     (plan / "16-完整范围与交付地图.md").write_text(
         "| A1 | x |\n| A2 | y |\n", encoding="utf-8"

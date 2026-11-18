@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from veripen_core.deadletter import (
+from hos_ares_core.deadletter import (
     DEAD_CLASSES,
     DeadLetterError,
     column,
@@ -21,8 +21,8 @@ from veripen_core.deadletter import (
     stats,
     to_dead_letter,
 )
-from veripen_core.models import TaskState
-from veripen_core.store import Store
+from hos_ares_core.models import TaskState
+from hos_ares_core.store import Store
 
 TASK = "t-1"
 

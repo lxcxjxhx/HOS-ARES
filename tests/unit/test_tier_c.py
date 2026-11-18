@@ -13,10 +13,10 @@ from conftest import Lab
 
 SCHEME = "ht" + "tp" + ":" + chr(0x2F) * 2   # 拆开写：测试里要造"外域"，但不留地址字面量
 
-from veripen_oracles import TIER_C, ALL_ORACLES, policy
-from veripen_oracles import tierC
-from veripen_oracles.common.harness import run
-from veripen_core.models import ImpactClass, Verdict
+from hos_ares_oracles import TIER_C, ALL_ORACLES, policy
+from hos_ares_oracles import tierC
+from hos_ares_oracles.common.harness import run
+from hos_ares_core.models import ImpactClass, Verdict
 
 
 def _run(lab: Lab, cls, tag: str, extra: tuple[str, ...] = ()):  # noqa: ANN001
@@ -79,7 +79,7 @@ def test_cors_never_looks_at_body() -> None:
 
 def test_cors_wildcard_without_credentials_is_low() -> None:
     """`*` 且无 credentials → 只算 low（18 §3.2）。"""
-    from veripen_oracles.common.harness import Pair, Trace, Variant
+    from hos_ares_oracles.common.harness import Pair, Trace, Variant
 
     def _pair(name: str, status: int, headers: dict[str, str], role: str, origin: str):
         variant = Variant(name=name, role=role, expect="normal",
@@ -113,7 +113,7 @@ def test_graphql_hardened(hardened: Lab) -> None:
 
 def test_graphql_introspection_alone_is_info() -> None:
     """仅 introspection 可用 = info（很多产品故意开放）。"""
-    from veripen_oracles.common.harness import Pair, Trace, Variant
+    from hos_ares_oracles.common.harness import Pair, Trace, Variant
 
     def _p(name: str, body: bytes, role: str) -> Pair:
         return Pair(variant=Variant(name=name, role=role, expect="normal"),
@@ -132,7 +132,7 @@ def test_graphql_introspection_alone_is_info() -> None:
 
 # ── 4 注册表与默认关闭 ────────────────────────────────────────────
 def test_tier_c_registered() -> None:
-    from veripen_oracles import tiers
+    from hos_ares_oracles import tiers
 
     assert {c.meta.id for c in TIER_C} == {
         "xss_stored_probe", "cors_misconfig", "graphql_introspection"
@@ -156,14 +156,14 @@ EVIL_ORIGIN = "https" + ":" + chr(0x2F) * 2 + "evil.test"
 
 
 def _pf_trace(headers: dict[str, str]) -> object:
-    from veripen_oracles.common.harness import Trace
+    from hos_ares_oracles.common.harness import Trace
 
     return Trace(route_ref="r", status=204, body=b"", headers=headers)
 
 
 def _pf_pair(name: str, role: str, headers: dict[str, str], *,
              method: str = "", variant_headers: dict[str, str] | None = None):  # noqa: ANN202
-    from veripen_oracles.common.harness import Pair, Variant
+    from hos_ares_oracles.common.harness import Pair, Variant
 
     return Pair(
         variant=Variant(name=name, role=role, method=method,
@@ -174,7 +174,7 @@ def _pf_pair(name: str, role: str, headers: dict[str, str], *,
 
 
 def _judge_cors(pairs: list) -> object:  # noqa: ANN001
-    from veripen_oracles.tierC import CorsMisconfig
+    from hos_ares_oracles.tierC import CorsMisconfig
 
     return CorsMisconfig().judge(pairs)
 
@@ -220,7 +220,7 @@ def test_cors_preflight_get_only_is_not_wide() -> None:
 
 def test_cors_preflight_failure_does_not_poison_simple_path() -> None:
     """预检请求失败（error）时不该把整条判定带跑偏。"""
-    from veripen_oracles.common.harness import Pair, Trace, Variant
+    from hos_ares_oracles.common.harness import Pair, Trace, Variant
 
     failed = Pair(
         variant=Variant(name="preflight", role="probe", method="OPTIONS"),

@@ -13,7 +13,7 @@ import pytest
 from lab import routes as R
 from lab.app import App, make_token
 from lab.transport_oob import LabTransport
-from veripen_oracles.common.harness import SymbolTable
+from hos_ares_oracles.common.harness import SymbolTable
 
 
 @dataclass

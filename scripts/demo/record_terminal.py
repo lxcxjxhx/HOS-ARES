@@ -87,9 +87,9 @@ def _spec(path: Path, base: str) -> Path:
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": base}],
         "paths": {
-            f"{SEP}api{SEP}search": {"get": {"x-veripen-tags": ["param_injectable"]}},
-            f"{SEP}api{SEP}items{SEP}{{id}}": {"get": {"x-veripen-tags": ["object_read"]}},
-            f"{SEP}api{SEP}me": {"get": {"x-veripen-tags": ["protected_read"]}},
+            f"{SEP}api{SEP}search": {"get": {"x-hos_ares-tags": ["param_injectable"]}},
+            f"{SEP}api{SEP}items{SEP}{{id}}": {"get": {"x-hos_ares-tags": ["object_read"]}},
+            f"{SEP}api{SEP}me": {"get": {"x-hos_ares-tags": ["protected_read"]}},
         },
     }
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -291,16 +291,16 @@ def main(argv: list[str] | None = None) -> int:
     try:
         spec = _spec(OUT / "spec.json", a.base_url)
         py = sys.executable
-        run_out = _run([py, "-m", "veripen_cli.cmd_run", "--target", a.base_url,
+        run_out = _run([py, "-m", "hos_ares_cli.cmd_run", "--target", a.base_url,
                         "--openapi", str(spec), "--out", str(OUT / "run")])
         scenes.append({
             "id": "run", "title": "B66 · run", "subtitle": "端到端渗透",
-            "prompt": "python -m veripen_cli.cmd_run --target <lab> --openapi spec.json",
+            "prompt": "python -m hos_ares_cli.cmd_run --target <lab> --openapi spec.json",
             "lines": run_out,
         })
 
         agent_out = _run(
-            [py, "-m", "veripen_cli.cmd_agent",
+            [py, "-m", "hos_ares_cli.cmd_agent",
              "--db", str(OUT / "agent.db"), "--root", str(ROOT)],
             stdin="write out/demo/terminal/hello.txt 端到端会话演示\n"
                   "read out/demo/terminal/hello.txt\n"
@@ -308,11 +308,11 @@ def main(argv: list[str] | None = None) -> int:
         )
         scenes.append({
             "id": "agent", "title": "B67 · agent", "subtitle": "交互会话",
-            "prompt": "python -m veripen_cli.cmd_agent --db agent.db",
+            "prompt": "python -m hos_ares_cli.cmd_agent --db agent.db",
             "lines": agent_out,
         })
 
-        platform_out = _run([py, "-m", "veripen_cli.cmd_platform",
+        platform_out = _run([py, "-m", "hos_ares_cli.cmd_platform",
                              "--targets", f"{a.base_url},{b.base_url}",
                              "--openapi", str(spec),
                              "--out", str(OUT / "platform"),
@@ -320,13 +320,13 @@ def main(argv: list[str] | None = None) -> int:
                              "--require-approval", "--approve"])
         scenes.append({
             "id": "platform", "title": "B68 · platform", "subtitle": "企业级编排",
-            "prompt": "python -m veripen_cli.cmd_platform --targets a,b --require-approval --approve",
+            "prompt": "python -m hos_ares_cli.cmd_platform --targets a,b --require-approval --approve",
             "lines": platform_out,
         })
 
         # 第四幕（B73）：按客户档跑 —— 资产/白名单/审批都从档里来
         profile_out = _run(
-            [py, "-m", "veripen_cli.cmd_platform",
+            [py, "-m", "hos_ares_cli.cmd_platform",
              "--profile", str(ROOT / "profiles" / "demo-a" / "profile.yaml"),
              "--openapi", str(spec),
              "--out", str(OUT / "profile"),
@@ -336,14 +336,14 @@ def main(argv: list[str] | None = None) -> int:
         )
         scenes.append({
             "id": "profile", "title": "B72 · profile", "subtitle": "按客户档跑",
-            "prompt": "VP_ASSET_WEB_01=<lab> python -m veripen_cli.cmd_platform "
+            "prompt": "VP_ASSET_WEB_01=<lab> python -m hos_ares_cli.cmd_platform "
                       "--profile profiles/demo-a/profile.yaml --approve",
             "lines": profile_out,
         })
 
         # 第五幕（B78）：交互式 agent 界面 —— 说人话，它自己选工具
         chat_out = _run(
-            [py, "-m", "veripen_cli.cmd_chat", "--root", str(ROOT),
+            [py, "-m", "hos_ares_cli.cmd_chat", "--root", str(ROOT),
              "--db", str(OUT / "chat.db"), "--yes"],
             stdin="往 out/demo/terminal/note.txt 写 chat 能听懂人话\n"
                   "读一下它\n"
@@ -351,7 +351,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         scenes.append({
             "id": "chat", "title": "B77 · chat", "subtitle": "交互式 agent",
-            "prompt": "python -m veripen_cli.cmd_chat --root .",
+            "prompt": "python -m hos_ares_cli.cmd_chat --root .",
             "lines": chat_out,
         })
     finally:

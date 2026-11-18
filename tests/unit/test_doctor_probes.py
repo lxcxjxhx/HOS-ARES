@@ -13,15 +13,15 @@ from pathlib import Path
 
 import pytest
 
-from veripen_cli import cmd_doctor
-from veripen_cli.cmd_doctor import Status, run_doctor
+from hos_ares_cli import cmd_doctor
+from hos_ares_cli.cmd_doctor import Status, run_doctor
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
 # ── A：无运行时 = skip，且不产 fail ─────────────────────────────
 def test_sandbox_skip_without_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("veripen_core.sandbox.runner.select_executor", lambda: None)
+    monkeypatch.setattr("hos_ares_core.sandbox.runner.select_executor", lambda: None)
     r = cmd_doctor.check_sandbox(ROOT)
     assert r.status is Status.SKIP
     assert "BLOCKED" in r.detail
@@ -33,7 +33,7 @@ def test_sandbox_ok_with_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
         pass
 
     monkeypatch.setattr(
-        "veripen_core.sandbox.runner.select_executor", lambda: FakeExecutor()
+        "hos_ares_core.sandbox.runner.select_executor", lambda: FakeExecutor()
     )
     r = cmd_doctor.check_sandbox(ROOT)
     assert r.status is Status.OK
@@ -57,7 +57,7 @@ def test_tui_skip_without_curses(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_browser_skip_without_playwright(monkeypatch: pytest.MonkeyPatch) -> None:
-    from veripen_core.render.browser import BrowserRenderer
+    from hos_ares_core.render.browser import BrowserRenderer
 
     monkeypatch.setattr(BrowserRenderer, "available", lambda self: False)
     r = cmd_doctor.check_browser(ROOT)
@@ -101,7 +101,7 @@ def test_green_stays_strict_on_skip() -> None:
 def test_child_processes_are_forced_to_utf8(tmp_path: Path) -> None:
     """Windows 下子进程走管道时按 cp936 写，父进程按 utf-8 解 → 中文全成 `��`。
 
-    实测（本轮）：`python -m veripen_cli.cmd_doctor` 里 5 行 lint 摘要乱码，
+    实测（本轮）：`python -m hos_ares_cli.cmd_doctor` 里 5 行 lint 摘要乱码，
     而 `scripts/verify.py` 调同样的脚本却是好的——差别只在它设了 PYTHONIOENCODING。
     这条用子进程**自报**环境变量来钉，不依赖本机 locale（POSIX 上同样成立）。
     """

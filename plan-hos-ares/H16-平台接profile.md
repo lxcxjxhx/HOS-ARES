@@ -11,10 +11,10 @@
 
 | 项 | 内容 |
 |---|---|
-| 目标 | `veripen platform --profile profiles/demo-a/profile.yaml` 从档里读资产（符号→env）、oracle 白名单、审批策略、engagement 身份，跑完报告写明"按哪个档跑的" |
+| 目标 | `hos-ares platform --profile profiles/demo-a/profile.yaml` 从档里读资产（符号→env）、oracle 白名单、审批策略、engagement 身份，跑完报告写明"按哪个档跑的" |
 | 判据 | A：解析出资产列表与 oracle 白名单（报告可见）；B：`oracles.needs_approval` 非空时**自动要求审批**，不再依赖手工 `--require-approval`；C：报告头写 profile 名 / 版本 / engagement_id / profile_hash；D：资产符号未由环境注入时**退出 2 且不猜地址**（fail-closed）；E：`--profile` 与 `--targets` 同时给时明确报错，不静默取其一 |
-| 产出 | `veripen_cli/cmd_platform.py`（`--profile` 分支）+ `tests/integration/test_platform_profile.py` |
-| 依赖 | `veripen_core/profile.py`（`load_profile` / `assert_resolvable` / `allowed_oracles`） |
+| 产出 | `hos_ares_cli/cmd_platform.py`（`--profile` 分支）+ `tests/integration/test_platform_profile.py` |
+| 依赖 | `hos_ares_core/profile.py`（`load_profile` / `assert_resolvable` / `allowed_oracles`） |
 | PR | `b72/platform-profile` |
 | 回滚 | 删掉 `--profile` 分支；`--targets` 路径不变 |
 
@@ -47,7 +47,7 @@ B72 把资产的来源换成客户档，其余（报告四节、审计五表、�
 ## 验收命令
 
 ```bash
-VP_ASSET_WEB_01=http://127.0.0.1:PORT python -m veripen_cli.cmd_platform \
+VP_ASSET_WEB_01=http://127.0.0.1:PORT python -m hos_ares_cli.cmd_platform \
   --profile profiles/demo-a/profile.yaml --openapi out/demo/spec.json
 python -m pytest tests/integration/test_platform_profile.py -q
 ```

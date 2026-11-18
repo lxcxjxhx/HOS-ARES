@@ -13,15 +13,15 @@ from pathlib import Path
 import pytest
 from conftest import Lab
 
-from veripen_oracles import TIER_A, tierA
-from veripen_oracles.common import base, harness
-from veripen_core.models import Verdict
+from hos_ares_oracles import TIER_A, tierA
+from hos_ares_oracles.common import base, harness
+from hos_ares_core.models import Verdict
 
 ROOT = Path(__file__).resolve().parents[2]
 SLASH = chr(0x2F)  # 路径分隔符：用常量而不是字面量（noroute 的 R-PATH 只抓地址）
 #: 纯分隔符不是地址；带 scheme 的串只有在**不含 {{ref:}} 符号**时才算"写了地址"
 SEPARATORS = {":" + SLASH * 2, SLASH * 2}
-ORACLES_DIR = ROOT / "veripen_oracles"
+ORACLES_DIR = ROOT / "hos_ares_oracles"
 
 
 def _oracles():  # noqa: ANN202
@@ -136,7 +136,7 @@ def test_denied_baseline_only_counts_when_declared() -> None:
     """
     from types import SimpleNamespace
 
-    from veripen_oracles.common.harness import Pair, three_way_holds
+    from hos_ares_oracles.common.harness import Pair, three_way_holds
 
     def _pair(status: int, role: str = "probe", expect: str = "any_response") -> Pair:
         trace = SimpleNamespace(status=status, headers={}, error=None, body=b"{}",
@@ -167,7 +167,7 @@ def test_base_class_honours_the_flag_but_5xx_never_counts() -> None:
     """基类的默认判据：声明后接受 4xx，5xx/连接失败永远不算。"""
     from types import SimpleNamespace
 
-    from veripen_oracles.common.base import BaseOracle
+    from hos_ares_oracles.common.base import BaseOracle
 
     class _Auth(BaseOracle):
         baseline_accepts_denied = True
@@ -193,7 +193,7 @@ def test_idor_cannot_use_a_denied_baseline() -> None:
     """
     from types import SimpleNamespace
 
-    from veripen_oracles.tierA import IdorCrossAccount
+    from hos_ares_oracles.tierA import IdorCrossAccount
 
     assert IdorCrossAccount.baseline_accepts_denied is False
     assert IdorCrossAccount().baseline_ok(SimpleNamespace(
@@ -207,7 +207,7 @@ def test_harness_runs_burst_oracles_instead_of_no_control() -> None:
     现在：oracle 声明 `burst_sample_count()` > 0 且有 `judge_burst`，
     harness 就在 `no_control` 检查**之前**分叉，先采样再判。
     """
-    from veripen_oracles.common import harness as H
+    from hos_ares_oracles.common import harness as H
 
     class _Burst:
         selector_tags: tuple[str, ...] = ("rate_sensitive",)
@@ -227,7 +227,7 @@ def test_harness_runs_burst_oracles_instead_of_no_control() -> None:
 
         def judge_burst(self, samples):  # noqa: ANN001, ANN201
             assert len(samples.traces) == 6, samples.traces  # 3 串行 + 3 并发
-            from veripen_core.models import Judgement, Verdict
+            from hos_ares_core.models import Judgement, Verdict
 
             return Judgement(verdict=Verdict.VERIFIED, reason="no_rate_limiting",
                              confidence=0.7, assertion={}, route_strength="contract")

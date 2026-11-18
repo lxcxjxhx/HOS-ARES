@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""一次性：把 B69 追加进 .veripen/batches.jsonl（只增不改）。"""
+"""一次性：把 B69 追加进 .hos-ares/batches.jsonl（只增不改）。"""
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-LEDGER = Path(__file__).resolve().parents[2] / ".veripen" / "batches.jsonl"
+LEDGER = Path(__file__).resolve().parents[2] / ".hos-ares" / "batches.jsonl"
 
 ROW = {
     "batch": "B69",

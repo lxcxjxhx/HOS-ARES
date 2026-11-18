@@ -9,7 +9,7 @@ from __future__ import annotations
 import io
 from pathlib import Path
 
-from veripen_cli.tui import STEP_WINDOW, BUDGET_KEYS, TuiState, line_mode, render_panels
+from hos_ares_cli.tui import STEP_WINDOW, BUDGET_KEYS, TuiState, line_mode, render_panels
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -59,7 +59,7 @@ def test_empty_events_do_not_crash() -> None:
 
 # ── B 只读 ───────────────────────────────────────────────────
 def test_tui_has_no_verdict_write_path() -> None:
-    src = (ROOT / "veripen_cli" / "tui.py").read_text(encoding="utf-8")
+    src = (ROOT / "hos_ares_cli" / "tui.py").read_text(encoding="utf-8")
     assert "verdict" not in src, "TUI 不许出现 verdict（连字段都不该有）"
     assert "def write" not in src and "def delete" not in src
 
@@ -67,7 +67,7 @@ def test_tui_has_no_verdict_write_path() -> None:
 # ── C 零依赖 ─────────────────────────────────────────────────
 def test_no_third_party_imports() -> None:
     """只看 import 语句：注释里提到这些库名是"为什么不用"的说明，不算依赖。"""
-    src = (ROOT / "veripen_cli" / "tui.py").read_text(encoding="utf-8")
+    src = (ROOT / "hos_ares_cli" / "tui.py").read_text(encoding="utf-8")
     imports = [ln.strip() for ln in src.splitlines()
                if ln.strip().startswith(("import ", "from "))]
     joined = " ".join(imports)
@@ -76,7 +76,7 @@ def test_no_third_party_imports() -> None:
 
 
 def test_curses_is_imported_lazily_and_optional() -> None:
-    src = (ROOT / "veripen_cli" / "tui.py").read_text(encoding="utf-8")
+    src = (ROOT / "hos_ares_cli" / "tui.py").read_text(encoding="utf-8")
     assert "import curses" in src
     assert "except Exception" in src, "curses 不可用必须降级而不是崩"
 
@@ -90,7 +90,7 @@ def test_line_mode_prints_and_returns_zero() -> None:
 
 def test_doctor_reports_tui_mode() -> None:
     """doctor 的 deps 一行里必须写清 TUI 是 curses 还是 line-mode（降级可见）。"""
-    from veripen.doctor import run_all
+    from hos_ares.doctor import run_all
 
     checks = {c.name: c for c in run_all().checks}
     assert "tui: " in checks["deps"].detail

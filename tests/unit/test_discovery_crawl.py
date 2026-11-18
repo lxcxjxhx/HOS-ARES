@@ -13,11 +13,11 @@ from __future__ import annotations
 
 import pytest
 
-from veripen_core.discovery import Crawler, extract, normalize_href, templatize
-from veripen_core.routes.resolver import Resolver
-from veripen_core.routes.sources import CrawlSource
-from veripen_core.routes.sources.base import ObservedRecord, StaticSource
-from veripen_core.routes.types import AssetRef, RouteCandidate, RouteProvenance, RouteQuery
+from hos_ares_core.discovery import Crawler, extract, normalize_href, templatize
+from hos_ares_core.routes.resolver import Resolver
+from hos_ares_core.routes.sources import CrawlSource
+from hos_ares_core.routes.sources.base import ObservedRecord, StaticSource
+from hos_ares_core.routes.types import AssetRef, RouteCandidate, RouteProvenance, RouteQuery
 
 #: 路径分隔符写成常量：测试目录也在零地址闸门的扫描范围内。
 S = chr(0x2F)
@@ -210,7 +210,7 @@ def test_record_keeps_query_parameter_names() -> None:
 
 
 def test_query_face_becomes_param_injectable() -> None:
-    from veripen_core.routes.tagging import infer_tags
+    from hos_ares_core.routes.tagging import infer_tags
 
     binding = _binding(p("search") + "?q=abc")
     crawler = Crawler(lambda _b: (200, "application/json", '{"total":0}'))
@@ -229,7 +229,7 @@ class _StubRenderer:
         self.calls: list[str] = []
 
     def capture(self, *, url: str, **_kw: object) -> object:
-        from veripen_core.render.browser import CaptureResult
+        from hos_ares_core.render.browser import CaptureResult
 
         self.calls.append(url)
         return CaptureResult(html=self.html, paths=self.paths, outcome="ok")
@@ -277,7 +277,7 @@ def test_record_keeps_form_field_names() -> None:
 
 
 def test_form_fields_become_param_injectable() -> None:
-    from veripen_core.routes.tagging import infer_tags
+    from hos_ares_core.routes.tagging import infer_tags
 
     binding = _binding(p("search"), names=("q",))
     crawler = Crawler(lambda _b: (200, "application/json", '{"total":0}'))
@@ -319,10 +319,10 @@ def test_post_form_is_not_submitted() -> None:
 
 def test_same_template_with_query_still_yields_links() -> None:
     """回归：记录按模板去重，但第二个响应（/search?q=1）的链接不能被跳过。"""
-    from veripen_core.routes import (
+    from hos_ares_core.routes import (
         AssetRef, Resolver, RouteCandidate, RouteHints, RouteProvenance, RouteQuery,
     )
-    from veripen_core.routes.sources import StaticSource
+    from hos_ares_core.routes.sources import StaticSource
 
     cands = [
         RouteCandidate(method="GET", template=p("search"), source=RouteProvenance.CRAWL),

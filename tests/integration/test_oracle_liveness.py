@@ -39,8 +39,8 @@ def test_every_registered_oracle_produces_an_explainable_result(lab) -> None:  #
     from lab.net_transport import NetTransport
 
     import run_bench as RB
-    from veripen_oracles import ALL_ORACLES
-    from veripen_oracles.common import harness as H
+    from hos_ares_oracles import ALL_ORACLES
+    from hos_ares_oracles.common import harness as H
 
     rs = RB._routeset(lab.base_url, ())
     by_tag: dict[str, object] = {}

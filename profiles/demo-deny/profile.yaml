@@ -1,4 +1,4 @@
-apiVersion: veripen.profile/v2
+apiVersion: hos-ares.profile/v2
 
 # demo-deny：**边界拒绝**演示档（B313）。
 #

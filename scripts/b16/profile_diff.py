@@ -13,9 +13,9 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from veripen_contract import TAG_VOCAB  # noqa: E402
-from veripen_core.profile import diff_profiles, load_profile, validate_profile  # noqa: E402
-from veripen_oracles import ALL_ORACLES  # noqa: E402
+from hos_ares_contract import TAG_VOCAB  # noqa: E402
+from hos_ares_core.profile import diff_profiles, load_profile, validate_profile  # noqa: E402
+from hos_ares_oracles import ALL_ORACLES  # noqa: E402
 
 PROFILES = {
     "demo-a": ROOT / "profiles" / "demo-a" / "profile.yaml",

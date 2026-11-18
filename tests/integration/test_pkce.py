@@ -19,7 +19,7 @@ SEP = chr(0x2F)
 
 
 def _rows(lab: Any, tmp_path: Path) -> list[tuple[str, str, str]]:
-    from veripen_cli.cmd_run import main as run_main
+    from hos_ares_cli.cmd_run import main as run_main
 
     tmp_path.mkdir(parents=True, exist_ok=True)
     spec = tmp_path / "s.json"
@@ -27,8 +27,8 @@ def _rows(lab: Any, tmp_path: Path) -> list[tuple[str, str, str]]:
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": lab.base_url}],
         "paths": {
-            f"{SEP}portal{SEP}authorize": {"get": {"x-veripen-tags": ["token_issue"]}},
-            f"{SEP}portal{SEP}token": {"get": {"x-veripen-tags": ["token_issue"]}},
+            f"{SEP}portal{SEP}authorize": {"get": {"x-hos_ares-tags": ["token_issue"]}},
+            f"{SEP}portal{SEP}token": {"get": {"x-hos_ares-tags": ["token_issue"]}},
         },
     }), encoding="utf-8")
     out = tmp_path / "run"
@@ -74,14 +74,14 @@ def test_checked_verifier_is_refuted(hardened, tmp_path: Path) -> None:  # noqa:
 
 def test_s256_matches_rfc7636_example() -> None:
     """RFC 7636 附录 B 的示例值：算法写错会让"正确的 verifier"换不到 token。"""
-    from veripen_oracles.auth.pkce import s256
+    from hos_ares_oracles.auth.pkce import s256
 
     verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
     assert s256(verifier) == "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
 
 
 def test_judge_pkce_tiers() -> None:
-    from veripen_oracles.auth.checks import judge_pkce
+    from hos_ares_oracles.auth.checks import judge_pkce
 
     # 对照失败 → 判不了（这条面根本不做 PKCE）
     assert judge_pkce(control_ok=False, probe_status=200).verdict == "INCONCLUSIVE"

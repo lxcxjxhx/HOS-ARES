@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from veripen_core.sandbox.attest import attest, verdict
-from veripen_core.sandbox.runner import select_executor
+from hos_ares_core.sandbox.attest import attest, verdict
+from hos_ares_core.sandbox.runner import select_executor
 
 _EXECUTOR = select_executor()
 

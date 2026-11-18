@@ -16,9 +16,9 @@ from __future__ import annotations
 
 import pytest
 
-from veripen_core.routes.sources.base import ObservedRecord, candidate_from_record
-from veripen_core.routes.tagging import infer_tags
-from veripen_core.routes.types import RouteProvenance
+from hos_ares_core.routes.sources.base import ObservedRecord, candidate_from_record
+from hos_ares_core.routes.tagging import infer_tags
+from hos_ares_core.routes.types import RouteProvenance
 
 S = chr(0x2F)
 

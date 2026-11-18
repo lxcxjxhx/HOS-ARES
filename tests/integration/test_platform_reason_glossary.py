@@ -3,8 +3,8 @@
 改前实测（真跑 platform，两资产）：
 
 ```
-| veripen/path_traversal/CWE-22 | undetermined | symbol_missing:SAFE_FILE | - |
-| veripen/xss_dom/CWE-79 | not_run | marker_not_fired | - |
+| hos_ares/path_traversal/CWE-22 | undetermined | symbol_missing:SAFE_FILE | - |
+| hos_ares/xss_dom/CWE-79 | not_run | marker_not_fired | - |
 ```
 
 而同一轮产出的 `hunt.md` / 各资产 `report.md` 在 B248 已经写成人话。同一份交付里
@@ -24,8 +24,8 @@ SEP = chr(0x2F)
 
 def _spec(base: str) -> str:
     paths = {
-        f"{SEP}api{SEP}search": {"get": {"x-veripen-tags": ["param_injectable"]}},
-        f"{SEP}api{SEP}read": {"get": {"x-veripen-tags": ["file_read"]}},
+        f"{SEP}api{SEP}search": {"get": {"x-hos_ares-tags": ["param_injectable"]}},
+        f"{SEP}api{SEP}read": {"get": {"x-hos_ares-tags": ["file_read"]}},
     }
     return json.dumps({"openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
                        "servers": [{"url": base}], "paths": paths})
@@ -35,7 +35,7 @@ def _spec(base: str) -> str:
 def platform_report(tmp_path: Path) -> str:
     from lab.app import App
     from lab.net_server import LabServer
-    from veripen_cli.cmd_platform import main as platform_main
+    from hos_ares_cli.cmd_platform import main as platform_main
 
     a, b = LabServer(App(secure=False)).start(), LabServer(App(secure=False)).start()
     try:
@@ -52,7 +52,7 @@ def platform_report(tmp_path: Path) -> str:
 
 def test_reason_column_is_a_sentence_not_a_bare_code(platform_report: str) -> None:
     rows = [ln for ln in platform_report.splitlines()
-            if ln.startswith("| veripen/") and ln.count("|") >= 5]
+            if ln.startswith("| hos_ares/") and ln.count("|") >= 5]
     assert rows, platform_report[:400]
     bare = [ln for ln in rows if " · `" not in ln]
     assert not bare, f"这些行的原因还是裸码：{bare[:3]}"

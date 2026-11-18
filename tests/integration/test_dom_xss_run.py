@@ -15,7 +15,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
-from veripen_core.render import BrowserRenderer
+from hos_ares_core.render import BrowserRenderer
 
 S = chr(0x2F)
 LOOPBACK = "127" + "." + "0" + "." + "0" + "." + "1"
@@ -51,7 +51,7 @@ def test_discover_run_verifies_dom_xss(tmp_path) -> None:  # noqa: ANN001
     port = srv.server_address[1]
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     try:
-        from veripen_cli.cmd_run import main
+        from hos_ares_cli.cmd_run import main
 
         rc = main([
             "--target", "http" + ":" + S * 2 + f"{LOOPBACK}:{port}",
@@ -81,15 +81,15 @@ def test_sink_kind_is_distinguished(tmp_path) -> None:  # noqa: ANN001
     import time
     from http.server import BaseHTTPRequestHandler, HTTPServer
 
-    from veripen_core.render.worker import RenderThread
-    from veripen_core.routes import (
+    from hos_ares_core.render.worker import RenderThread
+    from hos_ares_core.routes import (
         AssetRef, Resolver, RouteCandidate, RouteHints, RouteProvenance, RouteQuery,
     )
-    from veripen_core.routes.sources import StaticSource
-    from veripen_core.tools import http as http_tool
-    from veripen_cli.cmd_hunt import build_guard
-    from veripen_oracles.render_transport import RenderTransport
-    from veripen_oracles.tier_dom import XssDom
+    from hos_ares_core.routes.sources import StaticSource
+    from hos_ares_core.tools import http as http_tool
+    from hos_ares_cli.cmd_hunt import build_guard
+    from hos_ares_oracles.render_transport import RenderTransport
+    from hos_ares_oracles.tier_dom import XssDom
 
     class _H(BaseHTTPRequestHandler):
         def do_GET(self):  # noqa: N802
@@ -121,7 +121,7 @@ def test_sink_kind_is_distinguished(tmp_path) -> None:  # noqa: ANN001
     threading.Thread(target=srv.serve_forever, daemon=True).start()
 
     def _run(path: str):  # noqa: ANN202
-        from veripen_oracles.common.harness import run as run_oracle
+        from hos_ares_oracles.common.harness import run as run_oracle
 
         cands = [RouteCandidate(method="GET",
                                 template="http" + ":" + S * 2 + f"{LOOPBACK}:{port}{path}",
@@ -137,7 +137,7 @@ def test_sink_kind_is_distinguished(tmp_path) -> None:  # noqa: ANN001
             with RenderThread() as rt:
                 tp = RenderTransport(rt, oracle_id="xss_dom")
                 return run_oracle(XssDom(), rs.bindings[0], tp,
-                                  symbols=__import__("veripen_oracles").SymbolTable(),
+                                  symbols=__import__("hos_ares_oracles").SymbolTable(),
                                   nonce="t", bindings={"param_injectable": rs.bindings[0]})
         finally:
             http_tool.uninstall_guard()

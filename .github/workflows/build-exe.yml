@@ -20,7 +20,7 @@ on:
       - "v*"
   pull_request:
     paths:
-      - "veripen_cli/desktop.py"
+      - "hos_ares_cli/desktop.py"
       - "packaging/HOS-ARES.spec"
       - "packaging/HOS-ARES.iss"
       - ".github/workflows/build-exe.yml"

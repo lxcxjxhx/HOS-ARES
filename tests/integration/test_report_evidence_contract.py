@@ -3,7 +3,7 @@
 三次踩坑（B149 文件名、B151 模式、B153 目录）都不是算错，是**没有人跑过那条命令**。
 这组用例把整条链路钉在一起：
 
-1. 报告里每一条 `veripen replay --capsule … --mode offline` 指向的文件都存在；
+1. 报告里每一条 `hos-ares replay --capsule … --mode offline` 指向的文件都存在；
 2. 那份文件的 `capsule_id` 就是该 finding 的证据指针（不是别人的）；
 3. 复现命令的条数 == 可报告结论的条数（不多给、不少给）；
 4. 四个出口（findings.json / coverage.json / 控制台 / 报告）对同一个"已报告"数给同一个数；
@@ -32,7 +32,7 @@ for extra in (ROOT, ROOT / "tests", ROOT / "tests" / "unit"):
 S = chr(0x2F)
 LOOPBACK = "127" + "." + "0" + "." + "0" + "." + "1"
 HTTP = "http" + ":" + S * 2
-CMD = re.compile(r"veripen replay --capsule (\S+) --mode offline")
+CMD = re.compile(r"hos-ares replay --capsule (\S+) --mode offline")
 HOME = (
     '<html><body><a href="' + S + 'a?x=1">a</a>'
     '<a href="' + S + 'b?x=1">b</a></body></html>'
@@ -61,7 +61,7 @@ def run_dir(tmp_path_factory: pytest.TempPathFactory):  # noqa: ANN201
     port = srv.server_address[1]
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     try:
-        from veripen_cli.cmd_run import main
+        from hos_ares_cli.cmd_run import main
 
         main(["--target", HTTP + f"{LOOPBACK}:{port}",
               "--discover", "--discover-rounds", "2", "--discover-pages", "8",
@@ -76,7 +76,7 @@ def _report(run_dir: Path) -> str:  # noqa: ANN001
 
 
 def test_every_command_in_the_report_resolves(run_dir) -> None:  # noqa: ANN001
-    from veripen_core.evidence import load_capsule
+    from hos_ares_core.evidence import load_capsule
 
     md = _report(run_dir)
     commands = CMD.findall(md)
@@ -120,7 +120,7 @@ def test_counts_agree_across_exits(run_dir) -> None:  # noqa: ANN001
 
 
 def test_chain_links_equal_reported_findings(run_dir) -> None:  # noqa: ANN001
-    from veripen_core.evidence import load_capsule, order_chain, verify_chain
+    from hos_ares_core.evidence import load_capsule, order_chain, verify_chain
 
     doc = json.loads((run_dir / "findings.json").read_text(encoding="utf-8"))
     reported = [f for f in doc["findings"] if f.get("outcome") == "reported"]
@@ -132,7 +132,7 @@ def test_chain_links_equal_reported_findings(run_dir) -> None:  # noqa: ANN001
 
 def test_demo_report_commands_resolve(tmp_path: Path) -> None:
     """演示脚本的 report.md 走同一条渲染路径，同样不许给出死链。"""
-    from veripen_core.evidence import load_capsule
+    from hos_ares_core.evidence import load_capsule
 
     out = tmp_path / "demo"
     result = subprocess.run(

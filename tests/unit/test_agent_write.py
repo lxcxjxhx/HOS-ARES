@@ -21,13 +21,13 @@ for extra in (ROOT, ROOT / "tests", ROOT / "tests" / "unit"):
 
 
 def _wb(tmp_path: Path):  # noqa: ANN202
-    from veripen_core.workbench.fs import Workbench
+    from hos_ares_core.workbench.fs import Workbench
 
     return Workbench(tmp_path)
 
 
 def test_create_and_overwrite_read_differently(tmp_path: Path) -> None:
-    from veripen_cli.cmd_agent import _do_write
+    from hos_ares_cli.cmd_agent import _do_write
 
     wb = _wb(tmp_path)
     ok1, first = _do_write(wb, "a.txt hello")
@@ -50,7 +50,7 @@ def test_session_history_keeps_the_distinction(tmp_path: Path, monkeypatch, caps
     REPL 打印的是 `turn.summary`——即**记进会话**的那句话，所以断言 stdout
     等于断言账本里存的内容。
     """
-    from veripen_cli.cmd_agent import main
+    from hos_ares_cli.cmd_agent import main
 
     monkeypatch.setattr("sys.stdin", io.StringIO("write h.txt one\nwrite h.txt two\nquit\n"))
     main(["--db", str(tmp_path / "a.db"), "--root", str(tmp_path)])

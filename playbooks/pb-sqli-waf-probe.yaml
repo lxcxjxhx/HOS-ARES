@@ -1,4 +1,4 @@
-apiVersion: veripen.playbook/v1
+apiVersion: hos-ares.playbook/v1
 id: pb-sqli-waf-probe
 version: 1.0.0
 title: 无害载荷探 WAF，再做布尔差分

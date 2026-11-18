@@ -11,10 +11,10 @@ from pathlib import Path
 
 import pytest
 
-from veripen_core.lease import Lease, LeaseConfig, LeaseLost, StoreClock
-from veripen_core.models import TaskState
-from veripen_core.scheduler import Scheduler
-from veripen_core.store import Store
+from hos_ares_core.lease import Lease, LeaseConfig, LeaseLost, StoreClock
+from hos_ares_core.models import TaskState
+from hos_ares_core.scheduler import Scheduler
+from hos_ares_core.store import Store
 from worker.heartbeat import Heartbeat
 from worker.worker import Worker
 

@@ -1,9 +1,9 @@
-"""B151：`veripen replay` 必须有一条**能跑**的路，而且不把"重算不了"说成"被推翻"。
+"""B151：`hos-ares replay` 必须有一条**能跑**的路，而且不把"重算不了"说成"被推翻"。
 
 修前两条路都是死胡同：
 - `--mode offline` 直接拒跑（"本命令只跑 live/dry"）；
 - 默认 `--mode live` 也拒跑（"需要真实靶场与 transport 注入"）——于是报告里印的
-  `veripen replay --capsule <文件>` 照抄必然 exit=1。
+  `hos-ares replay --capsule <文件>` 照抄必然 exit=1。
 
 而且 header 类 oracle 的证据（`fingerprint={"absent": true}`）在重判时会落
 `assertion_not_reproduced`，读起来像"结论被推翻"，其实只是 replay 算不出来。
@@ -14,8 +14,8 @@ from __future__ import annotations
 import json
 
 import capsule_fixture as F
-from veripen_cli.cmd_replay import main as replay_main
-from veripen_core.evidence import AssertionBlock, save_capsule, seal_capsule_doc
+from hos_ares_cli.cmd_replay import main as replay_main
+from hos_ares_core.evidence import AssertionBlock, save_capsule, seal_capsule_doc
 
 
 def _save(tmp_path, cap):  # noqa: ANN001, ANN202

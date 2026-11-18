@@ -17,9 +17,9 @@
 
 用法：
 
-    export VERIPEN_MODEL_BASE_URL=...
-    export VERIPEN_MODEL=...
-    export VERIPEN_MODEL_API_KEY=...
+    export HOS_ARES_MODEL_BASE_URL=...
+    export HOS_ARES_MODEL=...
+    export HOS_ARES_MODEL_API_KEY=...
     python scripts/b26/agent_live.py --max-steps 20 --compare-scripted
 """
 
@@ -40,11 +40,11 @@ for _p in (ROOT, ROOT / "tests", ROOT / "tests" / "unit"):
 from conftest import Lab  # noqa: E402
 from test_agent_loop import ORACLE_MAP, LabRuntime, _state  # noqa: E402
 
-from veripen_cli._io import setup_stdout  # noqa: E402
-from veripen_core.agent import AgentState, Decision, Loop, build_decider  # noqa: E402
-from veripen_core.agent.client import from_env  # noqa: E402
-from veripen_oracles import ALL_ORACLES  # noqa: E402
-from veripen_oracles.common.harness import run as run_oracle  # noqa: E402
+from hos_ares_cli._io import setup_stdout  # noqa: E402
+from hos_ares_core.agent import AgentState, Decision, Loop, build_decider  # noqa: E402
+from hos_ares_core.agent.client import from_env  # noqa: E402
+from hos_ares_oracles import ALL_ORACLES  # noqa: E402
+from hos_ares_oracles.common.harness import run as run_oracle  # noqa: E402
 
 #: 一次运行的默认目标。写得像人在派活，不暗示任何 oracle 名字——
 #: 模型只能从 `tools` 与 `state.pending` 自己判断该先验哪一条。
@@ -147,12 +147,12 @@ def main(argv: list[str]) -> int:
 
     client = from_env(discover=args.discover)
     if client is None:
-        print("模型未配置：需要 VERIPEN_MODEL_BASE_URL / VERIPEN_MODEL / VERIPEN_MODEL_API_KEY",
+        print("模型未配置：需要 HOS_ARES_MODEL_BASE_URL / HOS_ARES_MODEL / HOS_ARES_MODEL_API_KEY",
               file=sys.stderr)
         return 2
 
     if args.no_fallback:
-        from veripen_core.agent import ModelDecider
+        from hos_ares_core.agent import ModelDecider
 
         live_decider: Any = ModelDecider(client)
     else:

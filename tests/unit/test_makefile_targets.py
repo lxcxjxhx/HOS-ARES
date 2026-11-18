@@ -125,7 +125,7 @@ def test_verify_report_uses_the_product_entry_and_a_variable() -> None:
 
     mk = (Path(__file__).resolve().parents[2] / "Makefile").read_text(encoding="utf-8")
     block = mk.split("\nverify-report:", 1)[1].split("\n\n", 1)[0]
-    assert "veripen_cli replay --manifest" in block, block
+    assert "hos_ares_cli replay --manifest" in block, block
     assert "$(DIR)" in block, "要能用 DIR= 指到任意一路产物"
     assert "out/b11/report" not in block, "别再写死演示目录"
 
@@ -146,8 +146,8 @@ def test_tasks_and_make_agree_on_verify_report() -> None:
     root = Path(__file__).resolve().parents[2]
     tasks = (root / "scripts" / "tasks.py").read_text(encoding="utf-8")
     mk = (root / "Makefile").read_text(encoding="utf-8")
-    assert '"verify-report": ("-m", "veripen_cli", "replay", "--manifest", "out/run"),' in tasks
-    assert "veripen_cli replay --manifest $(DIR)" in mk
+    assert '"verify-report": ("-m", "hos_ares_cli", "replay", "--manifest", "out/run"),' in tasks
+    assert "hos_ares_cli replay --manifest $(DIR)" in mk
     assert "out/b11/report" not in tasks, "tasks.py 别再写死演示目录"
 
 
@@ -178,9 +178,9 @@ def test_drop_overridden_removes_the_default_pair() -> None:
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
 
-    argv = "-m veripen_cli replay --manifest out/run".split()
+    argv = "-m hos_ares_cli replay --manifest out/run".split()
     assert mod.drop_overridden(argv, ["--manifest", "out/vr/run"]) == [
-        "-m", "veripen_cli", "replay"]
+        "-m", "hos_ares_cli", "replay"]
     assert mod.drop_overridden(argv, []) == argv
     assert mod.drop_overridden(argv, ["--verbose"]) == argv, "不同名的不许动"
 

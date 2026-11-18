@@ -14,15 +14,15 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from veripen_core.plugins.discovery import DEFAULT_TTL_S, CacheEntry, Freshness, Result
-from veripen_core.plugins.registry import (
+from hos_ares_core.plugins.discovery import DEFAULT_TTL_S, CacheEntry, Freshness, Result
+from hos_ares_core.plugins.registry import (
     Mount,
     PluginRecord,
     Source,
     Trust,
     UpstreamState,
 )
-from veripen_core.plugins.view import (
+from hos_ares_core.plugins.view import (
     MOUNT_COLORS,
     MOUNT_RISK,
     build_tab,
@@ -50,7 +50,7 @@ def _rec(**kw) -> PluginRecord:  # noqa: ANN003
 
 
 def _entry(*, age_s: int = 720) -> CacheEntry:  # noqa: ANN001
-    from veripen_core.plugins.discovery import Result as R
+    from hos_ares_core.plugins.discovery import Result as R
 
     return CacheEntry(
         query="skill:pentest",

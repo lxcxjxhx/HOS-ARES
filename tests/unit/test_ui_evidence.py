@@ -27,7 +27,7 @@ def _run_dir(tmp_path: Path, *, with_capsule: bool) -> tuple[Path, str]:
     """造一个最小的 run 产物：findings.json + （可选）capsules/<sha>.json。"""
     import capsule_fixture as F
 
-    from veripen_core.evidence import save_capsule, seal_capsule_doc
+    from hos_ares_core.evidence import save_capsule, seal_capsule_doc
 
     run = tmp_path / "run"
     run.mkdir()
@@ -36,7 +36,7 @@ def _run_dir(tmp_path: Path, *, with_capsule: bool) -> tuple[Path, str]:
     if with_capsule:
         save_capsule(cap, run / "capsules")
     findings = {
-        "schema": "veripen.report/v1",
+        "schema": "hos-ares.report/v1",
         "engagement": "lab",
         "root_sha256": cap.chain.self_sha256,
         "counts": {"total": 1, "by_outcome": {"reported": 1}},
@@ -68,7 +68,7 @@ def _client(run: Path) -> TestClient:
 
 
 def test_repro_points_at_a_real_capsule_file(tmp_path: Path) -> None:
-    from veripen_core.evidence import load_capsule
+    from hos_ares_core.evidence import load_capsule
 
     run, cid = _run_dir(tmp_path, with_capsule=True)
     data = _client(run).get(UI + "finding?id=F-idor_cross_account-aaaaaaaa").json()["data"]
@@ -79,7 +79,7 @@ def test_repro_points_at_a_real_capsule_file(tmp_path: Path) -> None:
     # 命令里给的是**相对**路径（B372）：报告那边早就是 `capsules/<sha>.json`，
     # 界面贴绝对路径等于把操作员的目录结构写进截图。可移植性用例见 test_ui_console_truth。
     assert data["repro"] == (
-        "veripen replay --capsule capsules" + SEP + f"{data['capsule_path'].rsplit(SEP, 1)[-1]}"
+        "hos-ares replay --capsule capsules" + SEP + f"{data['capsule_path'].rsplit(SEP, 1)[-1]}"
         " --mode offline"
     ), data["repro"]
     assert "make replay" not in data["repro"], "旧命令把 finding_id 当 capsule 路径"

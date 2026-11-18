@@ -15,8 +15,8 @@
 三、界面里为什么是空的
     控制台读的是**运行产物**，不自己造数据。想有内容，先跑一次：
 
-      veripen run    --target <URL> --openapi <spec>  --out out/run
-      veripen hunt   --target <URL> --openapi <spec>  --out out/hunt
+      hos-ares run    --target <URL> --openapi <spec>  --out out/run
+      hos-ares hunt   --target <URL> --openapi <spec>  --out out/hunt
 
     然后：
       HOS-ARES.exe --record out/hunt.json

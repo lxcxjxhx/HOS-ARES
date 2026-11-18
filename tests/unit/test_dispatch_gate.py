@@ -11,12 +11,12 @@ from typing import Any, Mapping
 
 import pytest
 
-from veripen_core.agent.closed_loop import ClosedLoop, ClosedLoopDecider
-from veripen_core.agent.loop import AgentState
-from veripen_core.leads import LeadLedger, LeadState
-from veripen_core.store import Store
-from veripen_core.tools.registry import ToolCall, dispatch
-from veripen_core.workbench.plan import PlanGate, TodoList
+from hos_ares_core.agent.closed_loop import ClosedLoop, ClosedLoopDecider
+from hos_ares_core.agent.loop import AgentState
+from hos_ares_core.leads import LeadLedger, LeadState
+from hos_ares_core.store import Store
+from hos_ares_core.tools.registry import ToolCall, dispatch
+from hos_ares_core.workbench.plan import PlanGate, TodoList
 
 TASK = "t-1"
 

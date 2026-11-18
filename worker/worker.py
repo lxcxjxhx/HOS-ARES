@@ -1,7 +1,7 @@
 """worker 进程：领取 → 带心跳执行 → SIGTERM 释放租约（04 §2）。
 
-启动：``python -m worker.worker``（库路径读 ``VERIPEN_DB``）。
-``VERIPEN_WORKER_HOLD_S`` 仅用于演示/测试：执行体睡这么久，模拟长任务。
+启动：``python -m worker.worker``（库路径读 ``HOS_ARES_DB``）。
+``HOS_ARES_WORKER_HOLD_S`` 仅用于演示/测试：执行体睡这么久，模拟长任务。
 """
 
 from __future__ import annotations
@@ -12,9 +12,9 @@ import sys
 import time
 import uuid
 
-from veripen_core.lease import Lease, LeaseConfig, LeaseLost, StoreClock
-from veripen_core.scheduler import Scheduler
-from veripen_core.store import Store
+from hos_ares_core.lease import Lease, LeaseConfig, LeaseLost, StoreClock
+from hos_ares_core.scheduler import Scheduler
+from hos_ares_core.store import Store
 
 from .heartbeat import Heartbeat
 
@@ -91,17 +91,17 @@ class Worker:
 
 
 def main() -> int:
-    store = Store(os.environ.get("VERIPEN_DB", "out/veripen.db")).init()
+    store = Store(os.environ.get("HOS_ARES_DB", "out/hos_ares.db")).init()
     cfg = LeaseConfig(
-        heartbeat_s=int(os.environ.get("VERIPEN_HEARTBEAT_S", DEFAULT_CONFIG.heartbeat_s)),
-        ttl_s=int(os.environ.get("VERIPEN_LEASE_TTL_S", DEFAULT_CONFIG.ttl_s)),
-        scan_s=int(os.environ.get("VERIPEN_SCAN_S", DEFAULT_CONFIG.scan_s)),
+        heartbeat_s=int(os.environ.get("HOS_ARES_HEARTBEAT_S", DEFAULT_CONFIG.heartbeat_s)),
+        ttl_s=int(os.environ.get("HOS_ARES_LEASE_TTL_S", DEFAULT_CONFIG.ttl_s)),
+        scan_s=int(os.environ.get("HOS_ARES_SCAN_S", DEFAULT_CONFIG.scan_s)),
     )
     worker = Worker(
         store,
         make_worker_id(),
         cfg=cfg,
-        hold_s=float(os.environ.get("VERIPEN_WORKER_HOLD_S", "0")),
+        hold_s=float(os.environ.get("HOS_ARES_WORKER_HOLD_S", "0")),
     )
 
     def _term(_signum: int, _frame: object) -> None:

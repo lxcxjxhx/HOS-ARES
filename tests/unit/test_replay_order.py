@@ -13,14 +13,14 @@ import hashlib
 import capsule_fixture as F
 import pytest
 
-from veripen_core.evidence import (
+from hos_ares_core.evidence import (
     ReplayBlocked,
     ReplayEnv,
     ReplayMode,
     TraceResult,
     replay,
 )
-from veripen_core.models import ReplayStatus
+from hos_ares_core.models import ReplayStatus
 
 
 class ScriptedTransport:
@@ -155,7 +155,7 @@ def test_order_three_conditions_before_details() -> None:
 
 # ── 完整性最先查（与网络无关）──────────────────────────────────────
 def test_tampered_capsule_never_reaches_network() -> None:
-    from veripen_core.evidence import CapsuleTampered
+    from hos_ares_core.evidence import CapsuleTampered
 
     cap = F.sealed()
     forged = cap.model_copy(update={"confidence": 0.5})

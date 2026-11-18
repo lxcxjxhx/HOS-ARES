@@ -30,8 +30,8 @@ CANARY = "vp-canary-do-not-leak-7f3a9c"
 
 def _spec(base: str) -> str:
     paths = {
-        f"{SEP}api{SEP}ping": {"get": {"x-veripen-tags": ["rate_sensitive"]}},
-        f"{SEP}api{SEP}me": {"get": {"x-veripen-tags": ["protected_read"]}},
+        f"{SEP}api{SEP}ping": {"get": {"x-hos_ares-tags": ["rate_sensitive"]}},
+        f"{SEP}api{SEP}me": {"get": {"x-hos_ares-tags": ["protected_read"]}},
     }
     return json.dumps(
         {
@@ -57,7 +57,7 @@ def lab():  # noqa: ANN201
 
 def test_token_file_is_not_echoed_anywhere(lab: Any, tmp_path: Path, capsys: Any) -> None:
     """从文件读凭据，产物与标准输出都不许出现明文。"""
-    from veripen_cli.cmd_hunt import main
+    from hos_ares_cli.cmd_hunt import main
 
     token_file = tmp_path / "primary.token"
     token_file.write_text(CANARY + "\n", encoding="utf-8")
@@ -83,7 +83,7 @@ def test_token_file_is_not_echoed_anywhere(lab: Any, tmp_path: Path, capsys: Any
 
 def test_cli_token_still_works_but_warns(lab: Any, tmp_path: Path, capsys: Any) -> None:
     """兼容路径仍可用，但必须告警——不告警等于默认推荐它。"""
-    from veripen_cli.cmd_hunt import main
+    from hos_ares_cli.cmd_hunt import main
 
     spec = tmp_path / "spec.json"
     spec.write_text(_spec(lab.base_url), encoding="utf-8")
@@ -104,14 +104,14 @@ def test_secret_priority_file_over_env_over_cli(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """文件 > 环境变量 > 命令行。顺序错了就等于把最危险的那条设成默认。"""
-    from veripen_cli.cmd_hunt import _read_secret
+    from hos_ares_cli.cmd_hunt import _read_secret
 
     f = tmp_path / "t.token"
     f.write_text("from-file", encoding="utf-8")
-    monkeypatch.setenv("VERIPEN_TARGET_TOKEN", "from-env")
+    monkeypatch.setenv("HOS_ARES_TARGET_TOKEN", "from-env")
 
-    assert _read_secret("from-cli", str(f), "VERIPEN_TARGET_TOKEN", "t") == "from-file"
-    assert _read_secret("from-cli", "", "VERIPEN_TARGET_TOKEN", "t") == "from-env"
-    monkeypatch.delenv("VERIPEN_TARGET_TOKEN")
-    assert _read_secret("from-cli", "", "VERIPEN_TARGET_TOKEN", "t") == "from-cli"
-    assert _read_secret("", "", "VERIPEN_TARGET_TOKEN", "t") == ""
+    assert _read_secret("from-cli", str(f), "HOS_ARES_TARGET_TOKEN", "t") == "from-file"
+    assert _read_secret("from-cli", "", "HOS_ARES_TARGET_TOKEN", "t") == "from-env"
+    monkeypatch.delenv("HOS_ARES_TARGET_TOKEN")
+    assert _read_secret("from-cli", "", "HOS_ARES_TARGET_TOKEN", "t") == "from-cli"
+    assert _read_secret("", "", "HOS_ARES_TARGET_TOKEN", "t") == ""

@@ -36,7 +36,7 @@ def _load() -> ModuleType:
 
 
 def _diff_count(mod: ModuleType) -> int:
-    from veripen.bench import load_cases
+    from hos_ares.bench import load_cases
 
     cases = load_cases(ROOT / "tests" / "bench" / "cases.yaml")
     return sum(
@@ -79,7 +79,7 @@ def test_comparison_goes_red_when_one_side_is_perturbed() -> None:
 def test_both_sides_really_run_a_case(side: str) -> None:
     """两侧都必须真的跑出结论——不能一侧恒返回 BLOCKED 冒充"一致"。"""
     mod = _load()
-    from veripen.bench import load_cases
+    from hos_ares.bench import load_cases
 
     case = next(c for c in load_cases(ROOT / "tests" / "bench" / "cases.yaml")
                 if c.case_id == "P-01")

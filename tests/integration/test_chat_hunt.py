@@ -21,8 +21,8 @@ ANSI = re.compile(chr(27) + r"\[[0-9;]*m")
 
 def _spec(base: str) -> str:
     paths = {
-        f"{SEP}api{SEP}search": {"get": {"x-veripen-tags": ["param_injectable"]}},
-        f"{SEP}api{SEP}read": {"get": {"x-veripen-tags": ["file_read"]}},
+        f"{SEP}api{SEP}search": {"get": {"x-hos_ares-tags": ["param_injectable"]}},
+        f"{SEP}api{SEP}read": {"get": {"x-hos_ares-tags": ["file_read"]}},
     }
     return json.dumps({
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
@@ -48,7 +48,7 @@ def lab(tmp_path: Path):  # noqa: ANN201
 
 
 def _chat(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, script: str) -> str:
-    from veripen_cli.cmd_chat import main
+    from hos_ares_cli.cmd_chat import main
 
     monkeypatch.setattr("sys.stdin", io.StringIO(script))
     main(["--root", str(Path(__file__).resolve().parents[2]),
@@ -125,7 +125,7 @@ def test_summary_recorded_in_events(lab: Any, tmp_path: Path,
 # ── 代签要写清楚是谁签的（B174）──────────────────────────────────
 def test_chat_signs_platform_as_chat(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
                                      capsys: pytest.CaptureFixture[str]) -> None:
-    from veripen_cli import cmd_platform
+    from hos_ares_cli import cmd_platform
 
     seen: list[list[str]] = []
     monkeypatch.setattr(cmd_platform, "main", lambda argv: seen.append(list(argv)) or 0)

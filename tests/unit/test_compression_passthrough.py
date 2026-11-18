@@ -18,7 +18,7 @@ for extra in (ROOT, ROOT / "tests"):
 
 
 def _fact(i: int, subject: str = "s") -> object:
-    from veripen_core.blackboard import Fact
+    from hos_ares_core.blackboard import Fact
 
     return Fact(id=f"f-{i}", task_id="t", subject=f"{subject}{i}", predicate="p",
                 value=f"v{i}", origin="observed", from_target=False,
@@ -26,14 +26,14 @@ def _fact(i: int, subject: str = "s") -> object:
 
 
 def _tiny():  # noqa: ANN202
-    from veripen_core.compression import compress
+    from hos_ares_core.compression import compress
 
     return compress(facts=[_fact(0)], events=[{"kind": "http", "ok": True}],
                     capsule_ids=["c-1"], verdicts={"o": "VERIFIED"})
 
 
 def _big():  # noqa: ANN202
-    from veripen_core.compression import compress
+    from hos_ares_core.compression import compress
 
     return compress(facts=[_fact(i) for i in range(25)],
                     events=[{"kind": "http", "ok": True} for _ in range(60)],
@@ -55,7 +55,7 @@ def test_realistic_input_really_shrinks() -> None:
 
 def test_truncated_mode_still_works() -> None:
     """回落路径（只裁剪不合并）不受影响。"""
-    from veripen_core.compression import compress
+    from hos_ares_core.compression import compress
 
     out = compress(facts=[_fact(i) for i in range(25)],
                    events=[{"kind": "http", "ok": True} for _ in range(60)],

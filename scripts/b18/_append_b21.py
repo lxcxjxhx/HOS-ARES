@@ -3,7 +3,7 @@ from pathlib import Path
 
 notes = """B21 做三件事，都是把"形状齐、线没接"补成"真能用"：asset_facts 写入点、todo 持久化、闭环率真测量。
 
-一、asset_facts 写入点（veripen_core/blackboard.py 新增 AssetFacts）。
+一、asset_facts 写入点（hos_ares_core/blackboard.py 新增 AssetFacts）。
 表一直在，但**没有任何写入路径**——这意味着跨任务记忆从来没有真正落过库。
 新增的 API 名字里带 capsule 是刻意的：`record_from_capsule`。
 四道门各对应一种真实腐化方式：
@@ -56,21 +56,21 @@ rec = {
     "agent": "dsh-harness",
     "scope": "asset_facts 写入点（四道门）+ todo 持久化（跨重启）+ 闭环率真测量（bench 真 pair / leads 表真统计 / act.*→verify 回环）",
     "files": [
-        "veripen_core/blackboard.py",
-        "veripen_core/store.py",
-        "veripen_core/workbench/plan.py",
-        "veripen_cli/cmd_bench_leads.py",
+        "hos_ares_core/blackboard.py",
+        "hos_ares_core/store.py",
+        "hos_ares_core/workbench/plan.py",
+        "hos_ares_cli/cmd_bench_leads.py",
         "scripts/b12/run_bench.py",
         "tests/unit/test_closure_persistence.py",
-        "plan-veripen/16-完整范围与交付地图.md",
-        "plan-veripen/21-实现批次与Agent执行计划.md",
-        ".veripen/batches.jsonl",
+        "plan-hos-legacy/16-完整范围与交付地图.md",
+        "plan-hos-legacy/21-实现批次与Agent执行计划.md",
+        ".hos-ares/batches.jsonl",
     ],
     "dod": [
         {"cmd": "python -m pytest tests", "exit": 0, "passed": 1105, "failed": 0, "skipped": 2,
          "note": "1105 passed / 2 skipped（+11）"},
         {"cmd": "python -m pytest tests/unit/test_closure_persistence.py -q", "exit": 0, "passed": 11},
-        {"cmd": "python -m mypy --strict veripen_core/ worker/ veripen_oracles/ veripen/ veripen_cli/",
+        {"cmd": "python -m mypy --strict hos_ares_core/ worker/ hos_ares_oracles/ hos_ares/ hos_ares_cli/",
          "exit": 0, "errors": 0, "note": "94 source files"},
         {"cmd": "python scripts/lint/noroute.py", "exit": 0, "hits": 0},
         {"cmd": "python scripts/lint/nodata_stub.py", "exit": 0, "hits": 0},
@@ -93,9 +93,9 @@ rec = {
          "note": "findings_diff OK（44 条一致）；leads 150 来自真 pair 数"},
     ],
     "evidence": [
-        "veripen_core/blackboard.py",
-        "veripen_core/workbench/plan.py",
-        "veripen_cli/cmd_bench_leads.py",
+        "hos_ares_core/blackboard.py",
+        "hos_ares_core/workbench/plan.py",
+        "hos_ares_cli/cmd_bench_leads.py",
         "tests/unit/test_closure_persistence.py",
         "out/leads/leads.db",
         "out/leads/leads.json",
@@ -112,8 +112,8 @@ rec = {
         "reviewed_at": "2026-11-02T23:05:00Z",
         "verdict": "B21 通过 I14：asset_facts 写入点与 todo 持久化两个注入点被真实实现替换（11 条测试）；闭环率从恒等式改为账本真统计并可随状态变化。B18–B21 四批收口",
         "closed_injection_points": [
-            "veripen_core/blackboard.py:asset_facts 写入点（→ AssetFacts.record_from_capsule）",
-            "veripen_core/workbench/plan.py:todo 持久化（→ TodoStore + todos 表）",
+            "hos_ares_core/blackboard.py:asset_facts 写入点（→ AssetFacts.record_from_capsule）",
+            "hos_ares_core/workbench/plan.py:todo 持久化（→ TodoStore + todos 表）",
             "闭环率口径（bench `1 if REPORTED` → 真 pair 数；bench-leads `None` → leads 表统计 + verify 回环）",
         ],
         "still_empty": [
@@ -123,7 +123,7 @@ rec = {
     },
 }
 
-p = Path(".veripen/batches.jsonl")
+p = Path(".hos-ares/batches.jsonl")
 with p.open("a", encoding="utf-8") as f:
     f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 print("appended B21")

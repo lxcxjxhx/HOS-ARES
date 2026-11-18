@@ -65,7 +65,7 @@ def main(argv: list[str]) -> int:
 
     import uvicorn
 
-    from veripen_core.render import BrowserRenderer
+    from hos_ares_core.render import BrowserRenderer
     from web.console import build_app
     from web.loader import load_file
 

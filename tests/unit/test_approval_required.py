@@ -25,7 +25,7 @@ for extra in (ROOT, ROOT / "tests"):
 
 
 def _required(oracle_id: str) -> str | None:
-    from veripen_oracles.policy import approval_for
+    from hos_ares_oracles.policy import approval_for
 
     return approval_for(oracle_id)
 
@@ -46,11 +46,11 @@ def test_unknown_oracle_is_not_gated() -> None:
 
 
 def _ctx(oracle_id: str, approval: object | None = None):  # noqa: ANN202
-    from veripen_core.guard.context import GuardContext
-    from veripen_core.guard.scope import PlanDecision, ScopeGuard
+    from hos_ares_core.guard.context import GuardContext
+    from hos_ares_core.guard.scope import PlanDecision, ScopeGuard
 
     scope = ScopeGuard(
-        asset=__import__("veripen_core.guard.scope", fromlist=["AssetScope"]).AssetScope(
+        asset=__import__("hos_ares_core.guard.scope", fromlist=["AssetScope"]).AssetScope(
             id="web-01", resolved_ips=frozenset({"203.0.113.10"})
         ),
         scope_in=frozenset({"web-01"}),
@@ -58,8 +58,8 @@ def _ctx(oracle_id: str, approval: object | None = None):  # noqa: ANN202
         min_confidence=0.0,
         now=1_000,
     )
-    from veripen_core.guard.budget import Budget
-    from veripen_core.guard.ratelimit import ThrottleConfig, TokenBucket
+    from hos_ares_core.guard.budget import Budget
+    from hos_ares_core.guard.ratelimit import ThrottleConfig, TokenBucket
 
     return GuardContext(
         scope=scope,
@@ -76,7 +76,7 @@ def _ctx(oracle_id: str, approval: object | None = None):  # noqa: ANN202
 
 
 def test_preflight_refuses_write_oracle_without_a_gate() -> None:
-    from veripen_core.guard.errors import NoApprovalGate
+    from hos_ares_core.guard.errors import NoApprovalGate
 
     with pytest.raises(NoApprovalGate):
         _ctx("mass_assignment").preflight()
@@ -87,14 +87,14 @@ def test_preflight_allows_read_oracle_without_a_gate() -> None:
 
 
 def test_preflight_passes_when_the_gate_approved() -> None:
-    from veripen_core.guard.approval import ApprovalGate
-    from veripen_core.store import Store
+    from hos_ares_core.guard.approval import ApprovalGate
+    from hos_ares_core.store import Store
 
     store = Store(":memory:").init()
     try:
         gate = ApprovalGate.from_spec([{"action_class": "reversible_write"}],
                                       store=store, events=None, task_id="t1")
-        from veripen_core.guard.approval import ApprovalRequired
+        from hos_ares_core.guard.approval import ApprovalRequired
 
         try:
             gate.require("reversible_write", now=1_000, impact={"assets": "1"})

@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from veripen_core.discovery.wellknown import (
+from hos_ares_core.discovery.wellknown import (
     ROBOTS,
     SITEMAP,
     paths_for,
@@ -58,8 +58,8 @@ def test_paths_for_dispatches_by_name() -> None:
 
 # ── crawler 集成：well-known 只解析、不记成面 ────────────────────
 def test_crawler_parses_wellknown_into_candidates() -> None:
-    from veripen_core.discovery import Crawler
-    from veripen_core.routes import (
+    from hos_ares_core.discovery import Crawler
+    from hos_ares_core.routes import (
         AssetRef,
         Resolver,
         RouteCandidate,
@@ -67,7 +67,7 @@ def test_crawler_parses_wellknown_into_candidates() -> None:
         RouteProvenance,
         RouteQuery,
     )
-    from veripen_core.routes.sources import StaticSource
+    from hos_ares_core.routes.sources import StaticSource
 
     cands = [
         RouteCandidate(method="GET", template=p("robots.txt"), source=RouteProvenance.CRAWL),

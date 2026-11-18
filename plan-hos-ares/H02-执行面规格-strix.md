@@ -12,8 +12,8 @@
 
 | 事实 | 锚点 | 后果 |
 |---|---|---|
-| 执行体只有 `subprocess`，无容器 | `veripen_core/workbench/executor.py:57`（`make_subprocess_executor`） | 工具的输出、临时文件、环境变量全部落在宿主机 |
-| 工具面断裂 | agent 只见 7 个工具（`veripen_core/tools/registry.py:51` 起：`list_routes` / `run_oracle` / `list_assets` / `rediscover` / `record_note` / `request_approval` / `finish`），而 fs/shell 在 `workbench/` 里另开一套 | agent 拿不到工作台能力，工作台也不受 agent 的预算/审计约束 |
+| 执行体只有 `subprocess`，无容器 | `hos_ares_core/workbench/executor.py:57`（`make_subprocess_executor`） | 工具的输出、临时文件、环境变量全部落在宿主机 |
+| 工具面断裂 | agent 只见 7 个工具（`hos_ares_core/tools/registry.py:51` 起：`list_routes` / `run_oracle` / `list_assets` / `rediscover` / `record_note` / `request_approval` / `finish`），而 fs/shell 在 `workbench/` 里另开一套 | agent 拿不到工作台能力，工作台也不受 agent 的预算/审计约束 |
 | 无浏览器 | 全仓 grep 无 `playwright|selenium` | 任何需要 JS 渲染的面（SPA、前端路由、DOM XSS）都测不了 |
 | compose 只有 api 一个服务 | `docker-compose.yml:1` | 有 compose 文件 ≠ 有隔离执行；它只是编排 API 进程 |
 
@@ -21,7 +21,7 @@
 
 ## 2. E1 · 隔离执行（B45，3 人天）
 
-> **执行记录（2026-11-03）**：`veripen_core/sandbox/` 落地（接口 / docker 后端 / 出网白名单策略 /
+> **执行记录（2026-11-03）**：`hos_ares_core/sandbox/` 落地（接口 / docker 后端 / 出网白名单策略 /
 > 镜像无地址扫描 / 加固 argv / BLOCKED 语义），策略与形状全部真验；**真隔离未验**——
 > 本机无 docker/podman（实测 `command not found`），A17 的宿主零副作用项记 `未验`。
 > 该批在账本中记 `scaffolded`，W2 的门因此未过。
@@ -68,7 +68,7 @@ class SandboxRunner(Protocol):
 
 ### 3.2 契约（2026-11-04 B46 落地）
 
-> `veripen_core/render/`：`dom.outline()` 归一化（丢易变属性、排属性序、折叠空白、跳过 script/style 正文）、
+> `hos_ares_core/render/`：`dom.outline()` 归一化（丢易变属性、排属性序、折叠空白、跳过 script/style 正文）、
 > `dom_sha256()` 指纹、`redact_url()` 只留 `ref:<8位>` 与查询参数名；
 > `BrowserRenderer.render()` 每次 **new_context**（不共享 cookie）、超时归一为 `blocked/render_timeout`、
 > 截图哈希入结果。**`isolation=host` 显式写在结果里**：本机无容器，容器内渲染未验。
@@ -115,7 +115,7 @@ agent 的 7 个工具           workbench 的另一套
 
 ### 4.2 目标形状（2026-11-03 B47 已落地）
 
-> `veripen_core/tools/surface.py`：`AGENT_IMPACT`(7) + `fs.read/write/edit` + `shell.run` + `browser.render`；
+> `hos_ares_core/tools/surface.py`：`AGENT_IMPACT`(7) + `fs.read/write/edit` + `shell.run` + `browser.render`；
 > 注册去重、catalog 带 impact、exec 需显式 `approved=True`、每次调用进 audit。
 > 模型白名单与 `tool_schemas()` 均从 surface 派生——**清单只有一个来源**。
 > `browser.render` 与 `shell.run` 的实现注入点仍空（前者 blocked，后者依赖 shell 五道闸）。
@@ -158,7 +158,7 @@ strix 会扫网段/找资产，我们 `16 §7` 明确"维持不做"。
 
 ## 6. E5 · 并行执行（B49，4 人天）
 
-> **执行记录（2026-11-04，进程内版）**：`veripen_core/parallel.py` 落地——
+> **执行记录（2026-11-04，进程内版）**：`hos_ares_core/parallel.py` 落地——
 > 并行单位是任务、上限 3（超了直接拒）、结果按 `task_id` 排序（与调度交错无关）；
 > `TaskScope` 跨任务读**抛 `cross_task_read`**（不是过滤成空）；`run_stages` 失败回退到上一阶段、
 > 预算只记跑过的步骤。判据实测：三任务并发 findings 指纹与串行逐条相同、峰值并发 ≥2。

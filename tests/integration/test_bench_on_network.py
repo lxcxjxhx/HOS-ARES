@@ -24,20 +24,20 @@ from lab.net_server import LabServer
 from lab.net_transport import NetTransport
 from lab.routes import candidates
 
-from veripen.bench import Outcome, load_cases
-from veripen_core.routes import (
+from hos_ares.bench import Outcome, load_cases
+from hos_ares_core.routes import (
     AssetRef,
     Resolver,
     RouteHints,
     RouteProvenance,
     RouteQuery,
 )
-from veripen_core.routes.sources.symbols import SymbolSource, SymbolTable
-from veripen.bench.faces import extra_tags
-from veripen_oracles import ALL_ORACLES
-from veripen_oracles.common.harness import SymbolTable as HarnessSymbols
-from veripen_oracles.common.harness import run as run_oracle
-from veripen_oracles.oob import LabOob
+from hos_ares_core.routes.sources.symbols import SymbolSource, SymbolTable
+from hos_ares.bench.faces import extra_tags
+from hos_ares_oracles import ALL_ORACLES
+from hos_ares_oracles.common.harness import SymbolTable as HarnessSymbols
+from hos_ares_oracles.common.harness import run as run_oracle
+from hos_ares_oracles.oob import LabOob
 
 ROOT = Path(__file__).resolve().parents[2]
 CASES = ROOT / "tests" / "bench" / "cases.yaml"

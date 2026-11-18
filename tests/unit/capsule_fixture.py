@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from veripen_core.evidence import (
+from hos_ares_core.evidence import (
     AssertionBlock,
     CapsuleDoc,
     Chain,
@@ -24,8 +24,8 @@ from veripen_core.evidence import (
     chain_capsules,
     seal_capsule_doc,
 )
-from veripen_core.models import Verdict
-from veripen_core.routes import (
+from hos_ares_core.models import Verdict
+from hos_ares_core.routes import (
     AssetRef,
     Resolver,
     RouteHints,
@@ -34,7 +34,7 @@ from veripen_core.routes import (
     StaticSource,
     build_binding,
 )
-from veripen_core.routes.types import RouteCandidate, RouteSet
+from hos_ares_core.routes.types import RouteCandidate, RouteSet
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATES: dict[str, str] = json.loads(

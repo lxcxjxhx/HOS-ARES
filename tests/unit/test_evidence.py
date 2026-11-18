@@ -14,7 +14,7 @@ import json
 import pytest
 
 import capsule_fixture as F
-from veripen_core.evidence import (
+from hos_ares_core.evidence import (
     AssertionBlock,
     CapsuleIncomplete,
     CapsuleTampered,
@@ -34,8 +34,8 @@ from veripen_core.evidence import (
     verify_chain,
     verify_self_sha,
 )
-from veripen_core.evidence import main as evidence_main
-from veripen_core.models import ReplayStatus
+from hos_ares_core.evidence import main as evidence_main
+from hos_ares_core.models import ReplayStatus
 
 
 # ── 1 内容寻址 ──────────────────────────────────────────────────────
@@ -309,7 +309,7 @@ def test_cli_reports_tampered(tmp_path, capsys) -> None:
 # ── B275：把目录当 capsule 传进来，要说清是目录 ──────────────────
 def test_directory_capsule_path_says_it_is_a_directory(tmp_path) -> None:  # noqa: ANN001
     """Windows 上对目录 read_bytes 抛 PermissionError，旧文案会让客户去查权限。"""
-    from veripen_core.evidence import CapsuleIncomplete, load_capsule
+    from hos_ares_core.evidence import CapsuleIncomplete, load_capsule
 
     with pytest.raises(CapsuleIncomplete) as ei:
         load_capsule(tmp_path)
@@ -325,7 +325,7 @@ def test_response_headers_are_kept_but_credentials_are_redacted() -> None:
     以前 `ResponseBlock` 根本没有 headers 字段，于是 csp/frame/nosniff/hsts 四个
     oracle 的每份证据都只能落 `predicate_not_recomputable:has_protection`。
     """
-    from veripen_core.evidence import build_response
+    from hos_ares_core.evidence import build_response
 
     block = build_response(
         status=200, body="{}",
@@ -338,7 +338,7 @@ def test_response_headers_are_kept_but_credentials_are_redacted() -> None:
 
 def test_has_protection_is_recomputable_from_stored_headers() -> None:
     """`expected.has_protection` 由证据里的响应头重算，两个方向都要对。"""
-    from veripen_core.evidence import TraceResult, _live_fingerprint
+    from hos_ares_core.evidence import TraceResult, _live_fingerprint
 
     from types import SimpleNamespace
 

@@ -1,6 +1,6 @@
 # docs/research/re · 逆向/移植证据根
 
-> 本目录是 `plan-veripen/28-逆向对标与借鉴规格.md` 的**唯一整目录豁免项**（`check-noroute` 的 allowlist）。
+> 本目录是 `plan-hos-legacy/28-逆向对标与借鉴规格.md` 的**唯一整目录豁免项**（`check-noroute` 的 allowlist）。
 > 只在 `evidence/` 与 `notes.md` 的引用块里出现 URL/路径常量；`extracts/` 不豁免。
 
 ## 目标台账

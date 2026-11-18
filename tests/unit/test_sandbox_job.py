@@ -12,8 +12,8 @@ from pathlib import Path
 
 import pytest
 
-from veripen_core.sandbox import win_job
-from veripen_core.sandbox.runner import JobObjectExecutor, select_executor
+from hos_ares_core.sandbox import win_job
+from hos_ares_core.sandbox.runner import JobObjectExecutor, select_executor
 
 SL = chr(0x2F)
 pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="Job Object 仅 Windows")

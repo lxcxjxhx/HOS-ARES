@@ -1,4 +1,4 @@
-VeriPen 离线包 —— 三步安装
+HOS-ARES 离线包 —— 三步安装
 ============================
 
 〇、哪个平台用这个包（B224）
@@ -16,7 +16,7 @@ VeriPen 离线包 —— 三步安装
 二、怎么装
     1) 拷贝整个目录到目标机
     2) sh install.sh
-    3) python -m veripen_cli.cmd_doctor       # 25 项自检，红了先别跑
+    3) python -m hos_ares_cli.cmd_doctor       # 25 项自检，红了先别跑
 
     校验包完整性（推荐先单独跑一遍）：
        sha256sum -c SHA256SUMS

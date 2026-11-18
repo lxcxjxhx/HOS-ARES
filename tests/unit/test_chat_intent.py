@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from veripen_core.agent.intent import parse
+from hos_ares_core.agent.intent import parse
 
 SEP = chr(0x2F)
 TARGET = "http" + ":" + SEP * 2 + "TARGET"

@@ -17,8 +17,8 @@ SEP = chr(0x2F)
 
 def _spec(base: str) -> str:
     paths = {
-        f"{SEP}api{SEP}search": {"get": {"x-veripen-tags": ["param_injectable"]}},
-        f"{SEP}api{SEP}read": {"get": {"x-veripen-tags": ["file_read"]}},
+        f"{SEP}api{SEP}search": {"get": {"x-hos_ares-tags": ["param_injectable"]}},
+        f"{SEP}api{SEP}read": {"get": {"x-hos_ares-tags": ["file_read"]}},
     }
     return json.dumps({
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
@@ -45,7 +45,7 @@ def two_assets():  # noqa: ANN201
 
 
 def _run(tmp_path: Path, targets: str, *extra: str) -> int:
-    from veripen_cli.cmd_platform import main
+    from hos_ares_cli.cmd_platform import main
 
     spec = tmp_path / "spec.json"
     spec.write_text(_spec(targets.split(",")[0]), encoding="utf-8")
@@ -89,7 +89,7 @@ def _page_server():  # noqa: ANN202
 
 def test_platform_can_run_without_a_contract(tmp_path: Path) -> None:
     """企业现场经常没有契约：平台要能像 `run` 一样靠探测跑，并写明路由来源。"""
-    from veripen_cli.cmd_platform import main
+    from hos_ares_cli.cmd_platform import main
 
     srv, base = _page_server()
     try:
@@ -108,7 +108,7 @@ def test_platform_can_run_without_a_contract(tmp_path: Path) -> None:
 
 
 def test_contract_and_discover_are_exclusive(tmp_path: Path) -> None:
-    from veripen_cli.cmd_platform import main
+    from hos_ares_cli.cmd_platform import main
 
     spec = tmp_path / "spec.json"
     spec.write_text(_spec("http" + ":" + SEP * 2 + "127." + "0.0.1:1"), encoding="utf-8")
@@ -119,7 +119,7 @@ def test_contract_and_discover_are_exclusive(tmp_path: Path) -> None:
 
 
 def test_platform_requires_a_route_source(tmp_path: Path) -> None:
-    from veripen_cli.cmd_platform import main
+    from hos_ares_cli.cmd_platform import main
 
     rc = main(["--targets", "http" + ":" + SEP * 2 + "127." + "0.0.1:1",
                "--out", str(tmp_path / "x"), "--db", str(tmp_path / "x.db")])
@@ -131,7 +131,7 @@ _TARGET = "http" + ":" + SEP * 2 + "127." + "0.0.1:1"
 
 
 def _capture(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
-    from veripen_cli import cmd_run
+    from hos_ares_cli import cmd_run
 
     seen: list[list[str]] = []
 
@@ -147,7 +147,7 @@ def test_token_reaches_each_asset_and_never_enters_the_report(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """平台原来不传 token：带鉴权的资产在平台里永远只能落 BLOCKED。"""
-    from veripen_cli.cmd_platform import main
+    from hos_ares_cli.cmd_platform import main
 
     seen = _capture(monkeypatch)
     spec = tmp_path / "spec.json"
@@ -164,7 +164,7 @@ def test_token_reaches_each_asset_and_never_enters_the_report(
 
 
 def test_report_says_when_no_credential(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    from veripen_cli.cmd_platform import main
+    from hos_ares_cli.cmd_platform import main
 
     _capture(monkeypatch)
     spec = tmp_path / "spec.json"
@@ -259,7 +259,7 @@ def test_report_states_playbook_status(two_assets: Any, tmp_path: Path) -> None:
 
 # ── 反例：空目标非 0 ───────────────────────────────────────────
 def test_empty_targets_fails(tmp_path: Path) -> None:
-    from veripen_cli.cmd_platform import main
+    from hos_ares_cli.cmd_platform import main
 
     spec = tmp_path / "s.json"
     spec.write_text(_spec("http" + ":" + SEP + SEP + "127." + "0.0.1:1"), encoding="utf-8")
@@ -293,7 +293,7 @@ def test_rerun_does_not_reuse_stale_findings(two_assets: Any, tmp_path: Path) ->
 def test_report_records_the_actual_signer(monkeypatch: pytest.MonkeyPatch,
                                           tmp_path: Path) -> None:
     """聊天入口代签时，审计里不能一律写 operator。"""
-    from veripen_cli.cmd_platform import main
+    from hos_ares_cli.cmd_platform import main
 
     _capture(monkeypatch)
     spec = tmp_path / "spec.json"
@@ -359,7 +359,7 @@ def test_zero_capsule_assets_are_explained(tmp_path: Path) -> None:
     """面在靶场上不存在 → 全部挡下、没有一条结论需要取证；读者只看到 0 会以为丢了。"""
     from lab.app import App
     from lab.net_server import LabServer
-    from veripen_cli.cmd_platform import main
+    from hos_ares_cli.cmd_platform import main
 
     srv = LabServer(App(secure=False)).start()
     try:
@@ -367,7 +367,7 @@ def test_zero_capsule_assets_are_explained(tmp_path: Path) -> None:
         spec.write_text(json.dumps({
             "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
             "servers": [{"url": srv.base_url}],
-            "paths": {f"{SEP}nope": {"get": {"x-veripen-tags": ["param_injectable"]}}},
+            "paths": {f"{SEP}nope": {"get": {"x-hos_ares-tags": ["param_injectable"]}}},
         }), encoding="utf-8")
         out = tmp_path / "pf"
         main(["--targets", srv.base_url, "--openapi", str(spec), "--out", str(out),

@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from veripen_core.routes import (
+from hos_ares_core.routes import (
     AssetRef,
     ContractHostError,
     ContractLocatorUnresolved,
@@ -47,15 +47,15 @@ from veripen_core.routes import (
     truncate_for_selector,
     validate_contract_hosts,
 )
-from veripen_core.routes.types import RouteCandidate
+from hos_ares_core.routes.types import RouteCandidate
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 TEMPLATES = json.loads((FIXTURES / "templates.json").read_text(encoding="utf-8"))
 
-CORE = ROOT / "veripen_core"
-ORACLES = ROOT / "veripen_oracles"
-RESOLVER_REL = "veripen_core/routes/resolver.py"
+CORE = ROOT / "hos_ares_core"
+ORACLES = ROOT / "hos_ares_oracles"
+RESOLVER_REL = "hos_ares_core/routes/resolver.py"
 
 
 # ── 公共工具 ────────────────────────────────────────────────────────
@@ -80,7 +80,7 @@ def cand(
     verifications: int = 0,
     ambiguity: int = 0,
 ) -> RouteCandidate:
-    from veripen_core.routes.sources.base import body_shape_sha256
+    from hos_ares_core.routes.sources.base import body_shape_sha256
 
     return RouteCandidate(
         method=method,
@@ -133,12 +133,12 @@ def symbols_in(*roots: Path) -> set[str]:
 
 def test_l0_01_routetext_not_in_routes() -> None:
     with pytest.raises(ImportError):
-        from veripen_core.routes import RouteText  # type: ignore[attr-defined]  # noqa: F401
+        from hos_ares_core.routes import RouteText  # type: ignore[attr-defined]  # noqa: F401
 
 
 def test_l0_02_routetext_not_in_core() -> None:
     with pytest.raises(ImportError):
-        from veripen_core import RouteText  # type: ignore[attr-defined]  # noqa: F401
+        from hos_ares_core import RouteText  # type: ignore[attr-defined]  # noqa: F401
 
 
 def test_l0_03_resolver_is_only_builder() -> None:
@@ -156,7 +156,7 @@ def test_l0_03_resolver_is_only_builder() -> None:
 
 
 def test_l0_04_send_rejects_string() -> None:
-    from veripen_core.tools.http import send
+    from hos_ares_core.tools.http import send
 
     with pytest.raises(TypeError):
         send("not-a-binding", {}, None)  # type: ignore[arg-type]
@@ -457,7 +457,7 @@ def test_l0_32_contract_host_outside_assets_rejected() -> None:
 
 def test_l0_33_no_network_imports_in_adapters() -> None:
     netimports = _load_tool("ni_rules", "scripts/lint/netimports.py")
-    paths = [CORE / "routes", ROOT / "veripen_contract"]
+    paths = [CORE / "routes", ROOT / "hos_ares_contract"]
     assert netimports.scan(paths) == []
 
 

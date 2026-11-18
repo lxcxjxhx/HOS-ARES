@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import pytest
 
-from veripen_core.blackboard import Blackboard
-from veripen_core.memory import DEFAULT_TTL_S, Memory, MemoryError
-from veripen_core.store import Store
+from hos_ares_core.blackboard import Blackboard
+from hos_ares_core.memory import DEFAULT_TTL_S, Memory, MemoryError
+from hos_ares_core.store import Store
 
 
 @pytest.fixture()
@@ -77,7 +77,7 @@ def test_memory_api_exposes_no_verdict(store: Store) -> None:
     """记忆层不许有返回 verdict 的路径——连字段都不该出现。"""
     import inspect
 
-    from veripen_core import memory as module
+    from hos_ares_core import memory as module
 
     source = inspect.getsource(module)
     assert "VERIFIED" not in source and "judge(" not in source

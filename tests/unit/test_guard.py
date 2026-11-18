@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from veripen_core.guard import (
+from hos_ares_core.guard import (
     ApprovalGate,
     ApprovalRequired,
     ApprovalState,
@@ -25,10 +25,10 @@ from veripen_core.guard import (
     check_plan,
     check_post_connect,
 )
-from veripen_core.routes.types import RouteStale, RouteTooWeak, UnboundRoute
-from veripen_core.guard.scope import ScopeGuard
-from veripen_core.models import ImpactClass
-from veripen_core.routes import (
+from hos_ares_core.routes.types import RouteStale, RouteTooWeak, UnboundRoute
+from hos_ares_core.guard.scope import ScopeGuard
+from hos_ares_core.models import ImpactClass
+from hos_ares_core.routes import (
     AssetRef,
     Resolver,
     RouteHints,
@@ -36,9 +36,9 @@ from veripen_core.routes import (
     RouteQuery,
     StaticSource,
 )
-from veripen_core.routes.types import RouteCandidate
-from veripen_core.tools import http
-from veripen_core.tools.transport import TransportError
+from hos_ares_core.routes.types import RouteCandidate
+from hos_ares_core.tools import http
+from hos_ares_core.tools.transport import TransportError
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATES = __import__("json").loads(
@@ -309,7 +309,7 @@ def installed():
         asset_ceiling=ImpactClass.READ_ONLY,
         in_window=True,
     )
-    ctx = __import__("veripen_core.guard.context", fromlist=["GuardContext"]).GuardContext(
+    ctx = __import__("hos_ares_core.guard.context", fromlist=["GuardContext"]).GuardContext(
         scope=guard,
         routeset=rs,
         plan=plan,

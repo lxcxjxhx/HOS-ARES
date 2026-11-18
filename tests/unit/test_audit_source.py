@@ -9,9 +9,9 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from veripen_core.audit_source import AUDIT_KEYS, load_audit, to_row
-from veripen_core.blackboard import EventLog
-from veripen_core.store import Store
+from hos_ares_core.audit_source import AUDIT_KEYS, load_audit, to_row
+from hos_ares_core.blackboard import EventLog
+from hos_ares_core.store import Store
 from web.console import ConsoleState, build_app
 
 #: 路径字面量一律用 chr 拼（项目既有做法，`noroute` 禁止测试里写裸地址）
@@ -91,7 +91,7 @@ def test_malformed_detail_does_not_crash() -> None:
 
 # ── D：审批四态可读 ────────────────────────────────────────────
 def test_approval_events_carry_who_and_state() -> None:
-    from veripen_core.guard.approval import ApprovalGate, ApprovalRequired
+    from hos_ares_core.guard.approval import ApprovalGate, ApprovalRequired
 
     store = _store()
     gate = ApprovalGate.from_spec(

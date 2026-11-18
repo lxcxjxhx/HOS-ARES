@@ -20,14 +20,14 @@ SEP = chr(0x2F)
 
 
 def _row(lab: Any, tmp_path: Path) -> dict[str, Any]:
-    from veripen_cli.cmd_run import main as run_main
+    from hos_ares_cli.cmd_run import main as run_main
 
     tmp_path.mkdir(parents=True, exist_ok=True)
     spec = tmp_path / "s.json"
     spec.write_text(json.dumps({
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": lab.base_url}],
-        "paths": {f"{SEP}portal{SEP}token": {"get": {"x-veripen-tags": ["token_issue"]}}},
+        "paths": {f"{SEP}portal{SEP}token": {"get": {"x-hos_ares-tags": ["token_issue"]}}},
     }), encoding="utf-8")
     out = tmp_path / "run"
     run_main(["--target", lab.base_url, "--openapi", str(spec), "--out", str(out)])
@@ -75,7 +75,7 @@ def test_checked_format_is_refuted(hardened, tmp_path: Path) -> None:  # noqa: A
 
 
 def test_one_accepted_shape_is_enough_to_convict() -> None:
-    from veripen_oracles.auth.checks import judge_code_format
+    from hos_ares_oracles.auth.checks import judge_code_format
 
     result = judge_code_format(malformed_accepted=("too_short",), probe_count=5)
     assert result.verdict == "VERIFIED", result
@@ -89,8 +89,8 @@ def test_evidence_reports_shapes_not_values() -> None:
     """畸形码的值不进证据：它可能被当成凭据被复用。"""
     from types import SimpleNamespace
 
-    from veripen_oracles.auth.code_format import CodeFormat
-    from veripen_oracles.common.harness import Pair
+    from hos_ares_oracles.auth.code_format import CodeFormat
+    from hos_ares_oracles.common.harness import Pair
 
     def _pair(role: str, status: int, body: bytes, name: str = "") -> Pair:
         trace = SimpleNamespace(status=status, error=None, body=body, headers={},

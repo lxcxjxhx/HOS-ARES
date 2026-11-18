@@ -38,7 +38,7 @@ DRIVER = Path(__file__).with_name("_console_browser_driver.py")
 
 
 def _available() -> bool:
-    from veripen_core.render import BrowserRenderer
+    from hos_ares_core.render import BrowserRenderer
 
     return BrowserRenderer().available()
 
@@ -50,11 +50,11 @@ def _record(tmp_path: Path) -> Path:
     """最小 run 产物：一条已确认的发现（资产名刻意取得好认）。"""
     import capsule_fixture as F
 
-    from veripen_core.evidence import seal_capsule_doc
+    from hos_ares_core.evidence import seal_capsule_doc
 
     cap = seal_capsule_doc(F.capsule())
     doc: dict[str, Any] = {
-        "schema": "veripen.report/v1",
+        "schema": "hos-ares.report/v1",
         "engagement": "b181-console",
         "root_sha256": cap.chain.self_sha256,
         "counts": {"total": 1, "by_outcome": {"reported": 1}},
@@ -104,7 +104,7 @@ def _asset_dir(root: Path, name: str, oracle: str, *, outcome: str = "reported")
     sub = root / name
     sub.mkdir(parents=True, exist_ok=True)
     doc = {
-        "schema": "veripen.report/v1",
+        "schema": "hos-ares.report/v1",
         "engagement": name,
         "root_sha256": "0" * 64,
         "counts": {"total": 1, "by_outcome": {"reported": 1}},

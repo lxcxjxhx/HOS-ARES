@@ -13,14 +13,14 @@ from pathlib import Path
 
 import pytest
 
-from veripen_core.profile import (
+from hos_ares_core.profile import (
     ProfileError,
     diff_profiles,
     load_profile,
     validate_profile,
 )
-from veripen_oracles import ALL_ORACLES
-from veripen_contract import TAG_VOCAB
+from hos_ares_oracles import ALL_ORACLES
+from hos_ares_contract import TAG_VOCAB
 
 ROOT = Path(__file__).resolve().parents[2]
 A = ROOT / "profiles" / "demo-a" / "profile.yaml"
@@ -137,7 +137,7 @@ def test_profile_only_differs_in_yaml() -> None:
 
 def test_no_profile_specific_code_paths() -> None:
     """源码里不许出现 demo-a / demo-b 的字符串分支（那才是"换档就要改代码"）。"""
-    for pkg in ("veripen_core", "veripen_oracles"):
+    for pkg in ("hos_ares_core", "hos_ares_oracles"):
         for path in (ROOT / pkg).rglob("*.py"):
             text = path.read_text(encoding="utf-8")
             assert "demo-a" not in text and "demo-b" not in text, f"{path} 里出现客户档硬编码"
@@ -146,7 +146,7 @@ def test_no_profile_specific_code_paths() -> None:
 def test_needs_approval_oracles_are_default_off_or_write() -> None:
     """需要审批的档位必须要么是写操作、要么是默认关闭的高噪声类——
     否则审批门等于摆设（22 §4：影响必须可展示且可逆性明确）。"""
-    from veripen_oracles import policy
+    from hos_ares_oracles import policy
 
     by_id = {c.meta.id: c for c in ALL_ORACLES}
     for path in (A, B):
@@ -158,7 +158,7 @@ def test_needs_approval_oracles_are_default_off_or_write() -> None:
 
 def test_enabled_oracles_never_bypass_default_off() -> None:
     """profile 的 enabled 不许把默认关闭的类直接放行——那是绕过审批门。"""
-    from veripen_oracles import policy
+    from hos_ares_oracles import policy
 
     for path in (A, B):
         profile = load_profile(path)
@@ -219,7 +219,7 @@ def test_tooling_owned_keys_are_not_called_dead() -> None:
 
     分类错了会给出**错误的告警**：客户会去删掉一个其实在起作用的段（B260）。
     """
-    from veripen_core.profile import NOT_LOADED_KEYS, TOOLING_KEYS, UNWIRED_KEYS
+    from hos_ares_core.profile import NOT_LOADED_KEYS, TOOLING_KEYS, UNWIRED_KEYS
 
     assert "auth" in NOT_LOADED_KEYS and "auth" in TOOLING_KEYS
     assert "auth" not in UNWIRED_KEYS, "有工具在读的键不许进「写了不生效」那批"

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from veripen_core.routes import (
+from hos_ares_core.routes import (
     AssetRef,
     Resolver,
     RouteHints,
@@ -19,7 +19,7 @@ from veripen_core.routes import (
     build_binding,
     template_sha256,
 )
-from veripen_core.routes.types import RouteCandidate
+from hos_ares_core.routes.types import RouteCandidate
 
 from .app import assets_json
 

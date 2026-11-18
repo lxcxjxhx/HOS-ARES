@@ -16,7 +16,7 @@ import re
 
 import pytest
 
-from veripen.report.render import (
+from hos_ares.report.render import (
     FindingView,
     Outcome,
     ReportInput,
@@ -24,11 +24,11 @@ from veripen.report.render import (
     render_markdown,
     render_sarif,
 )
-from veripen_core.deadletter import DeadLetterError, render_section as dead_section
-from veripen_core.deadletter import to_dead_letter
-from veripen_core.leads import LeadLedger, LeadState, render_leads_section
-from veripen_core.models import TaskState
-from veripen_core.store import Store
+from hos_ares_core.deadletter import DeadLetterError, render_section as dead_section
+from hos_ares_core.deadletter import to_dead_letter
+from hos_ares_core.leads import LeadLedger, LeadState, render_leads_section
+from hos_ares_core.models import TaskState
+from hos_ares_core.store import Store
 
 REF = "route://observed/" + "a" * 16
 
@@ -144,7 +144,7 @@ def test_dead_and_leads_coexist_in_order(ledger: LeadLedger) -> None:
 # ══════════════════════════════════════════════════════════════════
 def test_sections_do_not_break_zero_address_rule(ledger: LeadLedger) -> None:
     """线索与死信章节都来自库，库里不该有地址；渲染后仍必须零地址。"""
-    from veripen.report.lint import lint_text
+    from hos_ares.report.lint import lint_text
 
     md = render_markdown(_report(
         leads_section=render_leads_section(ledger, "t"),
@@ -203,7 +203,7 @@ def test_capability_limits_are_rendered_with_reasons() -> None:
     以前这些只活在矩阵脚本与账本里：客户拿到报告，看到的是"覆盖 14/14"，
     读不到"哪些东西我们测不了、为什么测不了"。
     """
-    from veripen.report.render import ReportInput, render_markdown
+    from hos_ares.report.render import ReportInput, render_markdown
 
     report = ReportInput(
         engagement="demo", profile_hash="", image_digest="", root_sha256="",
@@ -228,8 +228,8 @@ def test_limits_block_is_shared_by_run_hunt_and_platform() -> None:
 
     同一个产品在三条路径上对"能测什么"的表述不一致，是最伤交付信任的一类问题。
     """
-    from veripen.report.hunt import render_hunt_markdown
-    from veripen.report.limits import capability_limits, limits_block
+    from hos_ares.report.hunt import render_hunt_markdown
+    from hos_ares.report.limits import capability_limits, limits_block
 
     block = "\n".join(limits_block(capability_limits()))
     assert "### 能力边界" in block

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from veripen.report.render import (
+from hos_ares.report.render import (
     FindingView,
     Outcome,
     ReportInput,
@@ -187,7 +187,7 @@ def test_sarif_carries_capability_limits() -> None:
     缺了这段，「results 为空」会被 code scanning 读成"很干净"，
     而真相可能是"这一轮根本测不了"。
     """
-    from veripen.report.render import ReportInput, render_sarif
+    from hos_ares.report.render import ReportInput, render_sarif
 
     report = ReportInput(
         engagement="demo", profile_hash="", image_digest="", root_sha256="",

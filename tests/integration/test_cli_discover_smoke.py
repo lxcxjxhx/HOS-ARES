@@ -1,7 +1,7 @@
 """B110 · CLI 冒烟：`discover` 与 `run --discover` 必须能真跑起来。
 
 这一批的由来：B107 给这两个入口加了 `well_known_candidates(...)` 调用，却漏了
-`cmd_discover` 的 import——`veripen discover` 运行即 NameError，而当时的 E2E 全走
+`cmd_discover` 的 import——`hos_ares discover` 运行即 NameError，而当时的 E2E 全走
 `measure_discovery`，正好绕过命令行。所以这里不测行为细节，只测**入口不炸**。
 """
 
@@ -46,7 +46,7 @@ def site():  # noqa: ANN201
 
 
 def test_discover_cli_runs(tmp_path: pathlib.Path, site: str) -> None:
-    from veripen_cli.cmd_discover import main
+    from hos_ares_cli.cmd_discover import main
 
     rc = main(["--target", site, "--max-rounds", "1", "--max-pages", "3",
                "--rate", "10", "--out", str(tmp_path / "d.json")])
@@ -55,7 +55,7 @@ def test_discover_cli_runs(tmp_path: pathlib.Path, site: str) -> None:
 
 
 def test_run_discover_cli_runs(tmp_path: pathlib.Path, site: str) -> None:
-    from veripen_cli.cmd_run import main
+    from hos_ares_cli.cmd_run import main
 
     # 没有可判定面时 run 返回 1（不静默成功），但**不许炸**
     rc = main(["--target", site, "--discover", "--discover-rounds", "1",
@@ -69,9 +69,9 @@ def test_no_module_uses_names_it_never_imported() -> None:
     这条不是通用静态检查（那要 mypy），只针对"同一批改了调用却没改 import"这个坑。
     """
     targets = [
-        "veripen_cli/cmd_discover.py",
-        "veripen_cli/cmd_run.py",
-        "veripen_cli/cmd_hunt.py",
+        "hos_ares_cli/cmd_discover.py",
+        "hos_ares_cli/cmd_run.py",
+        "hos_ares_cli/cmd_hunt.py",
     ]
     for rel in targets:
         path = pathlib.Path(rel)
@@ -106,9 +106,9 @@ _DISCOVERY_FLAGS = ("--discover-rounds", "--discover-pages", "--render", "--subm
 @pytest.mark.parametrize(
     "module, argv",
     [
-        ("veripen_cli.cmd_discover", ["discover"]),
-        ("veripen_cli.cmd_run", ["run"]),
-        ("veripen_cli.cmd_hunt", ["hunt"]),
+        ("hos_ares_cli.cmd_discover", ["discover"]),
+        ("hos_ares_cli.cmd_run", ["run"]),
+        ("hos_ares_cli.cmd_hunt", ["hunt"]),
     ],
 )
 def test_entrypoints_expose_the_same_discovery_flags(
@@ -127,7 +127,7 @@ def test_entrypoints_expose_the_same_discovery_flags(
 
 def test_discover_keeps_legacy_alias(capsys: pytest.CaptureFixture[str]) -> None:
     """旧脚本用 --max-rounds：别名要留着，别让升级断掉。"""
-    from veripen_cli.cmd_discover import main
+    from hos_ares_cli.cmd_discover import main
 
     with pytest.raises(SystemExit):
         main(["--help"])
@@ -139,7 +139,7 @@ def test_no_oracle_still_writes_ledger(tmp_path: pathlib.Path, site: str) -> Non
     """一个面都判不了时，最需要写清"为什么"——不能只打一行就返回。"""
     import json
 
-    from veripen_cli.cmd_run import main
+    from hos_ares_cli.cmd_run import main
 
     out = tmp_path / "r"
     rc = main(["--target", site, "--discover", "--discover-rounds", "1",

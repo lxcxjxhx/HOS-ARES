@@ -207,7 +207,7 @@ def test_static_page_is_served() -> None:
     client = _client()
     res = client.get(UI + "app")
     assert res.status_code == 200
-    assert "VeriPen" in res.text
+    assert "HOS-ARES" in res.text
     assert "只读" in res.text
 
 
@@ -433,7 +433,7 @@ def test_oracle_transport_records_violations() -> None:
     """`live.py` 以前直接调模块函数，绕过了 `_record`——事件丢了。"""
     import inspect
 
-    from veripen_oracles import live
+    from hos_ares_oracles import live
 
     src = inspect.getsource(live)
     assert "ctx.scope.post_connect(" in src, src[:200]

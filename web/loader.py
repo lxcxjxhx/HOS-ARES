@@ -14,14 +14,14 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from veripen_oracles import ALL_ORACLES
-from veripen_oracles.policy import severity_for
+from hos_ares_oracles import ALL_ORACLES
+from hos_ares_oracles.policy import severity_for
 
 from web.console import Approval, ConsoleState, Row
 
 #: 严重度：**从 policy 的规则表算**，不在这里另抄一份。
 #:
-#: 早先这里有一张手写表，和 `veripen_oracles/policy.py` 各写一遍——
+#: 早先这里有一张手写表，和 `hos_ares_oracles/policy.py` 各写一遍——
 #: 两份表迟早给出两个数（open_redirect 一边 low 一边 medium）。
 SEVERITY: Mapping[str, str] = {
     str(c.meta.id): severity_for(str(c.meta.id), str(c.meta.severity_rule))[0]
@@ -359,7 +359,7 @@ def _merge_ledgers(items: Sequence[tuple[str, Mapping[str, Any]]]) -> dict[str, 
 
 
 def load_platform(path: Path) -> ConsoleState:
-    """把一次 `veripen platform` 的多个资产合成一个控制台状态（B167）。
+    """把一次 `hos-ares platform` 的多个资产合成一个控制台状态（B167）。
 
     控制台原来只能打开单资产目录：把 `out/platform` 指给它，页面是空的——
     而平台恰恰是"多资产"那个出口。这里逐资产复用 `load_file`

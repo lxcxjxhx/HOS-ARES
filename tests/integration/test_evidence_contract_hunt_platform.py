@@ -39,22 +39,22 @@ def _spec(tmp: Path, base: str) -> str:
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": base}],
         "paths": {
-            S + "api" + S + "search": {"get": {"x-veripen-tags": ["param_injectable"]}},
-            S + "api" + S + "read": {"get": {"x-veripen-tags": ["file_read"]}},
+            S + "api" + S + "search": {"get": {"x-hos_ares-tags": ["param_injectable"]}},
+            S + "api" + S + "read": {"get": {"x-hos_ares-tags": ["file_read"]}},
         },
     }), encoding="utf-8")
     return str(spec)
 
 
 def _offline(cap_path: Path) -> str:
-    from veripen_core.evidence import ReplayEnv, ReplayMode, load_capsule, replay
+    from hos_ares_core.evidence import ReplayEnv, ReplayMode, load_capsule, replay
 
     return replay(load_capsule(cap_path), ReplayEnv(now=0, mode=ReplayMode.OFFLINE)).state
 
 
 # ── hunt：证据文件在、链完整、离线重判不翻案 ────────────────────
 def test_hunt_evidence_is_replayable(tmp_path: Path) -> None:
-    from veripen_cli.cmd_hunt import main
+    from hos_ares_cli.cmd_hunt import main
 
     srv = _lab()
     out = tmp_path / "hunt"
@@ -76,7 +76,7 @@ def test_hunt_evidence_is_replayable(tmp_path: Path) -> None:
         states.append(_offline(path))
     assert "FAILED" not in states, f"离线重判翻案了：{states}"
 
-    from veripen_core.evidence import load_capsule, order_chain, verify_chain
+    from hos_ares_core.evidence import load_capsule, order_chain, verify_chain
 
     caps = [load_capsule(out / "capsules" / (str(e["capsule_id"]).split(":")[-1] + ".json"))
             for e in evidence]
@@ -96,7 +96,7 @@ def test_hunt_evidence_is_replayable(tmp_path: Path) -> None:
 
 # ── platform：每个资产的证据自洽，报告里的份数不多不少 ──────────
 def test_platform_evidence_is_self_contained(tmp_path: Path) -> None:
-    from veripen_cli.cmd_platform import main
+    from hos_ares_cli.cmd_platform import main
 
     a, b = _lab(), _lab()
     try:
@@ -110,7 +110,7 @@ def test_platform_evidence_is_self_contained(tmp_path: Path) -> None:
     assert rc == 0
 
     report = (out / "platform-report.md").read_text(encoding="utf-8")
-    from veripen_core.evidence import load_capsule
+    from hos_ares_core.evidence import load_capsule
 
     for i in (1, 2):
         sub = out / f"asset-{i}"

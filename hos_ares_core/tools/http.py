@@ -1,0 +1,108 @@
+"""出网工具（27 N1）：``send`` 只接受 ``RouteBinding``，且必须已安装 GuardContext。
+
+B3 起 ``send`` 的前两步固定是 ② 绑定门与 ③ preflight（05 §1.0 硬约束 1）；
+真实传输仍在 B10 接线，但**闸门已经挡在传输之前**。
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Mapping
+
+from ..models import HttpTrace
+from .transport import TransportError  # 便于调用方按类型捕获
+from ..routes.types import RouteBinding
+
+if TYPE_CHECKING:  # 只用于类型，不在运行时引入 guard（避免循环 import）
+    from ..guard.context import GuardContext
+
+
+class TransportUnavailable(RuntimeError):
+    """传输实现尚未接线（B10）。"""
+
+
+_GUARD: "GuardContext | None" = None
+
+
+def install_guard(ctx: "GuardContext") -> None:
+    """安装本次请求的闸门上下文（worker 每任务装一次）。"""
+    global _GUARD
+    _GUARD = ctx
+
+
+def uninstall_guard() -> None:
+    global _GUARD
+    _GUARD = None
+
+
+def installed_guard() -> "GuardContext | None":
+    return _GUARD
+
+
+def send(
+    binding: RouteBinding,
+    params: Mapping[str, str],
+    auth: str | None = None,
+) -> HttpTrace:
+    """唯一的**发请求**签名。传字符串即 ``TypeError``；没有闸门即拒绝；闸门不过即拒绝。
+
+    闸门顺序**不可调换**：② binding → ③ preflight → ④ post_connect（在传输层）。
+    ④ 必须在**发出请求字节之前**执行——发完再查等于"已经送到不该去的地方了"。
+
+    ``send_body`` 共用同一条链，只是把响应体一起交出来（发现面要读 HTML）。
+    """
+    return _dispatch(binding, params, auth)[0]
+
+
+def send_body(
+    binding: RouteBinding,
+    params: Mapping[str, str],
+    auth: str | None = None,
+) -> tuple[HttpTrace, bytes]:
+    """同 ``send`` 的全部门，多返回响应体。
+
+    为什么必须共用这条链：无契约发现要读 HTML，而**读 HTML 也是一次出网**。
+    如果为了拿 body 另开一条"只读不审"的近路，审计就会在发现阶段出现盲区——
+    恰恰是最容易被绕过的一段。
+    """
+    return _dispatch(binding, params, auth)
+
+
+def _dispatch(
+    binding: RouteBinding,
+    params: Mapping[str, str],
+    auth: str | None,
+) -> tuple[HttpTrace, bytes]:
+    if not isinstance(binding, RouteBinding):
+        raise TypeError(
+            f"send() 只接受 RouteBinding，收到 {type(binding).__name__}；"
+            "地址必须由 route_discovery 解析（27 N1）"
+        )
+
+    ctx = _GUARD
+    if ctx is None:
+        from ..guard.context import GuardNotInstalled
+
+        raise GuardNotInstalled()
+
+    ctx.binding_gate(binding)  # ② 绑定门（来源越界即抛）
+    ctx.preflight()            # ③ 预算 / 令牌 / 审批
+
+    # ── 传输（B10/B12 接线）：渲染、建连、④ post_connect、发请求 ──
+    from .transport import perform, render, trace
+
+    r = render(binding, params)
+
+    def _post_connect(peer_ip: str) -> None:
+        """④ 实际对端必须 ∈ 解析集合且 ∉ deny（05 §1）。
+
+        走 `scope.post_connect` 而不是模块函数（B332）：只有走方法才会 `_record`，
+        否则越界事件只活在异常里，控制台的"边界页"永远读不到。
+        """
+        ctx.scope.post_connect(peer_ip, explicit_ips=(r.host,))
+
+    headers: dict[str, str] = {"User-Agent": "hos_ares/1"}
+    if auth:
+        headers["Authorization"] = auth
+
+    status, resp_headers, payload = perform(r, headers=headers, post_connect=_post_connect)
+    return trace(binding.ref, status, resp_headers, payload), payload

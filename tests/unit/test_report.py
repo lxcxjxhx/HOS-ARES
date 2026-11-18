@@ -18,7 +18,7 @@ SLASH = chr(0x2F)
 PATH_FRAGMENT = SLASH + "api" + SLASH          # 用于断言"报告里不该有路径"，本身不构成地址
 SCHEME_SAMPLE = "ht" + "tp" + ":" + SLASH * 2  # 用于断言"http 会被抓到"，拆开写避免被 noroute 判为地址
 
-from veripen.report import (
+from hos_ares.report import (
     FindingView,
     LintHit,
     Outcome,
@@ -78,7 +78,7 @@ def _report(**kw) -> ReportInput:  # noqa: ANN003
                route_ref="route://contract/1111222233334444", capsule_id="c" * 64,
                self_sha256="c" * 64, situation="无效签名被拒，但 alg=none 被接受"),
         ),
-        rules={"veripen/idor_cross_account/CWE-639": {"short": "对象级越权",
+        rules={"hos_ares/idor_cross_account/CWE-639": {"short": "对象级越权",
                                                       "full": "对象级授权缺失", "owasp": ["WSTG-ATHZ-02"]}},
         coverage={"zero_hit_tags": ["graphql_endpoint"], "by_source": {"machine_observed": 2},
                   "route_causes": {"no_selector_match": "该系统不提供此测试面"}},
@@ -110,12 +110,12 @@ def test_same_rule_ids_across_views() -> None:
     report = _report()
     js = {f["ruleId"] for f in render_json(report)["findings"]}
     sarif = {r["ruleId"] for r in render_sarif(report)["runs"][0]["results"]}
-    assert js == sarif == {"veripen/idor_cross_account/CWE-639", "veripen/jwt_suite/CWE-347"}
+    assert js == sarif == {"hos_ares/idor_cross_account/CWE-639", "hos_ares/jwt_suite/CWE-347"}
 
 
 def test_rule_id_is_stable_and_has_no_asset() -> None:
     rid = rule_id("idor_cross_account", "CWE-639")
-    assert rid == "veripen/idor_cross_account/CWE-639"
+    assert rid == "hos_ares/idor_cross_account/CWE-639"
     assert "web-01" not in rid and PATH_FRAGMENT not in rid
 
 
@@ -144,7 +144,7 @@ def test_markdown_replay_path_points_at_real_file() -> None:
     """
     sha = "a" * 64
     md = render_markdown(_report(findings=[_f(capsule_id=f"sha256:{sha}", self_sha256=sha)]))
-    line = next(ln for ln in md.splitlines() if "veripen replay --capsule" in ln)
+    line = next(ln for ln in md.splitlines() if "hos-ares replay --capsule" in ln)
     assert f"out/capsules/{sha}.json" in line
     assert "--mode offline" in line
     assert "不重发请求" in line
@@ -267,8 +267,8 @@ def test_agent_reported_never_counts_as_coverage() -> None:
 def test_two_fingerprints_differ_in_route() -> None:
     a = fingerprints(_f())
     b = fingerprints(_f(template_sha256="c" * 64))
-    assert a["veripenFinding/v1"] == b["veripenFinding/v1"], "同一个洞：Finding 指纹稳定"
-    assert a["veripenRoute/v1"] != b["veripenRoute/v1"], "面变了：Route 指纹必须变"
+    assert a["hos_aresFinding/v1"] == b["hos_aresFinding/v1"], "同一个洞：Finding 指纹稳定"
+    assert a["hos_aresRoute/v1"] != b["hos_aresRoute/v1"], "面变了：Route 指纹必须变"
 
 
 def test_payload_change_does_not_change_fingerprint() -> None:
@@ -298,7 +298,7 @@ def test_sarif_shape() -> None:
     sarif = render_sarif(_report())
     assert sarif["version"] == "2.1.0"
     run = sarif["runs"][0]
-    assert run["tool"]["driver"]["name"] == "veripen"
+    assert run["tool"]["driver"]["name"] == "hos_ares"
     rule = run["tool"]["driver"]["rules"][0]
     for field in "id shortDescription fullDescription defaultConfiguration properties".split():
         assert field in rule
@@ -306,7 +306,7 @@ def test_sarif_shape() -> None:
 
 # ── B109：报告要写明"面是怎么来的" ───────────────────────────────
 def _report_with(discovery: dict) -> object:
-    from veripen.report.render import ReportInput
+    from hos_ares.report.render import ReportInput
 
     return ReportInput(
         engagement="e", profile_hash="", image_digest="", root_sha256="",
@@ -315,7 +315,7 @@ def _report_with(discovery: dict) -> object:
 
 
 def test_report_states_discovery_provenance() -> None:
-    from veripen.report.render import render_markdown
+    from hos_ares.report.render import render_markdown
 
     md = render_markdown(_report_with({"mode": "discover", "rounds": 2, "pages": 8}))
     assert "面的来源" in md
@@ -324,13 +324,13 @@ def test_report_states_discovery_provenance() -> None:
 
 
 def test_report_without_discovery_says_nothing() -> None:
-    from veripen.report.render import render_markdown
+    from hos_ares.report.render import render_markdown
 
     assert "面的来源" not in render_markdown(_report_with({}))
 
 
 def test_json_env_carries_discovery() -> None:
-    from veripen.report.render import render_json
+    from hos_ares.report.render import render_json
 
     env = render_json(_report_with({"mode": "discover", "rounds": 1, "pages": 4}))["env"]
     assert env["discovery"]["mode"] == "discover"
@@ -338,7 +338,7 @@ def test_json_env_carries_discovery() -> None:
 
 # ── B144：`not_run` 行要区分"没跑"与"跑过判否"───────────��─────────
 def _report_with_outcomes(outcomes: list) -> object:  # noqa: ANN001
-    from veripen.report.render import FindingView, ReportInput
+    from hos_ares.report.render import FindingView, ReportInput
 
     views = [
         FindingView(
@@ -355,7 +355,7 @@ def _report_with_outcomes(outcomes: list) -> object:  # noqa: ANN001
 
 
 def test_refuted_is_named_in_not_run_row() -> None:
-    from veripen.report.render import Outcome, render_markdown
+    from hos_ares.report.render import Outcome, render_markdown
 
     md = render_markdown(_report_with_outcomes([(Outcome.NOT_RUN, True), (Outcome.NOT_RUN, True)]))
     assert "真正未执行 0 条" in md
@@ -363,7 +363,7 @@ def test_refuted_is_named_in_not_run_row() -> None:
 
 
 def test_truly_not_run_is_still_counted() -> None:
-    from veripen.report.render import Outcome, render_markdown
+    from hos_ares.report.render import Outcome, render_markdown
 
     md = render_markdown(_report_with_outcomes([(Outcome.NOT_RUN, True), (Outcome.NOT_RUN, False)]))
     assert "真正未执行 1 条" in md
@@ -371,7 +371,7 @@ def test_truly_not_run_is_still_counted() -> None:
 
 
 def test_no_refuted_keeps_plain_row() -> None:
-    from veripen.report.render import Outcome, render_markdown
+    from hos_ares.report.render import Outcome, render_markdown
 
     md = render_markdown(_report_with_outcomes([(Outcome.NOT_RUN, False)]))
     assert "真正未执行 1 条" in md
@@ -385,7 +385,7 @@ def test_json_carries_the_refuted_flag() -> None:
     平台 / 控制台读的是 findings.json 而不是内存对象，缺这一位就分不出
     "跑过、无该问题"与"真的没执行"（B371 实测：平台整张表印成 not_run）。
     """
-    from veripen.report.render import Outcome, render_json
+    from hos_ares.report.render import Outcome, render_json
 
     payload = render_json(_report_with_outcomes(
         [(Outcome.NOT_RUN, True), (Outcome.NOT_RUN, False)]))
@@ -400,7 +400,7 @@ def test_json_carries_capability_limits() -> None:
     四个出口（md/json/sarif/hunt+platform）里只要有一个缺，用那个出口的人
     就会被误导——他们恰恰最不会去翻报告正文。
     """
-    from veripen.report.render import ReportInput, render_json, render_markdown, render_sarif
+    from hos_ares.report.render import ReportInput, render_json, render_markdown, render_sarif
 
     limits = {"needs_sequence": [("S3", "登出后再用旧会话")],
               "unreachable": [("csp_absent", "选择器不在契约字表")]}

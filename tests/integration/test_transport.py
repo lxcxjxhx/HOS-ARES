@@ -20,9 +20,9 @@ from typing import Iterator
 
 import pytest
 
-from veripen_core.guard.scope import AssetScope, ScopeViolation, check_post_connect
-from veripen_core.routes.types import RouteBinding
-from veripen_core.tools import transport
+from hos_ares_core.guard.scope import AssetScope, ScopeViolation, check_post_connect
+from hos_ares_core.routes.types import RouteBinding
+from hos_ares_core.tools import transport
 
 #: 环回地址拼接而成：本文件不出现可网络定位字面量
 LB = "127." + "0.0.1"
@@ -198,6 +198,6 @@ def test_connect_refused_is_a_transport_error() -> None:
 
 
 def test_transport_error_is_route_error() -> None:
-    from veripen_core.routes.types import RouteError
+    from hos_ares_core.routes.types import RouteError
 
     assert issubclass(transport.TransportError, RouteError)

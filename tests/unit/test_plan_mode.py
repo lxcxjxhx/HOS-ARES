@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import pytest
 
-from veripen_core.workbench.plan import (
+from hos_ares_core.workbench.plan import (
     PLAN_BLOCKED_OPS,
     PLAN_SAFE_OPS,
     PlanError,
@@ -26,7 +26,7 @@ from veripen_core.workbench.plan import (
     guard_workbench_op,
     leads_to_todo,
 )
-from veripen_core.workbench.shell import ApprovalPolicy, SandboxMode
+from hos_ares_core.workbench.shell import ApprovalPolicy, SandboxMode
 
 GOOD = (SandboxMode.WORKSPACE_WRITE, ApprovalPolicy.ON_RISK)
 

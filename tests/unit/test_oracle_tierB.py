@@ -11,11 +11,11 @@ from __future__ import annotations
 import pytest
 from conftest import Lab
 
-from veripen_oracles import ALL_ORACLES, TIER_B, TIER_A
-from veripen_oracles import policy
-from veripen_oracles.common.harness import run, sample_burst
-from veripen_oracles import tierB
-from veripen_core.models import ImpactClass, Verdict
+from hos_ares_oracles import ALL_ORACLES, TIER_B, TIER_A
+from hos_ares_oracles import policy
+from hos_ares_oracles.common.harness import run, sample_burst
+from hos_ares_oracles import tierB
+from hos_ares_core.models import ImpactClass, Verdict
 
 #: (oracle_id, 主绑定标签, 额外绑定)
 CASES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
@@ -169,7 +169,7 @@ def test_bola_reports_account_unusable(tierB_lab=None) -> None:  # noqa: ANN001
 
 
 def _unauth_trace(binding, params, role):  # noqa: ANN001, ANN202
-    from veripen_oracles.common.harness import Trace
+    from hos_ares_oracles.common.harness import Trace
 
     if role == "baseline":
         return Trace(route_ref=binding.ref, status=200, body=b'{"admin": true}')
@@ -186,7 +186,7 @@ def test_tiers_are_disjoint_and_complete() -> None:
 # ── B99：severity 由规则表给，兜底要能看出来 ──────────────────────
 def test_severity_rule_table_covers_every_registered_oracle() -> None:
     """每个 oracle 声明的 severity_rule 都必须在表里——否则报告全是兜底 medium。"""
-    from veripen_oracles import ALL_ORACLES
+    from hos_ares_oracles import ALL_ORACLES
 
     missing = sorted(
         {c.meta.severity_rule for c in ALL_ORACLES} - set(policy.SEVERITY_BY_RULE)

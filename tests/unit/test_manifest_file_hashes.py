@@ -11,7 +11,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from veripen.report.lint import build_manifest, dumps_artifact, verify_manifest
+from hos_ares.report.lint import build_manifest, dumps_artifact, verify_manifest
 
 
 def _payload() -> tuple[str, dict, dict]:
@@ -51,7 +51,7 @@ def test_manifest_is_json_round_trippable() -> None:
 def test_platform_manifest_has_a_files_section() -> None:
     import inspect
 
-    from veripen_cli import cmd_platform
+    from hos_ares_cli import cmd_platform
 
     src = inspect.getsource(cmd_platform.main)
     assert '"files": {"platform-report.md": md_sha}' in src, src[-800:]

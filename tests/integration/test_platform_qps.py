@@ -40,7 +40,7 @@ def _spec(tmp_path: Path) -> Path:
     path.write_text(json.dumps({
         "openapi": "3.0.0", "info": {"title": "x", "version": "1"},
         "servers": [{"url": DEAD}],
-        "paths": {SEP + "api" + SEP + "x": {"get": {"x-veripen-tags": ["param_injectable"]}}},
+        "paths": {SEP + "api" + SEP + "x": {"get": {"x-hos_ares-tags": ["param_injectable"]}}},
     }), encoding="utf-8")
     return path
 
@@ -48,7 +48,7 @@ def _spec(tmp_path: Path) -> Path:
 # ── run：--qps 真的进闸门 ─────────────────────────────────────
 def test_run_passes_qps_into_the_guard(monkeypatch: pytest.MonkeyPatch,
                                        tmp_path: Path) -> None:
-    import veripen_cli.cmd_run as cmd_run
+    import hos_ares_cli.cmd_run as cmd_run
 
     seen: dict[str, Any] = {}
 
@@ -68,7 +68,7 @@ def test_run_passes_qps_into_the_guard(monkeypatch: pytest.MonkeyPatch,
 
 def test_run_default_qps_is_unchanged(monkeypatch: pytest.MonkeyPatch,
                                       tmp_path: Path) -> None:
-    import veripen_cli.cmd_run as cmd_run
+    import hos_ares_cli.cmd_run as cmd_run
 
     seen: dict[str, Any] = {}
 
@@ -100,7 +100,7 @@ def profile_yaml(tmp_path: Path) -> Path:
 
 
 def _platform(tmp_path: Path, profile: Path, spec: Path, *extra: str) -> int:
-    from veripen_cli.cmd_platform import main
+    from hos_ares_cli.cmd_platform import main
 
     return main(["--profile", str(profile), "--openapi", str(spec),
                  "--out", str(tmp_path / "out"), "--db", str(tmp_path / "out" / "p.db"),
@@ -109,7 +109,7 @@ def _platform(tmp_path: Path, profile: Path, spec: Path, *extra: str) -> int:
 
 def test_platform_passes_profile_qps(profile_yaml: Path, tmp_path: Path,
                                      monkeypatch: pytest.MonkeyPatch) -> None:
-    from veripen_cli import cmd_platform, cmd_run
+    from hos_ares_cli import cmd_platform, cmd_run
 
     monkeypatch.setenv("VP_ASSET_WEB_01", DEAD)
     seen: list[list[str]] = []
@@ -124,7 +124,7 @@ def test_platform_passes_profile_qps(profile_yaml: Path, tmp_path: Path,
 
 def test_platform_qps_flag_overrides_profile(profile_yaml: Path, tmp_path: Path,
                                              monkeypatch: pytest.MonkeyPatch) -> None:
-    from veripen_cli import cmd_run
+    from hos_ares_cli import cmd_run
 
     monkeypatch.setenv("VP_ASSET_WEB_01", DEAD)
     seen: list[list[str]] = []
@@ -136,7 +136,7 @@ def test_platform_qps_flag_overrides_profile(profile_yaml: Path, tmp_path: Path,
 
 def test_report_says_which_rate_was_used(profile_yaml: Path, tmp_path: Path,
                                          monkeypatch: pytest.MonkeyPatch) -> None:
-    from veripen_cli import cmd_run
+    from hos_ares_cli import cmd_run
 
     monkeypatch.setenv("VP_ASSET_WEB_01", DEAD)
     monkeypatch.setattr(cmd_run, "main", lambda argv: 0)

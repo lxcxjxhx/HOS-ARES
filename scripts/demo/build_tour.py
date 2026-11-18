@@ -37,7 +37,7 @@ RULE = "#2a3140"
 SEGMENTS: list[dict[str, Any]] = [
     {"kind": "card", "id": "intro", "duration": 2.5,
      "title": "HOS-ARES", "sub": "三支柱 · 一台能干活的机器",
-     "bullets": ["判定要硬（VeriPen）", "执行要能打（strix）",
+     "bullets": ["判定要硬（HOS-ARES）", "执行要能打（strix）",
                  "工作台要能写能跑（codex）", "平台要能指挥能复盘（驭智）"]},
     {"kind": "card", "id": "ch-console", "duration": 1.5,
      "title": "01 · 控制台", "sub": "",          # sub 由 _counts() 填，别手写数字
@@ -52,7 +52,7 @@ SEGMENTS: list[dict[str, Any]] = [
     {"kind": "card", "id": "outro", "duration": 2.5,
      "title": "复现", "sub": "一条命令",
      "bullets": ["make demo", "证据：out/demo/（视频 · 帧 · manifest）",
-                 "账本：.veripen/batches.jsonl"]},
+                 "账本：.hos-ares/batches.jsonl"]},
 ]
 
 

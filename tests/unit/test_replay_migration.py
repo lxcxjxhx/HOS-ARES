@@ -19,16 +19,16 @@ from typing import Any
 
 import capsule_fixture as F
 
-from veripen_core.evidence import ReplayEnv, ReplayMode, TraceResult, replay
-from veripen_core.models import ReplayStatus
-from veripen_core.routes import (
+from hos_ares_core.evidence import ReplayEnv, ReplayMode, TraceResult, replay
+from hos_ares_core.models import ReplayStatus
+from hos_ares_core.routes import (
     AssetRef,
     Resolver,
     RouteHints,
     RouteProvenance,
     RouteQuery,
 )
-from veripen_core.routes.sources.symbols import SymbolSource, SymbolTable
+from hos_ares_core.routes.sources.symbols import SymbolSource, SymbolTable
 
 SEP = chr(0x2F)
 BASE_SYM = "LAB_BASE"
@@ -48,7 +48,7 @@ class RecordingTransport:
 
 def _moved_routeset(base: str, source: RouteProvenance = RouteProvenance.CONTRACT):
     """把同一份契约模板搬到另一个基址上解析（符号注入，模板仍由 resolver 给）。"""
-    from veripen_core.routes.types import RouteCandidate
+    from hos_ares_core.routes.types import RouteCandidate
 
     cand = RouteCandidate(
         method="GET",
@@ -157,7 +157,7 @@ class NetStepTransport:
     def send(self, step: Any, binding: Any) -> Any:
         import re as _re
 
-        from veripen_core.evidence import TraceResult, sha256_text
+        from hos_ares_core.evidence import TraceResult, sha256_text
 
         recorded = step.request.path_rendered or ""
         template = binding.template
@@ -206,16 +206,16 @@ def test_migration_replay_over_a_real_socket() -> None:
     from lab.net_server import LabServer
     from lab.net_transport import NetTransport
 
-    from veripen_core.evidence import ReplayEnv, ReplayMode, replay
-    from veripen_core.routes import (
+    from hos_ares_core.evidence import ReplayEnv, ReplayMode, replay
+    from hos_ares_core.routes import (
         AssetRef,
         Resolver,
         RouteHints,
         RouteProvenance,
         RouteQuery,
     )
-    from veripen_core.routes.sources.symbols import SymbolSource, SymbolTable
-    from veripen_core.routes.types import RouteCandidate
+    from hos_ares_core.routes.sources.symbols import SymbolSource, SymbolTable
+    from hos_ares_core.routes.types import RouteCandidate
 
     # 用**脆弱态**：capsule 描述的是 IDOR 正样本——secondary 能越权读到 primary 的对象
     # （probe 200 且 body 与 baseline 相同）。这正是 bench 里 VERIFIED 那种结论。

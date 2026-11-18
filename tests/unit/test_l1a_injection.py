@@ -10,10 +10,10 @@ from pathlib import Path
 
 import pytest
 
-from veripen_core.blackboard import AssetFacts
-from veripen_core.briefing import L1A_MAX, L1A_PREFIX, build_l1a
-from veripen_core.compression import verdict_fingerprint
-from veripen_core.store import Store
+from hos_ares_core.blackboard import AssetFacts
+from hos_ares_core.briefing import L1A_MAX, L1A_PREFIX, build_l1a
+from hos_ares_core.compression import verdict_fingerprint
+from hos_ares_core.store import Store
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -47,8 +47,8 @@ def _seed(store: Store, *, asset_id: str = "api.test", n: int = 12,
 
 # ── A：injectable() 出现在生产路径 ──────────────────────────────
 def test_injectable_has_production_caller() -> None:
-    briefing = (REPO / "veripen_core" / "briefing.py").read_text(encoding="utf-8")
-    hunt = (REPO / "veripen_cli" / "cmd_hunt.py").read_text(encoding="utf-8")
+    briefing = (REPO / "hos_ares_core" / "briefing.py").read_text(encoding="utf-8")
+    hunt = (REPO / "hos_ares_cli" / "cmd_hunt.py").read_text(encoding="utf-8")
     assert "injectable(" in briefing, "briefing.py 必须调用 injectable()"
     assert "build_l1a(" in hunt, "cmd_hunt 必须调用 build_l1a()——否则仍是死代码"
 

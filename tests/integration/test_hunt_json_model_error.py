@@ -20,14 +20,14 @@ _DEAD_MODEL = "http" + ":" + chr(0x2F) * 2 + "127." + "0.0.1:1" + chr(0x2F) + "v
 def _hunt(tmp_path: Path) -> dict:
     """用死端点跑一次 hunt（模型层必失败），返回 hunt.json。"""
     env = {
-        "VERIPEN_MODEL_BASE_URL": _DEAD_MODEL,
-        "VERIPEN_MODEL": "demo",
+        "HOS_ARES_MODEL_BASE_URL": _DEAD_MODEL,
+        "HOS_ARES_MODEL": "demo",
         "PYTHONIOENCODING": "utf-8",
         "PATH": str(Path(sys.executable).parent),
         "SYSTEMROOT": str(Path("C:/Windows")) if Path("C:/Windows").exists() else "",
     }
     subprocess.run(
-        [sys.executable, "-m", "veripen_cli", "hunt", "--target", _TARGET,
+        [sys.executable, "-m", "hos_ares_cli", "hunt", "--target", _TARGET,
          "--openapi", _CONTRACT, "--model", "live", "--max-steps", "2",
          "--out", str(tmp_path / "h")],
         cwd=str(ROOT), env=env, capture_output=True, text=True,

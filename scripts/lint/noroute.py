@@ -9,7 +9,7 @@
   R-VERB   "GET /..." 形式                     （仅代码/配置）
   R-DEFAULT fallback_path 等兜底符号            （仅代码/配置）
 
-扫描范围：产品目录 + 根级构建文件。刻意**不扫** plan-veripen/、docs/、vendor/、
+扫描范围：产品目录 + 根级构建文件。刻意**不扫** plan-hos-ares/、docs/、vendor/、
 .dsh/、scripts/ —— 前三者是规划包与生态源码（含必须引用的反例与 URL），
 scripts/ 是构建/拉取工具（含官方仓库 URL 与 lint 自身规则），都不是“可被复制的路由代码”。
 
@@ -24,9 +24,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 PRODUCT_DIRS = (
-    "veripen_core",
-    "veripen_oracles",
-    "veripen_contract",
+    "hos_ares_core",
+    "hos_ares_oracles",
+    "hos_ares_contract",
     "api",
     "worker",
     "web",

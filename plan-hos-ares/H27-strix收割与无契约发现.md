@@ -15,7 +15,7 @@
 
 抄 strix 的**执行面**与**观察面**，不抄它的**判定**。
 B86 之后，"目标没有 OpenAPI"不再等于"工具停在门口"：
-`veripen discover` 从首页攒面，本地 WAF 靶场实测 1 页 → 47 条面，2 轮 → 52 条。
+`hos-ares discover` 从首页攒面，本地 WAF 靶场实测 1 页 → 47 条面，2 轮 → 52 条。
 
 ---
 
@@ -32,7 +32,7 @@ B86 之后，"目标没有 OpenAPI"不再等于"工具停在门口"：
 
 1. **只抄执行面与观察面**：容器、工具面、覆盖账本、报告格式——这些是"怎么动手"。
 2. **判定不抄**：strix 让模型给结论（`report/writer.py` 的 findings 由 agent 写），
-   我们 `veripen_oracles/` 是纯函数 + 三条件 + control，`H05`/`H01 V1` 的领先项就在这里。
+   我们 `hos_ares_oracles/` 是纯函数 + 三条件 + control，`H05`/`H01 V1` 的领先项就在这里。
 3. **地址不抄**：strix 把 target URL 写进任务与容器环境；我们 `RouteRef` 是不透明句柄，
    地址只由 resolver 产出（`H01 V3` 是我们唯一一条"开源也没做对"的）。
 4. **依赖不抄**：Caido（必须常驻的代理进程）、PostHog/Scarf（外发遥测）
@@ -59,15 +59,15 @@ B86 之后，"目标没有 OpenAPI"不再等于"工具停在门口"：
 
 `api_spec.py` 只抄**两件事**：`classify_spec`（openapi / swagger / postman）
 与 `spec_base_urls`（声明 host 提取，供 scope 授权）。
-operations 的解析仍走我们 `veripen_contract/parser.py`——
+operations 的解析仍走我们 `hos_ares_contract/parser.py`——
 它的三条硬边界（纯函数 / 不出地址 / 零猜）不能因为抄而松掉。
 
 **B88 结案：不需要抄。** 核对现有代码后推翻立项判断：
 
 | strix | 我们已有的 | 结论 |
 |---|---|---|
-| `output_store.py`（head/tail 字节切 + 溢出到路径） | `veripen_core/tools/registry.py#bound_and_store`：头尾**整行**切 + 超长行硬切 + `dropped_lines/bytes` + 全文落盘 `persisted_ref` | 我们更细，抄回去是降级 |
-| `tool_call_limits.py`（一次响应最多 K 个调用） | `TOOL_CALLS_PER_STEP = 1`（`veripen_core/tools/registry.py`）：一步一个，超出直接拒 | 我们更严，抄了等于放宽 |
+| `output_store.py`（head/tail 字节切 + 溢出到路径） | `hos_ares_core/tools/registry.py#bound_and_store`：头尾**整行**切 + 超长行硬切 + `dropped_lines/bytes` + 全文落盘 `persisted_ref` | 我们更细，抄回去是降级 |
+| `tool_call_limits.py`（一次响应最多 K 个调用） | `TOOL_CALLS_PER_STEP = 1`（`hos_ares_core/tools/registry.py`）：一步一个，超出直接拒 | 我们更严，抄了等于放宽 |
 
 这条记录本身是收割矩阵的用法：**先核对自己有没有，再决定抄不抄**。
 "不要什么都自己做"的反面同样成立——不要重复做已经做完的事。
@@ -79,7 +79,7 @@ operations 的解析仍走我们 `veripen_contract/parser.py`——
 | `tools/proxy/tools.py` + `caido_api.py` | 701+ | 无契约时面从哪来 | 观察点从**代理流量**换成**响应体**；不引 Caido | **B86 已落** |
 | `report/coverage.py` + `tools/coverage/tools.py` | 443 / 535 | V4：会扫不会算"漏了什么"（真实目标召回 0.33） | 双源 provenance + gaps 表；接到我们的四态 outcome | **B87 已落** |
 | `report/dedupe.py` + `report/sarif.py` | 418 / 1185 | 同一漏洞在多条路重复计数；客户/CI 要 SARIF 2.1 | 去重键换成 `structural_key`；SARIF 从 capsule 生成 | B90 |
-| `runtime/docker_client.py` + `session_manager.py` | 320 / 477 | E1 真隔离缺后端（本机无 docker，`select_executor` 只能给 job-object） | 接到 `veripen_core/sandbox/runner.py` 的协议上 | B91 |
+| `runtime/docker_client.py` + `session_manager.py` | 320 / 477 | E1 真隔离缺后端（本机无 docker，`select_executor` 只能给 job-object） | 接到 `hos_ares_core/sandbox/runner.py` 的协议上 | B91 |
 | `llm/compaction.py` | 401 | 压缩**触发策略**（我们 `compression.py` 有算法，没有"什么时候压"） | 只抄阈值与触发点 | B92 |
 
 **B87 值得单独说**：strix 的 `coverage.py` 里有一条纪律，我们目前没有——
@@ -111,7 +111,7 @@ operations 的解析仍走我们 `veripen_contract/parser.py`——
 | 地址写进任务/容器环境/轨迹 | `H01 V3`；这是唯一一条"开源也没做对"的红线 |
 | Caido 依赖 | 多一个必须常驻的代理进程；我们的观察点更靠下（响应体），不需要中间人 |
 | PostHog / Scarf 遥测 | 产品不出网这件事不因为"匿名"就成立 |
-| Claude/OpenAI 特定 tool-call 形状 | 我们 `veripen_core/agent/client.py` 是网关中立形态，绑定单一供应商等于自断模型换代 |
+| Claude/OpenAI 特定 tool-call 形状 | 我们 `hos_ares_core/agent/client.py` 是网关中立形态，绑定单一供应商等于自断模型换代 |
 
 ---
 
@@ -133,19 +133,19 @@ operations 的解析仍走我们 `veripen_contract/parser.py`——
 
 | 模块 | 只做什么 |
 |---|---|
-| `veripen_core/discovery/links.py` | HTML 文本 → `Sighting`（method + 相对路径 + 参数名），**纯函数** |
-| `veripen_core/discovery/templatize.py` | 具体路径 → 模板 + 参数名，**纯函数** |
-| `veripen_core/discovery/crawl.py` | 已绑定的面 → `ObservedRecord` + 下一轮入口（发请求由注入的 fetcher 做） |
+| `hos_ares_core/discovery/links.py` | HTML 文本 → `Sighting`（method + 相对路径 + 参数名），**纯函数** |
+| `hos_ares_core/discovery/templatize.py` | 具体路径 → 模板 + 参数名，**纯函数** |
+| `hos_ares_core/discovery/crawl.py` | 已绑定的面 → `ObservedRecord` + 下一轮入口（发请求由注入的 fetcher 做） |
 
 配套改动：
 
 | 文件 | 改了什么 |
 |---|---|
-| `veripen_core/routes/sources/observed.py` | 加 `CrawlSource`：形态同 `ObservedSource`，只换 provenance（0.70 vs 1.00） |
-| `veripen_core/routes/sources/__init__.py` | `default_sources` 里的 `crawl` 从空适配器换成真实现 |
-| `veripen_core/tools/http.py` | 加 `send_body`：与 `send` 共用同一条闸门链，多返回响应体 |
-| `veripen_cli/cmd_discover.py` | 新子命令 `veripen discover`（不产判定） |
-| `veripen_cli/__main__.py` | 注册 `discover` |
+| `hos_ares_core/routes/sources/observed.py` | 加 `CrawlSource`：形态同 `ObservedSource`，只换 provenance（0.70 vs 1.00） |
+| `hos_ares_core/routes/sources/__init__.py` | `default_sources` 里的 `crawl` 从空适配器换成真实现 |
+| `hos_ares_core/tools/http.py` | 加 `send_body`：与 `send` 共用同一条闸门链，多返回响应体 |
+| `hos_ares_cli/cmd_discover.py` | 新子命令 `hos-ares discover`（不产判定） |
+| `hos_ares_cli/__main__.py` | 注册 `discover` |
 
 **为什么 `send_body` 必须共用闸门**：读 HTML 也是一次出网。
 如果为了拿 body 另开一条"只读不审"的近路，审计就会在**发现阶段**出现盲区——
@@ -154,7 +154,7 @@ operations 的解析仍走我们 `veripen_contract/parser.py`——
 ### 3.3 实测（本地 WAF 靶场，`www.sias.edu.cn`）
 
 ```
-$ veripen discover --target https://www.sias.edu.cn --max-rounds 2 --max-pages 6 --rate 2
+$ hos-ares discover --target https://www.sias.edu.cn --max-rounds 2 --max-pages 6 --rate 2
 第 1 轮：抓 1 页 / 新面 47 条
 第 2 轮：抓 6 页 / 新面 5 条（本轮触到页数/记录上限）
 目标：www.sias.edu.cn
@@ -204,10 +204,10 @@ $ veripen discover --target https://www.sias.edu.cn --max-rounds 2 --max-pages 6
 
 | 文件 | 作用 |
 |---|---|
-| `veripen_core/coverage.py` | `build_coverage`（纯函数）+ `write_coverage`（临时文件 + 替换） |
-| `veripen_cli/cmd_run.py` | 组装账本 → 落 `coverage.json` → 控制台摘要 → **报告第 4 节点名缺口** |
-| `veripen_cli/cmd_hunt.py` | 同口径接账本；`hunt.json` 内嵌 summary；完整度只认「agent 自己说收尾」 |
-| `veripen/report/render.py` | `_render_coverage` 增「覆盖缺口」子节：只统计不点名的覆盖节，判读者看不出哪条面没测 |
+| `hos_ares_core/coverage.py` | `build_coverage`（纯函数）+ `write_coverage`（临时文件 + 替换） |
+| `hos_ares_cli/cmd_run.py` | 组装账本 → 落 `coverage.json` → 控制台摘要 → **报告第 4 节点名缺口** |
+| `hos_ares_cli/cmd_hunt.py` | 同口径接账本；`hunt.json` 内嵌 summary；完整度只认「agent 自己说收尾」 |
+| `hos_ares/report/render.py` | `_render_coverage` 增「覆盖缺口」子节：只统计不点名的覆盖节，判读者看不出哪条面没测 |
 
 六类缺口，**每类都指名道姓**（不是"覆盖不足"这种形容词）：
 
@@ -247,8 +247,8 @@ complete: False      gaps: [('oracle_blocked','warn')]
 
 | 文件 | 作用 |
 |---|---|
-| `veripen_contract/spec_detect.py` | `classify` / `spec_base_urls` / `swagger_to_openapi` / `as_openapi_text` |
-| `veripen_cli/cmd_run.py`、`cmd_hunt.py` | 读文件后先归一；Postman/认不出 → 当场报 VP-1010 并退 2 |
+| `hos_ares_contract/spec_detect.py` | `classify` / `spec_base_urls` / `swagger_to_openapi` / `as_openapi_text` |
+| `hos_ares_cli/cmd_run.py`、`cmd_hunt.py` | 读文件后先归一；Postman/认不出 → 当场报 VP-1010 并退 2 |
 
 **一个必须做的取舍**：swagger 的 `basePath` 折进路径，而不是只放进 `servers`。
 因为我们的绑定层只给 host 补前缀（`SymbolSource` + `--target`），
@@ -258,7 +258,7 @@ complete: False      gaps: [('oracle_blocked','warn')]
 实测（本地夹具 + 一份 2017 风格契约）：
 
 ```
-$ veripen run --target http://127.0.0.1:PORT --openapi swagger.json --confirm-structural
+$ hos-ares run --target http://127.0.0.1:PORT --openapi swagger.json --confirm-structural
 路由：1 条绑定 / 可跑 oracle 1 个
   idor_cross_account       BLOCKED        baseline_abnormal
 覆盖：1/1 面 / 适用 1 对 / 执行 1 / 缺口 1 → coverage.json
@@ -306,13 +306,13 @@ faces: [('http://127.0.0.1:PORT/v1/users/{id}', 'contract')]
 
 | 批 | 立项判断（要抄） | 核对结论 | 证据 |
 |---|---|---|---|
-| B86 | 代理观察 → 面清单 | **真缺口**，已实现（观察点换到响应体） | `veripen_core/discovery/` |
-| B87 | 覆盖账本双源 + gaps | **真缺口**，已实现 | `veripen_core/coverage.py` |
-| B89 | swagger/Postman 识别 | **真缺口**，已实现 | `veripen_contract/spec_detect.py` |
+| B86 | 代理观察 → 面清单 | **真缺口**，已实现（观察点换到响应体） | `hos_ares_core/discovery/` |
+| B87 | 覆盖账本双源 + gaps | **真缺口**，已实现 | `hos_ares_core/coverage.py` |
+| B89 | swagger/Postman 识别 | **真缺口**，已实现 | `hos_ares_contract/spec_detect.py` |
 | B88 | `output_store` / `tool_call_limits` | **已有，且更强** | `tools/registry.py#bound_and_store`（整行切 + 落盘 + dropped 计数）；`TOOL_CALLS_PER_STEP = 1` |
-| B90 | `dedupe` / `sarif` | **SARIF 已有**（`render_sarif` + 测试）；去重经核对无来源：resolver 已按 `structural_key` 合并同一面，一条面一个 oracle 一条 finding | `veripen/report/render.py:301`、`tests/unit/test_report.py` |
-| B91 | docker 后端 | **已有**（加固 argv 的 `DockerExecutor`），本机无运行时 → 与 A17 同样"未验" | `veripen_core/sandbox/runner.py:60` |
-| B92 | 压缩触发 | **已有生产接线**（`briefing` → `compress`） | `veripen_core/briefing.py:96` |
+| B90 | `dedupe` / `sarif` | **SARIF 已有**（`render_sarif` + 测试）；去重经核对无来源：resolver 已按 `structural_key` 合并同一面，一条面一个 oracle 一条 finding | `hos_ares/report/render.py:301`、`tests/unit/test_report.py` |
+| B91 | docker 后端 | **已有**（加固 argv 的 `DockerExecutor`），本机无运行时 → 与 A17 同样"未验" | `hos_ares_core/sandbox/runner.py:60` |
+| B92 | 压缩触发 | **已有生产接线**（`briefing` → `compress`） | `hos_ares_core/briefing.py:96` |
 
 唯一剩下的是 **playbook 的"临时查"入口**（相当于 strix `load_skill`）：
 agent 现在只有 7 个工具，加第 8 个要过"工具面唯一"这条纪律（schema / 预算 / 审计同源）。
@@ -331,7 +331,7 @@ agent 现在只有 7 个工具，加第 8 个要过"工具面唯一"这条纪律
 
 ## 5. 与既有断言的关系
 
-本卷不新增 A 系列断言（A1–A20 属 `plan-veripen` 冻结包）。
+本卷不新增 A 系列断言（A1–A20 属 `plan-hos-ares` 冻结包）。
 B86 的判据落在 `tests/unit/test_discovery_crawl.py`（14 条），
 B87 落在 `tests/unit/test_coverage.py`（11 条），
 B89 落在 `tests/unit/test_spec_detect.py`（12 条）。

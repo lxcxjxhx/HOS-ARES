@@ -35,7 +35,7 @@ def record(tmp_path_factory: pytest.TempPathFactory) -> dict[str, object]:
     """跑一次真的验收命令，拿它写出的 JSON。"""
     out = tmp_path_factory.mktemp("leads")
     proc = subprocess.run(  # noqa: S603 - 固定命令，参数由本文件给出
-        [sys.executable, "-m", "veripen_cli.cmd_bench_leads", "--json", "--out", str(out)],
+        [sys.executable, "-m", "hos_ares_cli.cmd_bench_leads", "--json", "--out", str(out)],
         cwd=ROOT,
         capture_output=True,
         text=True,

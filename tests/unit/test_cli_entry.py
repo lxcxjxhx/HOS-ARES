@@ -10,7 +10,7 @@ from contextlib import redirect_stdout
 
 import pytest
 
-from veripen_cli.__main__ import COMMANDS, main
+from hos_ares_cli.__main__ import COMMANDS, main
 
 
 def _run(argv: list[str]) -> tuple[int, str, str]:
@@ -26,13 +26,13 @@ def test_help_lists_every_command() -> None:
     assert rc == 0
     for name, _, _ in COMMANDS:
         assert name in out, f"{name} 没在帮助里"
-    assert "veripen <子命令>" in out
+    assert "hos_ares <子命令>" in out
 
 
 def test_every_command_has_description() -> None:
     for name, module, desc in COMMANDS:
         assert desc.strip(), f"{name} 缺一句话说明"
-        assert module.startswith("veripen_cli."), f"{name} 的模块路径不对"
+        assert module.startswith("hos_ares_cli."), f"{name} 的模块路径不对"
 
 
 # ── B：未知子命令 ─────────────────────────────────────────────
@@ -62,7 +62,7 @@ def test_parity_help_passthrough(capsys: pytest.CaptureFixture[str]) -> None:  #
 def test_direct_module_path_still_works() -> None:
     import importlib
 
-    mod = importlib.import_module("veripen_cli.cmd_doctor")
+    mod = importlib.import_module("hos_ares_cli.cmd_doctor")
     assert callable(getattr(mod, "main", None)), "直调入口必须仍然存在"
 
 
@@ -70,9 +70,9 @@ def test_direct_module_path_still_works() -> None:
 def test_version_matches_pyproject() -> None:
     from pathlib import Path
 
-    import veripen_cli
+    import hos_ares_cli
 
     root = Path(__file__).resolve().parents[2]
     text = (root / "pyproject.toml").read_text(encoding="utf-8")
-    assert f'version = "{veripen_cli.__version__}"' in text, "版本号与 pyproject 不一致"
-    assert 'veripen = "veripen_cli.__main__:main"' in text, "缺入口脚本声明"
+    assert f'version = "{hos_ares_cli.__version__}"' in text, "版本号与 pyproject 不一致"
+    assert 'hos-ares = "hos_ares_cli.__main__:main"' in text, "缺入口脚本声明"

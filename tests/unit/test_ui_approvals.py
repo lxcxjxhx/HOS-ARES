@@ -12,7 +12,7 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from veripen.report.audit import AuditInput, render_audit_section
+from hos_ares.report.audit import AuditInput, render_audit_section
 from web.console import (
     APPROVAL_TTL_S,
     Approval,

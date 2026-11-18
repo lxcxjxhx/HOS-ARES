@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-SCAN_DIRS = ("veripen_core", "veripen_oracles", "veripen_contract", "api", "worker", "web", "tests")
+SCAN_DIRS = ("hos_ares_core", "hos_ares_oracles", "hos_ares_contract", "api", "worker", "web", "tests")
 CFG_EXT = {".py", ".yaml", ".yml", ".json"}
 #: 产品代码里的禁用词：标识符里**出现即算**（`FakeTransport` / `fake_runner` 都要抓）。
 #: 原来用 `\b(mock|stub|fake|dummy)\b`——它只匹配**独立整词**，而真实命名几乎
@@ -38,7 +38,7 @@ def _files() -> list[Path]:
 
 
 #: 这些目录算"产品代码"，用严格口径（复合标识符也算）
-PRODUCT_DIRS = ("veripen_core", "veripen_oracles", "veripen_contract", "api", "worker", "web")
+PRODUCT_DIRS = ("hos_ares_core", "hos_ares_oracles", "hos_ares_contract", "api", "worker", "web")
 #: 测试代码的整词口径
 BANNED_WORD = re.compile(r"\b(mock|stub|fake|dummy)\b", re.IGNORECASE)
 

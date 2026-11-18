@@ -26,11 +26,11 @@ def _module():
 
 def _scenes() -> list[dict[str, object]]:
     return [
-        {"id": "run", "lines": 10, "prompt": "python -m veripen_cli.cmd_run"},
-        {"id": "agent", "lines": 8, "prompt": "python -m veripen_cli.cmd_agent"},
-        {"id": "platform", "lines": 12, "prompt": "python -m veripen_cli.cmd_platform"},
+        {"id": "run", "lines": 10, "prompt": "python -m hos_ares_cli.cmd_run"},
+        {"id": "agent", "lines": 8, "prompt": "python -m hos_ares_cli.cmd_agent"},
+        {"id": "platform", "lines": 12, "prompt": "python -m hos_ares_cli.cmd_platform"},
         {"id": "profile", "lines": 9, "prompt": "VP_ASSET_WEB_01=<lab> ... --profile ..."},
-        {"id": "chat", "lines": 8, "prompt": "python -m veripen_cli.cmd_chat --root ."},
+        {"id": "chat", "lines": 8, "prompt": "python -m hos_ares_cli.cmd_chat --root ."},
     ]
 
 

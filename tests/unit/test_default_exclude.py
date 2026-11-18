@@ -30,7 +30,7 @@ for extra in (ROOT, ROOT / "tests"):
 
 
 def _ids() -> set[str]:
-    from veripen_oracles import ALL_ORACLES
+    from hos_ares_oracles import ALL_ORACLES
 
     return {c.meta.id for c in ALL_ORACLES}
 
@@ -40,15 +40,15 @@ def _split(raw: str) -> set[str]:
 
 
 def test_run_default_exclude_has_no_typos() -> None:
-    from veripen_cli.cmd_run import DEFAULT_EXCLUDE
+    from hos_ares_cli.cmd_run import DEFAULT_EXCLUDE
 
     unknown = _split(DEFAULT_EXCLUDE) - _ids()
     assert not unknown, f"默认排除里写了不存在的 oracle：{sorted(unknown)}"
 
 
 def test_default_off_is_covered_by_the_default_exclude() -> None:
-    from veripen_cli.cmd_run import DEFAULT_EXCLUDE
-    from veripen_oracles.policy import DEFAULT_OFF
+    from hos_ares_cli.cmd_run import DEFAULT_EXCLUDE
+    from hos_ares_oracles.policy import DEFAULT_OFF
 
     missing = set(DEFAULT_OFF) - _split(DEFAULT_EXCLUDE)
     assert not missing, f"这些默认关闭的类没被默认排除：{sorted(missing)}"
@@ -58,9 +58,9 @@ def test_run_and_hunt_share_the_same_default_exclude() -> None:
     """同一份口径写在两处，就必须一致——不一致时至少有一处是错的。"""
     import re
 
-    from veripen_cli.cmd_run import DEFAULT_EXCLUDE
+    from hos_ares_cli.cmd_run import DEFAULT_EXCLUDE
 
-    hunt_src = (ROOT / "veripen_cli" / "cmd_hunt.py").read_text(encoding="utf-8")
+    hunt_src = (ROOT / "hos_ares_cli" / "cmd_hunt.py").read_text(encoding="utf-8")
     match = re.search(
         r'"--exclude",\s*\n?\s*default="([a-z_,]+)"', hunt_src
     )

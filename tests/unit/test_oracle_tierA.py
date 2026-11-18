@@ -10,9 +10,9 @@ from __future__ import annotations
 import pytest
 
 from conftest import Lab
-from veripen_oracles import TIER_A, tierA
-from veripen_oracles.common.harness import run, three_way_holds
-from veripen_core.models import Verdict
+from hos_ares_oracles import TIER_A, tierA
+from hos_ares_oracles.common.harness import run, three_way_holds
+from hos_ares_core.models import Verdict
 
 #: (oracle_id, selector_tag)
 CASES: tuple[tuple[str, str], ...] = (

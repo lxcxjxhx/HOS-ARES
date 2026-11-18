@@ -26,12 +26,12 @@ class _H(BaseHTTPRequestHandler):
 
 
 def _runtime(port: int):  # noqa: ANN202
-    from veripen_core.routes import (
+    from hos_ares_core.routes import (
         AssetRef, Resolver, RouteCandidate, RouteHints, RouteProvenance, RouteQuery,
     )
-    from veripen_core.routes.sources import StaticSource
-    from veripen_cli.cmd_hunt import HuntRuntime
-    from veripen_oracles.live import CoreTransport
+    from hos_ares_core.routes.sources import StaticSource
+    from hos_ares_cli.cmd_hunt import HuntRuntime
+    from hos_ares_oracles.live import CoreTransport
 
     cands = [
         RouteCandidate(method="GET", template=HTTP + f"{LOOPBACK}:{port}{S}a",
@@ -45,12 +45,12 @@ def _runtime(port: int):  # noqa: ANN202
         RouteQuery(asset=AssetRef(id=LOOPBACK), hints=RouteHints(), min_confidence=0.0),
         now=int(time.time()),
     )
-    return HuntRuntime(rs, CoreTransport(timeout_s=10.0), __import__("veripen_oracles").SymbolTable())
+    return HuntRuntime(rs, CoreTransport(timeout_s=10.0), __import__("hos_ares_oracles").SymbolTable())
 
 
 def test_cursor_walks_faces_then_stops_explicitly() -> None:
-    from veripen_core.tools import http as http_tool
-    from veripen_cli.cmd_hunt import build_guard
+    from hos_ares_core.tools import http as http_tool
+    from hos_ares_cli.cmd_hunt import build_guard
 
     srv = HTTPServer((LOOPBACK, 0), _H)
     port = srv.server_address[1]
@@ -78,8 +78,8 @@ def test_cursor_walks_faces_then_stops_explicitly() -> None:
 
 def test_explicit_route_ref_wins() -> None:
     """`route_ref` 这个参数以前被完全忽略——模型选了面也不生效。"""
-    from veripen_core.tools import http as http_tool
-    from veripen_cli.cmd_hunt import build_guard
+    from hos_ares_core.tools import http as http_tool
+    from hos_ares_cli.cmd_hunt import build_guard
 
     srv = HTTPServer((LOOPBACK, 0), _H)
     port = srv.server_address[1]
@@ -110,8 +110,8 @@ def test_explicit_route_ref_wins() -> None:
 
 
 def test_unknown_route_ref_is_reported_not_ignored() -> None:
-    from veripen_core.tools import http as http_tool
-    from veripen_cli.cmd_hunt import build_guard
+    from hos_ares_core.tools import http as http_tool
+    from hos_ares_cli.cmd_hunt import build_guard
 
     srv = HTTPServer((LOOPBACK, 0), _H)
     port = srv.server_address[1]

@@ -1,4 +1,4 @@
-apiVersion: veripen.profile/v2
+apiVersion: hos-ares.profile/v2
 
 # demo-b：车云 API 形态（A1 断言的右列）
 # 与 demo-a 的差异全部在这一份 YAML 里：行业口径、oracles、selectors、策略、合规框架。

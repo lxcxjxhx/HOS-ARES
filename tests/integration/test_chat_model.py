@@ -31,10 +31,10 @@ def model():  # noqa: ANN201
 @pytest.fixture()
 def ctx(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):  # noqa: ANN201
     def _chat(script: str, *, base_url: str = "", model_name: str = "local-model") -> str:
-        from veripen_cli.cmd_chat import main
+        from hos_ares_cli.cmd_chat import main
 
-        monkeypatch.setenv("VERIPEN_MODEL_BASE_URL", base_url)
-        monkeypatch.setenv("VERIPEN_MODEL", model_name)
+        monkeypatch.setenv("HOS_ARES_MODEL_BASE_URL", base_url)
+        monkeypatch.setenv("HOS_ARES_MODEL", model_name)
         monkeypatch.setattr("sys.stdin", io.StringIO(script))
         main(["--root", str(tmp_path), "--db", str(tmp_path / "c.db"), "--yes"])
         return ""

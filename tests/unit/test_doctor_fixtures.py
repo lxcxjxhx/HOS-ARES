@@ -26,7 +26,7 @@ def _block(monkeypatch: pytest.MonkeyPatch, name: str) -> None:
 
 
 def test_routes_check_warns_when_fixture_missing(monkeypatch: pytest.MonkeyPatch) -> None:
-    from veripen.doctor import _check_routes_deterministic
+    from hos_ares.doctor import _check_routes_deterministic
 
     _block(monkeypatch, "lab.routes")
     check = _check_routes_deterministic()
@@ -36,7 +36,7 @@ def test_routes_check_warns_when_fixture_missing(monkeypatch: pytest.MonkeyPatch
 
 
 def test_capsule_check_warns_when_fixture_missing(monkeypatch: pytest.MonkeyPatch) -> None:
-    from veripen.doctor import _check_capsule_roundtrip
+    from hos_ares.doctor import _check_capsule_roundtrip
 
     _block(monkeypatch, "capsule_fixture")
     check = _check_capsule_roundtrip()
@@ -45,7 +45,7 @@ def test_capsule_check_warns_when_fixture_missing(monkeypatch: pytest.MonkeyPatc
 
 
 def test_replay_check_warns_when_fixture_missing(monkeypatch: pytest.MonkeyPatch) -> None:
-    from veripen.doctor import _check_replay_offline
+    from hos_ares.doctor import _check_replay_offline
 
     _block(monkeypatch, "capsule_fixture")
     check = _check_replay_offline()
@@ -55,7 +55,7 @@ def test_replay_check_warns_when_fixture_missing(monkeypatch: pytest.MonkeyPatch
 
 def test_doctor_has_no_failures_even_without_fixtures(monkeypatch: pytest.MonkeyPatch) -> None:
     """三条一起缺 → 仍然 0 FAIL（WARN 不算失败，但要显式出现）。"""
-    from veripen.doctor import run_all
+    from hos_ares.doctor import run_all
 
     _block(monkeypatch, "capsule_fixture")
     _block(monkeypatch, "lab")

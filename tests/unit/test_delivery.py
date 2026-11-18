@@ -11,10 +11,10 @@ import threading
 
 import pytest
 
-from veripen.doctor import CHECKS, Check, DoctorReport, Level, run_all
-from veripen_core.lease import Lease, LeaseConfig, StoreClock
-from veripen_core.models import TaskState
-from veripen_core.store import Store
+from hos_ares.doctor import CHECKS, Check, DoctorReport, Level, run_all
+from hos_ares_core.lease import Lease, LeaseConfig, StoreClock
+from hos_ares_core.models import TaskState
+from hos_ares_core.store import Store
 
 
 # ── 1 doctor 结构 ─────────────────────────────────────────────────
@@ -39,7 +39,7 @@ def test_report_json_shape() -> None:
     report.add(Check("x", Level.OK, "fine"))
     report.add(Check("y", Level.WARN, "meh", fix="do z"))
     payload = report.to_json()
-    assert payload["schema"] == "veripen.doctor/v1"
+    assert payload["schema"] == "hos-ares.doctor/v1"
     assert payload["ok"] is True
     assert payload["counts"] == {"ok": 1, "warn": 1, "fail": 0}
 
@@ -134,7 +134,7 @@ def test_offline_package_manifest_shape() -> None:
 
     manifest = {
         "version": 1,
-        "images": [{"name": "veripen", "digest": "sha256:" + "0" * 64}],
+        "images": [{"name": "hos_ares", "digest": "sha256:" + "0" * 64}],
         "data": [{"path": "data/snapshot", "sha256": "0" * 64}],
         "python": {"requires": ">=3.11", "locks": "requirements.lock"},
     }
@@ -156,7 +156,7 @@ def test_package_offline_script_exists() -> None:
 # 仓库里有**两份** doctor（H31 B180 已登记）：这份用例把两边的判定口径都钉住，
 # 它们的枚举不同（CLI 有 skip，库这份只有 warn），但都不许把"没失败"说成"不可交付"。
 def test_cli_doctor_verdict_distinguishes_failure_from_unverified() -> None:
-    from veripen_cli.cmd_doctor import CheckResult, DoctorReport, Status
+    from hos_ares_cli.cmd_doctor import CheckResult, DoctorReport, Status
 
     failed = DoctorReport(results=[CheckResult("x", Status.FAIL, "坏了", "改它")])
     assert "不可交付" in failed.verdict() and "1 项失败" in failed.verdict()
@@ -170,7 +170,7 @@ def test_cli_doctor_verdict_distinguishes_failure_from_unverified() -> None:
 
 
 def test_library_doctor_verdict_has_three_levels() -> None:
-    from veripen.doctor import Check, DoctorReport, Level
+    from hos_ares.doctor import Check, DoctorReport, Level
 
     failed = DoctorReport()
     failed.add(Check("x", Level.FAIL, "坏了", fix="改它"))

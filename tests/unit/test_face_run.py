@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from veripen_core.coverage import FaceRun, observations_from
+from hos_ares_core.coverage import FaceRun, observations_from
 
 
 def _run(**kw: object) -> FaceRun:

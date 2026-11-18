@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 from urllib.parse import quote, unquote, urlsplit
 
-from veripen_oracles.common.harness import Trace
+from hos_ares_oracles.common.harness import Trace
 
 _SLOT = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 #: 形如 ``%2e`` 的**已有编码**：传输层必须原样送出，不能二次编码。
@@ -120,7 +120,7 @@ class NetTransport:
         headers: Mapping[str, str] | None = None,
         method: str = "",
     ) -> Trace:
-        from veripen_core.tools import transport as T
+        from hos_ares_core.tools import transport as T
 
         from .transport_oob import oob_headers
 

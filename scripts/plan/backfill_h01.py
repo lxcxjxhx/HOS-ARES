@@ -10,28 +10,28 @@ P = Path(__file__).resolve().parents[2] / "plan-hos-ares" / "H01-能力矩阵与
 
 TABLE = """| # | 能力域 | strix | codex | 驭智 | **我们（实测）** | 差距 | 批次 |
 |---|---|---|---|---|---|---|---|
-| **V1** | 判定可信度 | ❌ 模型判 | — | ◐ 未公开细节 | ✅ 纯函数 + 三条件 + control：`veripen_oracles/` 15 类 | 无（**领先**） | 保持 |
-| **V2** | 证据与 replay | ◐ 有轨迹无哈希链 | — | ◐ 有过程审计 | ✅ capsule 哈希链 + 六态 replay：`veripen_core/evidence.py` | 无 | 保持 |
-| **V3** | 地址治理 | ❌ 配置写地址 | — | ❌ 未见表述 | ✅ `RouteRef` 无 url/host 字段：`veripen_core/routes/types.py` | 无（**唯一**） | 保持 |
+| **V1** | 判定可信度 | ❌ 模型判 | — | ◐ 未公开细节 | ✅ 纯函数 + 三条件 + control：`hos_ares_oracles/` 15 类 | 无（**领先**） | 保持 |
+| **V2** | 证据与 replay | ◐ 有轨迹无哈希链 | — | ◐ 有过程审计 | ✅ capsule 哈希链 + 六态 replay：`hos_ares_core/evidence.py` | 无 | 保持 |
+| **V3** | 地址治理 | ❌ 配置写地址 | — | ❌ 未见表述 | ✅ `RouteRef` 无 url/host 字段：`hos_ares_core/routes/types.py` | 无（**唯一**） | 保持 |
 | **V4** | 发现与覆盖账本 | ◐ 会扫不会算漏了什么 | — | ◐ 报"已验证率" | ◐ 15 类矩阵 + 四态 outcome，真实召回 **0.33** | 召回低；负面证明不完整 | 未排 |
-| **E1** | 隔离执行 | ✅ 容器 | ✅ 沙箱 | ✅ 容器 | **◐ 策略已验、真隔离未验**：`veripen_core/sandbox/runner.py`（无运行时 → `select_executor` 返回 None → BLOCKED） | 缺运行时，非设计 | B45 `scaffolded` |
-| **E2** | 浏览器渲染 | ✅ | ◐ | ✅ | ✅ `veripen_core/render/browser.py`（真 Chromium 10 passed，DOM 哈希两次一致） | 容器内未验 | B46 |
-| **E3** | 工具面统一 | ✅ | ✅ | ✅ | ✅ `veripen_core/tools/surface.py` + `registry.py`：agent 与工作台同一套 | 无 | B47 |
+| **E1** | 隔离执行 | ✅ 容器 | ✅ 沙箱 | ✅ 容器 | **◐ 策略已验、真隔离未验**：`hos_ares_core/sandbox/runner.py`（无运行时 → `select_executor` 返回 None → BLOCKED） | 缺运行时，非设计 | B45 `scaffolded` |
+| **E2** | 浏览器渲染 | ✅ | ◐ | ✅ | ✅ `hos_ares_core/render/browser.py`（真 Chromium 10 passed，DOM 哈希两次一致） | 容器内未验 | B46 |
+| **E3** | 工具面统一 | ✅ | ✅ | ✅ | ✅ `hos_ares_core/tools/surface.py` + `registry.py`：agent 与工作台同一套 | 无 | B47 |
 | **E4** | 资产发现/扫描 | ✅ | — | ✅ | **❌ 明确不做**（`D-H-03`） | 策略性缺失 | B48 门 |
-| **E5** | 长周期与并行 | ✅ | ✅ | ✅ 多智能体 | ◐ `veripen_core/parallel.py#run_parallel`（进程内三任务并发，指纹与串行一致） | 容器级并行未验 | B49 |
-| **P1** | 控制平面 | ◐ | ◐ | ✅ | ✅ `veripen_core/agents/orchestrator.py#orchestrate` + `veripen_cli/cmd_platform.py` | 无 | B49 / B68 |
+| **E5** | 长周期与并行 | ✅ | ✅ | ✅ 多智能体 | ◐ `hos_ares_core/parallel.py#run_parallel`（进程内三任务并发，指纹与串行一致） | 容器级并行未验 | B49 |
+| **P1** | 控制平面 | ◐ | ◐ | ✅ | ✅ `hos_ares_core/agents/orchestrator.py#orchestrate` + `hos_ares_cli/cmd_platform.py` | 无 | B49 / B68 |
 | **P2** | 状态黑板 | ❌ | ◐ | ✅ | ✅ `blackboard.py#disputed` + 冲突消解进报告 | 无 | B51 |
 | **P3** | 上下文压缩 | ◐ 裁剪 | ✅ 长会话 | ✅ 三层 | ✅ `compression.py#compress` + `briefing.py#build_l1a`（生产接线，降幅 ≥30%） | 无 | B52 / B62 |
 | **P4** | Playbook 资产 | ◐ 内置套路 | — | ✅ 按 PTES | ✅ `playbooks/` 3 个 + 成功率实测 + 写进平台报告 | 无 | B50 / B68 |
 | **P5** | 插件与能力发现 | ◐ | ✅ MCP | ✅ | ✅ `plugins/lifecycle.py`（装→用→升级回滚→卸，catalog 逐字复原）+ `knowledge_docs()` 进 L2 | 无 | B55 / B63 |
 | **P6** | 审批与人机 | ◐ 可配 | ◐ | ✅ 阻断式 | ✅ `guard/approval.py#decide`（落库 + 事件，拒绝留痕）+ `ui.approvals` 唯一写入点 | 无 | B54 / B60 |
-| **P7** | 报告与审计 | ✅ | — | ✅ | ✅ `veripen/report/audit.py#render_audit_section`（五表）+ 平台报告含审计节 | 无 | B53 / B68 |
-| **W1** | 工作台基础 | ◐ | ✅ | ◐ | ✅ `veripen_core/workbench/fs.py#Workbench` + 五道闸 | 无 | 保持 |
-| **W2** | 长会话/跨任务记忆 | ✅ | ✅ | ◐ 单轮 | ✅ `veripen_core/memory.py` + `asset_facts` + L1a 注入（结论不跨任务） | 无 | B57 / B62 |
-| **W3** | TUI/IDE 接入 | — | ✅ | ◐ 控制台 | ✅ `veripen_cli/tui.py`（curses 三面板，无 curses 降级行模式，doctor 可见） | IDE 插件不做 | B56 |
+| **P7** | 报告与审计 | ✅ | — | ✅ | ✅ `hos_ares/report/audit.py#render_audit_section`（五表）+ 平台报告含审计节 | 无 | B53 / B68 |
+| **W1** | 工作台基础 | ◐ | ✅ | ◐ | ✅ `hos_ares_core/workbench/fs.py#Workbench` + 五道闸 | 无 | 保持 |
+| **W2** | 长会话/跨任务记忆 | ✅ | ✅ | ◐ 单轮 | ✅ `hos_ares_core/memory.py` + `asset_facts` + L1a 注入（结论不跨任务） | 无 | B57 / B62 |
+| **W3** | TUI/IDE 接入 | — | ✅ | ◐ 控制台 | ✅ `hos_ares_cli/tui.py`（curses 三面板，无 curses 降级行模式，doctor 可见） | IDE 插件不做 | B56 |
 | **G1** | 控制台 | ✅ Web UI | ✅ TUI+IDE | ✅ | ✅ `web/console.py` 10 页专属渲染器 + 巡检录屏（`B65`） | 无 | B35–B42 / B64 / B65 |
-| **G2** | 交付与离线 | ◐ | ◐ | ✅ | ✅ 离线包 + `veripen_cli/cmd_doctor.py#check_sandbox` 等 19 项（缺条件记 skip 不记 fail） | docker 实跑未验 | B58 / B61 |
-| **G3** | 断言与验收 | — | — | — | ✅ `veripen_cli/cmd_parity.py#main`（5 面 × 22 项）+ 断言表 20 条 + `make demo` | 无 | B44 / B59 / B70 |"""
+| **G2** | 交付与离线 | ◐ | ◐ | ✅ | ✅ 离线包 + `hos_ares_cli/cmd_doctor.py#check_sandbox` 等 19 项（缺条件记 skip 不记 fail） | docker 实跑未验 | B58 / B61 |
+| **G3** | 断言与验收 | — | — | — | ✅ `hos_ares_cli/cmd_parity.py#main`（5 面 × 22 项）+ 断言表 20 条 + `make demo` | 无 | B44 / B59 / B70 |"""
 
 BACKFILL = """## 2.1 回填记录（2026-11-05，B75）
 

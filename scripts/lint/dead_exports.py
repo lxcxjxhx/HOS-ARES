@@ -8,7 +8,7 @@
 本检查器回答一个问题：**这个公开符号，除了定义处和 tests/，还有谁在用？**
 
 判定口径：
-- 生产侧 = `veripen_core/` + `veripen_cli/`（排除定义该符号的文件）
+- 生产侧 = `hos_ares_core/` + `hos_ares_cli/`（排除定义该符号的文件）
 - 测试侧 = `tests/`
 - 只在测试侧出现 ⇒ 接线欠账（`dead`）
 - 两侧都不出现 ⇒ 死代码（`unused`）
@@ -33,8 +33,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-CORE = ROOT / "veripen_core"
-CLI = ROOT / "veripen_cli"
+CORE = ROOT / "hos_ares_core"
+CLI = ROOT / "hos_ares_cli"
 TESTS = ROOT / "tests"
 
 

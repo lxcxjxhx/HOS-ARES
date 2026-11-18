@@ -3,11 +3,11 @@
 改前三处实测（都只给了个不存在的文件名）：
 
 ```
-$ veripen run --target … --openapi nope.json
+$ hos-ares run --target … --openapi nope.json
   File "…pathlib/_local.py", line 537, in open
 FileNotFoundError: [Errno 2] No such file or directory: 'nope.json'
 
-$ veripen replay --capsule nope.json
+$ hos-ares replay --capsule nope.json
   … 同样一屏 traceback …
 ```
 
@@ -20,11 +20,11 @@ from __future__ import annotations
 
 import pytest
 
-from veripen_cli import _io
-from veripen_cli.cmd_hunt import main as hunt_main
-from veripen_cli.cmd_replay import main as replay_main
-from veripen_cli.cmd_run import main as run_main
-from veripen_core.evidence import CapsuleError, load_capsule
+from hos_ares_cli import _io
+from hos_ares_cli.cmd_hunt import main as hunt_main
+from hos_ares_cli.cmd_replay import main as replay_main
+from hos_ares_cli.cmd_run import main as run_main
+from hos_ares_core.evidence import CapsuleError, load_capsule
 
 #: 回环地址按仓库惯例拼出来（noroute 禁止可网络定位的字面量）
 _DEAD = "http" + ":" + chr(0x2F) * 2 + "127." + "0.0.1:1"
@@ -120,7 +120,7 @@ def test_hunt_with_a_broken_symbol_table_says_why(tmp_path) -> None:  # noqa: AN
 
 # ── 5. coverage 的用例集也是用户给的路径（B236）──────────────────
 def test_coverage_with_a_missing_cases_file_says_which_file(capsys, tmp_path) -> None:  # noqa: ANN001
-    from veripen_cli.cmd_coverage import main as coverage_main
+    from hos_ares_cli.cmd_coverage import main as coverage_main
 
     code = coverage_main(["--cases", str(tmp_path / "nope.yaml"), "--out", str(tmp_path / "out")])
     err = capsys.readouterr().err
@@ -130,7 +130,7 @@ def test_coverage_with_a_missing_cases_file_says_which_file(capsys, tmp_path) ->
 
 
 def test_coverage_with_broken_yaml_says_why(capsys, tmp_path) -> None:  # noqa: ANN001
-    from veripen_cli.cmd_coverage import main as coverage_main
+    from hos_ares_cli.cmd_coverage import main as coverage_main
 
     bad = tmp_path / "cases.yaml"
     bad.write_text("cases: [ {a: , b: } ]\n\t- x", encoding="utf-8")
@@ -142,7 +142,7 @@ def test_coverage_with_broken_yaml_says_why(capsys, tmp_path) -> None:  # noqa: 
 
 # ── 6. 发现口径：不可达时不许说"抓取成功"（B236）──────────────────
 def test_discover_does_not_call_an_unreachable_target_a_success(capsys) -> None:  # noqa: ANN001
-    from veripen_cli.cmd_discover import main as discover_main
+    from hos_ares_cli.cmd_discover import main as discover_main
 
     code = discover_main(["--target", _DEAD])
     out = capsys.readouterr().out
@@ -156,7 +156,7 @@ def test_bad_target_exits_two(capsys) -> None:  # noqa: ANN001
     """`--target not-a-url` 以前 exit=1（读起来像"跑完了"），应属"输入有问题"= 2。"""
     import pytest
 
-    from veripen_cli.cmd_run import main as run_main
+    from hos_ares_cli.cmd_run import main as run_main
 
     with pytest.raises(SystemExit) as exc:
         run_main("--target not-a-url --openapi x.json --out out/x".split())
@@ -166,7 +166,7 @@ def test_bad_target_exits_two(capsys) -> None:  # noqa: ANN001
 
 def test_broken_spec_message_is_one_line() -> None:
     """PyYAML 的完整错误带 caret 图，整段倒出来会把"哪一行错了"淹掉。"""
-    from veripen_contract.spec_detect import SpecFormatError, load_spec
+    from hos_ares_contract.spec_detect import SpecFormatError, load_spec
 
     try:
         load_spec("{ not json")
@@ -180,7 +180,7 @@ def test_broken_spec_message_is_one_line() -> None:
 # ── B343：档不存在 / 档不合法，要说人话 ──────────────────────────
 def test_missing_profile_says_so_without_a_python_repr(tmp_path, capsys) -> None:  # noqa: ANN001
     """改前：`profile 解析失败：FileNotFoundError: [Errno 2] …`。"""
-    from veripen_cli.cmd_platform import main as platform_main
+    from hos_ares_cli.cmd_platform import main as platform_main
 
     rc = platform_main(["--profile", str(tmp_path / "nope.yaml"),
                         "--openapi", "x.json", "--out", str(tmp_path / "o")])
@@ -191,10 +191,10 @@ def test_missing_profile_says_so_without_a_python_repr(tmp_path, capsys) -> None
 
 
 def test_invalid_profile_says_what_is_wrong(tmp_path, capsys) -> None:  # noqa: ANN001
-    from veripen_cli.cmd_platform import main as platform_main
+    from hos_ares_cli.cmd_platform import main as platform_main
 
     bad = tmp_path / "bad.yaml"
-    bad.write_text("apiVersion: veripen.profile/v2\nmeta: {}\n", encoding="utf-8")
+    bad.write_text("apiVersion: hos-ares.profile/v2\nmeta: {}\n", encoding="utf-8")
     rc = platform_main(["--profile", str(bad), "--openapi", "x.json",
                         "--out", str(tmp_path / "o")])
     err = capsys.readouterr().err

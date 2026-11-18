@@ -13,8 +13,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from veripen_cli.cmd_playbook import oracle_table
-from veripen_core.playbooks import (
+from hos_ares_cli.cmd_playbook import oracle_table
+from hos_ares_core.playbooks import (
     MEASURED_PATH,
     PLAYBOOK_DIR,
     PlaybookError,

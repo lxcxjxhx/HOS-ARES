@@ -52,7 +52,7 @@ def _record(**kw):  # noqa: ANN202
 
 
 def _render(record, **kw):  # noqa: ANN001, ANN003
-    from veripen.report.hunt import render_hunt_markdown
+    from hos_ares.report.hunt import render_hunt_markdown
 
     kw.setdefault("capsules_dir", "out/x/capsules")
     kw.setdefault("generated_at", "2026-11-09T00:00:00+0800")
@@ -71,7 +71,7 @@ def test_confirmed_rows_carry_evidence_and_unconfirmed_rows_carry_reason() -> No
 
 def test_evidence_commands_point_at_real_paths() -> None:
     md = _render(_record())
-    assert f"veripen replay --capsule out/x/capsules/{SHA}.json --mode offline" in md
+    assert f"hos-ares replay --capsule out/x/capsules/{SHA}.json --mode offline" in md
     assert f"sha256:{SHA}.json" not in md, "把 capsule id 当文件名（B149 的老坑）"
 
 
@@ -111,7 +111,7 @@ def test_report_never_prints_the_full_route_ref() -> None:
 # ── B191：hunt.md 的证据路径也要可移植 ─────────────────────────
 def test_hunt_md_capsule_paths_are_relative() -> None:
     """报告要发出去：命令里的证据路径不许带操作员的绝对路径。"""
-    from veripen.report.hunt import render_hunt_markdown
+    from hos_ares.report.hunt import render_hunt_markdown
 
     md = render_hunt_markdown(_record(), capsules_dir="capsules", generated_at="t")
     assert "--capsule capsules/" + SHA + ".json" in md

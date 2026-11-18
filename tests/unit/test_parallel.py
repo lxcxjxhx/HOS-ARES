@@ -13,8 +13,8 @@ import time
 
 import pytest
 
-from veripen_core.blackboard import Blackboard
-from veripen_core.parallel import (
+from hos_ares_core.blackboard import Blackboard
+from hos_ares_core.parallel import (
     ISOLATION,
     MAX_PARALLEL,
     ParallelError,
@@ -24,7 +24,7 @@ from veripen_core.parallel import (
     run_parallel,
     run_stages,
 )
-from veripen_core.store import Store
+from hos_ares_core.store import Store
 
 
 def _runner(task_id: str) -> TaskResult:

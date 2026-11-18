@@ -23,14 +23,14 @@ SEP = chr(0x2F)
 
 
 def _run(lab: Any, tmp_path: Path, tag: str, *extra: str) -> list[tuple[str, str]]:
-    from veripen_cli.cmd_run import main as run_main
+    from hos_ares_cli.cmd_run import main as run_main
 
     tmp_path.mkdir(parents=True, exist_ok=True)
     spec = tmp_path / "s.json"
     spec.write_text(json.dumps({
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": lab.base_url}],
-        "paths": {f"{SEP}api{SEP}items": {"get": {"x-veripen-tags": [tag]}}},
+        "paths": {f"{SEP}api{SEP}items": {"get": {"x-hos_ares-tags": [tag]}}},
     }), encoding="utf-8")
     out = tmp_path / "run"
     run_main(["--target", lab.base_url, "--openapi", str(spec), "--out", str(out),
@@ -82,14 +82,14 @@ def test_second_identity_reaches_a_judgement_not_a_missing_symbol(lab, tmp_path:
         with urllib.request.urlopen(f"{lab.base_url}/api/login?account={account}", timeout=5) as r:
             return json.loads(r.read())["token"]
 
-    from veripen_cli.cmd_run import main as run_main
+    from hos_ares_cli.cmd_run import main as run_main
 
     spec = tmp_path / "s.json"
     tmp_path.mkdir(parents=True, exist_ok=True)
     spec.write_text(json.dumps({
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": lab.base_url}],
-        "paths": {f"{SEP}api{SEP}items": {"get": {"x-veripen-tags": ["object_read"]}}},
+        "paths": {f"{SEP}api{SEP}items": {"get": {"x-hos_ares-tags": ["object_read"]}}},
     }), encoding="utf-8")
     out = tmp_path / "run"
     run_main(["--target", lab.base_url, "--openapi", str(spec), "--out", str(out),
@@ -110,14 +110,14 @@ def test_oob_listen_turns_ssrf_into_a_real_finding(lab, tmp_path: Path) -> None:
     改前产品侧完全不知道 OOB：判定规则只活在 `tests/lab/transport_oob.py` 里，
     `CoreTransport` 从不打 `oob_seen`，于是这个 oracle 在主命令上只能判否。
     """
-    from veripen_cli.cmd_run import main as run_main
+    from hos_ares_cli.cmd_run import main as run_main
 
     spec = tmp_path / "s.json"
     tmp_path.mkdir(parents=True, exist_ok=True)
     spec.write_text(json.dumps({
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": lab.base_url}],
-        "paths": {f"{SEP}api{SEP}fetch": {"get": {"x-veripen-tags": ["url_fetch"]}}},
+        "paths": {f"{SEP}api{SEP}fetch": {"get": {"x-hos_ares-tags": ["url_fetch"]}}},
     }), encoding="utf-8")
 
     out = tmp_path / "run"

@@ -12,10 +12,10 @@ import sqlite3
 
 import pytest
 
-from veripen_core.blackboard import EVENT_KINDS, Blackboard, EventLog, FactError
-from veripen_core.models import FindingState, new_ulid
-from veripen_core.selfcheck import CHECKS, failures, gate_failures, run_all
-from veripen_core.store import MIGRATIONS, Store
+from hos_ares_core.blackboard import EVENT_KINDS, Blackboard, EventLog, FactError
+from hos_ares_core.models import FindingState, new_ulid
+from hos_ares_core.selfcheck import CHECKS, failures, gate_failures, run_all
+from hos_ares_core.store import MIGRATIONS, Store
 
 
 @pytest.fixture()
@@ -300,7 +300,7 @@ def test_with_transient_retry_retries_a_lock() -> None:
     """`database is locked` 可重试；`is_transient` 以前没人用，事件写入直接抛。"""
     import sqlite3
 
-    from veripen_core.lease import with_transient_retry
+    from hos_ares_core.lease import with_transient_retry
 
     calls = {"n": 0}
 
@@ -319,7 +319,7 @@ def test_with_transient_retry_does_not_swallow_other_errors() -> None:
 
     import pytest
 
-    from veripen_core.lease import with_transient_retry
+    from hos_ares_core.lease import with_transient_retry
 
     def boom() -> None:
         raise sqlite3.OperationalError("no such table: task_events")
@@ -331,6 +331,6 @@ def test_with_transient_retry_does_not_swallow_other_errors() -> None:
 def test_event_record_uses_the_retry_helper() -> None:
     import inspect
 
-    from veripen_core import blackboard
+    from hos_ares_core import blackboard
 
     assert "with_transient_retry" in inspect.getsource(blackboard.EventLog.record)

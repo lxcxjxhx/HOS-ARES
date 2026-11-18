@@ -11,15 +11,15 @@ from typing import Any, Mapping
 from .app import App
 from .transport import WsgiTransport
 
-from veripen_oracles.common.harness import Trace
-from veripen_oracles.oob import LabOob
+from hos_ares_oracles.common.harness import Trace
+from hos_ares_oracles.oob import LabOob
 
 
-from veripen_oracles.oob import LabOob, hit_headers as _hit_headers
+from hos_ares_oracles.oob import LabOob, hit_headers as _hit_headers
 
 
 def oob_headers(oob: LabOob, mark: int, params: Mapping[str, str]) -> dict[str, str]:
-    """B383：规则挪进产品（`veripen_oracles.oob.hit_headers`），这里只做转发。
+    """B383：规则挪进产品（`hos_ares_oracles.oob.hit_headers`），这里只做转发。
 
     以前这条规则只活在靶场里，产品侧的 transport 完全不知道 OOB ——
     "同一份 oracle 在两种传输下判定必须一致"这句话就是空的。

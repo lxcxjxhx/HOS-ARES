@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""一次性：把 B64 / B65 追加进 .veripen/batches.jsonl（只增不改）。"""
+"""一次性：把 B64 / B65 追加进 .hos-ares/batches.jsonl（只增不改）。"""
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-LEDGER = Path(__file__).resolve().parents[2] / ".veripen" / "batches.jsonl"
+LEDGER = Path(__file__).resolve().parents[2] / ".hos-ares" / "batches.jsonl"
 
 ROWS = [
     {
@@ -16,8 +16,8 @@ ROWS = [
         "agent": "little-code-sauce",
         "scope": "ui.audit 接 task_events：只读页从恒空变有源，六键脱敏，空库显式 unavailable",
         "files": [
-            "veripen_core/audit_source.py",
-            "veripen_cli/cmd_console.py",
+            "hos_ares_core/audit_source.py",
+            "hos_ares_cli/cmd_console.py",
             "tests/unit/test_audit_source.py",
             "scripts/lint/dead_exports.py",
         ],

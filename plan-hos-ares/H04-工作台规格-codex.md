@@ -10,11 +10,11 @@
 
 | 能力 | 现状 | 锚点 |
 |---|---|---|
-| 文件读写编辑 | ✅ 有作用域校验（`check_relative` 拒绝逃逸） | `veripen_core/workbench/fs.py:115`（`Workbench`） |
-| 命令执行 | ✅ 五道闸 + 进程组回收 | `veripen_core/workbench/executor.py:57`、`:137`（`_kill_group`） |
-| 计划与待办 | ✅ 有（plan 门生效，见 A12） | `veripen_core/workbench/plan.py` |
+| 文件读写编辑 | ✅ 有作用域校验（`check_relative` 拒绝逃逸） | `hos_ares_core/workbench/fs.py:115`（`Workbench`） |
+| 命令执行 | ✅ 五道闸 + 进程组回收 | `hos_ares_core/workbench/executor.py:57`、`:137`（`_kill_group`） |
+| 计划与待办 | ✅ 有（plan 门生效，见 A12） | `hos_ares_core/workbench/plan.py` |
 | 交互入口 | **❌ 无 TUI**（全仓无 `textual` / `rich` / `curses` 使用） | grep 实测 |
-| 跨任务记忆 | **◐ 只有 `asset_facts`**（只增不改），无归档/检索/过期 | `veripen_core/blackboard.py:67` |
+| 跨任务记忆 | **◐ 只有 `asset_facts`**（只增不改），无归档/检索/过期 | `hos_ares_core/blackboard.py:67` |
 | 代码执行沙箱 | **◐** 宿主机 subprocess（同 `H02 §2.1` 的问题） | `executor.py:57` |
 
 ---
@@ -43,7 +43,7 @@
 
 ### 3.2 三块面板（够用即可，不做花活）
 
-> **执行记录（2026-11-04）**：`veripen_cli/tui.py` 落地——`render_panels()` 纯函数出三块面板
+> **执行记录（2026-11-04）**：`hos_ares_cli/tui.py` 落地——`render_panels()` 纯函数出三块面板
 > （任务区含五预算 used/limit、动作流最近 8 步、线索区 pending/已闭环），
 > `run()` 用 stdlib `curses`；无 curses（本机 Windows 即如此）自动降级 `line_mode()`，
 > `doctor` 的 deps 一行显示 `tui: line-mode`。TUI 全程只读，源码里不出现 verdict。
@@ -67,7 +67,7 @@
 
 ## 4. B57 · 跨任务记忆（2 人天）
 
-> **执行记录（2026-11-04）**：`veripen_core/memory.py` 落地——复用 `blackboard_facts`（`mem.` 前缀），
+> **执行记录（2026-11-04）**：`hos_ares_core/memory.py` 落地——复用 `blackboard_facts`（`mem.` 前缀），
 > 写入强制 `source_event_id`、默认 TTL 30 天；`recall()` 只给未过期的，`stale()` 保留过期项（I10 不删）。
 > 三条反滥用可执行：记忆 API 源码里不出现 `VERIFIED`/`judge(`；写入前后 `findings` 行数不变；
 > 注入形态是"资产.属性 = 值（出处 …）"，不带结论语气。

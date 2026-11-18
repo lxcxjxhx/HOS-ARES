@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-LEDGER = ROOT / ".veripen" / "batches.jsonl"
+LEDGER = ROOT / ".hos-ares" / "batches.jsonl"
 
 
 def _rows() -> list[dict[str, object]]:

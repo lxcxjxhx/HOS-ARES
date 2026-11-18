@@ -76,13 +76,13 @@ def _spec(base: str, path: Path) -> Path:
     path.write_text(json.dumps({
         "openapi": "3.0.0", "info": {"title": "hostile", "version": "1"},
         "servers": [{"url": base}],
-        "paths": {p: {"get": {"x-veripen-tags": ["param_injectable"]}} for p in paths},
+        "paths": {p: {"get": {"x-hos_ares-tags": ["param_injectable"]}} for p in paths},
     }), encoding="utf-8")
     return path
 
 
 def test_hostile_responses_never_crash_an_oracle(hostile, tmp_path: Path) -> None:  # noqa: ANN001
-    from veripen_cli.cmd_run import main as run_main
+    from hos_ares_cli.cmd_run import main as run_main
 
     rc = run_main(["--target", hostile,
                    "--openapi", str(_spec(hostile, tmp_path / "s.json")),

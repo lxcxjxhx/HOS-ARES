@@ -56,7 +56,7 @@ class _NeverCalled:
 
 
 def test_unmet_requirements_maps_inputs() -> None:
-    from veripen_oracles.common.harness import unmet_requirements
+    from hos_ares_oracles.common.harness import unmet_requirements
 
     o = _Oracle("auth:primary", "auth:secondary")
     assert unmet_requirements(o, token=None) == ["auth:primary", "auth:secondary"]
@@ -65,13 +65,13 @@ def test_unmet_requirements_maps_inputs() -> None:
 
 def test_unknown_requirement_is_fail_closed() -> None:
     """不认识的 requirement 按“不满足”处理：宁可少判，不可假判。"""
-    from veripen_oracles.common.harness import unmet_requirements
+    from hos_ares_oracles.common.harness import unmet_requirements
 
     assert unmet_requirements(_Oracle("weird:thing"), token="t") == ["weird:thing"]
 
 
 def test_oob_and_approval_are_explicit() -> None:
-    from veripen_oracles.common.harness import unmet_requirements
+    from hos_ares_oracles.common.harness import unmet_requirements
 
     o = _Oracle("oob:listener", "approval:reversible_write")
     assert unmet_requirements(o) == ["oob:listener", "approval:reversible_write"]
@@ -79,8 +79,8 @@ def test_oob_and_approval_are_explicit() -> None:
 
 
 def test_strict_mode_blocks_without_sending() -> None:
-    from veripen_core.models import Verdict
-    from veripen_oracles.common.harness import run
+    from hos_ares_core.models import Verdict
+    from hos_ares_oracles.common.harness import run
 
     transport = _NeverCalled()
     result = run(_Oracle("auth:secondary"), None, transport,
@@ -93,7 +93,7 @@ def test_strict_mode_blocks_without_sending() -> None:
 
 def test_default_is_not_strict() -> None:
     """默认关：缺输入时仍然按老路走（这里用“会抛”的 transport 证明它进场了）。"""
-    from veripen_oracles.common.harness import run
+    from hos_ares_oracles.common.harness import run
 
     transport = _NeverCalled()
     with pytest.raises(RuntimeError, match="transport called"):

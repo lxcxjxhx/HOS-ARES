@@ -337,7 +337,7 @@ class App:
         if self.secure and not target.startswith(ALLOWED_FETCH_PREFIX):
             return 400, "application/json", {"error": "url_not_allowed"}
         if target.startswith(OOB_PREFIX):
-            self.callbacks.append({"url": target, "ua": "veripen-lab/1.0"})
+            self.callbacks.append({"url": target, "ua": "hos_ares-lab/1.0"})
         # B383：**真的去连一次**（短超时、失败吞掉）。只登记不出网的话，
         # 产品侧的真监听器永远收不到回调——"两种传输同一条规则"就成了空话。
         if target.startswith(("http" + "://", "http" + "s" + "://")):

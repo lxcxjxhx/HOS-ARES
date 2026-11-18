@@ -1,4 +1,4 @@
-# VeriPen —— 可验证渗透内核
+# HOS-ARES —— 可验证渗透内核
 #
 # B1 只装"能跑契约测试 + 能起服务"的最小依赖；后续批次按需增加，不预装。
 # 不写任何 URL（lint-noroute 全仓生效）。
@@ -8,7 +8,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "veripen"
+name = "hos-ares"
 version = "0.1.0"
 description = "可验证渗透验证内核：判定纯函数、地址零常量、证据六态可 replay"
 requires-python = ">=3.11"
@@ -17,21 +17,21 @@ dependencies = [
     "PyYAML>=6.0",
     "fastapi>=0.111",
     "uvicorn>=0.30",
-    # 产品代码直接 import（`veripen_core/playbooks.py`）：漏了它，干净安装一加载
+    # 产品代码直接 import（`hos_ares_core/playbooks.py`）：漏了它，干净安装一加载
     # 演练剧本就 ModuleNotFoundError（B200 在干净 venv 里实跑抓到）
     "jsonschema>=4.20",
 ]
 
-# 安装后可直接 `veripen <子命令>`；未安装时用 `python -m veripen_cli`
+# 安装后可直接 `hos-ares <子命令>`；未安装时用 `python -m hos_ares_cli`
 [project.scripts]
-veripen = "veripen_cli.__main__:main"
+hos-ares = "hos_ares_cli.__main__:main"
 
 [project.optional-dependencies]
 # cryptography 只被 tests/lab/tls.py 用来现场签发证书（https 分支的夹具）。
 # 它**不进运行期依赖**：产品代码走 stdlib ssl，不需要它；
 # 但测试里必须声明清楚，否则本地碰巧装了就能过、CI 干净环境就红。
 # tests/routes/test_l0.py 会在子进程里跑 mypy；缺 mypy 或类型桩，CI 干净环境就红（B200）。
-# playwright 是**产品代码**里的可选渲染后端（`veripen_core/render/browser.py` 直接 import），
+# playwright 是**产品代码**里的可选渲染后端（`hos_ares_core/render/browser.py` 直接 import），
 # 不进运行期依赖；但 mypy 查产品代码时需要它在位，否则 import-not-found。
 dev = ["pytest>=8.0", "cryptography>=42", "mypy>=1.8", "types-PyYAML>=6",
        "playwright>=1.40",
@@ -39,16 +39,16 @@ dev = ["pytest>=8.0", "cryptography>=42", "mypy>=1.8", "types-PyYAML>=6",
        "httpx2>=0.1"]
 
 [tool.setuptools]
-# 只声明了 veripen_core 与 api（B283）：`pip install` 出来的包里**没有 veripen_cli**，
-# 于是 `veripen` 这个 console script 一跑就 ModuleNotFoundError——产品装不上。
+# 只声明了 hos_ares_core 与 api（B283）：`pip install` 出来的包里**没有 hos_ares_cli**，
+# 于是 `hos-ares` 这个 console script 一跑就 ModuleNotFoundError——产品装不上。
 # 显式列全，别用自动发现（仓库里还有 tests/ scripts/ out/ 这些不该进包的目录）。
 packages = [
     "api",
-    "veripen",
-    "veripen_cli",
-    "veripen_contract",
-    "veripen_core",
-    "veripen_oracles",
+    "hos_ares",
+    "hos_ares_cli",
+    "hos_ares_contract",
+    "hos_ares_core",
+    "hos_ares_oracles",
     "web",
     "worker",
 ]

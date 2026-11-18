@@ -12,8 +12,8 @@ import sqlite3
 
 import pytest
 
-from veripen.report import lint as report_lint
-from veripen.report.render import (
+from hos_ares.report import lint as report_lint
+from hos_ares.report.render import (
     FindingView,
     Outcome,
     ReportInput,
@@ -22,9 +22,9 @@ from veripen.report.render import (
     render_sarif,
     render_json,
 )
-from veripen_core import outcome as oc
-from veripen_core.models import CoverageSrc, Finding, FindingState
-from veripen_core.store import Store
+from hos_ares_core import outcome as oc
+from hos_ares_core.models import CoverageSrc, Finding, FindingState
+from hos_ares_core.store import Store
 
 BASE = dict(
     id="f-1",

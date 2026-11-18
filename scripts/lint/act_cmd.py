@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-ACTIONS_DIR = ROOT / "veripen_core" / "actions"
+ACTIONS_DIR = ROOT / "hos_ares_core" / "actions"
 
 #: 地址指纹：scheme、IPv4、显式 host:port
 ADDRESS = re.compile(
@@ -38,7 +38,7 @@ def _py_files() -> list[Path]:
 
 def _check_templates() -> list[str]:
     sys.path.insert(0, str(ROOT))
-    from veripen_core.actions import ARGV_TEMPLATES
+    from hos_ares_core.actions import ARGV_TEMPLATES
 
     problems: list[str] = []
     for binary, template in ARGV_TEMPLATES.items():

@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 def _run_source() -> str:
-    return (Path(__file__).resolve().parents[2] / "veripen_cli" / "cmd_run.py").read_text(
+    return (Path(__file__).resolve().parents[2] / "hos_ares_cli" / "cmd_run.py").read_text(
         encoding="utf-8")
 
 
@@ -64,10 +64,10 @@ def test_each_cause_is_recorded_where_it_is_decided() -> None:
 
 # ── B299：连不上 ≠ 跑了判不了，也不该把 Windows 异常串当原因码 ────
 def test_transport_failure_maps_to_error_with_a_stable_code() -> None:
-    from veripen.report.render import Outcome
-    from veripen_cli.cmd_run import _findings_view
-    from veripen_oracles.common.harness import RunResult
-    from veripen_core.models import Verdict
+    from hos_ares.report.render import Outcome
+    from hos_ares_cli.cmd_run import _findings_view
+    from hos_ares_oracles.common.harness import RunResult
+    from hos_ares_core.models import Verdict
 
     class Meta:
         id = "sqli_bool_diff"
@@ -84,7 +84,7 @@ def test_transport_failure_maps_to_error_with_a_stable_code() -> None:
 
 
 def test_transport_reason_has_a_human_sentence() -> None:
-    from veripen.report.glossary import explain
+    from hos_ares.report.glossary import explain
 
     text = explain("transport_error:connection_refused")
     assert "连不上" in text and "端口" in text, text
@@ -93,7 +93,7 @@ def test_transport_reason_has_a_human_sentence() -> None:
 # ── B303：重跑提示要贴着用户给的 --out，且不泄漏绝对路径 ──────────
 def test_next_out_examples_follow_the_actual_path() -> None:
     """platform 调进来时目录是 `out/<批次>/asset-N`；写死 `out/run-2` 会把人指到不存在的地方。"""
-    from veripen_cli.cmd_run import _next_out
+    from hos_ares_cli.cmd_run import _next_out
 
     assert _next_out("out/run").endswith("run-2")
     assert "asset-1-2" in _next_out("out/twice/asset-1")
@@ -102,7 +102,7 @@ def test_next_out_examples_follow_the_actual_path() -> None:
 def test_show_prefers_a_relative_path() -> None:
     from pathlib import Path
 
-    from veripen_cli.cmd_run import _show
+    from hos_ares_cli.cmd_run import _show
 
     inside = Path.cwd() / "out" / "x"
     assert _show(inside) == "out/x"

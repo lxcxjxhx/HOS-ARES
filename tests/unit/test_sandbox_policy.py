@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from veripen_core.sandbox import denied_hosts, hosts_of, scan_for_addresses
+from hos_ares_core.sandbox import denied_hosts, hosts_of, scan_for_addresses
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -66,7 +66,7 @@ def test_scan_allows_opaque_refs_and_namespaces(tmp_path: Path) -> None:
     script = tmp_path / "run.sh"
     script.write_text(
         "echo route://contract/7f3a2c11\n"
-        "echo vault://kv/veripen\n"
+        "echo vault://kv/hos_ares\n"
         "echo 'xmlns=\"http://www.w3.org/2000/svg\"'\n",
         encoding="utf-8",
     )

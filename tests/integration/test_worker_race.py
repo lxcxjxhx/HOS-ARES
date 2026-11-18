@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from worker_race import reap_and_reclaim, run_workers, summary, task_states
-from veripen_core.models import TaskState
+from hos_ares_core.models import TaskState
 
 
 @pytest.fixture()
@@ -85,7 +85,7 @@ def test_more_workers_than_tasks(db: Path) -> None:
 # ══════════════════════════════════════════════════════════════════
 def test_same_asset_is_not_run_twice(db: Path) -> None:
     """同一资产已有在跑任务时，另一个任务不会被领走（04 §4 分区）。"""
-    from veripen_core.store import Store
+    from hos_ares_core.store import Store
 
     store = Store(db)
     store.init()
@@ -151,7 +151,7 @@ def test_same_asset_is_not_run_twice(db: Path) -> None:
 # ══════════════════════════════════════════════════════════════════
 def test_expired_lease_is_reaped_and_reclaimed(db: Path) -> None:
     """worker 崩了，租约过期后任务能重新被领——**这正是多 worker 增加的故障面**。"""
-    from veripen_core.store import Store
+    from hos_ares_core.store import Store
 
     run_workers(db, workers=1, tasks=1, now=1000, ttl_s=60)
     store = Store(db)

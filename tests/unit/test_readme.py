@@ -1,7 +1,7 @@
 """B83 · README 与 CLI 的一致性（H25 判据 C–E）。
 
 文档最常见的腐烂方式不是"写错"，是**写得当时对、之后没人改**。
-所以这里机器校验：README 里出现的每条 `veripen <子命令>` 必须真能跑。
+所以这里机器校验：README 里出现的每条 `hos_ares <子命令>` 必须真能跑。
 """
 
 from __future__ import annotations
@@ -14,8 +14,8 @@ import pytest
 README = Path(__file__).resolve().parents[2] / "README.md"
 TEXT = README.read_text(encoding="utf-8")
 
-#: 形如 `veripen chat` / `veripen run --target …` 的行内命令
-_CMD = re.compile(r"veripen\s+([a-z][a-z0-9-]*)")
+#: 形如 `hos-ares chat` / `hos-ares run --target …` 的行内命令
+_CMD = re.compile(r"hos_ares\s+([a-z][a-z0-9-]*)")
 
 
 def _commands_in_readme() -> set[str]:
@@ -27,18 +27,18 @@ def _commands_in_readme() -> set[str]:
 def test_readme_exists_and_has_quickstart() -> None:
     assert README.exists(), "顶层 README 不存在"
     first_screen = TEXT[:2200]
-    for need in ("pip install", "veripen doctor", "veripen chat"):
+    for need in ("pip install", "hos-ares doctor", "hos-ares chat"):
         assert need in first_screen, f"首屏缺 {need!r}"
 
 
 def test_readme_covers_three_pillars() -> None:
-    for pillar in ("veripen run", "veripen platform", "veripen chat"):
+    for pillar in ("hos-ares run", "hos-ares platform", "hos-ares chat"):
         assert pillar in TEXT, f"缺 {pillar}"
 
 
 # ── C/E：命令与 COMMANDS 一致 ─────────────────────────────────
 def test_every_readme_command_exists() -> None:
-    from veripen_cli.__main__ import COMMANDS
+    from hos_ares_cli.__main__ import COMMANDS
 
     known = {name for name, _, _ in COMMANDS}
     used = _commands_in_readme()
@@ -47,7 +47,7 @@ def test_every_readme_command_exists() -> None:
 
 
 def test_all_pillars_are_registered() -> None:
-    from veripen_cli.__main__ import COMMANDS
+    from hos_ares_cli.__main__ import COMMANDS
 
     known = {name for name, _, _ in COMMANDS}
     musts = ("chat", "run", "platform") + ("doctor", "console", "parity")

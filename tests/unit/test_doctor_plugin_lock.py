@@ -36,15 +36,15 @@ def _snap(sha: str) -> dict:
 
 
 def _run(monkeypatch, snap: dict):  # noqa: ANN001, ANN202
-    import veripen_core.plugins as plugins
-    from veripen_cli.cmd_doctor import check_lock_snapshot
+    import hos_ares_core.plugins as plugins
+    from hos_ares_cli.cmd_doctor import check_lock_snapshot
 
     monkeypatch.setattr(plugins, "Registry", lambda: _FakeRegistry(snap))
     return check_lock_snapshot(ROOT)
 
 
 def test_empty_registry_is_a_skip_not_a_green(monkeypatch) -> None:  # noqa: ANN001
-    from veripen_cli.cmd_doctor import Status
+    from hos_ares_cli.cmd_doctor import Status
 
     result = _run(monkeypatch, {"version": 1, "lock": {}, "snapshot_sha256": "0" * 64})
     assert result.status is Status.SKIP, "空锁只能是 skip：它没有可验的东西"
@@ -52,8 +52,8 @@ def test_empty_registry_is_a_skip_not_a_green(monkeypatch) -> None:  # noqa: ANN
 
 
 def test_consistent_snapshot_is_ok(monkeypatch) -> None:  # noqa: ANN001
-    from veripen_core.plugins.registry import lock_sha
-    from veripen_cli.cmd_doctor import Status
+    from hos_ares_core.plugins.registry import lock_sha
+    from hos_ares_cli.cmd_doctor import Status
 
     result = _run(monkeypatch, _snap(lock_sha(PINS)))
     assert result.status is Status.OK
@@ -62,7 +62,7 @@ def test_consistent_snapshot_is_ok(monkeypatch) -> None:  # noqa: ANN001
 
 def test_tampered_snapshot_fails(monkeypatch) -> None:  # noqa: ANN001
     """锁文件被手改 → 必须红，并说清该改哪里。"""
-    from veripen_cli.cmd_doctor import Status
+    from hos_ares_cli.cmd_doctor import Status
 
     result = _run(monkeypatch, _snap("b" * 64))
     assert result.status is Status.FAIL
@@ -70,7 +70,7 @@ def test_tampered_snapshot_fails(monkeypatch) -> None:  # noqa: ANN001
 
 
 def test_lock_sha_is_independent_of_dict_order() -> None:
-    from veripen_core.plugins.registry import lock_sha
+    from hos_ares_core.plugins.registry import lock_sha
 
     a = {"x": {"resolved": "1", "sha256": "a" * 64}, "y": {"resolved": "2", "sha256": "b" * 64}}
     b = {"y": a["y"], "x": a["x"]}

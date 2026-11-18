@@ -15,10 +15,10 @@ from pathlib import Path
 
 import pytest
 
-from veripen_core.blackboard import AssetFacts, FactError
-from veripen_core.leads import LeadLedger, LeadState
-from veripen_core.store import Store
-from veripen_core.workbench.plan import (
+from hos_ares_core.blackboard import AssetFacts, FactError
+from hos_ares_core.leads import LeadLedger, LeadState
+from hos_ares_core.store import Store
+from hos_ares_core.workbench.plan import (
     TodoItem,
     TodoList,
     TodoState,

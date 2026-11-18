@@ -10,7 +10,7 @@ from __future__ import annotations
 
 
 def test_e4_discovery_is_green_not_skipped() -> None:
-    from veripen_cli.cmd_parity import run
+    from hos_ares_cli.cmd_parity import run
 
     rows = {r["key"]: r for r in run()}
     e4 = rows["E4"]
@@ -20,14 +20,14 @@ def test_e4_discovery_is_green_not_skipped() -> None:
 
 def test_only_e1_remains_unverified() -> None:
     """除 E1（缺容器运行时）之外，不该有未验项。"""
-    from veripen_cli.cmd_parity import run
+    from hos_ares_cli.cmd_parity import run
 
     unverified = {r["key"] for r in run() if r["status"] == "unverified"}
     assert unverified <= {"E1"}, unverified
 
 
 def test_no_item_is_marked_as_not_done() -> None:
-    from veripen_cli.cmd_parity import run
+    from hos_ares_cli.cmd_parity import run
 
     skipped = {r["key"] for r in run() if r["status"] == "skipped"}
     assert not skipped, f"仍标着不做的：{skipped}"

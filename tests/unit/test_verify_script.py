@@ -139,12 +139,12 @@ def test_make_lint_defers_to_the_gate_list() -> None:
 
 # ── B232：冻结包自己那份 MANIFEST 也得有人跑 ────────────────────
 def test_old_plan_manifest_runs_in_its_own_directory() -> None:
-    """校验器读的是相对路径 `MANIFEST.md`，必须在 plan-veripen 那层跑。"""
+    """校验器读的是相对路径 `MANIFEST.md`，必须在旧包（plan-hos-legacy）那层跑。"""
     import verify
 
     gate = {g.name: g for g in verify.GATES}["plan-old-manifest"]
     assert gate.needs == "node"
-    assert gate.cwd == "plan-veripen", gate.cwd
+    assert gate.cwd == "plan-hos-legacy", gate.cwd
 
 
 def test_old_plan_manifest_matches_its_content() -> None:

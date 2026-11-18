@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""一次性：把 B79 追加进 .veripen/batches.jsonl（只增不改）。"""
+"""一次性：把 B79 追加进 .hos-ares/batches.jsonl（只增不改）。"""
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-LEDGER = Path(__file__).resolve().parents[2] / ".veripen" / "batches.jsonl"
+LEDGER = Path(__file__).resolve().parents[2] / ".hos-ares" / "batches.jsonl"
 
 ROW = {
     "batch": "B79",
@@ -15,8 +15,8 @@ ROW = {
     "agent": "little-code-sauce",
     "scope": "对话面板接三支柱：chat 里说「跑一遍」/「按档跑」→ cmd_run / cmd_platform",
     "files": [
-        "veripen_core/agent/intent.py",
-        "veripen_cli/cmd_chat.py",
+        "hos_ares_core/agent/intent.py",
+        "hos_ares_cli/cmd_chat.py",
         "tests/integration/test_chat_hunt.py",
     ],
     "dod": "A(跑一下 target openapi=path 调起 run 并产出报告) OK；B(按档跑调起 platform) OK；C(缺 openapi/缺档明确追问不猜) OK；D(输出折叠≤12行+完整日志路径) OK；E(摘要进 task_events) OK",

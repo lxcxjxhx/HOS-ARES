@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""一次性：把 B76 追加进 .veripen/batches.jsonl（只增不改）。"""
+"""一次性：把 B76 追加进 .hos-ares/batches.jsonl（只增不改）。"""
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-LEDGER = Path(__file__).resolve().parents[2] / ".veripen" / "batches.jsonl"
+LEDGER = Path(__file__).resolve().parents[2] / ".hos-ares" / "batches.jsonl"
 
 ROW = {
     "batch": "B76",
@@ -15,9 +15,9 @@ ROW = {
     "agent": "little-code-sauce",
     "scope": "结构标签接线：plan(accept_structural) 采纳 parser 的 proposed，无显式标签的契约也能进候选",
     "files": [
-        "veripen_contract/planner.py",
-        "veripen_cli/cmd_run.py",
-        "veripen_cli/cmd_platform.py",
+        "hos_ares_contract/planner.py",
+        "hos_ares_cli/cmd_run.py",
+        "hos_ares_cli/cmd_platform.py",
         "tests/unit/test_structural_confirm.py",
     ],
     "dod": "A(带开关候选数严格增加) OK；B(采纳标签 source=structural / conf 0.80 < 契约 0.95) OK；C(response_shape.tag_sources 逐条可辨) OK；D(不带开关行为逐字不变) OK；E(靶场实测可跑 oracle 1->3，VERIFIED 2) OK",

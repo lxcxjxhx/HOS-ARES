@@ -14,8 +14,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
-from veripen_core.render import BrowserRenderer
-from veripen_oracles.render_transport import MARKER_JS
+from hos_ares_core.render import BrowserRenderer
+from hos_ares_oracles.render_transport import MARKER_JS
 
 S = chr(0x2F)
 LOOPBACK = "127" + "." + "0" + "." + "0" + "." + "1"
@@ -101,16 +101,16 @@ def test_trace_carries_marker_but_no_address(site) -> None:  # noqa: ANN001
         ref = "route://crawl/deadbeef"
         template = HTTP + f"{LOOPBACK}:{port}{S}vuln?q={{p1}}"
 
-    from veripen_core.tools import http as http_tool
-    from veripen_oracles.render_transport import RenderTransport
+    from hos_ares_core.tools import http as http_tool
+    from hos_ares_oracles.render_transport import RenderTransport
 
     def _go():  # noqa: ANN202
       with BrowserRenderer() as renderer:
         # 闸门：手工搭一个，避免依赖完整 resolver
-        from veripen_cli.cmd_hunt import build_guard
-        from veripen_core.routes import AssetRef, Resolver, RouteCandidate, RouteHints
-        from veripen_core.routes import RouteProvenance, RouteQuery
-        from veripen_core.routes.sources import StaticSource
+        from hos_ares_cli.cmd_hunt import build_guard
+        from hos_ares_core.routes import AssetRef, Resolver, RouteCandidate, RouteHints
+        from hos_ares_core.routes import RouteProvenance, RouteQuery
+        from hos_ares_core.routes.sources import StaticSource
 
         cands = [RouteCandidate(method="GET", template=_Binding.template,
                                 source=RouteProvenance.CRAWL)]
@@ -161,7 +161,7 @@ def test_echoed_scans_whole_body_beyond_old_limit(site) -> None:  # noqa: ANN001
     threading.Thread(target=big.serve_forever, daemon=True).start()
     try:
         # 走 RenderThread：全量跑时主线程可能有 running loop（B118 的教训）
-        from veripen_core.render.worker import RenderThread
+        from hos_ares_core.render.worker import RenderThread
 
         with RenderThread() as renderer:
             cap = renderer.capture(
@@ -177,7 +177,7 @@ def test_echoed_scans_whole_body_beyond_old_limit(site) -> None:  # noqa: ANN001
 
 
 def test_capture_result_has_no_raw_body_field() -> None:
-    from veripen_core.render.browser import CaptureResult
+    from hos_ares_core.render.browser import CaptureResult
 
     fields = set(CaptureResult.__dataclass_fields__)
     assert "echoed" in fields

@@ -21,7 +21,7 @@ import re
 
 import pytest
 
-from veripen_cli.cmd_chat import main
+from hos_ares_cli.cmd_chat import main
 
 S = chr(0x2F)
 ANSI = re.compile(chr(27) + r"\[[0-9;]*m")

@@ -151,17 +151,17 @@ const waveRows = (text) => {
 
 // ── 6 代码锚点 ──────────────────────────────────────────────────
 {
-  const roots = [REPO, path.join(REPO, 'plan-veripen'), path.join(REPO, 'plan-hos-ares')];
+  const roots = [REPO, path.join(REPO, 'plan-hos-ares'), path.join(REPO, 'plan-hos-ares')];
   const ALIAS = {
     'console.py': 'web/console.py',
     'index.html': 'web/static/index.html',
     'serve_console.py': 'scripts/serve_console.py',
-    'executor.py': 'veripen_core/workbench/executor.py',
-    'fs.py': 'veripen_core/workbench/fs.py',
-    'blackboard.py': 'veripen_core/blackboard.py',
-    'context.py': 'veripen_core/context.py',
-    'orchestrator.py': 'veripen_core/agents/orchestrator.py',
-    'registry.py': 'veripen_core/tools/registry.py',
+    'executor.py': 'hos_ares_core/workbench/executor.py',
+    'fs.py': 'hos_ares_core/workbench/fs.py',
+    'blackboard.py': 'hos_ares_core/blackboard.py',
+    'context.py': 'hos_ares_core/context.py',
+    'orchestrator.py': 'hos_ares_core/agents/orchestrator.py',
+    'registry.py': 'hos_ares_core/tools/registry.py',
   };
   const cache = new Map();
   const lineCount = (p) => {

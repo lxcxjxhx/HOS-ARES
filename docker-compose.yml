@@ -9,9 +9,9 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      VERIPEN_DB: ${VERIPEN_DB:-out/veripen.db}
-      VERIPEN_BIND_HOST: ${VERIPEN_BIND_HOST:?需要在 .env 提供 VERIPEN_BIND_HOST}
-      VERIPEN_BIND_PORT: ${VERIPEN_BIND_PORT:?需要在 .env 提供 VERIPEN_BIND_PORT}
+      HOS_ARES_DB: ${HOS_ARES_DB:-out/hos-ares.db}
+      HOS_ARES_BIND_HOST: ${HOS_ARES_BIND_HOST:?需要在 .env 提供 HOS_ARES_BIND_HOST}
+      HOS_ARES_BIND_PORT: ${HOS_ARES_BIND_PORT:?需要在 .env 提供 HOS_ARES_BIND_PORT}
       OPS_TASK_SUBMIT: ${OPS_TASK_SUBMIT:?缺 OPS_TASK_SUBMIT}
       OPS_TASK_GET: ${OPS_TASK_GET:?缺 OPS_TASK_GET}
       OPS_HEALTHZ: ${OPS_HEALTHZ:?缺 OPS_HEALTHZ}
@@ -19,9 +19,9 @@ services:
     command:
       - sh
       - -c
-      - exec python -m uvicorn api.app:build_default_app --factory --host "$$VERIPEN_BIND_HOST" --port "$$VERIPEN_BIND_PORT"
+      - exec python -m uvicorn api.app:build_default_app --factory --host "$$HOS_ARES_BIND_HOST" --port "$$HOS_ARES_BIND_PORT"
     ports:
-      - "${VERIPEN_PUBLISH_PORT:?需要在 .env 提供 VERIPEN_PUBLISH_PORT}:${VERIPEN_BIND_PORT}"
+      - "${HOS_ARES_PUBLISH_PORT:?需要在 .env 提供 HOS_ARES_PUBLISH_PORT}:${HOS_ARES_BIND_PORT}"
     volumes:
       - ./out:/srv/out
     restart: unless-stopped

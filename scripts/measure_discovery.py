@@ -26,28 +26,28 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from veripen_core.discovery import (  # noqa: E402
+from hos_ares_core.discovery import (  # noqa: E402
     Crawler,
     candidate_of,
     seed_candidate,
     transport_fetcher,
     well_known_candidates,
 )
-from veripen_core.routes import (  # noqa: E402
+from hos_ares_core.routes import (  # noqa: E402
     AssetRef,
     Resolver,
     RouteHints,
     RouteProvenance,
     RouteQuery,
 )
-from veripen_core.routes.sources.base import candidate_from_record  # noqa: E402
-from veripen_core.routes.sources.symbols import (  # noqa: E402
+from hos_ares_core.routes.sources.base import candidate_from_record  # noqa: E402
+from hos_ares_core.routes.sources.symbols import (  # noqa: E402
     SymbolSource as SymSource,
     SymbolTable as RouteSymbols,
 )
-from veripen_core.tools import http as http_tool  # noqa: E402
-from veripen_oracles import ALL_ORACLES  # noqa: E402
-from veripen_cli.cmd_hunt import _host_of, build_guard  # noqa: E402
+from hos_ares_core.tools import http as http_tool  # noqa: E402
+from hos_ares_oracles import ALL_ORACLES  # noqa: E402
+from hos_ares_cli.cmd_hunt import _host_of, build_guard  # noqa: E402
 
 BASE = "base"
 SEP = chr(0x2F)
@@ -83,7 +83,7 @@ def main(argv: list[str]) -> int:
     stack = contextlib.ExitStack()
     renderer = None
     if args.render:
-        from veripen_core.render.browser import BrowserRenderer
+        from hos_ares_core.render.browser import BrowserRenderer
 
         renderer = stack.enter_context(BrowserRenderer())
     crawler = Crawler(transport_fetcher(), max_pages=args.pages, renderer=renderer,

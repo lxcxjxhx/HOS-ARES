@@ -45,7 +45,7 @@ def make_cert(
     """
     directory.mkdir(parents=True, exist_ok=True)
     key = ec.generate_private_key(ec.SECP256R1())
-    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "veripen-lab")])
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "hos_ares-lab")])
     now = _dt.datetime.now(_dt.timezone.utc)
 
     san: list[x509.GeneralName] = []

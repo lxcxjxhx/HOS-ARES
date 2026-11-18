@@ -14,8 +14,8 @@ import json
 import pytest
 from conftest import Lab
 
-from veripen_oracles.auth import checks
-from veripen_oracles.auth.jwt_suite import (
+from hos_ares_oracles.auth import checks
+from hos_ares_oracles.auth.jwt_suite import (
     JCase,
     JwtSuite,
     b64d,
@@ -24,8 +24,8 @@ from veripen_oracles.auth.jwt_suite import (
     split_token,
     token_summary,
 )
-from veripen_oracles.common.harness import Pair, Trace, pair_up, run
-from veripen_core.models import Verdict
+from hos_ares_oracles.common.harness import Pair, Trace, pair_up, run
+from hos_ares_core.models import Verdict
 
 
 def _run(lab: Lab):  # noqa: ANN202
@@ -103,7 +103,7 @@ def test_control_not_denied_blocks_verdict(vulnerable: Lab) -> None:
 
 
 def _as_variant(name: str, role: str = "probe"):  # noqa: ANN202
-    from veripen_oracles.common.harness import Variant
+    from hos_ares_oracles.common.harness import Variant
 
     return Variant(name=name, role=role, expect="accepted_or_rejected")
 
@@ -246,8 +246,8 @@ def test_every_declared_judge_exists_and_is_callable() -> None:
 # ── B376：S1 会话固定真的接上了 oracle ──────────────────────────
 def test_session_fixation_oracle_is_registered_and_uses_the_judge() -> None:
     """判定函数 → oracle 这条通路：注册表里有它，判据仍走 auth/checks 那一条。"""
-    from veripen_oracles import ALL_ORACLES
-    from veripen_oracles.auth import session
+    from hos_ares_oracles import ALL_ORACLES
+    from hos_ares_oracles.auth import session
 
     ids = {c.meta.id for c in ALL_ORACLES}
     assert "session_fixation" in ids, "没注册就永远跑不到（B9 的 open）"
@@ -257,7 +257,7 @@ def test_session_fixation_oracle_is_registered_and_uses_the_judge() -> None:
 def test_set_cookie_sid_is_parsed_without_other_attributes() -> None:
     from types import SimpleNamespace
 
-    from veripen_oracles.auth.session import _cookie_sid
+    from hos_ares_oracles.auth.session import _cookie_sid
 
     assert _cookie_sid(SimpleNamespace(headers={"Set-Cookie": "sid=abc; Path=/; HttpOnly"})) == "abc"
     assert _cookie_sid(SimpleNamespace(headers={"set-cookie": "a=1; sid=xyz"})) == "xyz"
@@ -267,8 +267,8 @@ def test_set_cookie_sid_is_parsed_without_other_attributes() -> None:
 
 # ── B377：O5 授权码重放接成 oracle ─────────────────────────────
 def test_code_replay_oracle_is_registered_and_disposable_by_default() -> None:
-    from veripen_oracles import ALL_ORACLES
-    from veripen_oracles.auth import oauth
+    from hos_ares_oracles import ALL_ORACLES
+    from hos_ares_oracles.auth import oauth
 
     ids = {c.meta.id for c in ALL_ORACLES}
     assert "code_replay" in ids
@@ -278,7 +278,7 @@ def test_code_replay_oracle_is_registered_and_disposable_by_default() -> None:
 
 def test_code_replay_baseline_uses_its_own_code() -> None:
     """基线若消费掉一次性码，后面两发必然 400 → 把自己的探针算成"第一次失败"。"""
-    from veripen_oracles.auth.oauth import BASELINE_CODE, FIXED_CODE, CodeReplay
+    from hos_ares_oracles.auth.oauth import BASELINE_CODE, FIXED_CODE, CodeReplay
 
     params = CodeReplay().baseline_params(binding=None)
     assert params["code"] == BASELINE_CODE != FIXED_CODE
@@ -286,7 +286,7 @@ def test_code_replay_baseline_uses_its_own_code() -> None:
 
 # ── B384：O1 接成 oracle ───────────────────────────────────────
 def test_oauth_redirect_oracle_is_registered_and_needs_oob() -> None:
-    from veripen_oracles import ALL_ORACLES
+    from hos_ares_oracles import ALL_ORACLES
 
     ids = {c.meta.id for c in ALL_ORACLES}
     assert "oauth_redirect_uri" in ids

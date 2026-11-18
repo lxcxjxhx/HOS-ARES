@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 from typing import Any, Mapping
 
-from veripen_oracles.common.harness import Trace
+from hos_ares_oracles.common.harness import Trace
 
 from .app import App, make_token
 

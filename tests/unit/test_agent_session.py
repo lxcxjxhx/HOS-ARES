@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from veripen_core.agent.session import COMMANDS, Session
-from veripen_core.store import Store
+from hos_ares_core.agent.session import COMMANDS, Session
+from hos_ares_core.store import Store
 
 
 def _store() -> Store:
@@ -73,7 +73,7 @@ def test_resume_unknown_task_is_empty(tmp_path: Path) -> None:
 # ── D：无模型要明说 ────────────────────────────────────────────
 def test_cli_says_no_model(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
                            capsys: pytest.CaptureFixture[str]) -> None:
-    from veripen_cli.cmd_agent import main
+    from hos_ares_cli.cmd_agent import main
 
     monkeypatch.setattr("sys.stdin", io.StringIO("write t.txt hi\nquit\n"))
     rc = main(["--db", str(tmp_path / "a.db"), "--root", str(tmp_path)])
@@ -85,7 +85,7 @@ def test_cli_says_no_model(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 
 def test_cli_rejects_unknown_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
                                      capsys: pytest.CaptureFixture[str]) -> None:
-    from veripen_cli.cmd_agent import main
+    from hos_ares_cli.cmd_agent import main
 
     monkeypatch.setattr("sys.stdin", io.StringIO("delete t.txt\nquit\n"))
     main(["--db", str(tmp_path / "a.db"), "--root", str(tmp_path)])

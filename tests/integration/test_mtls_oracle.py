@@ -29,7 +29,7 @@ _OPENSSL_CERT_REQUIRED = "[SSL: TLSV13_ALERT_CERTIFICATE_REQUIRED] tlsv13 alert 
 
 
 def test_certificate_required_text_is_matched_after_normalising() -> None:
-    from veripen_oracles.auth.checks import judge_mtls_handshake
+    from hos_ares_oracles.auth.checks import judge_mtls_handshake
 
     result = judge_mtls_handshake(handshake_ok=False, error_reason=_OPENSSL_CERT_REQUIRED,
                                   client_cert_requested=True)
@@ -39,7 +39,7 @@ def test_certificate_required_text_is_matched_after_normalising() -> None:
 
 def test_unknown_ca_is_not_counted_as_m1() -> None:
     """自签证书报 unknown ca：测到的是 M3（证书链），别冒充 M1。"""
-    from veripen_oracles.auth.checks import judge_mtls_handshake
+    from hos_ares_oracles.auth.checks import judge_mtls_handshake
 
     result = judge_mtls_handshake(handshake_ok=False,
                                   error_reason="[SSL: CERTIFICATE_VERIFY_FAILED] unknown ca",
@@ -50,7 +50,7 @@ def test_unknown_ca_is_not_counted_as_m1() -> None:
 
 def test_connection_reset_is_inconclusive_not_a_conclusion() -> None:
     """被 RST 掉（没收到告警）：只能说"原因不明"，不许当成"要求了证书"。"""
-    from veripen_oracles.auth.checks import judge_mtls_handshake
+    from hos_ares_oracles.auth.checks import judge_mtls_handshake
 
     result = judge_mtls_handshake(handshake_ok=False,
                                   error_reason="ConnectionResetError: [Errno 10054]",
@@ -63,8 +63,8 @@ def test_without_expectation_the_oracle_stays_silent() -> None:
     """没声明 mTLS 就不出结论（否则每个 https 面都会变成"高危"）。"""
     from types import SimpleNamespace
 
-    from veripen_oracles.auth.mtls import MtlsRequired
-    from veripen_oracles.common.harness import Pair
+    from hos_ares_oracles.auth.mtls import MtlsRequired
+    from hos_ares_oracles.common.harness import Pair
 
     trace = SimpleNamespace(status=200, headers={}, error=None, body=b"{}",
                             scheme="https", is_normal=lambda: True)
@@ -87,7 +87,7 @@ def test_one_way_tls_face_accepts_a_client_without_a_certificate(tls_certs, tmp_
     from lab.app import App
     from lab.net_server import LabServer
 
-    from veripen_cli.cmd_run import main as run_main
+    from hos_ares_cli.cmd_run import main as run_main
 
     monkeypatch.setenv("SSL_CERT_FILE", str(tls_certs[0]))
     srv = LabServer(App(secure=False), tls=tls_certs).start()
@@ -96,7 +96,7 @@ def test_one_way_tls_face_accepts_a_client_without_a_certificate(tls_certs, tmp_
         spec.write_text(json.dumps({
             "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
             "servers": [{"url": srv.base_url}],
-            "paths": {PREFIX: {"get": {"x-veripen-tags": ["protected_read"]}}},
+            "paths": {PREFIX: {"get": {"x-hos_ares-tags": ["protected_read"]}}},
         }), encoding="utf-8")
         out = tmp_path / "run"
         run_main(["--target", srv.base_url, "--openapi", str(spec), "--out", str(out)])
@@ -122,8 +122,8 @@ def test_declared_mtls_face_without_client_cert_is_verified() -> None:
     """声明了 mTLS 却放行无证书客户端 → 才是缺陷（这条钉 VERIFIED 分支）。"""
     from types import SimpleNamespace
 
-    from veripen_oracles.auth.mtls import MtlsRequired
-    from veripen_oracles.common.harness import Pair
+    from hos_ares_oracles.auth.mtls import MtlsRequired
+    from hos_ares_oracles.common.harness import Pair
 
     trace = SimpleNamespace(status=200, headers={}, error=None, body=b"{}",
                             scheme="https", is_normal=lambda: True)

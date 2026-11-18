@@ -18,15 +18,15 @@
 pip install -e ".[dev]"
 
 # 2. 环境自检（25 项，缺条件的记 skip 不记 fail）
-veripen doctor
+hos-ares doctor
 
 # 3. 坐下干活
-veripen chat
+hos-ares chat
 ```
 
-未安装时把 `veripen` 换成 `python -m veripen_cli`，效果相同。
+未安装时把 `hos-ares` 换成 `python -m hos_ares_cli`，效果相同。
 
-`veripen chat` 里可以直接说：
+`hos-ares chat` 里可以直接说：
 
 ```
 > 看下 out/x.txt
@@ -105,14 +105,14 @@ ubuntu 上跑快闸门，windows 上把测试分三段跑——避免"CI 跑的"
 
 | 面 | 命令 | 产物 |
 |---|---|---|
-| **自动化渗透** | `veripen run --target <url> --openapi <spec>` | `report.md` / `findings.json` / `report.sarif` / `report.manifest.json` / `capsules/` |
-| **智能体渗透** | `veripen hunt --target <url> --openapi <spec>` | `hunt.md` / `hunt.json` / `hunt.manifest.json` / `coverage.json` / `capsules/` |
-| **企业编排** | `veripen platform --profile profiles/<档名>/profile.yaml --openapi <spec>` | `platform-report.md` / `platform-report.manifest.json`（逐资产 + 审计五表） |
-| **对话界面** | `veripen chat` | 会话事件（`task_events`），可 `--resume` |
+| **自动化渗透** | `hos-ares run --target <url> --openapi <spec>` | `report.md` / `findings.json` / `report.sarif` / `report.manifest.json` / `capsules/` |
+| **智能体渗透** | `hos-ares hunt --target <url> --openapi <spec>` | `hunt.md` / `hunt.json` / `hunt.manifest.json` / `coverage.json` / `capsules/` |
+| **企业编排** | `hos-ares platform --profile profiles/<档名>/profile.yaml --openapi <spec>` | `platform-report.md` / `platform-report.manifest.json`（逐资产 + 审计五表） |
+| **对话界面** | `hos-ares chat` | 会话事件（`task_events`），可 `--resume` |
 
 四份清单同形（`sections` + `files` + `manifest_sha256`），一条命令就能核：
 
-    veripen replay --manifest <产物目录>
+    hos-ares replay --manifest <产物目录>
 
 它逐文件核 sha256、并先核清单自哈希；输出会写清"挡得住手误，挡不住有意改"。
 
@@ -122,9 +122,9 @@ ubuntu 上跑快闸门，windows 上把测试分三段跑——避免"CI 跑的"
 
 | 命令 | 0 | 1 | 2 | 3 |
 |---|---|---|---|---|
-| `veripen run` | 跑完并产出交付物 | 一项都没跑成；或**0 项验证成功且有执行失败**（目标不可达等）；或证据自校验失败 | 输入有问题（契约/目标/档） | — |
-| `veripen hunt` | 本轮结束（含模型降级） | 契约里没有带语义标签的 operation | 输入有问题 | — |
-| `veripen platform` | 全部资产跑完 | 有资产退出码非 0（报告里标 —） | 输入有问题 | **审批 PENDING，未执行** |
+| `hos-ares run` | 跑完并产出交付物 | 一项都没跑成；或**0 项验证成功且有执行失败**（目标不可达等）；或证据自校验失败 | 输入有问题（契约/目标/档） | — |
+| `hos-ares hunt` | 本轮结束（含模型降级） | 契约里没有带语义标签的 operation | 输入有问题 | — |
+| `hos-ares platform` | 全部资产跑完 | 有资产退出码非 0（报告里标 —） | 输入有问题 | **审批 PENDING，未执行** |
 
 `3` 单独留出来，是为了让 CI 能区分"等人签字"与"跑挂了"——前者不该报警。
 
@@ -137,11 +137,11 @@ ubuntu 上跑快闸门，windows 上把测试分三段跑——避免"CI 跑的"
 配合：
 
 ```bash
-veripen console             # 只读控制台（11 个只读操作）
-veripen tui                 # 终端三面板
-veripen hunt --target …     # 边跑边打印
-veripen parity              # 三对标总验收（5 面 × 22 项）
-veripen replay --capsule …  # 证据重放
+hos-ares console             # 只读控制台（11 个只读操作）
+hos-ares tui                 # 终端三面板
+hos-ares hunt --target …     # 边跑边打印
+hos-ares parity              # 三对标总验收（5 面 × 22 项）
+hos-ares replay --capsule …  # 证据重放
 ```
 
 一条命令出演示成片（需要 ffmpeg + playwright）：
@@ -159,17 +159,17 @@ make demo-record            # → out/demo/hos-ares-tour.mp4
 
 | 能力 | 状态 | 证据 |
 |---|---|---|
-| 纯函数判定 + 三条件 + control | ✅ | `veripen parity` 的 V1 |
-| 结论哈希链 + 六态 replay | ✅ | `veripen replay` |
-| 地址零常量（`RouteRef` 无 url/host 字段） | ✅ | `veripen parity` 的 V3 |
+| 纯函数判定 + 三条件 + control | ✅ | `hos-ares parity` 的 V1 |
+| 结论哈希链 + 六态 replay | ✅ | `hos-ares replay` |
+| 地址零常量（`RouteRef` 无 url/host 字段） | ✅ | `hos-ares parity` 的 V3 |
 | 浏览器渲染执行体（真 Chromium） | ✅ | `tests/integration/test_browser_render.py` |
-| 工具面统一（agent 与工作台同一套） | ✅ | `veripen doctor` 的 tool-surface |
+| 工具面统一（agent 与工作台同一套） | ✅ | `hos-ares doctor` 的 tool-surface |
 | 上下文压缩（降幅 ≥30%） | ✅ | `tests/unit/test_l1a_injection.py` |
 | Playbook 资产 + 成功率实测 | ✅ | `playbooks/` |
 | 插件装→用→升级回滚→卸 | ✅ | `tests/unit/test_plugin_lifecycle.py` |
 | 审批落库 + 事件留痕 | ✅ | `tests/unit/test_approval_persistence.py` |
 | 交互式会话（说人话 / 计划 / diff / 多步） | ✅ | `tests/integration/test_chat_*.py` |
-| 统一 CLI（13 个子命令） | ✅ | `veripen --help` |
+| 统一 CLI（13 个子命令） | ✅ | `hos-ares --help` |
 
 ## 现在**不**能做什么
 
@@ -179,7 +179,7 @@ make demo-record            # → out/demo/hos-ares-tour.mp4
 |---|---|---|
 | 容器真隔离 | 接口/策略/BLOCKED 已验，**真隔离未验** | 一台装了 docker 或 podman 的机器，跑 `make exec-isolation` |
 | 容器级并行 | 进程内已验（三任务指纹与串行一致），**容器级未验** | 同上 |
-| 真模型服从性 | 链路已验（本地假服务），**模型会不会守窄 schema 未知** | 配 `VERIPEN_MODEL_BASE_URL` + `VERIPEN_MODEL` 后跑一次 |
+| 真模型服从性 | 链路已验（本地假服务），**模型会不会守窄 schema 未知** | 配 `HOS_ARES_MODEL_BASE_URL` + `HOS_ARES_MODEL` 后跑一次 |
 | 真实目标召回 0.33 | 结构推断已接线（靶场实测 1→3 个可跑 oracle），**外部指标未复测** | 能访问外部目标的环境 |
 | 资产发现/扫描 | **策略性不做**（`D-H-03`） | 不做 |
 | IDE 插件 | **不做**（离线包要零依赖） | 不做 |
@@ -189,20 +189,20 @@ make demo-record            # → out/demo/hos-ares-tour.mp4
 ## 接模型（可选，B226）
 
 ```bash
-export VERIPEN_MODEL_BASE_URL=http://127.0.0.1:4000/v1   # OpenAI 兼容端点
-export VERIPEN_MODEL=deepseek-chat
-export VERIPEN_MODEL_API_KEY=sk-***                     # 需要鉴权时才设
-veripen chat          # 启动行会显示 model: <名字>；不设则显示 model: rules
+export HOS_ARES_MODEL_BASE_URL=http://127.0.0.1:4000/v1   # OpenAI 兼容端点
+export HOS_ARES_MODEL=deepseek-chat
+export HOS_ARES_MODEL_API_KEY=sk-***                     # 需要鉴权时才设
+hos-ares chat          # 启动行会显示 model: <名字>；不设则显示 model: rules
 ```
 
 三条纪律：**没配就不联网**（`from_env()` 返回 None，自动降级到规则层）；**一步一次调用**
 （`tool_calls_per_step=1`，不许一个 step 串多个工具）；**只认白名单工具名**（`SCHEMAS ∪ surface_names()`）。
-`veripen agent` 是指令模式，不调模型。
+`hos-ares agent` 是指令模式，不调模型。
 
-配了却连不上，`veripen doctor` 的「模型后端」项当场报 FAIL 并给出可粘的 `curl` 探测命令——不用等到第一次
-`veripen chat` 才发现；没配记 skip（规则层可用，不算缺陷）。报错按状态码指到具体那一项：401/403 是
-`VERIPEN_MODEL_API_KEY`、404 是 `base_url` 少了 `/v1`；配了 key 会带上它去探（不然 401 会冤枉成"检查 key"），
-端点没有 `/models` 只记 skip（能连是事实，核对不到模型名也是事实）。`veripen chat` 里模型层失败会原样说出原因，再降级 rules。
+配了却连不上，`hos-ares doctor` 的「模型后端」项当场报 FAIL 并给出可粘的 `curl` 探测命令——不用等到第一次
+`hos-ares chat` 才发现；没配记 skip（规则层可用，不算缺陷）。报错按状态码指到具体那一项：401/403 是
+`HOS_ARES_MODEL_API_KEY`、404 是 `base_url` 少了 `/v1`；配了 key 会带上它去探（不然 401 会冤枉成"检查 key"），
+端点没有 `/models` 只记 skip（能连是事实，核对不到模型名也是事实）。`hos-ares chat` 里模型层失败会原样说出原因，再降级 rules。
 
 ---
 
@@ -210,7 +210,7 @@ veripen chat          # 启动行会显示 model: <名字>；不设则显示 mod
 
 | 想知道 | 看 |
 |---|---|
-| 判定内核的四条不变量 | `plan-veripen/`（冻结只读的规格包） |
+| 判定内核的四条不变量 | `plan-hos-ares/`（冻结只读的规格包） |
 | 22 项能力矩阵与对标口径 | `plan-hos-ares/H01-能力矩阵与对标口径.md` |
 | 25 批排期与判据 | `plan-hos-ares/H07-批次总表与排期.md` |
 | 二期接线（B60–B83） | `plan-hos-ares/H11`–`H25` |
@@ -224,10 +224,10 @@ veripen chat          # 启动行会显示 model: <名字>；不设则显示 mod
 ```bash
 pytest tests/unit -q                     # 单测
 pytest tests/integration -q              # 集成（含靶场）
-veripen doctor                           # 环境自检
-veripen parity                           # 5 面 × 22 项
+hos-ares doctor                           # 环境自检
+hos-ares parity                           # 5 面 × 22 项
 python scripts/lint/ledger_check.py      # 批次账本诚实性
 node plan-hos-ares/check-plan.cjs        # 规划包结构
 ```
 
-批次账本在 `.veripen/batches.jsonl`，只增不改。
+批次账本在 `.hos-ares/batches.jsonl`，只增不改。

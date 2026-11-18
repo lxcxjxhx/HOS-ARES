@@ -1,4 +1,4 @@
-"""VeriPen HTTP 服务（op_id 注册式，无路径字面量）。"""
+"""HOS-ARES HTTP 服务（op_id 注册式，无路径字面量）。"""
 
 from __future__ import annotations
 

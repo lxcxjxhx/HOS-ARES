@@ -8,7 +8,7 @@
 ## 1. 一条命令看全局
 
 ```bash
-python -m veripen_cli.cmd_parity
+python -m hos_ares_cli.cmd_parity
 # 合计 22 项：green 20 · 未验 1（E1 容器） · 不做 1（E4 资产发现，D-H-03） · red 0
 ```
 
@@ -25,11 +25,11 @@ python -m veripen_cli.cmd_parity
 | W3 平台面 | B50–B55（6 批） | ✅ 全部 done |
 | W4 工作台/收口 | B56–B59（4 批） | ✅ 全部 done，M4 达成 |
 
-账本：`.veripen/batches.jsonl` 104 行（B1–B59），`ledger-check` 0 问题。
+账本：`.hos-ares/batches.jsonl` 104 行（B1–B59），`ledger-check` 0 问题。
 
 ---
 
-## 3. 断言（20 条，`plan-veripen/16 §4.1` v3.9）
+## 3. 断言（20 条，`plan-hos-ares/16 §4.1` v3.9）
 
 | 组 | 结果 |
 |---|---|
@@ -73,9 +73,9 @@ python -m veripen_cli.cmd_parity
 ```bash
 pytest tests/unit -q                                  # 全绿（1 skipped）
 pytest tests/integration/test_browser_render.py -q    # 10 passed（真 Chromium）
-python -m veripen_cli.cmd_parity                      # 22 项 / red 0
-(cd plan-veripen && node check-plan.cjs)              # v3.9 / 20 断言 / OK
-(cd plan-veripen && node _verify-manifest.cjs)        # 54 files verified
+python -m hos_ares_cli.cmd_parity                      # 22 项 / red 0
+(cd plan-hos-ares && node check-plan.cjs)              # v3.9 / 20 断言 / OK
+(cd plan-hos-ares && node _verify-manifest.cjs)        # 54 files verified
 node plan-hos-ares/check-plan.cjs                     # 22 项 / 25 批 / 44.5 人天 / OK
 node scripts/plan/check-plans.cjs                     # 3 包 / 注册表一致
 python scripts/lint/ledger_check.py                   # 104 行 / 0 问题

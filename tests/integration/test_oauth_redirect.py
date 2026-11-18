@@ -23,14 +23,14 @@ SYMBOLS = json.dumps({"SAFE_TARGET": f"{SEP}portal{SEP}index"})
 
 
 def _row(lab: Any, tmp_path: Path) -> dict[str, Any]:
-    from veripen_cli.cmd_run import main as run_main
+    from hos_ares_cli.cmd_run import main as run_main
 
     tmp_path.mkdir(parents=True, exist_ok=True)
     spec = tmp_path / "s.json"
     spec.write_text(json.dumps({
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": lab.base_url}],
-        "paths": {f"{SEP}portal{SEP}authorize": {"get": {"x-veripen-tags": ["redirect_entry"]}}},
+        "paths": {f"{SEP}portal{SEP}authorize": {"get": {"x-hos_ares-tags": ["redirect_entry"]}}},
     }), encoding="utf-8")
     out = tmp_path / "run"
     run_main(["--target", lab.base_url, "--openapi", str(spec), "--out", str(out),
@@ -82,7 +82,7 @@ def test_control_must_redirect_before_any_conclusion() -> None:
     """对照都没跳（端点没有跳转语义）→ 只能 INCONCLUSIVE，不许判否。"""
     from types import SimpleNamespace
 
-    from veripen_oracles.auth.checks import judge_redirect_uri
+    from hos_ares_oracles.auth.checks import judge_redirect_uri
 
     result = judge_redirect_uri(oob_hit=True, location_ok=True, control_location_ok=False)
     assert result.verdict == "INCONCLUSIVE", result

@@ -22,8 +22,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from veripen_core.models import TaskState
-from veripen_core.store import Store
+from hos_ares_core.models import TaskState
+from hos_ares_core.store import Store
 
 
 @dataclass

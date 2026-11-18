@@ -1,8 +1,8 @@
 """B247 · 交付物里两处"看起来坏了"的渲染。
 
-① `veripen run` 的报告头部，profile_hash / image 在无客户档时是空的，旧版渲染成
+① `hos-ares run` 的报告头部，profile_hash / image 在无客户档时是空的，旧版渲染成
    两个**空反引号**：`- profile_hash: `` · image: ``` —— 读者会以为渲染坏了。
-② `veripen platform` 的"路由来源"原样打出 `--openapi` 参数，于是交付物里出现
+② `hos-ares platform` 的"路由来源"原样打出 `--openapi` 参数，于是交付物里出现
    `C:\\…\\out\\platform-check\\spec.json` 这种本机绝对路径：带出操作员的目录结构，
    别人拿到报告也照抄不了。
 """
@@ -11,8 +11,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from veripen.report import FindingView, ReportInput, render_markdown
-from veripen_cli.cmd_platform import _portable_path
+from hos_ares.report import FindingView, ReportInput, render_markdown
+from hos_ares_cli.cmd_platform import _portable_path
 
 
 def _rep(**kw) -> ReportInput:  # noqa: ANN003

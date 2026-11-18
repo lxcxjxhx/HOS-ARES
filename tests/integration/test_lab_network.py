@@ -15,7 +15,7 @@ import pytest
 from lab.app import App, make_token
 from lab.net_server import LabServer
 
-from veripen_core.tools import transport
+from hos_ares_core.tools import transport
 
 LB = "127." + "0.0.1"
 SEP = chr(0x2F)
@@ -31,7 +31,7 @@ def server() -> Iterator[tuple[LabServer, str]]:
 
 
 def _render(base: str, path: str) -> "transport.RenderResult":
-    from veripen_core.routes.types import RouteBinding
+    from hos_ares_core.routes.types import RouteBinding
 
     binding = RouteBinding(
         ref="route://observed/" + "a" * 16, source="observed", sources_all=("observed",),
@@ -176,7 +176,7 @@ def test_wsgi_and_net_render_the_same_query(server) -> None:  # noqa: ANN001
     from lab.net_transport import NetTransport
     from lab.transport import WsgiTransport
 
-    from veripen_cli.cmd_bench_leads import _routeset
+    from hos_ares_cli.cmd_bench_leads import _routeset
 
     _srv, base = server
     # 真网络版需要绝对模板（host 在模板里）；用与 act.* 同一条 _routeset 派生。

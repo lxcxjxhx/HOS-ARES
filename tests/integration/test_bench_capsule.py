@@ -38,11 +38,11 @@ def _run_case(case_id: str):  # noqa: ANN202
     from lab.app import make_token
     from lab.net_server import LabServer
     from lab.net_transport import NetTransport
-    from veripen.bench import load_cases
-    from veripen.bench.capsule import build_capsule
-    from veripen.bench.faces import extra_tags
-    from veripen_core.evidence import seal_capsule_doc
-    from veripen_oracles.oob import LabOob
+    from hos_ares.bench import load_cases
+    from hos_ares.bench.capsule import build_capsule
+    from hos_ares.bench.faces import extra_tags
+    from hos_ares_core.evidence import seal_capsule_doc
+    from hos_ares_oracles.oob import LabOob
 
     case = next(c for c in load_cases(ROOT / "tests" / "bench" / "cases.yaml")
                 if c.case_id == case_id)
@@ -90,9 +90,9 @@ def _replay(cap, pairs, baseline_params, *, secure: bool) -> str:  # noqa: ANN00
     from lab.app import App, make_token
     from lab.net_server import LabServer
     from lab.net_transport import NetTransport
-    from veripen.bench.capsule import StepParamsTransport, step_params
-    from veripen_core.evidence import ReplayEnv, ReplayMode, replay
-    from veripen_oracles.oob import LabOob
+    from hos_ares.bench.capsule import StepParamsTransport, step_params
+    from hos_ares_core.evidence import ReplayEnv, ReplayMode, replay
+    from hos_ares_oracles.oob import LabOob
 
     app = App(secure=secure)
     srv = LabServer(app).start()
@@ -111,7 +111,7 @@ def _replay(cap, pairs, baseline_params, *, secure: bool) -> str:  # noqa: ANN00
 
 def test_capsule_seals_and_verifies_self_sha() -> None:
     """造得出来、seal 得住：内容哈希可自证。"""
-    from veripen_core.evidence import verify_self_sha
+    from hos_ares_core.evidence import verify_self_sha
 
     _, result, cap = _run_case("P-01")
     assert cap.capsule_id.startswith("sha256:")
@@ -169,8 +169,8 @@ def test_sensitive_headers_are_redacted() -> None:
     不走 oracle 的 header 变体，所以"跑一例"根本产不出 Authorization——
     用真跑会得到一条永远为真的断言，那比没有测试更糟。
     """
-    from veripen.bench.capsule import build_capsule
-    from veripen_core.evidence import redact_headers, verify_self_sha, seal_capsule_doc
+    from hos_ares.bench.capsule import build_capsule
+    from hos_ares_core.evidence import redact_headers, verify_self_sha, seal_capsule_doc
 
     assert redact_headers({"Authorization": "Bearer secret", "X-Trace": "abc"}) == {
         "Authorization": "<redacted>",
@@ -180,7 +180,7 @@ def test_sensitive_headers_are_redacted() -> None:
     # 整份证据里不许出现凭据值
     from types import SimpleNamespace
 
-    from veripen_core.models import Verdict
+    from hos_ares_core.models import Verdict
 
     binding = SimpleNamespace(
         ref="route://contract/" + "a" * 16, source="contract", sources_all=("contract",),

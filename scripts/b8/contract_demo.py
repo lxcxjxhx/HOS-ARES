@@ -14,8 +14,8 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from veripen_contract import parse_openapi, plan  # noqa: E402
-from veripen_core.routes import (  # noqa: E402
+from hos_ares_contract import parse_openapi, plan  # noqa: E402
+from hos_ares_core.routes import (  # noqa: E402
     AssetRef,
     Resolver,
     RouteHints,

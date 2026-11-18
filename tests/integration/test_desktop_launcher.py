@@ -1,6 +1,6 @@
 """B198：双击就能看到界面——桌面启动入口。
 
-判据：仓库里能力都在，但**没有"打开就能看"的东西**——`veripen console` 要先知道
+判据：仓库里能力都在，但**没有"打开就能看"的东西**——`hos-ares console` 要先知道
 `--hunt` 指哪、要自己敲地址。打包成 exe 之后，双击应当直接出现界面。
 
 这组用例钉四件事（都不需要真浏览器）：
@@ -34,7 +34,7 @@ def _get(url: str) -> tuple[int, str]:
 
 
 def test_free_port_is_actually_free() -> None:
-    from veripen_cli.desktop import free_port
+    from hos_ares_cli.desktop import free_port
 
     port = free_port()
     assert 1024 < port < 65536
@@ -48,7 +48,7 @@ def test_free_port_is_actually_free() -> None:
 def test_record_precedence_prefers_explicit_then_defaults_then_empty(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from veripen_cli.desktop import pick_record
+    from hos_ares_cli.desktop import pick_record
 
     # `pick_record` 会看**当前目录**（B287），所以这个用例必须把 cwd 挪开：
     # 否则仓库根下只要有 out/hunt.json，"什么都没有"这一断言就会红（B324 实测）。
@@ -65,7 +65,7 @@ def test_record_precedence_prefers_explicit_then_defaults_then_empty(
 
 def test_empty_state_is_not_invented() -> None:
     """没数据就是空态：不许编一份出来让页面显得"有内容"。"""
-    from veripen_cli.desktop import build_state
+    from hos_ares_cli.desktop import build_state
 
     state = build_state(None)
     assert list(state.findings) == []
@@ -73,7 +73,7 @@ def test_empty_state_is_not_invented() -> None:
 
 
 def test_service_serves_the_console_page() -> None:
-    from veripen_cli.desktop import base_url, build_state, free_port, serve, wait_ready
+    from hos_ares_cli.desktop import base_url, build_state, free_port, serve, wait_ready
 
     port = free_port()
     serving = serve(build_state(None), port)
@@ -89,7 +89,7 @@ def test_service_serves_the_console_page() -> None:
 
 
 def test_base_url_uses_loopback_literal_free_form() -> None:
-    from veripen_cli.desktop import base_url
+    from hos_ares_cli.desktop import base_url
 
     url = base_url(1234)
     assert url.startswith("http" + ":" + SEP * 2)
@@ -98,7 +98,7 @@ def test_base_url_uses_loopback_literal_free_form() -> None:
 
 
 def test_main_runs_and_exits(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    from veripen_cli.desktop import free_port, main
+    from hos_ares_cli.desktop import free_port, main
 
     port = free_port()
     assert main(["--no-browser", "--wait-s", "0.5", "--port", str(port)]) == 0
@@ -116,13 +116,13 @@ def test_launcher_survives_a_non_utf8_console() -> None:
     import subprocess
     import time
 
-    from veripen_cli.desktop import base_url, free_port, wait_ready
+    from hos_ares_cli.desktop import base_url, free_port, wait_ready
 
     port = free_port()
     env = {**os.environ, "PYTHONIOENCODING": "cp1252"}
     proc = subprocess.Popen(          # noqa: S603 - 固定 argv
         # -u：子进程被 terminate 时缓冲还没刷，不加就读不到那几行
-        [sys.executable, "-u", "-m", "veripen_cli.desktop",
+        [sys.executable, "-u", "-m", "hos_ares_cli.desktop",
          "--no-browser", "--wait-s", "4", "--port", str(port)],
         cwd=str(ROOT), env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
     )

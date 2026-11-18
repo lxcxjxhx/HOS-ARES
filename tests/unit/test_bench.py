@@ -12,7 +12,7 @@ import json
 
 import pytest
 
-from veripen.bench.core import (
+from hos_ares.bench.core import (
     BenchCase,
     BenchFailed,
     CaseResult,
@@ -164,7 +164,7 @@ def test_closure_rate_with_no_leads_is_one() -> None:
 
 
 def test_bench_md_prints_closure_rate() -> None:
-    from veripen.bench import render_bench_md
+    from hos_ares.bench import render_bench_md
 
     r = _round([_ok("P-01", "positive", "VERIFIED", leads=5, leads_closed=4)])
     md = render_bench_md([r], gates=check_hard_gates([r]), case_fp="f" * 64)
@@ -281,7 +281,7 @@ def test_bench_json_roundtrip() -> None:
     rounds = [_round(results, no=i) for i in (1, 2, 3)]
     gate = check_hard_gates(rounds)
     payload = to_json(rounds, gates=gate, case_fp="f" * 64)
-    assert payload["schema"] == "veripen.bench/v1"
+    assert payload["schema"] == "hos-ares.bench/v1"
     assert payload["totals"]["routeset_consistent"] is True
     json.dumps(payload)  # 必须可序列化
 
@@ -331,7 +331,7 @@ def test_bench_md_points_at_capsule_dir() -> None:
     )
     assert "证据落盘" in with_dir
     assert "out/x/capsules/r1" in with_dir, "要给出可复跑的链校验路径"
-    assert "veripen replay --chain" in with_dir, "提示的命令必须真的存在（B293）"
+    assert "hos-ares replay --chain" in with_dir, "提示的命令必须真的存在（B293）"
     without = render_bench_md([r], gates=check_hard_gates([r]), case_fp="f" * 64)
     assert "证据落盘" not in without
 
@@ -363,8 +363,8 @@ def test_save_round_chain_writes_one_verifiable_chain(tmp_path) -> None:  # noqa
     """
     import capsule_fixture as F
 
-    from veripen.bench.capsule import save_round_chain
-    from veripen_core.evidence import load_capsule, order_chain, verify_chain
+    from hos_ares.bench.capsule import save_round_chain
+    from hos_ares_core.evidence import load_capsule, order_chain, verify_chain
 
     docs = [F.capsule(probe_body=f"chain-{i}") for i in range(3)]
     sealed = save_round_chain(docs, tmp_path)
@@ -398,7 +398,7 @@ def test_bench_names_the_oracles_its_corpus_never_measures() -> None:
         _sys.path.insert(0, str(root / "scripts" / "b12"))
     import run_bench  # noqa: PLC0415
 
-    from veripen.bench.core import load_cases  # noqa: PLC0415
+    from hos_ares.bench.core import load_cases  # noqa: PLC0415
 
     cases = load_cases(root / "tests" / "bench" / "cases.yaml")
     gaps = run_bench.uncovered_oracles({c.oracle for c in cases})

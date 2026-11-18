@@ -20,9 +20,9 @@ ENV_KEY = "VP_ASSET_WEB_01"
 
 def _spec(base: str) -> str:
     paths = {
-        f"{SEP}api{SEP}search": {"get": {"x-veripen-tags": ["param_injectable"]}},
-        f"{SEP}api{SEP}items{SEP}{{id}}": {"get": {"x-veripen-tags": ["object_read"]}},
-        f"{SEP}api{SEP}read": {"get": {"x-veripen-tags": ["file_read"]}},
+        f"{SEP}api{SEP}search": {"get": {"x-hos_ares-tags": ["param_injectable"]}},
+        f"{SEP}api{SEP}items{SEP}{{id}}": {"get": {"x-hos_ares-tags": ["object_read"]}},
+        f"{SEP}api{SEP}read": {"get": {"x-hos_ares-tags": ["file_read"]}},
     }
     return json.dumps({
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
@@ -47,7 +47,7 @@ def lab_and_spec(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
 
 def _run(tmp_path: Path, spec: Path, *extra: str) -> int:
-    from veripen_cli.cmd_platform import main
+    from hos_ares_cli.cmd_platform import main
 
     return main([
         "--profile", str(PROFILE), "--openapi", str(spec),
@@ -96,7 +96,7 @@ def test_profile_needs_approval_blocks_without_signoff(lab_and_spec: Any,
 # ── D：符号未注入 → fail-closed ────────────────────────────────
 def test_missing_symbol_exits_two(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
                                   capsys: pytest.CaptureFixture[str]) -> None:
-    from veripen_cli.cmd_platform import main
+    from hos_ares_cli.cmd_platform import main
 
     monkeypatch.delenv(ENV_KEY, raising=False)
     spec = tmp_path / "s.json"
@@ -110,7 +110,7 @@ def test_missing_symbol_exits_two(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
 
 # ── E：参数冲突 ────────────────────────────────────────────────
 def test_profile_and_targets_conflict(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    from veripen_cli.cmd_platform import main
+    from hos_ares_cli.cmd_platform import main
 
     spec = tmp_path / "s.json"
     spec.write_text(_spec("http" + ":" + SEP + SEP + "127." + "0.0.1:1"), encoding="utf-8")
@@ -121,7 +121,7 @@ def test_profile_and_targets_conflict(tmp_path: Path, capsys: pytest.CaptureFixt
 
 
 def test_neither_source_exits_two(tmp_path: Path) -> None:
-    from veripen_cli.cmd_platform import main
+    from hos_ares_cli.cmd_platform import main
 
     spec = tmp_path / "s.json"
     spec.write_text("{}", encoding="utf-8")

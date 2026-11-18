@@ -22,7 +22,7 @@ SEP = chr(0x2F)
 
 
 def _rows(lab: Any, tmp_path: Path) -> list[tuple[str, str, str]]:
-    from veripen_cli.cmd_run import main as run_main
+    from hos_ares_cli.cmd_run import main as run_main
 
     tmp_path.mkdir(parents=True, exist_ok=True)
     spec = tmp_path / "s.json"
@@ -32,9 +32,9 @@ def _rows(lab: Any, tmp_path: Path) -> list[tuple[str, str, str]]:
         "paths": {
             # 三个面都要声明：序列的各步打的是不同端点（只给登录面时，
             # 判定必须如实说"缺面"，而不是拿登录面冒充登出面）
-            f"{SEP}portal{SEP}login": {"get": {"x-veripen-tags": ["token_issue"]}},
-            f"{SEP}portal{SEP}logout": {"get": {"x-veripen-tags": ["token_issue"]}},
-            f"{SEP}portal{SEP}session": {"get": {"x-veripen-tags": ["token_issue"]}},
+            f"{SEP}portal{SEP}login": {"get": {"x-hos_ares-tags": ["token_issue"]}},
+            f"{SEP}portal{SEP}logout": {"get": {"x-hos_ares-tags": ["token_issue"]}},
+            f"{SEP}portal{SEP}session": {"get": {"x-hos_ares-tags": ["token_issue"]}},
         },
     }), encoding="utf-8")
     out = tmp_path / "run"
@@ -81,7 +81,7 @@ def test_revoked_session_is_refuted(hardened, tmp_path: Path) -> None:  # noqa: 
 
 def test_sequence_steps_can_target_different_templates() -> None:
     """回归：模板匹配按**路径后缀**（RouteSet 存的是绝对地址）。"""
-    from veripen_oracles.common.harness import _pick_template
+    from hos_ares_oracles.common.harness import _pick_template
 
     base = "portal"
     sep = SEP
@@ -102,7 +102,7 @@ def test_sequence_steps_can_target_different_templates() -> None:
 def test_capture_value_reads_cookie_and_body() -> None:
     from types import SimpleNamespace
 
-    from veripen_oracles.common.harness import capture_value
+    from hos_ares_oracles.common.harness import capture_value
 
     trace = SimpleNamespace(status=200, headers={"set-cookie": "sid=abc; Path=/; HttpOnly"},
                             body=b'{"access_token": "tok"}')

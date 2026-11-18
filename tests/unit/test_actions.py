@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from negative_samples import BAD_URL
-from veripen_core.actions import (
+from hos_ares_core.actions import (
     ACTIONS,
     ARGV_TEMPLATES,
     BINARY_WHITELIST,
@@ -31,11 +31,11 @@ from veripen_core.actions import (
     run_action,
     sandbox_mode,
 )
-from veripen_core.routes.addresses import contains_address
-from veripen_core.routes.types import RouteBinding
+from hos_ares_core.routes.addresses import contains_address
+from hos_ares_core.routes.types import RouteBinding
 
 ROOT = Path(__file__).resolve().parents[2]
-ACTIONS_DIR = ROOT / "veripen_core" / "actions"
+ACTIONS_DIR = ROOT / "hos_ares_core" / "actions"
 
 REF = "route://observed/" + "a" * 16
 
@@ -73,7 +73,7 @@ def test_actions_cannot_import_verdict() -> None:
 def test_the_guard_itself_can_go_red(tmp_path: Path) -> None:
     """守卫必须能红：造一个真的 import Verdict 的文件，同一段扫描逻辑要抓到它。"""
     bad = tmp_path / "bad_action.py"
-    bad.write_text("from veripen_core.models import Verdict\n", encoding="utf-8")
+    bad.write_text("from hos_ares_core.models import Verdict\n", encoding="utf-8")
     tree = ast.parse(bad.read_text(encoding="utf-8"), filename=str(bad))
     hits = [
         n for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)
@@ -236,7 +236,7 @@ def test_route_ref_is_not_an_address() -> None:
 
 
 def test_every_template_slot_is_declared() -> None:
-    from veripen_core.actions import TEMPLATE_SLOTS
+    from hos_ares_core.actions import TEMPLATE_SLOTS
 
     for binary, template in ARGV_TEMPLATES.items():
         for part in template:

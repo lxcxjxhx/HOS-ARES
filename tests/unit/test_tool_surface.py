@@ -13,10 +13,10 @@ from pathlib import Path
 
 import pytest
 
-from veripen_core.agent.client import ALLOWED_TOOLS
-from veripen_core.tools import registry as registry_mod
-from veripen_core.tools.registry import ToolCall, dispatch, tool_schemas
-from veripen_core.tools.surface import (
+from hos_ares_core.agent.client import ALLOWED_TOOLS
+from hos_ares_core.tools import registry as registry_mod
+from hos_ares_core.tools.registry import ToolCall, dispatch, tool_schemas
+from hos_ares_core.tools.surface import (
     EXTRA_SCHEMAS,
     Impact,
     SurfaceError,
@@ -24,7 +24,7 @@ from veripen_core.tools.surface import (
     build_surface,
     surface_names,
 )
-from veripen_core.workbench.fs import Workbench
+from hos_ares_core.workbench.fs import Workbench
 
 
 # ── A 注册去重 ─────────────────────────────────────────────────

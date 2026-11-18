@@ -11,7 +11,7 @@
 同一列里两行有解释、一行没有。码表说过"表里没有就原样显示，不猜"——那条纪律对，
 但**判定码**（oracle 自己产出的那些）本来就该有人话：它们是产品的声音，不是内部日志。
 
-判据：扫 `veripen_oracles/` 里以"结论位置"出现的字符串字面量（`self.verified("x")` /
+判据：扫 `hos_ares_oracles/` 里以"结论位置"出现的字符串字面量（`self.verified("x")` /
 `self.refuted("x")` / `self.inconclusive("x")` / `ProbeResult(..., "REFUTED", "x")` /
 `RunResult(Verdict.X, "x")`），逐条要求码表给得出句子。新增一个判定码而忘了配人话，这里就红。
 """
@@ -23,10 +23,10 @@ from pathlib import Path
 
 import pytest
 
-from veripen.report.glossary import explain
+from hos_ares.report.glossary import explain
 
 ROOT = Path(__file__).resolve().parents[2]
-ORACLES = ROOT / "veripen_oracles"
+ORACLES = ROOT / "hos_ares_oracles"
 
 _CODE = re.compile(r"[a-z][a-z0-9_]{2,40}")
 #: 判定码只可能出现在这几个"结论位置"（正则都锚在调用形态上，不靠启发式上下文）
@@ -66,7 +66,7 @@ def test_the_codes_seen_in_a_real_report_are_explained(code: str) -> None:
 def test_missing_input_family_is_explained() -> None:
     """严格模式下 harness 产 `missing_input:oob:listener`。
 
-    实测：`veripen run --strict-requires` 打一个 url_fetch 面，报告里那行是
+    实测：`hos-ares run --strict-requires` 打一个 url_fetch 面，报告里那行是
     「判定码 `missing_input:oob:listener`（机器码：…）」——客户读不出"我缺什么"。
     """
     for code in ("missing_input:oob:listener", "missing_input:auth:secondary"):
@@ -77,7 +77,7 @@ def test_missing_input_family_is_explained() -> None:
 
 def test_harness_missing_input_prefix_is_covered() -> None:
     """码的形状由 harness 决定，这里钉住前缀（改了就红）。"""
-    src = (ROOT / "veripen_oracles" / "common" / "harness.py").read_text(encoding="utf-8")
+    src = (ROOT / "hos_ares_oracles" / "common" / "harness.py").read_text(encoding="utf-8")
     assert 'f"missing_input:{' in src, "harness 的缺输入码格式变了，词表要跟着改"
 
 
@@ -87,7 +87,7 @@ def test_symbol_hints_name_the_actual_flag() -> None:
 
     给每个已知符号一条**可照抄**的提供方式；未知符号给通用写法，不留空。
     """
-    from veripen_oracles.common.harness import SYMBOL_HINTS, symbol_hint
+    from hos_ares_oracles.common.harness import SYMBOL_HINTS, symbol_hint
 
     assert ">=" not in symbol_hint("SAFE_TARGET").replace("=<", "")
     assert "--token-secondary" in symbol_hint("STRANGER")
@@ -101,7 +101,7 @@ def test_symbol_hints_name_the_actual_flag() -> None:
 
 
 def test_report_sentence_says_how_to_supply_the_symbol() -> None:
-    from veripen.report.glossary import explain
+    from hos_ares.report.glossary import explain
 
     text = explain("symbol_missing:SAFE_TARGET")
     assert "SAFE_TARGET" in text
@@ -111,7 +111,7 @@ def test_report_sentence_says_how_to_supply_the_symbol() -> None:
 # ── B407：说不清"下一步怎么办"的码，等于让客户来问 ──────────────
 def test_actionable_sentences_name_the_next_step() -> None:
     """判不了的码要给出**下一步**，守住的码要明说"测了、守住了"。"""
-    from veripen.report.glossary import explain
+    from hos_ares.report.glossary import explain
 
     assert "下一步" in explain("baseline_abnormal")
     assert "--repeat" in explain("unstable")
@@ -122,7 +122,7 @@ def test_actionable_sentences_name_the_next_step() -> None:
 
 
 def test_missing_input_says_which_flag_to_use() -> None:
-    from veripen.report.glossary import explain
+    from hos_ares.report.glossary import explain
 
     assert "--token-secondary" in explain("missing_input:auth:secondary")
     assert "--oob" in explain("missing_input:oob:listener")
@@ -134,7 +134,7 @@ def _codes_by_verdict() -> dict[str, set[str]]:
     import pathlib
     import re
 
-    root = pathlib.Path("veripen_oracles")
+    root = pathlib.Path("hos_ares_oracles")
     out: dict[str, set[str]] = {"refuted": set(), "inconclusive": set()}
     for f in root.rglob("*.py"):
         text = f.read_text(encoding="utf-8")
@@ -149,7 +149,7 @@ def test_refuted_sentences_say_the_protection_held() -> None:
     以前 `throttling_observed` 写成「观测到限流生效」，读起来像发现了一个问题；
     其实那是有速率限制这个好消息。同类还有 `no_differential` / `no_callback` 等。
     """
-    from veripen.report.glossary import explain
+    from hos_ares.report.glossary import explain
 
     markers = ("守住", "判否", "不成立", "没有副作用")
     bad = [(c, explain(c)) for c in sorted(_codes_by_verdict()["refuted"])
@@ -158,7 +158,7 @@ def test_refuted_sentences_say_the_protection_held() -> None:
 
 
 def test_inconclusive_sentences_say_it_could_not_be_judged() -> None:
-    from veripen.report.glossary import explain
+    from hos_ares.report.glossary import explain
 
     # 这些说法表达的是同一件事：给不出结论。收口放宽到"语义等价的几种写法"，
     # 免得为了过测试把句子改成套话。

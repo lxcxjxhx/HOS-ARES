@@ -1,6 +1,6 @@
 """B245 · 交付报告的「现象」不许是内部判定码。
 
-实测一份 `veripen run` 报告里，这一整排都在：
+实测一份 `hos-ares run` 报告里，这一整排都在：
 
 ```
 - 现象：boolean_differential_holds
@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from veripen_cli.cmd_run import _situation
+from hos_ares_cli.cmd_run import _situation
 
 #: 假 oracle 元数据：severity_rule 走表内（`differential_data_leak` → high，不触发兜底前缀）
 _META = SimpleNamespace(severity_rule="differential_data_leak")
@@ -60,7 +60,7 @@ def test_weak_face_prefix_still_leads_the_sentence() -> None:
 
 # ── B329：hunt 的排除也要写进交付物 ────────────────────────────
 def test_hunt_md_states_excluded_oracles() -> None:
-    from veripen.report.hunt import render_hunt_markdown
+    from hos_ares.report.hunt import render_hunt_markdown
 
     md = render_hunt_markdown(
         {"target_host": "a", "source": "contract", "decision": "converged", "reason": "done",
@@ -74,7 +74,7 @@ def test_hunt_md_states_excluded_oracles() -> None:
 
 
 def test_hunt_md_has_no_exclusion_line_when_nothing_excluded() -> None:
-    from veripen.report.hunt import render_hunt_markdown
+    from hos_ares.report.hunt import render_hunt_markdown
 
     md = render_hunt_markdown(
         {"target_host": "a", "source": "contract", "decision": "converged", "reason": "done",
@@ -86,7 +86,7 @@ def test_hunt_md_has_no_exclusion_line_when_nothing_excluded() -> None:
 
 # ── B334：hunt 的 deny 要真拦，且挡下时决策词不许被读成"正常收敛" ──
 def test_hunt_md_shows_blocked_note() -> None:
-    from veripen.report.hunt import render_hunt_markdown
+    from hos_ares.report.hunt import render_hunt_markdown
 
     md = render_hunt_markdown(
         {"target_host": "a", "source": "contract", "decision": "converged", "reason": "x",
@@ -103,7 +103,7 @@ def test_hunt_guard_splits_deny_like_run() -> None:
     """
     import inspect
 
-    from veripen_cli import cmd_hunt
+    from hos_ares_cli import cmd_hunt
 
     src = inspect.getsource(cmd_hunt.build_guard)
     assert "split_deny(" in src, "统一构造点要拆 deny"
@@ -116,7 +116,7 @@ def test_hunt_builds_its_guard_through_build_guard() -> None:
     import inspect
     import re
 
-    from veripen_cli import cmd_hunt
+    from hos_ares_cli import cmd_hunt
 
     src = inspect.getsource(cmd_hunt.main)
     assert "build_guard(" in src, "hunt 要走统一构造点"
@@ -128,7 +128,7 @@ def test_only_one_scope_guard_construction_site() -> None:
     import inspect
     import re
 
-    from veripen_cli import cmd_hunt
+    from hos_ares_cli import cmd_hunt
 
     src = inspect.getsource(cmd_hunt)
     hits = re.findall(r"scope = ScopeGuard\(", src)

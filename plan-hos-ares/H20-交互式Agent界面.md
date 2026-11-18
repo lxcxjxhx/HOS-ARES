@@ -17,13 +17,13 @@
 | Ctrl+C 直接退出 | Ctrl+C 只中断当前任务，回到提示符 |
 | 每句话互不相干 | 第 2 句能引用第 1 句的结果 |
 
-## B77 · `veripen chat`〔P0，2 人天〕
+## B77 · `hos-ares chat`〔P0，2 人天〕
 
 | 项 | 内容 |
 |---|---|
 | 目标 | 交互式会话：自然语言 → 计划 → 工具调用流 → 结果；支持 diff、状态栏、中断、上下文累计 |
 | 判据 | A：`读一下 out/x.txt` 能解析成 `read` 工具并执行（不要求用户知道工具名）；B：执行前先显示计划，且计划可被用户否决（`n` 不执行）；C：写/改文件后显示 diff 行数与摘要；D：`Ctrl+C` 只中断当前轮，回到提示符且会话不丢；E：启动时明确渲染决策层（`model: <名>` 或 `model: rules`），**不假装有模型**；F：第 2 轮能引用第 1 轮的结果（上下文累计） |
-| 产出 | `veripen_cli/cmd_chat.py`（界面）+ `veripen_core/agent/intent.py`（规则意图解析）+ `tests/unit/test_chat_intent.py` + `tests/integration/test_chat_session.py` |
+| 产出 | `hos_ares_cli/cmd_chat.py`（界面）+ `hos_ares_core/agent/intent.py`（规则意图解析）+ `tests/unit/test_chat_intent.py` + `tests/integration/test_chat_session.py` |
 | 依赖 | `agent/session.py`（B67 会话与事件）、`workbench/fs.py`、`workbench/executor.py`、`agent/client.py`（模型可选） |
 | PR | `b77/chat` |
 | 回滚 | 删掉 `cmd_chat.py` 与 `intent.py`；`agent`（B67）保持不变 |
@@ -31,10 +31,10 @@
 ### 决策层必须可插拔
 
 **本机现在没有任何模型后端**（`~/.litellm` 不存在，端口 4000 不通，
-`VERIPEN_MODEL_*` 未配置）。所以：
+`HOS_ARES_MODEL_*` 未配置）。所以：
 
 ```
-配了 VERIPEN_MODEL_BASE_URL + VERIPEN_MODEL  → HttpChatClient（真模型）
+配了 HOS_ARES_MODEL_BASE_URL + HOS_ARES_MODEL  → HttpChatClient（真模型）
 没配                                        → 规则意图解析（intent.py）
 ```
 
@@ -74,7 +74,7 @@ HOS-ARES chat · model: rules · 工作根 <root>
 
 ### 与 agent（B67）的关系
 
-| | `veripen agent` | `veripen chat` |
+| | `hos-ares agent` | `hos-ares chat` |
 |---|---|---|
 | 输入 | 白名单动词 | 自然语言 |
 | 计划 | 无 | 有，且可否决 |
@@ -132,7 +132,7 @@ HOS-ARES chat · model: rules · 工作根 <root>
 
 ## 录屏（B78）
 
-第五幕已进终端录屏：`python -m veripen_cli.cmd_chat`，画面里能看到
+第五幕已进终端录屏：`python -m hos_ares_cli.cmd_chat`，画面里能看到
 `model: rules` 横幅、`⏺ 计划`、`✓ 写入 20B +1 -0`、以及"读一下它"的指代生效。
 五幕合计 70 帧 / 24.87s；成片自动 55.4 → **60.3s**。
 
@@ -141,7 +141,7 @@ HOS-ARES chat · model: rules · 工作根 <root>
 ```bash
 python -m pytest tests/unit/test_chat_intent.py -q
 python -m pytest tests/integration/test_chat_session.py -q
-printf '读一下 out/demo/x.txt\nquit\n' | python -m veripen_cli.cmd_chat --root .
+printf '读一下 out/demo/x.txt\nquit\n' | python -m hos_ares_cli.cmd_chat --root .
 ```
 
 ## 修订记录

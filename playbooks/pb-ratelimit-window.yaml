@@ -1,4 +1,4 @@
-apiVersion: veripen.playbook/v1
+apiVersion: hos-ares.playbook/v1
 id: pb-ratelimit-window
 version: 1.0.0
 title: 先取基线，再在固定窗口内加发，观察第 N+1 发

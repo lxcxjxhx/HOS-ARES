@@ -3,7 +3,7 @@
 # 一次只跑一批；每批 DoD 全绿即停（21 §4）。
 
 PY ?= python
-PKG_DIRS := veripen_core veripen_oracles veripen_contract veripen_cli api worker web tests
+PKG_DIRS := hos_ares_core hos_ares_oracles hos_ares_contract hos_ares_cli api worker web tests
 VERSION ?= 1.0.0
 
 # 离线包（A3「内网能装」）：组包 + 立刻自校验
@@ -22,9 +22,9 @@ demo-record:
 	$(PY) scripts/demo/record_terminal.py
 	$(PY) scripts/demo/build_tour.py
 
-# 部署自检 25 项（skip 不算通过，全 ok 才叫绿；清单在 veripen_cli/cmd_doctor.py）
+# 部署自检 25 项（skip 不算通过，全 ok 才叫绿；清单在 hos_ares_cli/cmd_doctor.py）
 doctor:
-	$(PY) -m veripen_cli.cmd_doctor
+	$(PY) -m hos_ares_cli.cmd_doctor
 
 # 一条命令跑完所有闸门（B200）：清单在 scripts/verify.py，CI 调的是同一份
 # 退出码：0 全绿 / 1 有失败 / 2 有跳过（缺条件的跳过不算通过）
@@ -75,7 +75,7 @@ lint-netimports:
 	$(PY) scripts/lint/netimports.py
 
 types-check:
-	$(PY) -m mypy --strict veripen_core/ worker/ veripen_oracles/ veripen/ veripen_cli/
+	$(PY) -m mypy --strict hos_ares_core/ worker/ hos_ares_oracles/ hos_ares/ hos_ares_cli/
 
 b1.5: routes-l0 routes-contract lint-netimports types-check lint
 
@@ -113,13 +113,13 @@ evidence-demo:
 	$(PY) scripts/b4/demo_chain.py --out $(CAPSULE)
 
 verify-chain:
-	$(PY) -m veripen_core.evidence --verify-chain $(CAPSULE)/*.json
+	$(PY) -m hos_ares_core.evidence --verify-chain $(CAPSULE)/*.json
 
 verify-capsule:
-	$(PY) -m veripen_core.evidence --verify-capsule $(CAPSULE)/*.json
+	$(PY) -m hos_ares_core.evidence --verify-capsule $(CAPSULE)/*.json
 
 replay-offline:
-	$(PY) -m veripen_core.evidence --offline-fixture $(CAPSULE)/*.json
+	$(PY) -m hos_ares_core.evidence --offline-fixture $(CAPSULE)/*.json
 
 b4: evidence-test replay-order-test replay-partial-test evidence-acceptance evidence-demo verify-chain verify-capsule types-check lint
 
@@ -135,7 +135,7 @@ oracle-cases:
 
 # 不碰内核：B5 的硬门（21 §2 B5）
 core-untouched:
-	@test -z "$$(git diff --stat -- veripen_core/)" || (echo "veripen_core/ 被改动：B5 不许碰内核"; git diff --stat -- veripen_core/; exit 1)
+	@test -z "$$(git diff --stat -- hos_ares_core/)" || (echo "hos_ares_core/ 被改动：B5 不许碰内核"; git diff --stat -- hos_ares_core/; exit 1)
 
 b5: oracle-test oob-test oracle-cases core-untouched types-check lint
 
@@ -188,7 +188,7 @@ report-demo:
 # 校验交付清单（B322）：默认验 run 的产物目录，可用 DIR= 指到任意一路
 DIR ?= out/run
 verify-report:
-	$(PY) -m veripen_cli replay --manifest $(DIR)
+	$(PY) -m hos_ares_cli replay --manifest $(DIR)
 
 b11: report-test report-demo verify-report types-check lint
 
@@ -209,38 +209,38 @@ lint-noleak:
 # A4 不是「我说有洞」：篡改 1 字节必须 TAMPERED（无靶场可跑）
 replay:
 	@test -n "$(ID)" || (echo "用法：make replay ID=<capsule.json> [MODE=dry]"; exit 2)
-	$(PY) -m veripen_cli.cmd_replay --capsule "$(ID)" --mode $(or $(MODE),dry) --out out/replay
-	$(PY) -m veripen_cli.cmd_replay --capsule "$(ID)" --selftest
+	$(PY) -m hos_ares_cli.cmd_replay --capsule "$(ID)" --mode $(or $(MODE),dry) --out out/replay
+	$(PY) -m hos_ares_cli.cmd_replay --capsule "$(ID)" --selftest
 
 # A6 覆盖够宽：14 类 oracle × 用例，0 用例的一类必须可见
 coverage-matrix:
-	$(PY) -m veripen_cli.cmd_coverage --out out/coverage
+	$(PY) -m hos_ares_cli.cmd_coverage --out out/coverage
 
 # A7 接口能自动覆盖：契约 → 候选，两次摘要必须一致、候选零地址
 cases:
 	@test "$(or $(CASES),x)" = "contract" || (echo "用法：make cases CASES=contract"; exit 2)
-	$(PY) -m veripen_cli.cmd_cases --contract tests/fixtures/contract/sample.json --check --out out/cases
+	$(PY) -m hos_ares_cli.cmd_cases --contract tests/fixtures/contract/sample.json --check --out out/cases
 
 # A10 能打同时能证明（B19/B21 之前必然红：act.* 未接、闭环率算不出）
 bench-leads:
-	$(PY) -m veripen_cli.cmd_bench_leads --out out/leads
+	$(PY) -m hos_ares_cli.cmd_bench_leads --out out/leads
 
 # A11 能力可扩展（B20 之前必然红：远程 fetch 未接）
 plugin-roundtrip:
-	$(PY) -m veripen_cli.cmd_plugin_roundtrip --out out/plugins
+	$(PY) -m hos_ares_cli.cmd_plugin_roundtrip --out out/plugins
 
 # A12 工作台（B19 之前必然红：无 Executor 实现）
 workbench-smoke:
-	$(PY) -m veripen_cli.cmd_workbench_smoke --out out/workbench
+	$(PY) -m hos_ares_cli.cmd_workbench_smoke --out out/workbench
 
 # 断言总览：一次跑完 A2/A4/A6/A7/A10/A11/A12（允许部分红，用于看当前缺口）
 assertions:
 	@echo "== A2 lint-noleak ==";        $(PY) scripts/lint/noleak.py || true
-	@echo "== A6 coverage-matrix ==";    $(PY) -m veripen_cli.cmd_coverage --out out/coverage || true
-	@echo "== A7 cases ==";              $(PY) -m veripen_cli.cmd_cases --contract tests/fixtures/contract/sample.json --check --out out/cases || true
-	@echo "== A10 bench-leads ==";       $(PY) -m veripen_cli.cmd_bench_leads --out out/leads || true
-	@echo "== A11 plugin-roundtrip ==";  $(PY) -m veripen_cli.cmd_plugin_roundtrip --out out/plugins || true
-	@echo "== A12 workbench-smoke ==";   $(PY) -m veripen_cli.cmd_workbench_smoke --out out/workbench || true
+	@echo "== A6 coverage-matrix ==";    $(PY) -m hos_ares_cli.cmd_coverage --out out/coverage || true
+	@echo "== A7 cases ==";              $(PY) -m hos_ares_cli.cmd_cases --contract tests/fixtures/contract/sample.json --check --out out/cases || true
+	@echo "== A10 bench-leads ==";       $(PY) -m hos_ares_cli.cmd_bench_leads --out out/leads || true
+	@echo "== A11 plugin-roundtrip ==";  $(PY) -m hos_ares_cli.cmd_plugin_roundtrip --out out/plugins || true
+	@echo "== A12 workbench-smoke ==";   $(PY) -m hos_ares_cli.cmd_workbench_smoke --out out/workbench || true
 
 # B12.9 指标重跑：口径变了（error 率 / undetermined / agent_reported=0），
 # 且必须证明"补齐不改结论"——前后 finding 集合差为空
@@ -274,7 +274,7 @@ b36: ui-contract console-test types-check lint
 
 # B37 装载器：产物 → 状态（只读、确定性、空输入安全）
 ui-serve:
-	$(PY) -m veripen_cli.cmd_console --port 8099
+	$(PY) -m hos_ares_cli.cmd_console --port 8099
 
 ui-loader:
 	$(PY) -m pytest tests/unit/test_ui_loader.py -q
@@ -322,7 +322,7 @@ profile-diff:
 
 # 换档不改代码：本批必须让这两个目录的 diff 为空
 profiles-only:
-	@test -z "$$(git diff --stat -- veripen_core/ veripen_oracles/ | grep -v veripen_core/profile.py)" 		|| (echo "B16 动了内核（profile.py 除外）"; exit 1)
+	@test -z "$$(git diff --stat -- hos_ares_core/ hos_ares_oracles/ | grep -v hos_ares_core/profile.py)" 		|| (echo "B16 动了内核（profile.py 除外）"; exit 1)
 
 b16: profile-test profile-diff core-untouched types-check lint
 
@@ -514,7 +514,7 @@ report-audit:
 
 # B50 打法资产（schema + oracle/impact + 实测率）
 playbook-check:
-	$(PY) -m veripen_cli.cmd_playbook check
+	$(PY) -m hos_ares_cli.cmd_playbook check
 	$(PY) -m pytest tests/unit/test_playbooks.py -q
 
 playbook-run:
@@ -527,7 +527,7 @@ plugin-lifecycle:
 # B56 TUI
 tui-check:
 	$(PY) -m pytest tests/unit/test_tui.py -q
-	$(PY) -m veripen_cli.tui --once --task make-check
+	$(PY) -m hos_ares_cli.tui --once --task make-check
 
 # B57 跨任务记忆
 memory-check:
@@ -563,7 +563,7 @@ installer: exe
 platform-check: playbook-check blackboard-conflict context-compress report-audit
 
 parity:
-	$(PY) -m veripen_cli.cmd_parity
+	$(PY) -m hos_ares_cli.cmd_parity
 
 b43: ui-contract
 b44: ui-honesty ui-semantics ui-contract ui-dom

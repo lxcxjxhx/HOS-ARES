@@ -13,15 +13,15 @@ from __future__ import annotations
 
 import pytest
 
-from veripen_core.agent.closed_loop import (
+from hos_ares_core.agent.closed_loop import (
     ClosedLoop,
     next_oracle_with_lead_priority,
     run_with_closed_loop,
 )
-from veripen_core.agent.loop import AgentState, pick_next
-from veripen_core.leads import LeadLedger, LeadState
-from veripen_core.store import Store
-from veripen_core.workbench.plan import TodoItem, TodoList, TodoState
+from hos_ares_core.agent.loop import AgentState, pick_next
+from hos_ares_core.leads import LeadLedger, LeadState
+from hos_ares_core.store import Store
+from hos_ares_core.workbench.plan import TodoItem, TodoList, TodoState
 
 TASK = "t-1"
 

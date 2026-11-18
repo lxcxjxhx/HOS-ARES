@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""一次性：把 B81 追加进 .veripen/batches.jsonl（只增不改）。"""
+"""一次性：把 B81 追加进 .hos-ares/batches.jsonl（只增不改）。"""
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-LEDGER = Path(__file__).resolve().parents[2] / ".veripen" / "batches.jsonl"
+LEDGER = Path(__file__).resolve().parents[2] / ".hos-ares" / "batches.jsonl"
 
 ROW = {
     "batch": "B81",
@@ -13,9 +13,9 @@ ROW = {
     "started": "2026-11-05",
     "ended": "2026-11-05",
     "agent": "little-code-sauce",
-    "scope": "chat 接真模型路径：配 VERIPEN_MODEL_* 时先问模型，非法则降级 rules 并明说",
+    "scope": "chat 接真模型路径：配 HOS_ARES_MODEL_* 时先问模型，非法则降级 rules 并明说",
     "files": [
-        "veripen_cli/cmd_chat.py",
+        "hos_ares_cli/cmd_chat.py",
         "tests/lab/model_server.py",
         "tests/integration/test_chat_model.py",
     ],

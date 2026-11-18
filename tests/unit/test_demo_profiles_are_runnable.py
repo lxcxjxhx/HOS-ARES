@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from veripen_core.profile import load_profile
+from hos_ares_core.profile import load_profile
 
 ROOT = Path(__file__).resolve().parents[2]
 PROFILES = sorted((ROOT / "profiles").glob("*/profile.yaml"))

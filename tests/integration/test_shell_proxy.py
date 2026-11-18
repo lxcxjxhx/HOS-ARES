@@ -22,7 +22,7 @@ from negative_samples import (
     PROXY_PREFIX,
     SEP,
 )
-from veripen_core.workbench.shell import (
+from hos_ares_core.workbench.shell import (
     ACTION_REQUIREMENTS,
     ADDRESS_PLACEHOLDERS,
     MAX_SCRIPT_BYTES,

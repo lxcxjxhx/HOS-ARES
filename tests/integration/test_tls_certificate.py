@@ -30,7 +30,7 @@ PREFIX = f"{SEP}api{SEP}me"
 def _row(certs: tuple[Path, Path], tmp_path: Path, *, trust: bool) -> dict[str, Any]:
     from lab.app import App
     from lab.net_server import LabServer
-    from veripen_cli.cmd_run import main as run_main
+    from hos_ares_cli.cmd_run import main as run_main
 
     old = os.environ.get("SSL_CERT_FILE")
     if trust:
@@ -44,7 +44,7 @@ def _row(certs: tuple[Path, Path], tmp_path: Path, *, trust: bool) -> dict[str, 
         spec.write_text(json.dumps({
             "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
             "servers": [{"url": srv.base_url}],
-            "paths": {PREFIX: {"get": {"x-veripen-tags": ["protected_read"]}}},
+            "paths": {PREFIX: {"get": {"x-hos_ares-tags": ["protected_read"]}}},
         }), encoding="utf-8")
         out = tmp_path / "run"
         run_main(["--target", srv.base_url, "--openapi", str(spec), "--out", str(out)])
@@ -99,7 +99,7 @@ def test_healthy_certificate_is_refuted(certs, tmp_path: Path) -> None:  # noqa:
 
 
 def test_classification_is_by_error_text() -> None:
-    from veripen_oracles.auth.checks import judge_certificate_defect
+    from hos_ares_oracles.auth.checks import judge_certificate_defect
 
     assert judge_certificate_defect(
         error_reason="SSLError: certificate verify failed: certificate has expired",

@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from veripen.report import advice_text, impact_text
-from veripen.report.render import WORDING
+from hos_ares.report import advice_text, impact_text
+from hos_ares.report.render import WORDING
 
 
 def test_read_only_impact_says_data_was_not_changed() -> None:
@@ -47,7 +47,7 @@ def test_generated_texts_respect_the_wording_deny_list() -> None:
 def test_run_and_demo_both_use_the_helper() -> None:
     """真跑与 demo 两条出口都必须用同一套（否则又是两份说法）。"""
     root = Path(__file__).resolve().parents[2]
-    for rel in ("veripen_cli/cmd_run.py", "scripts/demo.py"):
+    for rel in ("hos_ares_cli/cmd_run.py", "scripts/demo.py"):
         src = (root / rel).read_text(encoding="utf-8")
         assert "impact_text(" in src and "advice_text(" in src, rel
         assert "见 capsule" not in src, f"{rel} 还留着占位符"
@@ -58,7 +58,7 @@ def test_every_tier_a_judge_emits_a_statement() -> None:
     """四个 judge 都要给「现象」一句话——缺了，交付物里只能写"判定成立"。"""
     from pathlib import Path
 
-    src = (Path(__file__).resolve().parents[2] / "veripen_oracles" / "tierA.py").read_text(
+    src = (Path(__file__).resolve().parents[2] / "hos_ares_oracles" / "tierA.py").read_text(
         encoding="utf-8")
     blocks = src.count('"kind": "')
     with_statement = src.count('"statement":')
@@ -67,7 +67,7 @@ def test_every_tier_a_judge_emits_a_statement() -> None:
 
 
 def test_zero_fingerprint_is_not_rendered_as_a_hash() -> None:
-    from veripen.report.render import _root_fingerprint_line
+    from hos_ares.report.render import _root_fingerprint_line
 
     zero = _root_fingerprint_line("0" * 64)
     assert "未计算" in zero and "0" * 16 not in zero

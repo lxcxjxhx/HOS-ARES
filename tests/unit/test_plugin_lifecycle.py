@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from veripen_core.plugins.lifecycle import Lifecycle, PluginError, PluginSpec
-from veripen_core.tools.surface import Impact, SurfaceError, build_surface
+from hos_ares_core.plugins.lifecycle import Lifecycle, PluginError, PluginSpec
+from hos_ares_core.tools.surface import Impact, SurfaceError, build_surface
 
 
 def _spec(**kw: object) -> PluginSpec:

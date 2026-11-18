@@ -1,0 +1,2 @@
+[console_scripts]
+hos-ares = hos_ares_cli.__main__:main

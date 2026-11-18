@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from veripen_cli import cmd_doctor
-from veripen_cli.cmd_doctor import (
+from hos_ares_cli import cmd_doctor
+from hos_ares_cli.cmd_doctor import (
     CHECKS,
     CheckResult,
     DoctorReport,
@@ -135,7 +135,7 @@ def test_crashing_check_does_not_break_the_report(monkeypatch: pytest.MonkeyPatc
     def boom(root: Path) -> CheckResult:
         raise RuntimeError("检查自己炸了")
 
-    monkeypatch.setattr("veripen_cli.cmd_doctor.CHECKS",
+    monkeypatch.setattr("hos_ares_cli.cmd_doctor.CHECKS",
                         (("boom", boom), ("python", check_python)))
     rep = run_doctor(ROOT)
     assert len(rep.results) == 2
@@ -164,9 +164,9 @@ def test_repo_doctor_json_is_serialisable() -> None:
 def test_browser_check_defaults_to_no_launch(monkeypatch) -> None:
     from pathlib import Path
 
-    from veripen_cli.cmd_doctor import check_browser
+    from hos_ares_cli.cmd_doctor import check_browser
 
-    monkeypatch.delenv("VERIPEN_DOCTOR_BROWSER", raising=False)
+    monkeypatch.delenv("HOS_ARES_DOCTOR_BROWSER", raising=False)
     result = check_browser(Path("."))
     # 没装 playwright 时是 skip；装了就是 ok——两种都不许"起浏览器"
     assert result.status in {"ok", "skip"}
@@ -176,7 +176,7 @@ def test_browser_check_defaults_to_no_launch(monkeypatch) -> None:
 # ── B200：探针没跑起来 ≠ 行为坏 ──────────────────────────────
 def test_executor_check_splits_unproven_env_from_broken_behaviour(monkeypatch, tmp_path) -> None:  # noqa: ANN001
     """干净 runner 上子进程既读不到 stdout 也拿不到退出码：记 skip，不记 fail。"""
-    from veripen_cli import cmd_doctor
+    from hos_ares_cli import cmd_doctor
 
     def forged(**facts):  # noqa: ANN003, ANN202
         def fake_attest(executor):  # noqa: ANN001, ANN202
@@ -185,9 +185,9 @@ def test_executor_check_splits_unproven_env_from_broken_behaviour(monkeypatch, t
         def fake_verdict(_facts):  # noqa: ANN001, ANN202
             return False, "行为不完整"
 
-        monkeypatch.setattr("veripen_core.sandbox.attest.attest", fake_attest)
-        monkeypatch.setattr("veripen_core.sandbox.attest.verdict", fake_verdict)
-        monkeypatch.setattr("veripen_core.sandbox.runner.select_executor",
+        monkeypatch.setattr("hos_ares_core.sandbox.attest.attest", fake_attest)
+        monkeypatch.setattr("hos_ares_core.sandbox.attest.verdict", fake_verdict)
+        monkeypatch.setattr("hos_ares_core.sandbox.runner.select_executor",
                             lambda: type("E", (), {"name": "local", "available": lambda self: True})())
         return cmd_doctor.check_sandbox_behavior(tmp_path)
 
@@ -227,7 +227,7 @@ def test_doctor_flags_a_missing_lint(tmp_path, monkeypatch) -> None:  # noqa: AN
 
     # 用一份"漏了 noleak"的 doctor 源码替代当前实现
     altered = tmp_path / "cmd_doctor_copy.py"
-    altered.write_text((root / "veripen_cli" / "cmd_doctor.py").read_text(encoding="utf-8")
+    altered.write_text((root / "hos_ares_cli" / "cmd_doctor.py").read_text(encoding="utf-8")
                     .replace('"noleak.py"', '"__gone__.py"'), encoding="utf-8")
     monkeypatch.setattr(cmd_doctor, "__file__", str(altered))
     result = cmd_doctor.check_gate_parity(copy)
@@ -245,7 +245,7 @@ def test_agent_guard_check_passes_on_the_repo() -> None:
 
 def test_agent_guard_check_catches_an_unwired_executor(tmp_path, monkeypatch) -> None:  # noqa: ANN001
     """闸门从**执行路径**上摘掉，这项必须红——grep 到 import 就绿是最容易犯的假绿。"""
-    import veripen_cli.cmd_chat as chat
+    import hos_ares_cli.cmd_chat as chat
 
     def _unwired(step, *, wb, root, allow_dangerous=False):  # noqa: ANN001, ANN202
         return True, "exit=0（闸门被摘掉）"
@@ -260,8 +260,8 @@ def test_agent_guard_check_catches_an_unwired_executor(tmp_path, monkeypatch) ->
 # ── B227：模型后端配了连不上，要当场说清 ────────────────────────
 def test_model_backend_skips_when_unconfigured(monkeypatch) -> None:  # noqa: ANN001
     """没配模型不是缺陷：规则层能跑（与 docker 同一口径）。"""
-    monkeypatch.delenv("VERIPEN_MODEL_BASE_URL", raising=False)
-    monkeypatch.delenv("VERIPEN_MODEL", raising=False)
+    monkeypatch.delenv("HOS_ARES_MODEL_BASE_URL", raising=False)
+    monkeypatch.delenv("HOS_ARES_MODEL", raising=False)
     root = Path(__file__).resolve().parents[2]
     result = cmd_doctor.check_model_backend(root)
     assert result.status is cmd_doctor.Status.SKIP, result.detail
@@ -270,12 +270,12 @@ def test_model_backend_skips_when_unconfigured(monkeypatch) -> None:  # noqa: AN
 
 def test_model_backend_fails_on_a_dead_endpoint(monkeypatch) -> None:  # noqa: ANN001
     """配了却连不上 → FAIL 并给出可粘的探测命令（不然人到演示时才发现）。"""
-    from veripen_cli.desktop import free_port
+    from hos_ares_cli.desktop import free_port
 
     port = free_port()
-    monkeypatch.setenv("VERIPEN_MODEL_BASE_URL",
+    monkeypatch.setenv("HOS_ARES_MODEL_BASE_URL",
                      "http" + "://" + "127." + "0.0.1:" + str(port) + chr(0x2F) + "v1")
-    monkeypatch.setenv("VERIPEN_MODEL", "demo")
+    monkeypatch.setenv("HOS_ARES_MODEL", "demo")
     root = Path(__file__).resolve().parents[2]
     result = cmd_doctor.check_model_backend(root)
     assert result.status is cmd_doctor.Status.FAIL, result.detail
@@ -306,8 +306,8 @@ def test_model_backend_ok_against_a_live_endpoint(monkeypatch) -> None:  # noqa:
     thread.start()
     try:
         base = "http" + "://" + "127." + "0.0.1:" + str(server.server_port) + chr(0x2F) + "v1"
-        monkeypatch.setenv("VERIPEN_MODEL_BASE_URL", base)
-        monkeypatch.setenv("VERIPEN_MODEL", "demo-model")
+        monkeypatch.setenv("HOS_ARES_MODEL_BASE_URL", base)
+        monkeypatch.setenv("HOS_ARES_MODEL", "demo-model")
         root = Path(__file__).resolve().parents[2]
         result = cmd_doctor.check_model_backend(root)
         assert result.status is cmd_doctor.Status.OK, result.detail
@@ -336,8 +336,8 @@ def _models_status(monkeypatch, code: int) -> "cmd_doctor.CheckResult":  # noqa:
     threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
         base = "http" + "://" + "127." + "0.0.1:" + str(server.server_port) + chr(0x2F) + "v1"
-        monkeypatch.setenv("VERIPEN_MODEL_BASE_URL", base)
-        monkeypatch.setenv("VERIPEN_MODEL", "demo")
+        monkeypatch.setenv("HOS_ARES_MODEL_BASE_URL", base)
+        monkeypatch.setenv("HOS_ARES_MODEL", "demo")
         return cmd_doctor.check_model_backend(Path(__file__).resolve().parents[2])
     finally:
         server.shutdown()
@@ -355,7 +355,7 @@ def test_model_backend_401_is_fail_and_names_the_key(monkeypatch) -> None:  # no
     """401 是 key，不是网络：报错必须说出该改哪个变量。"""
     result = _models_status(monkeypatch, 401)
     assert result.status is cmd_doctor.Status.FAIL, result.detail
-    assert "VERIPEN_MODEL_API_KEY" in result.detail, result.detail
+    assert "HOS_ARES_MODEL_API_KEY" in result.detail, result.detail
 
 
 # ── B231：--only 打错名字 = 一项没跑，不许报全绿 ────────────────
@@ -370,8 +370,8 @@ def test_unknown_only_name_is_a_failure_not_a_green() -> None:
 
 def test_unknown_only_name_does_not_swallow_a_valid_one(monkeypatch) -> None:  # noqa: ANN001
     """打错一个名字，同一次里对的那个仍要跑（别拿错名当整体拒绝）。"""
-    monkeypatch.delenv("VERIPEN_MODEL_BASE_URL", raising=False)
-    monkeypatch.delenv("VERIPEN_MODEL", raising=False)
+    monkeypatch.delenv("HOS_ARES_MODEL_BASE_URL", raising=False)
+    monkeypatch.delenv("HOS_ARES_MODEL", raising=False)
     root = Path(__file__).resolve().parents[2]
     report = cmd_doctor.run_doctor(root, only=["model_backnd", "model_backend"])
     names = [r.name for r in report.results]
@@ -380,7 +380,7 @@ def test_unknown_only_name_does_not_swallow_a_valid_one(monkeypatch) -> None:  #
 
 
 def test_main_exits_nonzero_on_a_mistyped_only(capsys) -> None:  # noqa: ANN001
-    """CI 里 `veripen doctor --only <打错>` 必须红，否则这条闸门永远绿。"""
+    """CI 里 `hos-ares doctor --only <打错>` 必须红，否则这条闸门永远绿。"""
     code = cmd_doctor.main(["--only", "model_backnd"])
     out = capsys.readouterr().out
     assert code == 1, out
@@ -419,12 +419,12 @@ def _auth_models(monkeypatch, key_env: str) -> "cmd_doctor.CheckResult":  # noqa
     threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
         base = "http" + "://" + "127." + "0.0.1:" + str(server.server_port) + chr(0x2F) + "v1"
-        monkeypatch.setenv("VERIPEN_MODEL_BASE_URL", base)
-        monkeypatch.setenv("VERIPEN_MODEL", "demo-model")
+        monkeypatch.setenv("HOS_ARES_MODEL_BASE_URL", base)
+        monkeypatch.setenv("HOS_ARES_MODEL", "demo-model")
         if key_env:
-            monkeypatch.setenv("VERIPEN_MODEL_API_KEY", key_env)
+            monkeypatch.setenv("HOS_ARES_MODEL_API_KEY", key_env)
         else:
-            monkeypatch.delenv("VERIPEN_MODEL_API_KEY", raising=False)
+            monkeypatch.delenv("HOS_ARES_MODEL_API_KEY", raising=False)
         result = cmd_doctor.check_model_backend(Path(__file__).resolve().parents[2])
         result_seen = seen.get("auth", "")
         assert result_seen == (f"Bearer {key_env}" if key_env else ""), result_seen
@@ -445,7 +445,7 @@ def test_model_backend_without_a_key_says_so(monkeypatch) -> None:  # noqa: ANN0
     """没配 key 时如实说 401 是缺 key，而不是"端点坏了"。"""
     result = _auth_models(monkeypatch, "")
     assert result.status is cmd_doctor.Status.FAIL, result.detail
-    assert "VERIPEN_MODEL_API_KEY" in result.detail, result.detail
+    assert "HOS_ARES_MODEL_API_KEY" in result.detail, result.detail
 
 
 # ── B273：浏览器检查不许把"包能导入"说成"可用" ─────────────────
@@ -454,21 +454,21 @@ def test_browser_check_does_not_claim_more_than_it_checked(monkeypatch, tmp_path
 
     所以默认那句只能说"导入通过 + 未验证启动"，并给出实测开关。
     """
-    from veripen_cli.cmd_doctor import check_browser
+    from hos_ares_cli.cmd_doctor import check_browser
 
-    monkeypatch.delenv("VERIPEN_DOCTOR_BROWSER", raising=False)
+    monkeypatch.delenv("HOS_ARES_DOCTOR_BROWSER", raising=False)
     result = check_browser(tmp_path)
     if result.status.name == "SKIP":        # 没装 playwright 的机器：本来就说清了
         return
     assert "未验证" in result.detail, result.detail
-    assert "VERIPEN_DOCTOR_BROWSER=launch" in result.detail
+    assert "HOS_ARES_DOCTOR_BROWSER=launch" in result.detail
     assert "playwright 可用" not in result.detail, "又写回「可用」了"
 
 
 # ── B291：skip 项也要给"怎么修" ──────────────────────────────────
 def test_every_skip_carries_a_fix_hint() -> None:
     """fix 列留空等于没给下一步——而 skip 恰恰是客户最常看到的状态。"""
-    from veripen_cli.cmd_doctor import CHECKS
+    from hos_ares_cli.cmd_doctor import CHECKS
 
     empty = []
     for name, fn in CHECKS:
@@ -480,11 +480,11 @@ def test_every_skip_carries_a_fix_hint() -> None:
 
 # ── B304：doctor 提示里的 --only 名字必须真的存在 ────────────────
 def test_only_names_in_hints_are_real_checks() -> None:
-    """B291 我写了「veripen doctor --only model」，而检查名是 `model_backend`——
+    """B291 我写了「hos-ares doctor --only model」，而检查名是 `model_backend`——
     照着提示敲会得到「可用项：…」，跟 B293 是同一族错。"""
     import re
 
-    from veripen_cli import cmd_doctor
+    from hos_ares_cli import cmd_doctor
 
     valid = {name for name, _ in cmd_doctor.CHECKS}
     text = " ".join(

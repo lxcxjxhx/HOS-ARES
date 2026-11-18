@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-LEDGER = ROOT / ".veripen" / "batches.jsonl"
+LEDGER = ROOT / ".hos-ares" / "batches.jsonl"
 
 #: 命中即"这是缺件，不是遗留"
 MISSING_MARKERS = ("不存在", "not implemented", "未实现", "尚未实现", "缺表", "缺列")

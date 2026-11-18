@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
-PLAN = ROOT / "plan-veripen"
+PLAN = ROOT / "plan-hos-legacy"
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -113,7 +113,7 @@ def _section(text: str, start: str, end: str) -> str:
 # 实际状态
 # ══════════════════════════════════════════════════════════════════
 def actual_tables() -> set[str]:
-    from veripen_core.store import Store
+    from hos_ares_core.store import Store
 
     store = Store(":memory:").init()
     try:
@@ -126,7 +126,7 @@ def actual_tables() -> set[str]:
 
 
 def actual_columns(table: str) -> set[str]:
-    from veripen_core.store import Store
+    from hos_ares_core.store import Store
 
     store = Store(":memory:").init()
     try:
@@ -137,7 +137,7 @@ def actual_columns(table: str) -> set[str]:
 
 
 def actual_oracles() -> set[str]:
-    from veripen_oracles import ALL_ORACLES
+    from hos_ares_oracles import ALL_ORACLES
 
     return {c.meta.id for c in ALL_ORACLES}
 
@@ -176,8 +176,8 @@ INVARIANT_EVIDENCE: dict[str, str] = {
     "I7": "tests/unit/test_replay_order.py::test_route_unresolved_when_binding_deleted",
     "I8": "tests/unit/test_evidence.py::test_same_input_twice_same_hash",
     "I9": "scripts/lint/nodata_stub.py",
-    "I10": "veripen_core/store.py::DDL:blackboard_facts",
-    "I11": "veripen_core/store.py::DDL:asset_facts",
+    "I10": "hos_ares_core/store.py::DDL:blackboard_facts",
+    "I11": "hos_ares_core/store.py::DDL:asset_facts",
     "I12": "tests/unit/test_actions.py::test_actions_cannot_import_verdict",
 }
 

@@ -12,9 +12,9 @@ import sys
 import time
 from pathlib import Path
 
-from veripen_core.lease import Lease, LeaseConfig, StoreClock
-from veripen_core.models import TaskState
-from veripen_core.store import Store
+from hos_ares_core.lease import Lease, LeaseConfig, StoreClock
+from hos_ares_core.models import TaskState
+from hos_ares_core.store import Store
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -28,11 +28,11 @@ def _spawn_worker(db: Path, hold_s: int) -> subprocess.Popen[bytes]:
     env = dict(os.environ)
     env.update(
         {
-            "VERIPEN_DB": str(db),
-            "VERIPEN_LEASE_TTL_S": str(TTL_S),
-            "VERIPEN_SCAN_S": str(SCAN_S),
-            "VERIPEN_HEARTBEAT_S": str(HEARTBEAT_S),
-            "VERIPEN_WORKER_HOLD_S": str(hold_s),
+            "HOS_ARES_DB": str(db),
+            "HOS_ARES_LEASE_TTL_S": str(TTL_S),
+            "HOS_ARES_SCAN_S": str(SCAN_S),
+            "HOS_ARES_HEARTBEAT_S": str(HEARTBEAT_S),
+            "HOS_ARES_WORKER_HOLD_S": str(hold_s),
             "PYTHONPATH": str(ROOT),
             "PYTHONIOENCODING": "utf-8",
         }

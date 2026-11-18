@@ -10,8 +10,8 @@ import json
 
 import pytest
 
-from veripen_cli import cmd_parity
-from veripen_cli.cmd_parity import GREEN, RED, SKIPPED, UNVERIFIED, ITEMS, main, run
+from hos_ares_cli import cmd_parity
+from hos_ares_cli.cmd_parity import GREEN, RED, SKIPPED, UNVERIFIED, ITEMS, main, run
 
 EXPECTED_KEYS = (
     "V1 V2 V3 V4 E1 E2 E3 E4 E5 P1 P2 P3 P4 P5 P6 P7 " "W1 W2 W3 G1 G2 G3"
@@ -68,7 +68,7 @@ def test_json_evidence_is_written(tmp_path: object) -> None:
 
 def test_assertion_table_has_twenty_rows() -> None:
     """A20 的落点：权威表里有 A20；A18 有命令但只标宿主已验（隔离未验）。"""
-    text = (cmd_parity.ROOT / "plan-veripen" / "16-完整范围与交付地图.md").read_text(encoding="utf-8")
+    text = (cmd_parity.ROOT / "plan-hos-legacy" / "16-完整范围与交付地图.md").read_text(encoding="utf-8")
     assert "A20 三对标可证" in text
     assert "A18 浏览器可证" in text and "容器内渲染未验" in text
 

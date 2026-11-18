@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from veripen_core.plugins import (
+from hos_ares_core.plugins import (
     DEFAULT_TTL_S,
     STALE_GRACE_S,
     CacheEntry,
@@ -82,7 +82,7 @@ def test_stale_beyond_two_years_is_penalised() -> None:
 
 
 def test_recency_bands() -> None:
-    from veripen_core.plugins.discovery import recency_score
+    from hos_ares_core.plugins.discovery import recency_score
 
     assert recency_score((NOW - timedelta(days=10)).date().isoformat(), NOW) == 1.0
     assert recency_score((NOW - timedelta(days=120)).date().isoformat(), NOW) == 0.6

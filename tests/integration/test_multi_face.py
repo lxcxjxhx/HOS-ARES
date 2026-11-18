@@ -41,7 +41,7 @@ def test_every_applicable_face_is_run(tmp_path) -> None:  # noqa: ANN001
     port = srv.server_address[1]
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     try:
-        from veripen_cli.cmd_run import main
+        from hos_ares_cli.cmd_run import main
 
         main([
             "--target", HTTP + f"{LOOPBACK}:{port}",
@@ -75,7 +75,7 @@ def test_each_face_gets_its_own_capsule(tmp_path) -> None:  # noqa: ANN001
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     out = tmp_path / "run"
     try:
-        from veripen_cli.cmd_run import main
+        from hos_ares_cli.cmd_run import main
 
         main([
             "--target", HTTP + f"{LOOPBACK}:{port}",
@@ -107,7 +107,7 @@ def test_each_face_gets_its_own_capsule(tmp_path) -> None:  # noqa: ANN001
         assert len(ids) == faces, f"{oracle} 有 {faces} 个面却只有 {len(ids)} 份 capsule"
 
     # 并且每份 capsule 的 route.ref 要与它自己的面一致
-    from veripen_core.evidence import load_capsule
+    from hos_ares_core.evidence import load_capsule
 
     for f in reported:
         cid = str((f.get("evidence") or {}).get("capsule_id"))

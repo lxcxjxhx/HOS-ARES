@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""一次性：把 B60–B63 追加进 .veripen/batches.jsonl（只增不改）。"""
+"""一次性：把 B60–B63 追加进 .hos-ares/batches.jsonl（只增不改）。"""
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-LEDGER = Path(__file__).resolve().parents[2] / ".veripen" / "batches.jsonl"
+LEDGER = Path(__file__).resolve().parents[2] / ".hos-ares" / "batches.jsonl"
 
 ROWS = [
     {
@@ -16,7 +16,7 @@ ROWS = [
         "agent": "little-code-sauce",
         "scope": "审批落库与事件：approvals 行 + task_events(kind=approval)，拒绝路径同样留痕",
         "files": [
-            "veripen_core/guard/approval.py",
+            "hos_ares_core/guard/approval.py",
             "tests/unit/test_approval_persistence.py",
         ],
         "dod": "A(decide 后 approvals 行存在且 state 与内存一致) OK；B(每次 decision 追加一条 task_events kind=approval) OK；C(自批被拒且拒绝本身留痕) OK；D(TTL 过期转 EXPIRED 并写 expired 事件) OK；E(事件只增不改，seq 单调) OK",
@@ -32,7 +32,7 @@ ROWS = [
         "agent": "little-code-sauce",
         "scope": "doctor 三项运行时探测（sandbox/tui/browser），缺条件记 skip；顺带修 --json 与 argv 两个 CLI bug",
         "files": [
-            "veripen_cli/cmd_doctor.py",
+            "hos_ares_cli/cmd_doctor.py",
             "tests/unit/test_doctor_probes.py",
             "tests/unit/test_doctor.py",
         ],
@@ -49,8 +49,8 @@ ROWS = [
         "agent": "little-code-sauce",
         "scope": "L1a 压缩接线：injectable → compress → 带前缀段，接进 cmd_hunt 的 goal",
         "files": [
-            "veripen_core/briefing.py",
-            "veripen_cli/cmd_hunt.py",
+            "hos_ares_core/briefing.py",
+            "hos_ares_cli/cmd_hunt.py",
             "tests/unit/test_l1a_injection.py",
         ],
         "dod": "A(injectable 出现生产调用方) OK；B(降幅 >=30%) OK；C(verdict 指纹逐字不变) OK；D(<=10 行且每条带 capsule_id) OK；E(过期标 stale 计数不删除) OK",
@@ -66,9 +66,9 @@ ROWS = [
         "agent": "little-code-sauce",
         "scope": "plugin knowledge 进 L2：PluginSpec.knowledge → KnowledgeDoc → Context.with_knowledge，卸载即消失",
         "files": [
-            "veripen_core/plugins/lifecycle.py",
-            "veripen_core/briefing.py",
-            "veripen_cli/cmd_hunt.py",
+            "hos_ares_core/plugins/lifecycle.py",
+            "hos_ares_core/briefing.py",
+            "hos_ares_cli/cmd_hunt.py",
             "tests/unit/test_knowledge_wiring.py",
         ],
         "dod": "A(with_knowledge 出现生产调用) OK；B(装 100 条 verdict 指纹不变) OK；C(改全文指纹仍不变) OK；D(<=2 条/步、<=1KB/条，超限截断标记) OK；E(卸载后 L2 不再出现该正文) OK",

@@ -16,7 +16,7 @@ import pytest
 
 from negative_samples import BAD_URL as BAD_ADDR
 from negative_samples import EXTERNAL_IP, LOCAL_NAME, SEP
-from veripen_core.stream import (
+from hos_ares_core.stream import (
     CONTROL_OPS,
     FORBIDDEN_OPS,
     SELECTOR_TAGS,
@@ -211,7 +211,7 @@ def test_selector_tags_match_doc_18_section_6() -> None:
     """
     import re
 
-    doc = ROOT / "plan-veripen" / "18-Oracle目录（14类判定矩阵）.md"
+    doc = ROOT / "plan-hos-legacy" / "18-Oracle目录（14类判定矩阵）.md"
     text = doc.read_text(encoding="utf-8")
     body = text[text.find("## 6"): text.find("**共 18 个标签")]
     documented = set(re.findall(r"^\| `([a-z_]+)` \|", body, re.M))
@@ -221,14 +221,14 @@ def test_selector_tags_match_doc_18_section_6() -> None:
 
 def test_selector_tag_drift_in_schemas_is_detected() -> None:
     """文档说「同步三处枚举」：schema 里少一个也应当被发现。"""
-    doc = ROOT / "plan-veripen" / "18-Oracle目录（14类判定矩阵）.md"
+    doc = ROOT / "plan-hos-legacy" / "18-Oracle目录（14类判定矩阵）.md"
     import re
 
     text = doc.read_text(encoding="utf-8")
     body = text[text.find("## 6"): text.find("**共 18 个标签")]
     documented = set(re.findall(r"^\| `([a-z_]+)` \|", body, re.M))
     for name in ("routeset.schema.json", "profile.schema.json"):
-        blob = (ROOT / "plan-veripen" / "schemas" / name).read_text(encoding="utf-8")
+        blob = (ROOT / "plan-hos-legacy" / "schemas" / name).read_text(encoding="utf-8")
         missing = sorted(t for t in documented if t not in blob)
         assert missing == [], f"{name} 缺标签 {missing}"
 

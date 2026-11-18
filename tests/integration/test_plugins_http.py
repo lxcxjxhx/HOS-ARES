@@ -14,14 +14,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
-from veripen_core.actions.sender import (
+from hos_ares_core.actions.sender import (
     SenderError,
     make_binding_sender,
     make_param_sender,
 )
-from veripen_core.plugins import fetch as pfetch
-from veripen_core.plugins.discovery import CacheEntry, SearchCache
-from veripen_core.routes.types import RouteBinding
+from hos_ares_core.plugins import fetch as pfetch
+from hos_ares_core.plugins.discovery import CacheEntry, SearchCache
+from hos_ares_core.routes.types import RouteBinding
 
 REF = "route://observed/" + "c" * 16
 

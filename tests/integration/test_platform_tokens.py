@@ -35,14 +35,14 @@ def spec(tmp_path: Path) -> Path:
     path.write_text(json.dumps({
         "openapi": "3.0.0", "info": {"title": "x", "version": "1"},
         "servers": [{"url": A}],
-        "paths": {SEP + "api" + SEP + "x": {"get": {"x-veripen-tags": ["param_injectable"]}}},
+        "paths": {SEP + "api" + SEP + "x": {"get": {"x-hos_ares-tags": ["param_injectable"]}}},
     }), encoding="utf-8")
     return path
 
 
 @pytest.fixture()
 def calls(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
-    from veripen_cli import cmd_platform, cmd_run
+    from hos_ares_cli import cmd_platform, cmd_run
 
     seen: list[list[str]] = []
 
@@ -55,7 +55,7 @@ def calls(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
 
 
 def _run(tmp_path: Path, spec: Path, targets: str, *extra: str) -> int:
-    from veripen_cli.cmd_platform import main
+    from hos_ares_cli.cmd_platform import main
 
     return main(["--targets", targets, "--openapi", str(spec), "--out", str(tmp_path / "pf"),
                  "--db", str(tmp_path / "pf.db"), *extra])

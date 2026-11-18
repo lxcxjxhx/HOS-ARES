@@ -67,7 +67,7 @@ def test_report_page_finds_hunt_markdown(tmp_path: Path) -> None:
 
 # ── 3. 审批页要真读库 ─────────────────────────────────────────
 def test_approvals_page_reads_the_store(tmp_path: Path) -> None:
-    from veripen_core.store import Store
+    from hos_ares_core.store import Store
 
     db = tmp_path / "x.db"
     store = Store(str(db)).init()
@@ -100,7 +100,7 @@ def test_console_command_wires_approvals_from_the_db() -> None:
 
     原来的样子就是"函数不存在、页面永远空"，任何只测 page builder 的用例都发现不了。
     """
-    src = (Path(__file__).resolve().parents[2] / "veripen_cli" / "cmd_console.py").read_text(
+    src = (Path(__file__).resolve().parents[2] / "hos_ares_cli" / "cmd_console.py").read_text(
         encoding="utf-8")
     assert "load_approvals(" in src, "审批页没人填数据"
     assert "approvals=approval_rows" in src, "读到了却没装进 state"

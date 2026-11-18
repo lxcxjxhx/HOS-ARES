@@ -24,14 +24,14 @@ SYMBOLS = json.dumps({"SAFE_TARGET": f"{SEP}portal{SEP}index"})
 
 
 def _row(lab: Any, tmp_path: Path) -> dict[str, Any]:
-    from veripen_cli.cmd_run import main as run_main
+    from hos_ares_cli.cmd_run import main as run_main
 
     tmp_path.mkdir(parents=True, exist_ok=True)
     spec = tmp_path / "s.json"
     spec.write_text(json.dumps({
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": lab.base_url}],
-        "paths": {f"{SEP}portal{SEP}authorize": {"get": {"x-veripen-tags": ["redirect_entry"]}}},
+        "paths": {f"{SEP}portal{SEP}authorize": {"get": {"x-hos_ares-tags": ["redirect_entry"]}}},
     }), encoding="utf-8")
     out = tmp_path / "run"
     run_main(["--target", lab.base_url, "--openapi", str(spec), "--out", str(out),
@@ -80,7 +80,7 @@ def test_enforced_state_is_refuted(hardened, tmp_path: Path) -> None:  # noqa: A
 
 
 def test_control_must_redirect_before_judging() -> None:
-    from veripen_oracles.auth.checks import judge_state_param
+    from hos_ares_oracles.auth.checks import judge_state_param
 
     result = judge_state_param(control_redirects=False, control_echoed=True, probe_accepted=True)
     assert result.verdict == "INCONCLUSIVE", result
@@ -89,7 +89,7 @@ def test_control_must_redirect_before_judging() -> None:
 
 def test_accepted_probe_convicts_even_without_echo() -> None:
     """受理本身就够定罪：回不回传是另一件事。"""
-    from veripen_oracles.auth.checks import judge_state_param
+    from hos_ares_oracles.auth.checks import judge_state_param
 
     result = judge_state_param(control_redirects=True, control_echoed=False, probe_accepted=True)
     assert result.verdict == "VERIFIED", result
@@ -97,7 +97,7 @@ def test_accepted_probe_convicts_even_without_echo() -> None:
 
 
 def test_no_echo_and_no_acceptance_is_inconclusive() -> None:
-    from veripen_oracles.auth.checks import judge_state_param
+    from hos_ares_oracles.auth.checks import judge_state_param
 
     result = judge_state_param(control_redirects=True, control_echoed=False, probe_accepted=False)
     assert result.verdict == "INCONCLUSIVE", result

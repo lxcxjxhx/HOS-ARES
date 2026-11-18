@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from veripen_core.render import BrowserRenderer, dom_sha256, outline, redact_url
-from veripen_core.render.browser import NET_LOG_LIMIT
+from hos_ares_core.render import BrowserRenderer, dom_sha256, outline, redact_url
+from hos_ares_core.render.browser import NET_LOG_LIMIT
 
 PAGE = "<html><body><h1>hello</h1><p class='a'>world</p></body></html>"
 

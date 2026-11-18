@@ -2,8 +2,8 @@
 """lint-noleak —— 客户差异不许漏进内核（A2 / `01 §1` I3 的可执行形式）。
 
 规则：**客户专有串只允许出现在该客户自己的 profile 与测试靶场里**，
-不许出现在产品代码（`veripen_core/` `veripen_oracles/` `veripen_contract/`
-`veripen/` `veripen_cli/` `api/` `worker/` `web/`）与根级构建文件里。
+不许出现在产品代码（`hos_ares_core/` `hos_ares_oracles/` `hos_ares_contract/`
+`hos_ares/` `hos_ares_cli/` `api/` `worker/` `web/`）与根级构建文件里。
 
 客户专有串从哪来：**从 `profiles/*/profile.yaml` 里读出来**，不手写。
 手写一份黑名单是把自己的判断抄成常量——新加一个客户档它就漏了。
@@ -33,11 +33,11 @@ ROOT = Path(__file__).resolve().parents[2]
 
 #: 产品代码目录。客户串出现在这里就是泄漏。
 PRODUCT_DIRS = (
-    "veripen_core",
-    "veripen_oracles",
-    "veripen_contract",
-    "veripen",
-    "veripen_cli",
+    "hos_ares_core",
+    "hos_ares_oracles",
+    "hos_ares_contract",
+    "hos_ares",
+    "hos_ares_cli",
     "api",
     "worker",
     "web",

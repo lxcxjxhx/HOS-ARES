@@ -4,7 +4,7 @@
 def test_platform_report_states_the_deny_list() -> None:
     import inspect
 
-    from veripen_cli import cmd_platform
+    from hos_ares_cli import cmd_platform
 
     src = inspect.getsource(cmd_platform.main)
     assert '"- 黑名单：' in src, "报告头要写黑名单"

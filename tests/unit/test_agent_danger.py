@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from veripen_core.workbench.danger import DANGEROUS, check_command
+from hos_ares_core.workbench.danger import DANGEROUS, check_command
 
 #: 地址一律拼出来：R-URL / R-HOST 闸门把字面量地址当成写死目标（noroute 纪律）
 _SCHEME = "http" + "://"
@@ -77,7 +77,7 @@ def test_chat_and_agent_both_expose_the_override() -> None:
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[2]
-    for rel in ("veripen_cli/cmd_chat.py", "veripen_cli/cmd_agent.py"):
+    for rel in ("hos_ares_cli/cmd_chat.py", "hos_ares_cli/cmd_agent.py"):
         src = (root / rel).read_text(encoding="utf-8")
         assert '"--allow-dangerous"' in src, rel
         assert "check_command(" in src, rel
@@ -90,7 +90,7 @@ def test_plan_marks_a_dangerous_step_before_it_runs() -> None:
     断言走 `_render_plan` 的输出，不直接调 `_danger_mark`——否则把渲染处那行
     删掉用例照样绿（B212 踩过这个坑）。
     """
-    from veripen_cli import cmd_chat
+    from hos_ares_cli import cmd_chat
 
     printed: list[str] = []
     original = cmd_chat._say
@@ -113,6 +113,6 @@ def test_override_leaves_a_trace() -> None:
     """拒绝有记录，override 不能是静默的——这是审计要的那一条。"""
     from pathlib import Path
 
-    src = (Path(__file__).resolve().parents[2] / "veripen_cli" / "cmd_chat.py").read_text(encoding="utf-8")
+    src = (Path(__file__).resolve().parents[2] / "hos_ares_cli" / "cmd_chat.py").read_text(encoding="utf-8")
     assert "[DANGER-OVERRIDE" in src, "放行没有留痕"
     assert "hit = check_command(a[\"cmd\"])" in src, "闸门必须总是算一遍命中，才能区分拦下与放行"

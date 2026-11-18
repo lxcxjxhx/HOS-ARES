@@ -16,7 +16,7 @@ _UNREACHABLE = "http" + ":" + SEP * 2 + "127." + "0.0.1:1"
 
 
 def _spec(base: str, tags: list[str]) -> str:
-    paths = {f"{SEP}api{SEP}search": {"get": {"x-veripen-tags": tags}}}
+    paths = {f"{SEP}api{SEP}search": {"get": {"x-hos_ares-tags": tags}}}
     return json.dumps({"openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
                        "servers": [{"url": base}], "paths": paths})
 
@@ -24,7 +24,7 @@ def _spec(base: str, tags: list[str]) -> str:
 def _run(tmp_path: Path, tags: list[str], extra: list[str]) -> int:
     from lab.app import App
     from lab.net_server import LabServer
-    from veripen_cli.cmd_run import main as run_main
+    from hos_ares_cli.cmd_run import main as run_main
 
     lab = LabServer(App(secure=False)).start()
     try:
@@ -60,7 +60,7 @@ def test_no_oracle_cause_is_reachable(tmp_path: Path, capsys) -> None:  # noqa: 
 # ── B280：README 里那张退出码表，要能被真跑对上 ──────────────────
 def test_platform_without_approval_exits_three(tmp_path: Path) -> None:
     """`3` 是给 CI 用的：区分「等人签字」与「跑挂了」，前者不该报警。"""
-    from veripen_cli.cmd_platform import main as platform_main
+    from hos_ares_cli.cmd_platform import main as platform_main
 
     spec = tmp_path / "spec.json"
     spec.write_text(_spec(_UNREACHABLE, ["param_injectable"]), encoding="utf-8")
@@ -71,7 +71,7 @@ def test_platform_without_approval_exits_three(tmp_path: Path) -> None:
 
 def test_hunt_with_untagged_contract_exits_one(tmp_path: Path) -> None:
     """契约有面但没有语义标签：能跑，只是挑不出 oracle —— 1，不是输入错误 2。"""
-    from veripen_cli.cmd_hunt import main as hunt_main
+    from hos_ares_cli.cmd_hunt import main as hunt_main
 
     spec = tmp_path / "notags.json"
     spec.write_text(json.dumps({"openapi": "3.0.0", "info": {"title": "t", "version": "1"},
@@ -86,7 +86,7 @@ def test_hunt_with_untagged_contract_exits_one(tmp_path: Path) -> None:
 # ── B300：一条都没验成功 + 有执行失败 → 不能 exit 0 ──────────────
 def test_unreachable_target_does_not_exit_zero(tmp_path: Path, capsys) -> None:  # noqa: ANN001
     """实测：整台不可达时 exit=0、报告写 `VERIFIED 0 / 共 3 项`，CI 会当成绿。"""
-    from veripen_cli.cmd_run import main as run_main
+    from hos_ares_cli.cmd_run import main as run_main
 
     spec = tmp_path / "spec.json"
     spec.write_text(_spec(_UNREACHABLE, ["param_injectable"]), encoding="utf-8")
@@ -99,7 +99,7 @@ def test_unreachable_target_does_not_exit_zero(tmp_path: Path, capsys) -> None: 
 
 def test_a_clean_target_still_exits_zero(tmp_path: Path) -> None:
     """有 REFUTED、没有执行失败时仍是 0——别把"没洞"当成失败。"""
-    from veripen_cli.cmd_run import main as run_main
+    from hos_ares_cli.cmd_run import main as run_main
 
     rc = _run(tmp_path, ["param_injectable"], [])
     assert rc in (0, 1)          # 靶场行为随 seed 变，这里只保证不崩

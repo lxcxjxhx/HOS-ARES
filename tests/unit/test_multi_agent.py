@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from veripen_core.agents import (
+from hos_ares_core.agents import (
     VERDICT_KEYS,
     AgentError,
     FindingRecord,
@@ -28,7 +28,7 @@ from veripen_core.agents import (
     isolate_crash,
     orchestrate,
 )
-from veripen_core.outcome import Outcome
+from hos_ares_core.outcome import Outcome
 
 ROOT = Path(__file__).resolve().parents[2]
 ROLES = ROOT / "config" / "roles.yaml"
@@ -80,7 +80,7 @@ def test_verifier_refuses_a_suggestion_carrying_verdict() -> None:
         def as_dict(self) -> dict[str, object]:
             return {**super().as_dict(), "severity": "high"}
 
-    from veripen_core.agents import Verifier
+    from hos_ares_core.agents import Verifier
 
     v = Verifier(_fake_run)
     with pytest.raises(AgentError, match="结论字段"):

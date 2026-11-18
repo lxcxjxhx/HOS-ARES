@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 
 from negative_samples import ABS_FILE, ABS_WIN, SEP
-from veripen_core.workbench import (
+from hos_ares_core.workbench import (
     FORBIDDEN_OPS,
     FS_OPS,
     MAX_READ_BYTES,
@@ -32,7 +32,7 @@ from veripen_core.workbench import (
     resolve_within,
 )
 
-WORKBENCH_DIR = Path(__file__).resolve().parents[2] / "veripen_core" / "workbench"
+WORKBENCH_DIR = Path(__file__).resolve().parents[2] / "hos_ares_core" / "workbench"
 
 #: 反例样本集中放在 tests/negative_samples.py（拼接构造，源码里无违规形态）
 ABS_PATHS = [ABS_FILE, ABS_WIN, "C:" + SEP + "x", "d:" + SEP + "y"]
@@ -271,7 +271,7 @@ def test_workbench_cannot_import_verdict() -> None:
 
 def test_the_guard_can_go_red(tmp_path: Path) -> None:
     bad = tmp_path / "bad.py"
-    bad.write_text("from veripen_core.models import Judgement\n", encoding="utf-8")
+    bad.write_text("from hos_ares_core.models import Judgement\n", encoding="utf-8")
     tree = ast.parse(bad.read_text(encoding="utf-8"))
     hits = [a.name for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)
             for a in node.names if a.name == "Judgement"]

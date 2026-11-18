@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from veripen_contract import (
+from hos_ares_contract import (
     ContractHostOutOfScope,
     ContractTooLarge,
     OperationSet,
@@ -19,8 +19,8 @@ from veripen_contract import (
     parse_openapi,
     plan,
 )
-from veripen_contract import planner
-from veripen_core.routes import (
+from hos_ares_contract import planner
+from hos_ares_core.routes import (
     AssetRef,
     Resolver,
     RouteHints,
@@ -29,7 +29,7 @@ from veripen_core.routes import (
     StaticSource,
     template_sha256,
 )
-from veripen_core.routes.types import RouteCandidate
+from hos_ares_core.routes.types import RouteCandidate
 
 ROOT = Path(__file__).resolve().parents[3]
 HERE = Path(__file__).resolve().parent
@@ -65,7 +65,7 @@ def _gen(count: int) -> str:
         "openapi": "3.0.3",
         "servers": [{"url": f"http://{HOST}"}],
         "components": {"securitySchemes": {"bearer_low": {"type": "http", "scheme": "bearer",
-                                                          "x-veripen-role": "secondary"}}},
+                                                          "x-hos_ares-role": "secondary"}}},
         "paths": paths,
     }
     return json.dumps(doc)
@@ -161,7 +161,7 @@ def test_host_check_skipped_when_no_allowlist() -> None:
 
 def test_unknown_tag_rejected() -> None:
     doc = json.loads(SAMPLE)
-    doc["paths"]["/api/echo"]["get"]["x-veripen-tags"] = ["not_a_real_tag"]
+    doc["paths"]["/api/echo"]["get"]["x-hos_ares-tags"] = ["not_a_real_tag"]
     with pytest.raises(UnknownTag):
         parse_openapi(json.dumps(doc), asset_id=ASSET, allowed_hosts=[HOST])
 
@@ -257,7 +257,7 @@ def test_removed_operation_disappears() -> None:
 # ── 6 本地代码边界（19 §8）────────────────────────────────────────
 def test_contract_package_never_imports_network() -> None:
     banned = {"httpx", "requests", "aiohttp", "urllib", "socket", "http"}
-    for path in (ROOT / "veripen_contract").rglob("*.py"):
+    for path in (ROOT / "hos_ares_contract").rglob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for node in ast.walk(tree):
             mods: list[str] = []
@@ -270,14 +270,14 @@ def test_contract_package_never_imports_network() -> None:
 
 
 def test_planner_does_not_build_urls() -> None:
-    src = (ROOT / "veripen_contract" / "planner.py").read_text(encoding="utf-8")
+    src = (ROOT / "hos_ares_contract" / "planner.py").read_text(encoding="utf-8")
     for word in ("concat_url", "join_url", "urljoin", "request("):
         assert word not in src, f"planner 里出现 {word}"
 
 
 # ── 7 别名与归一 ───────────────────────────────────────────────────
 def test_path_param_normalization() -> None:
-    from veripen_contract import normalize_template
+    from hos_ares_contract import normalize_template
 
     a, b = "/api/items/{itemId}", "/api/items/{id}"
     assert normalize_template(a) == normalize_template(b)

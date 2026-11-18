@@ -12,11 +12,11 @@ import inspect
 
 import pytest
 
-from veripen_oracles.common.harness import BANNED_IN_JUDGE, judge_source_violations
+from hos_ares_oracles.common.harness import BANNED_IN_JUDGE, judge_source_violations
 
 
 def _judges() -> list[tuple[str, object]]:
-    from veripen_oracles import ALL_ORACLES
+    from hos_ares_oracles import ALL_ORACLES
 
     out: list[tuple[str, object]] = []
     for oracle in ALL_ORACLES:

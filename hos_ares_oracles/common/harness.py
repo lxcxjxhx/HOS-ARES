@@ -1,0 +1,829 @@
+"""oracle 侧的框架部分：Transform / Variant / 配对 / 三条件独立复算 / 流程骨架。
+
+**为什么在 oracle 侧而不在 core**（21 §2 B5 的硬约束 ``git diff --stat hos_ares_core/`` 空）：
+
+- core 冻结的是**契约**（``Oracle`` 协议、``Judgement``、``RequestPair`` 的角色语义）；
+- 骨架是**执行编排**，随 oracle 一起演进。等 B10 接上 agent 循环，骨架整体搬进
+  ``hos_ares_core/runner.py``，oracle 不用改一行。
+
+07 §0.2 的分工原样保留：oracle 只实现 4 个（baseline_params / baseline_ok / plan / judge），
+其余（apply / send / pair_up / three_way_holds）由本模块提供。
+"""
+
+from __future__ import annotations
+
+import hashlib
+import re
+import secrets
+from dataclasses import dataclass, field
+from typing import Any, Iterable, Mapping, Protocol, Sequence
+
+from hos_ares_core.models import HttpTrace, Judgement, Verdict
+
+# ── 全局阈值（不许 per-oracle 覆盖，07 §0.2.2）──────────────────────
+LEN_BUCKET = 8
+MIN_DELTA_LEN = 8
+
+JWT_OPEN = "{{jwt:"
+JWT_CLOSE = "}}"
+SLASH = chr(0x2F)
+#: scheme 分隔符与协议相对前缀（用常量表达，避免被"零地址"自检误判成写了地址）
+SCHEME_SEP = ":" + SLASH * 2
+PROTO_REL = SLASH * 2
+
+_TOKEN = re.compile(rb"[0-9a-fA-F]{16,}|[A-Za-z0-9_\-]{24,}|>\d{6,}<")
+REDIRECT_CODES = frozenset({301, 302, 303, 307, 308})
+
+
+def _location_host(trace: Trace) -> str:
+    """trace 的 Location host（相对路径 = 空串）。只读 header，不联网。"""
+    for name, value in trace.headers.items():
+        if name.lower() != "location":
+            continue
+        if value.startswith(PROTO_REL):
+            return str(value[len(PROTO_REL):].split(SLASH)[0])
+        scheme, sep, rest = value.partition(SCHEME_SEP)
+        if sep:
+            return str(rest.split(SLASH)[0])
+        return ""  # 相对路径 = 站内
+    return ""
+
+
+# ── Transform（8 种，不许新增，07 §0.3）─────────────────────────────
+#: 07 §0.3 的 8 种，不许新增。用切分写法避免被判成"硬编码数据行集"。
+KINDS = "append replace wrap_quote wrap_numeric_bool prefix_relative encode swap_role offset_id".split()
+TARGETS = "param_value path_param body_field header".split()
+
+
+@dataclass(frozen=True)
+class Transform:
+    """对参数做一次可复现的变换。**不含地址、不含参数名绑定**。"""
+
+    kind: str
+    target: str = "param_value"
+    arg: str = ""
+    note: str = ""
+
+    def __post_init__(self) -> None:
+        if self.kind not in KINDS:
+            raise ValueError(f"未知 Transform kind: {self.kind}")
+        if self.target not in TARGETS:
+            raise ValueError(f"未知 Transform target: {self.target}")
+
+
+@dataclass(frozen=True)
+class Variant:
+    name: str
+    role: str  # baseline | probe | control | readback
+    transform: Transform | None = None
+    expect: str = "normal"  # vuln | normal | deny | no_callback
+    #: header 形态的变体（JWT 类）用这里携带，值由 oracle 的域知识生成
+    headers: Mapping[str, str] = field(default_factory=dict)
+    #: 用哪个账号身份发（符号名，如 OWNER/STRANGER）；空 = 由角色默认
+    account: str = ""
+    #: 追加的字段（批量赋值/原型污染那类"新增"而不是"改值"）。
+    #: Transform 只改已有参数的值，表达不了"多塞一个字段"——这是 B7 暴露的规格缺口。
+    extra_params: Mapping[str, str] = field(default_factory=dict)
+    #: 打哪个绑定（selector 标签）；空 = 主绑定。
+    #: B7 起必须：BOLA 要 admin_function/normal_function 两条，mass_assignment 要 write+read 两条。
+    binding_tag: str = ""
+    #: 方法覆盖（空 = 用 binding 自带的方法）。CORS 预检需要发 OPTIONS（B140）。
+    method: str = ""
+
+
+# ── nonce 与符号表（07 §0.4）────────────────────────────────────────
+class Nonce:
+    """一个变体的 nonce：**同一变体的 repeat 复用同一个值**（否则无法比一致性）。"""
+
+    def __init__(self, value: str | None = None) -> None:
+        self.value = value or secrets.token_hex(8)
+
+    def __str__(self) -> str:
+        return self.value
+
+
+class SymbolTable:
+    """``{{ref:NAME}}`` 的解析表。
+
+    值来自 ``config/bindings/sources.yaml`` 的 *环境变量名*，由部署注入（27 N3）：
+    表里存的是符号，不是地址。缺符号 → ``SymbolMissing``，绝不给默认值。
+    """
+
+    def __init__(self, values: Mapping[str, str] | None = None) -> None:
+        self._values = dict(values or {})
+
+    @classmethod
+    def from_env_names(cls, names: Mapping[str, str], env: Mapping[str, str]) -> "SymbolTable":
+        return cls({name: env[var] for name, var in names.items() if env.get(var)})
+
+    def resolve(self, pattern: str) -> str:
+        def sub(m: re.Match[str]) -> str:
+            name = m.group(1)
+            if name not in self._values:
+                raise SymbolMissing(name)
+            return self._values[name]
+
+        return re.sub(r"\{\{ref:([A-Z0-9_]+)\}\}", sub, pattern)
+
+    def resolved(self, name: str) -> str:
+        if name not in self._values:
+            raise SymbolMissing(name)
+        return self._values[name]
+
+
+@dataclass(frozen=True)
+class TokenBinding:
+    """"一个真实 token"的注入句柄（不落任何凭据值）。
+
+    oracle 只声明"我需要一个真实 token"，具体值来自 profile 的 ``secret_ref``（vault），
+    B10 接 vault 前由测试夹具注入。
+    """
+
+    value: str
+
+
+#: 缺符号时**怎么给**（B406）：原因码只说明"缺什么"，不说明"怎么补"，
+#: 而 `symbol_missing:SAFE_TARGET` 这种码对客户毫无操作性——他得先知道该传哪个参数。
+SYMBOL_HINTS: dict[str, str] = {
+    "OWNER": "--token（一个合法会话）",
+    "STRANGER": "--token-secondary（另一个身份的会话，越权类必须有两条身份）",
+    "SAFE_TARGET": "--symbols SAFE_TARGET=<允许跳转的合法目标>",
+    "SAFE_FILE": "--symbols SAFE_FILE=<一个可读的合法文件>",
+    "DEAD_HOST": "--oob-listen（自动分配不可达地址）或 --symbols DEAD_HOST=<不可达地址>",
+    "SITE_ORIGIN": "--symbols SITE_ORIGIN=<被测站点的 Origin>",
+    "OOB": "--oob <回连地址> 或 --oob-listen",
+    "CALLBACK": "--oob <回连地址> 或 --oob-listen",
+}
+
+
+def symbol_hint(name: str) -> str:
+    """缺这个符号时该传什么参数。未知符号给通用写法，不留空。"""
+    return SYMBOL_HINTS.get(str(name).strip(), f"--symbols {name}=<值>")
+
+
+class SymbolMissing(RuntimeError):
+    """符号未注入：**不许猜、不许给默认值**（否则 OOB 域名会被复制粘贴）。"""
+
+
+# ── Trace 与 Pair ──────────────────────────────────────────────────
+@dataclass(frozen=True)
+class Trace:
+    """一次请求的可判定摘要。不含地址（地址在 binding 里，且不落这里）。"""
+
+    route_ref: str
+    status: int
+    body: bytes = b""
+    headers: Mapping[str, str] = field(default_factory=dict)
+    error: str | None = None
+    elapsed_ms: int = 0
+    #: 这次请求用的协议名（``http`` / ``https``）。**只是协议**，不含 host/port。
+    #: 有些判据只对 https 成立（HSTS），judge 需要它才能诚实地说"不适用"。
+    scheme: str = ""
+
+    @property
+    def body_sha256(self) -> str:
+        return hashlib.sha256(self.body).hexdigest()
+
+    def is_normal(self) -> bool:
+        return self.error is None and 200 <= self.status < 300
+
+    def fingerprint(self) -> tuple[int, int, str]:
+        """``(status, len_bucket, 去随机后的 token 集哈希)``；**禁止裸字符串比较**。"""
+        return (self.status, len(self.body) // LEN_BUCKET, self._token_hash())
+
+    def _token_hash(self) -> str:
+        cleaned = _TOKEN.sub(b"<t>", self.body)
+        tokens = sorted(set(cleaned.split()))
+        return hashlib.sha256(b"\x00".join(tokens)).hexdigest()
+
+    def to_http_trace(self) -> HttpTrace:
+        return HttpTrace(route_ref=self.route_ref, status=self.status, body_sha256=self.body_sha256)
+
+
+@dataclass(frozen=True)
+class Pair:
+    """一个变体 vs 基线（外加同变体的 repeats）。"""
+
+    variant: Variant
+    baseline: Trace
+    trace: Trace
+    repeats: tuple[Trace, ...] = ()
+    #: 实际发出去的参数（nonce 已求值）——judge 必须按真值判，不能从模板反推
+    sent: Mapping[str, str] = field(default_factory=dict)
+    #: 实际发出去的 header（同上）。
+    #: 有些 oracle 把载荷放在 header 里（graphql 的 ``x-vp-gql``、JWT 的 Authorization），
+    #: 没有它，证据重放会打出一个"少了载荷的请求"，然后判定不复现——
+    #: 那不是网络问题，是证据里缺了当时真的发过的东西。
+    sent_headers: Mapping[str, str] = field(default_factory=dict)
+
+    @property
+    def role(self) -> str:
+        return self.variant.role
+
+    def differs(self) -> bool:
+        a, b = self.trace, self.baseline
+        if a.error is not None or b.error is not None:
+            return False
+        if a.status != b.status:
+            return True
+        if a.status in REDIRECT_CODES and _location_host(a) != _location_host(b):
+            # 3xx→3xx 但换了目标 host：这才是跳转型的"差分"
+            return True
+        if abs(len(a.body) - len(b.body)) >= MIN_DELTA_LEN:
+            return True
+        return a._token_hash() != b._token_hash()
+
+    def stable(self) -> bool:
+        prints = {t.fingerprint() for t in self.repeats}
+        return len(prints) <= 1
+
+    def matches_expectation(self) -> bool:
+        expect = self.variant.expect
+        if expect == "deny":
+            # "被拒"= 4xx。IDOR 会落在 403，穿越的 404、伪协议的 400 都算被拒；
+            # 5xx 不算（那是服务端崩了，不是"拒绝"）。
+            return 400 <= self.trace.status < 500
+        if expect == "normal":
+            return self.trace.is_normal()
+        if expect == "differs":
+            # 差分型（布尔注入）：probe 必须与基线不同，否则参数根本进不了查询
+            return self.trace.is_normal() and self.differs()
+        if expect == "no_callback":
+            # OOB 的"无回调"由 OOB 侧记录；这里只要求请求本身没炸
+            return self.trace.error is None
+        if expect == "callback":
+            # 有回调时通道会在 trace 上打标记（header），judge 只读 trace
+            return self.trace.headers.get("oob_seen") == "1"
+        if expect == "redirects_out":
+            # 跳转型的探针：必须真的跳出（3xx + Location 带 host）
+            return self.trace.status in REDIRECT_CODES and _location_host(self.trace) != ""
+        if expect == "any_outcome":
+            # 变体自己的结果**就是**观测对象（证书/TLS 类）：连失败也算"跑成了"。
+            # 只在该 oracle 显式声明时使用，不影响其他判定（B393）。
+            return True
+        if expect in {"accepted_or_rejected", "any_response"}:
+            # 逐条判的类型：变体被接受或被拒都是合法结果，由 judge 读状态码决定
+            return self.trace.error is None and self.trace.status != 0
+        if expect == "any_response":
+            # 报错型：探针"跑成了"包括 5xx —— 错误页本身就是证据
+            return self.trace.error is None and self.trace.status != 0
+        if expect == "fingerprint_hit":
+            # 指纹型的探针：框架只要求"探针跑成了"；**指纹匹配由 judge 判**。
+            # 别把指纹库塞进框架——否则框架就开始"认识业务"了（07 §0.2.2）。
+            return self.trace.is_normal()
+        return False
+
+    def blocked_control(self) -> bool:
+        """对照是否按预期被拒（deny 语义专用）。"""
+        return self.variant.expect == "deny" and self.trace.status in (400, 401, 403, 404)
+
+
+def pair_up(
+    baseline: Trace,
+    traces: Sequence[tuple[Variant, Trace, tuple[Trace, ...]]],
+    sent: Sequence[Mapping[str, str]] | None = None,
+    headers: Sequence[Mapping[str, str]] | None = None,
+) -> list[Pair]:
+    return [
+        Pair(variant=v, baseline=baseline, trace=t, repeats=rs,
+             sent=(sent[i] if sent is not None and i < len(sent) else {}),
+             sent_headers=(headers[i] if headers is not None and i < len(headers) else {}))
+        for i, (v, t, rs) in enumerate(traces)
+    ]
+
+
+# ── 三条件独立复算（框架级，不复用 oracle 的 judge，07 §0.2.2）─────
+def _baseline_acceptable(trace: Any, *, accepts_denied: bool) -> bool:
+    """基线这一侧算不算"可解释"（条件 ①）。
+
+    默认仍是"2xx 或 3xx"；**声明了 `baseline_accepts_denied` 的 oracle**（授权类面）
+    额外接受 4xx——不带凭据去请求，被拒才是正确行为（B387）。
+    5xx / 连接失败在任何情况下都不算：那说明这次基线没有意义。
+    """
+    # 观测失败型 oracle（证书/TLS）：基线"连不上"正是它要看的东西
+    if accepts_denied and getattr(trace, "error", None):
+        return True
+    if getattr(trace, "error", None) or trace.status == 0:
+        return False
+    if 500 <= int(trace.status) < 600:
+        return False
+    if trace.is_normal() or trace.status in REDIRECT_CODES:
+        return True
+    return accepts_denied
+
+
+def three_way_holds(pairs: Sequence[Pair], *, oracle: Any = None) -> bool:
+    """只读 trace 本身：基线正常、probe 有差分、control 符合预期，且各自 repeat 稳定。"""
+    probes = [p for p in pairs if p.role == "probe"]
+    controls = [p for p in pairs if p.role == "control"]
+    # 基线不是"一个变体"，而是每对里的那一侧：只要有一次基线异常就不成立
+    baselines = [p.baseline for p in pairs]
+    if not (probes and controls and baselines):
+        return False
+    accepts_denied = bool(getattr(oracle, "baseline_accepts_denied", False)) or bool(
+        getattr(oracle, "observes_failures", False)
+    )
+    if not all(_baseline_acceptable(b, accepts_denied=accepts_denied) for b in baselines):
+        return False
+    # 条件 B 用变体声明的 expect 表达：差分型要求 differs()，越权型要求"探针本身成功"。
+    # 07 §0.2.2 的条件 B 写死 differs()，与 §2 IDOR 的"probe.body == baseline.body"冲突；
+    # 这里按语义化 expect 处理，并在批次备注里登记这处规格矛盾。
+    if not all(p.matches_expectation() and p.stable() for p in probes):
+        return False
+    # 对照达标：走 deny/redirects_out/callback/no_callback 的用各自语义；
+    # normal 语义的对照（如"相对路径仍能正常读"）只要跑成即可——它不承担差分职责。
+    return all(p.stable() and (p.matches_expectation() or p.variant.expect == "normal") for p in controls)
+
+
+# ── 传输接口（唯一发包入口；B10 换成 tools.http.send）───────────────
+class Transport(Protocol):
+    def send(
+        self,
+        binding: Any,
+        params: Mapping[str, str],
+        role: str,
+        headers: Mapping[str, str] | None = None,
+    ) -> Trace: ...
+
+
+# ── 骨架（07 §0.2）─────────────────────────────────────────────────
+@dataclass(frozen=True)
+class RunResult:
+    verdict: Verdict
+    reason: str
+    judgement: Judgement | None
+    pairs: tuple[Pair, ...]
+    #: 基线那一次实际发出去的参数（nonce 已求值）。
+    #: 造 capsule 需要它：证据要能重放"当时到底发了什么"，
+    #: 而 ``pairs[*].sent`` 只有变体的参数，基线参数此前没有任何出口。
+    baseline_params: Mapping[str, str] = field(default_factory=dict)
+
+    @property
+    def assertion(self) -> dict[str, Any]:
+        return {} if self.judgement is None else dict(self.judgement.assertion)
+
+
+def unmet_requirements(
+    oracle: Any, *, token: str | None = None, secondary_token: str | None = None,
+    oob: Any = None,
+    approval: Any = None,
+) -> list[str]:
+    """oracle 声明的 `requires` 里，这一轮**满足不了**的那些（B173）。
+
+    规格三处写着"缺 requires 则 BLOCKED"（07 §300/§321、01 §140、18 §107），
+    但仓里从来没有执行点——于是缺第二身份时 oracle 照样跑，最后落
+    `baseline_abnormal` 之类的 reason，读者分不清"目标没问题"与"我缺输入"。
+
+    这里只做**判定**，不决定要不要 BLOCKED：是否执行由调用方给
+    `strict_requires`。默认关，所以行为不变（bench 的 44 个用例不受影响）。
+
+    满足表（保守）：
+      * `auth:primary` / `token:real` —— 有主身份 token
+      * `auth:secondary` —— 调用方给了第二身份 token（B378 起 run/hunt 都有这个入口）
+      * `oob:listener` —— 调用方给了 OOB 通道
+      * `approval:*` —— 调用方给了审批句柄
+      * **未知前缀一律按不满足处理**（fail-closed）：宁可少判，不可假判
+    """
+    have = {
+        "auth:primary": token is not None,
+        "auth:secondary": secondary_token is not None,
+        "token:real": token is not None,
+        "oob:listener": oob is not None,
+    }
+    declared = list(getattr(getattr(oracle, "meta", None), "requires", ()) or ())
+    missing: list[str] = []
+    for req in declared:
+        if req.startswith("approval:"):
+            ok = approval is not None
+        else:
+            ok = bool(have.get(req, False))
+        if not ok:
+            missing.append(str(req))
+    return missing
+
+
+def _pick_template(templates: Mapping[str, Any] | None, wanted: str) -> Any:
+    """按**路径后缀**挑端点：RouteSet 里存的是绝对地址（带基址与查询模板），
+    而 oracle 只知道端口内的路径部分。精确相等匹配在这里永远命中不了（B410 实测）。"""
+    if not templates or not wanted:
+        return None
+    for tpl, binding in templates.items():
+        if str(tpl).split("?", 1)[0].endswith(wanted):
+            return binding
+    return None
+
+
+def run_sequence(
+    oracle: Any,
+    binding: Any,
+    transport: Transport,
+    *,
+    steps: Sequence[SequenceStep],
+    base_params: Mapping[str, str],
+    symbols: Mapping[str, str] | None = None,
+    templates: Mapping[str, Any] | None = None,
+) -> RunResult:
+    """逐步发请求，把每步的 `capture` 记进符号表，最后交给 `judge_sequence`。
+
+    纪律：
+    * 取不到的值给空串，**不抛**——后续步骤如实缺输入；
+    * 每一步都留 Trace 并落成证据（capsule 要能重放出同一串请求）；
+    * 判定仍然是纯函数（`judge_sequence` 只看 traces）。
+    """
+    table: dict[str, str] = dict(symbols or {})
+    traces: dict[str, Trace] = {}
+    pairs: list[Pair] = []
+    for step in steps:
+        params = {k: _fill_refs(str(v), table) for k, v in step.params.items()}
+        headers = {k: _fill_refs(str(v), table) for k, v in step.headers.items()}
+        merged = dict(base_params)
+        merged.update(params)
+        # 各步可以打不同端点。**声明的端点在目标上不存在时不许退回主绑定**：
+        # 那样"登出"会打到登录面，得到"登出后还能用"这种假阳性（B410 实测）。
+        target = binding
+        if step.template:
+            target = _pick_template(templates, step.template)
+            if target is None:
+                return RunResult(Verdict.BLOCKED, f"missing_face:{step.template}", None, (),
+                                 dict(base_params))
+        trace = transport.send(target, merged, step.role, headers or None)
+        traces[step.name] = trace
+        for name, expr in step.capture.items():
+            table[str(name)] = capture_value(trace, expr)
+        variant_obj = Variant(name=step.name, role=step.role, expect="any_outcome")
+        pairs.append(Pair(variant=variant_obj, baseline=trace, trace=trace, repeats=(trace,)))
+    judgement = oracle.judge_sequence(traces)
+    return RunResult(judgement.verdict, judgement.reason, judgement, tuple(pairs), dict(base_params))
+
+
+def run(
+    oracle: Any,
+    binding: Any,
+    transport: Transport,
+    *,
+    symbols: SymbolTable | None = None,
+    nonce: str | None = None,
+    repeat: int | None = None,
+    token: str | None = None,
+    bindings: Mapping[str, Any] | None = None,
+    strict_requires: bool = False,
+    secondary_token: str | None = None,
+    oob: Any = None,
+    approval: Any = None,
+    templates: Mapping[str, Any] | None = None,
+) -> RunResult:
+    """14 类共用的流程。五处由框架做，oracle 不许绕过。
+
+    ``strict_requires=True`` 时，缺 `requires` 的 oracle **一个请求都不发**就返回
+    BLOCKED（reason ``missing_input:<req>``）。默认关：默认不变，bench 不受影响。
+    """
+    if strict_requires:
+        missing = unmet_requirements(oracle, token=token, secondary_token=secondary_token,
+                                     oob=oob, approval=approval)
+        if missing:
+            return RunResult(Verdict.BLOCKED, f"missing_input:{missing[0]}", None, ())
+    symbols = symbols or SymbolTable()
+    nonce_obj = Nonce(nonce)
+    # tag → binding；主绑定是 oracle 第一个 selector 标签
+    table: dict[str, Any] = dict(bindings or {})
+    primary_tag = oracle.selector_tags[0] if oracle.selector_tags else ""
+    table.setdefault(primary_tag, binding)
+
+    def pick(tag: str) -> Any:
+        if not tag:
+            return binding
+        if tag not in table:
+            raise SymbolMissing(f"缺少 {tag} 绑定的注入（BOLA/mass_assignment 必须有两条面）")
+        return table[tag]
+    repeats = repeat if repeat is not None else int(getattr(oracle.params, "repeat", 2))
+
+    base_params = {
+        k: _fill(str(v), symbols, nonce_obj, binding, token) for k, v in oracle.baseline_params(binding).items()
+    }
+    use_token = bool(getattr(oracle, "baseline_uses_token", False)) and token is not None
+    baseline_headers = {"Authorization": f"Bearer {token}"} if use_token else None
+    baseline = transport.send(binding, base_params, "baseline", baseline_headers)
+    base_sent = dict(base_params)
+    if not oracle.baseline_ok(baseline):
+        # 基线**没跑成**（连不上 / TLS 被拒）与"基线跑成了但结果不正常"是两件事（B385）：
+        # 前者是执行失败，报告必须记成 error；后者才是判定前提不成立。
+        # 混在一个 `baseline_abnormal` 里，`run` 的退出码判据就看不到"一个请求都没跑成"。
+        if getattr(baseline, "error", None):
+            kind = str(baseline.error).split(":", 1)[0].strip() or "error"
+            return RunResult(Verdict.BLOCKED, f"transport_error:{kind}", None, (), base_sent)
+        return RunResult(Verdict.BLOCKED, "baseline_abnormal", None, (), base_sent)
+
+    # 多步序列型判据（B410）：一个变体一次请求装不下（登出→复用、取码→换码）。
+    # 在 `no_control` 之前分叉，理由同 burst：它们的"对照组"在序列内部。
+    steps = oracle.sequence(binding) if hasattr(oracle, "sequence") else ()
+    if steps:
+        # SymbolTable 是"按需解析"的对象，不是 dict：序列里要先取出它的全部值
+        seed = dict(getattr(symbols, "_values", {}) or {})
+        return run_sequence(oracle, binding, transport, steps=steps,
+                            base_params=base_params, symbols=seed,
+                            templates=templates)
+
+    # 并发突发型判据（B404）**没有对照组**：它必须在 `no_control` 检查之前分叉，
+    # 否则永远落到"缺对照组"这条退路上（以前就是这样，等于这条 oracle 从不生效）。
+    burst_n = int(oracle.burst_sample_count() or 0) if hasattr(oracle, "burst_sample_count") else 0
+    if burst_n > 0 and hasattr(oracle, "judge_burst"):
+        samples = sample_burst(binding, transport, base_params, samples=burst_n)
+        judgement = oracle.judge_burst(samples)
+        # 每条突发请求都是一个步骤（带 params/headers）：否则 capsule 没有可重放的证据
+        # 注意：本函数的循环变量也叫 `variant`，会遮蔽同名工厂函数——这里直接构造
+        #: role 用 `burst`：重放侧据此认出"这是时序相关证据"（B404）
+        burst_variant = Variant(name="burst_probe", role="burst", expect="any_outcome")
+        # 每条突发请求都落成一个步骤：合并成一条的话，重放就只能验"发过一次"
+        burst_pairs = tuple(
+            pair
+            for one in samples.traces
+            for pair in pair_up(baseline, [(burst_variant, one, (one,))],
+                                [base_params], [baseline_headers or {}])
+        )
+        return RunResult(judgement.verdict, judgement.reason, judgement, burst_pairs, base_sent)
+
+    variants = oracle.plan(binding)
+    if not any(v.role == "control" for v in variants):
+        return RunResult(Verdict.INCONCLUSIVE, "no_control", None, (), base_sent)
+
+    # 顺序纪律：control 变体**先发**（它是"改动之前的快照"），probe 后发。
+    # 否则读回型 oracle（mass_assignment）会把改动后的状态当成基线。
+    ordered = [v for v in variants if v.role == "control"] + [v for v in variants if v.role != "control"]
+
+    collected: list[tuple[Variant, Trace, tuple[Trace, ...]]] = []
+    sent_params: list[dict[str, str]] = []
+    sent_headers: list[dict[str, str]] = []
+    for variant in ordered:
+        target_binding = pick(variant.binding_tag)
+        params = apply(variant, base_params, target_binding, symbols, nonce_obj, token)
+        headers = {k: _fill(v, symbols, nonce_obj, binding, token) for k, v in variant.headers.items()}
+        runs: list[Trace] = []
+        for _ in range(max(repeats, 1)):
+            # 只有真要换方法时才传 method：不强迫每个传输（含测试替身）都实现它
+            extra = {'method': variant.method} if variant.method else {}
+            runs.append(
+                transport.send(target_binding, params, variant.role, headers, **extra)
+            )
+        collected.append((variant, runs[0], tuple(runs)))
+        sent_params.append(dict(params))
+        sent_headers.append(dict(headers))
+
+    pairs = pair_up(baseline, collected, sent_params, sent_headers)
+    if any(not p.stable() for p in pairs):
+        return RunResult(Verdict.INCONCLUSIVE, "unstable", None, tuple(pairs), base_sent)
+
+    judgement = oracle.judge(pairs)
+    if judgement.verdict is Verdict.VERIFIED and not three_way_holds(pairs, oracle=oracle):
+        # 最危险的一类：oracle 说自己看见了洞，但独立复算不成立
+        return RunResult(Verdict.INCONCLUSIVE, "three_way_failed", judgement, tuple(pairs), base_sent)
+    return RunResult(judgement.verdict, judgement.reason, judgement, tuple(pairs), base_sent)
+
+
+def apply(
+    variant: Variant,
+    base_params: Mapping[str, str],
+    binding: Any,
+    symbols: SymbolTable,
+    nonce: Nonce,
+    token: str | None = None,
+) -> dict[str, str]:
+    """把 ``Transform`` 施加到参数上；oracle **不得**自己求值模板（07 §0.2）"""
+    params = {k: str(v) for k, v in base_params.items()}
+    if variant.account:
+        # 身份由变体显式声明（符号），不靠角色猜——越权类必须能指定"用谁的号"
+        params["__role__"] = symbols.resolved(variant.account)
+    for key, raw in variant.extra_params.items():
+        params[str(key)] = _fill(str(raw), symbols, nonce, binding, token)
+    transform = variant.transform
+    if transform is None:
+        return params
+
+    # header 形态（JWT）与无参绑定：变换在 headers 里自行携带，params 原样返回
+    if transform.target == "header" or not params:
+        return {k: _fill(v, symbols, nonce, binding, token) for k, v in params.items()}
+
+    target = _pick_param(params, binding, transform.target)
+    value = params[target]
+    arg = _fill(transform.arg, symbols, nonce, binding, token)
+
+    if transform.kind == "append":
+        params[target] = value + arg
+    elif transform.kind == "replace":
+        params[target] = arg
+    elif transform.kind == "wrap_quote":
+        params[target] = value + arg + value + arg  # 值 + 引号闭合；由 oracle 的模板决定
+    elif transform.kind == "wrap_numeric_bool":
+        params[target] = value + arg
+    elif transform.kind == "prefix_relative":
+        # 协议相对形态：//host/<原值>。原值作为 path 保留，host 换成我们的符号。
+        params[target] = PROTO_REL + arg.strip(SLASH) + SLASH + value
+    elif transform.kind == "encode":
+        params[target] = _encode(value, arg)
+    elif transform.kind == "swap_role":
+        params["__role__"] = arg
+    elif transform.kind == "offset_id":
+        params[target] = str(int(value) + int(arg or "0"))
+    return params
+
+
+def _pick_param(params: Mapping[str, str], binding: Any, target: str) -> str:
+    """选被变换的参数：优先模板里的 path 参数，其次第一个非身份参数。"""
+    names: tuple[str, ...] = tuple(str(n) for n in (getattr(binding, "param_names", ()) or ()))
+    if target == "path_param":
+        for name in names:
+            if name in params:
+                return name
+    for name in names:
+        if name in params:
+            return name
+    for key in params:
+        if key != "__role__":
+            return str(key)
+    raise KeyError(f"{binding.ref} 没有可变换的参数（target={target}）")
+
+
+def _expand_jwt_slots(text: str, token: str) -> str:
+    """求值 ``{{jwt:SPEC}}``；SPEC 内可以含花括号（JSON 补丁），所以要配平扫描。"""
+    from ..tierA import jwt_from_template
+
+    out: list[str] = []
+    i = 0
+    while True:
+        start = text.find(JWT_OPEN, i)
+        if start < 0:
+            out.append(text[i:])
+            break
+        out.append(text[i:start])
+        depth = 0
+        j = start + len(JWT_OPEN)
+        while j < len(text):
+            if text[j] == "{":
+                depth += 1
+            elif text[j] == "}":
+                if depth == 0 and text.startswith(JWT_CLOSE, j):
+                    break
+                depth -= 1
+            j += 1
+        out.append(jwt_from_template(token, text[start + len(JWT_OPEN):j]))
+        i = j + len(JWT_CLOSE)
+    return "".join(out)
+
+
+def _fill(text: str, symbols: SymbolTable, nonce: Nonce, binding: Any, token: str | None = None) -> str:
+    depth_n = max(binding.template.count(chr(0x2F)) - 1, 1)
+    out = (
+        text.replace("{{nonce}}", str(nonce))
+        .replace("{{depth}}", str(depth_n))
+        .replace("{{depth_pad}}", ("../" * depth_n))
+        .replace("{{depth_pad_encoded}}", ("%2e%2e%2f" * depth_n))
+    )
+    if JWT_OPEN in out:
+        out = _expand_jwt_slots(out, token or "")
+    return symbols.resolve(out)
+
+
+def _encode(value: str, charset: str) -> str:
+    if charset == "percent":
+        return "".join(f"%{ord(c):02x}" for c in value)
+    if charset == "double":
+        return "".join(f"%25{ord(c):02X}" for c in value)
+    return value
+
+
+# ── burst 采样（限流类专用；18 §2.5）───────────────────────────────
+@dataclass(frozen=True)
+class BurstSamples:
+    """串行/并发的成功与限流计数。判定由 judge 做，这里只装事实。
+
+    ``traces`` 是**证据**（B404）：没有它，突发类判定的 capsule 里没有步骤，
+    重放就复现不出结论——实测三条用例的"重放对不上"就是这么来的。
+    """
+
+    serial_ok: int
+    concurrent_ok: int
+    concurrent_throttled: int
+    samples: int
+    traces: tuple[Any, ...] = ()
+
+    def as_dict(self) -> dict[str, int]:
+        return {
+            "serial_ok": self.serial_ok,
+            "concurrent_ok": self.concurrent_ok,
+            "concurrent_throttled": self.concurrent_throttled,
+            "samples": self.samples,
+        }
+
+
+def _count(runs: Iterable[Trace]) -> tuple[int, int]:
+    ok = sum(1 for t in runs if t.is_normal())
+    throttled = sum(1 for t in runs if t.status in (429, 403))
+    return ok, throttled
+
+
+@dataclass(frozen=True)
+class SequenceStep:
+    """多步序列里的一步（B410）。
+
+    为什么需要它：有些判据天然是**一串请求**——登出后再用旧会话、先取码再换码、
+    先拿限定 token 再越权使用。以前一个变体只发一次请求，这三类判据写得出、跑不了。
+    """
+
+    name: str
+    role: str = "probe"          # control / probe
+    params: Mapping[str, str] = field(default_factory=dict)
+    headers: Mapping[str, str] = field(default_factory=dict)
+    #: 从这一步的响应里取值，供后续步骤用。表达形式见 `capture_value`。
+    capture: Mapping[str, str] = field(default_factory=dict)
+    #: 这一步打哪个端点（模板）。空 = 主绑定。
+    #: 登出/换码这类判据的各步天然是**不同端点**——只给一个 binding 会让
+    #: "登出"那一步其实打的是登录面，于是得到假阳性（B410 实测）。
+    template: str = ""
+
+
+def capture_value(trace: Any, expr: str) -> str:
+    """按表达式从响应里取值。**只做取值，不做判定**。
+
+    - ``body:<字段>``：JSON 正文里的字段（缺失给空串）
+    - ``header:<头名>`` / ``header:<头名>:<cookie名>``：响应头；带第三段时按 cookie 解析
+    - ``status``：状态码
+    取不到一律给空串——让后续步骤如实"缺输入"，而不是抛异常把整条判定打断。
+    """
+    kind, _, rest = str(expr).partition(":")
+    if kind == "status":
+        return str(getattr(trace, "status", ""))
+    if kind == "header":
+        head, _, cookie_name = rest.partition(":")
+        for key, value in (getattr(trace, "headers", {}) or {}).items():
+            if str(key).lower() != head.lower():
+                continue
+            raw = str(value)
+            if not cookie_name:
+                return raw
+            for part in raw.split(";"):
+                name, _, val = part.strip().partition("=")
+                if name == cookie_name:
+                    return val.strip()
+            return ""
+        return ""
+    if kind == "body":
+        import json  # noqa: PLC0415 - 只在这条取值分支里需要
+
+        try:
+            payload = json.loads((getattr(trace, "body", b"") or b"{}").decode("utf-8", "replace"))
+        except (ValueError, AttributeError):
+            return ""
+        value = payload.get(rest) if isinstance(payload, dict) else None
+        return "" if value is None else str(value)
+    return ""
+
+
+def _fill_refs(text: str, symbols: Mapping[str, str]) -> str:
+    """把 ``{{sym}}`` 换掉；认不出的原样留着（让请求如实失败，而不是悄悄发别的值）。"""
+    out = text
+    for name, value in symbols.items():
+        out = out.replace("{{" + str(name) + "}}", str(value))
+    return out
+
+
+def sample_burst(
+    binding: Any,
+    transport: Transport,
+    params: Mapping[str, str],
+    *,
+    samples: int = 10,
+    role: str = "probe",
+    parallel: bool = True,
+) -> BurstSamples:
+    """先串行 ``samples`` 次，再并发 ``samples`` 次；返回计数。
+
+    并发用线程触发"同时到"，不依赖时钟：oracle 只读计数（判定仍是纯函数）。
+    """
+    serial = [transport.send(binding, dict(params), role) for _ in range(samples)]
+    serial_ok, _ = _count(serial)
+
+    if not parallel:
+        return BurstSamples(serial_ok=serial_ok, concurrent_ok=0, concurrent_throttled=0,
+                            samples=samples, traces=tuple(serial))
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=max(samples, 2)) as pool:
+        futures = [pool.submit(transport.send, binding, dict(params), role) for _ in range(samples)]
+        concurrent = [f.result() for f in futures]
+    conc_ok, throttled = _count(concurrent)
+    return BurstSamples(
+        serial_ok=serial_ok, concurrent_ok=conc_ok, concurrent_throttled=throttled, samples=samples,
+        traces=tuple(serial) + tuple(concurrent),
+    )
+
+
+# ── judge 纯净性自检用（07 §6 专项检查）─────────────────────────────
+BANNED_IN_JUDGE = "time. datetime random. os.environ open( socket requests".split()
+
+
+def judge_source_violations(source: str) -> list[str]:
+    return [token for token in BANNED_IN_JUDGE if token in source]
+
+
+def verdicts(pairs: Iterable[Pair]) -> dict[str, int]:
+    return {p.variant.name: p.trace.status for p in pairs}

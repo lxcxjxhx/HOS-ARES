@@ -3,7 +3,7 @@ from pathlib import Path
 
 notes = """B20 做三件事：插件网络、http 传输、进程组回收。第四件（容器隔离）本机做不了，如实拆出去。
 
-一、插件 fetch（veripen_core/plugins/fetch.py，新）。
+一、插件 fetch（hos_ares_core/plugins/fetch.py，新）。
 discovery 一直有完整的预算/etag/三分支新鲜度/排序公式，但从没有代码真去取过一条结果。现在接上：
 - **预算先行**：先 spend 再发；超额抛错，不「先请求再记账」；
 - **etag 真用**：带 If-None-Match，304 时只刷新 fetched_at、不动 results——
@@ -11,7 +11,7 @@ discovery 一直有完整的预算/etag/三分支新鲜度/排序公式，但从
 - **Result 无地址**：repository_url 只取 owner/name 两段，origin 丢掉。
 ALLOWED_ORIGINS 是闭集（插件源是产品常量，不是客户资产地址——两者不是一回事）。
 
-二、http 传输（veripen_core/actions/sender.py，新）。
+二、http 传输（hos_ares_core/actions/sender.py，新）。
 http_raw / http_fuzz 一直收注入的 send 回调，但从没人给过真实现，所以 A10 卡在 3/6～4/6。
 现在真发包：绑定模板 → 相对路径（自己填占位符，不复用 transport.render——那个要求完整 URL，
 硬套会把「绑定渲染」和「运行期目标解析」混成一件事）→ resolve_base 给 host → perform 发出。
@@ -50,16 +50,16 @@ rec = {
     "agent": "dsh-harness",
     "scope": "插件 fetch 真实现（etag/304/预算/无地址）+ act.http_* 真传输 + executor 进程组回收；容器隔离拆出为 blocked",
     "files": [
-        "veripen_core/plugins/fetch.py",
-        "veripen_core/actions/sender.py",
-        "veripen_core/workbench/executor.py",
-        "veripen_cli/cmd_bench_leads.py",
-        "veripen_cli/cmd_plugin_roundtrip.py",
+        "hos_ares_core/plugins/fetch.py",
+        "hos_ares_core/actions/sender.py",
+        "hos_ares_core/workbench/executor.py",
+        "hos_ares_cli/cmd_bench_leads.py",
+        "hos_ares_cli/cmd_plugin_roundtrip.py",
         "tests/integration/test_plugins_http.py",
         "tests/integration/test_executor.py",
-        "plan-veripen/16-完整范围与交付地图.md",
-        "plan-veripen/21-实现批次与Agent执行计划.md",
-        ".veripen/batches.jsonl",
+        "plan-hos-legacy/16-完整范围与交付地图.md",
+        "plan-hos-legacy/21-实现批次与Agent执行计划.md",
+        ".hos-ares/batches.jsonl",
     ],
     "dod": [
         {"cmd": "python -m pytest tests", "exit": 0, "passed": 1094, "failed": 0, "skipped": 2,
@@ -67,7 +67,7 @@ rec = {
         {"cmd": "python -m pytest tests/integration/test_plugins_http.py -q", "exit": 0, "passed": 9},
         {"cmd": "python -m pytest tests/integration/test_executor.py -q", "exit": 0,
          "passed": 8, "skipped": 1},
-        {"cmd": "python -m mypy --strict veripen_core/ worker/ veripen_oracles/ veripen/ veripen_cli/",
+        {"cmd": "python -m mypy --strict hos_ares_core/ worker/ hos_ares_oracles/ hos_ares/ hos_ares_cli/",
          "exit": 0, "errors": 0, "note": "94 source files"},
         {"cmd": "python scripts/lint/noroute.py", "exit": 0, "hits": 0, "note": "161 文件"},
         {"cmd": "python scripts/lint/nodata_stub.py", "exit": 0, "hits": 0},
@@ -91,8 +91,8 @@ rec = {
          "note": "findings_diff OK（44 条一致）；基线未动"},
     ],
     "evidence": [
-        "veripen_core/plugins/fetch.py",
-        "veripen_core/actions/sender.py",
+        "hos_ares_core/plugins/fetch.py",
+        "hos_ares_core/actions/sender.py",
         "tests/integration/test_plugins_http.py",
         "out/leads/leads.json",
         "out/plugins/roundtrip.json",
@@ -110,18 +110,18 @@ rec = {
         "reviewed_at": "2026-11-02T22:00:00Z",
         "verdict": "B20 通过 I14（部分）：plugins.fetch 与 http_raw/http_fuzz 的 send 两个注入点被真实实现替换并有 9 条测试；容器隔离这一半拆为 B20-sandbox blocked，不算完成",
         "closed_injection_points": [
-            "veripen_core/plugins/discovery.py:fetch（→ fetch.http_fetcher / ScriptedFetcher）",
-            "veripen_core/actions/__init__.py:http_raw/http_fuzz 的 send（→ sender.make_binding_sender / make_param_sender）",
+            "hos_ares_core/plugins/discovery.py:fetch（→ fetch.http_fetcher / ScriptedFetcher）",
+            "hos_ares_core/actions/__init__.py:http_raw/http_fuzz 的 send（→ sender.make_binding_sender / make_param_sender）",
         ],
         "still_empty": [
-            "veripen_core/blackboard.py:asset_facts 写入点（B21）",
-            "veripen_core/workbench/plan.py:todo 持久化（B21）",
+            "hos_ares_core/blackboard.py:asset_facts 写入点（B21）",
+            "hos_ares_core/workbench/plan.py:todo 持久化（B21）",
             "SandboxNetwork 真隔离（B20-sandbox blocked：无 docker/WSL）",
         ],
     },
 }
 
-p = Path(".veripen/batches.jsonl")
+p = Path(".hos-ares/batches.jsonl")
 with p.open("a", encoding="utf-8") as f:
     f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 

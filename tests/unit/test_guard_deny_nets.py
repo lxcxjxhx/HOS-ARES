@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import pytest
 
-from veripen_core.guard.errors import ScopeViolation
-from veripen_core.guard.scope import DENY_SET_DEFAULT, split_deny
+from hos_ares_core.guard.errors import ScopeViolation
+from hos_ares_core.guard.scope import DENY_SET_DEFAULT, split_deny
 
 SEP = chr(0x2F)
 DOT = chr(0x2E)
@@ -37,7 +37,7 @@ def test_default_keyword_expands() -> None:
 
 
 def test_guard_refuses_a_peer_in_the_deny_set() -> None:
-    from veripen_cli.cmd_hunt import build_guard
+    from hos_ares_cli.cmd_hunt import build_guard
 
     guard = build_guard(LOOPBACK, None, (), deny=["DENY_SET_DEFAULT"])
     assert guard.scope.deny_nets, "deny_nets 必须被填上"
@@ -47,7 +47,7 @@ def test_guard_refuses_a_peer_in_the_deny_set() -> None:
 
 
 def test_a_public_peer_still_passes() -> None:
-    from veripen_cli.cmd_hunt import build_guard
+    from hos_ares_cli.cmd_hunt import build_guard
 
     guard = build_guard(PUBLIC, None, (), deny=["DENY_SET_DEFAULT"])
     guard.scope.post_connect(PUBLIC)      # 不抛即通过

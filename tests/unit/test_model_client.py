@@ -16,13 +16,13 @@ from __future__ import annotations
 
 import pytest
 
-from veripen_core.agent.client import (
+from hos_ares_core.agent.client import (
     HttpChatClient,
     ScriptedClient,
     from_env,
     to_tool_call,
 )
-from veripen_core.agent.loop import (
+from hos_ares_core.agent.loop import (
     AgentState,
     FailoverDecider,
     Loop,
@@ -30,7 +30,7 @@ from veripen_core.agent.loop import (
     ScriptedDecider,
     build_decider,
 )
-from veripen_core.tools.registry import ToolCall
+from hos_ares_core.tools.registry import ToolCall
 
 
 # ── 1. 窄 schema ────────────────────────────────────────────────
@@ -142,8 +142,8 @@ def test_decider_satisfies_protocol_shape() -> None:
 
 # ── 4. 没配环境就不许假装有模型 ─────────────────────────────────
 def test_from_env_returns_none_without_config(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("VERIPEN_MODEL_BASE_URL", raising=False)
-    monkeypatch.delenv("VERIPEN_MODEL", raising=False)
+    monkeypatch.delenv("HOS_ARES_MODEL_BASE_URL", raising=False)
+    monkeypatch.delenv("HOS_ARES_MODEL", raising=False)
     assert from_env() is None
 
 
@@ -152,8 +152,8 @@ _LOOPBACK_BASE = "http" + ":" + chr(0x2F) * 2 + "127." + "0.0.1" + ":" + "1"
 
 
 def test_from_env_returns_client_when_configured(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("VERIPEN_MODEL_BASE_URL", _LOOPBACK_BASE)
-    monkeypatch.setenv("VERIPEN_MODEL", "test-model")
+    monkeypatch.setenv("HOS_ARES_MODEL_BASE_URL", _LOOPBACK_BASE)
+    monkeypatch.setenv("HOS_ARES_MODEL", "test-model")
     client = from_env()
     assert isinstance(client, HttpChatClient)
     assert client.model == "test-model"
@@ -200,7 +200,7 @@ def test_401_says_it_is_the_api_key_not_a_dead_endpoint() -> None:
         with pytest.raises(Exception) as ei:
             client("goal", {})
         msg = str(ei.value)
-        assert "VERIPEN_MODEL_API_KEY" in msg, msg
+        assert "HOS_ARES_MODEL_API_KEY" in msg, msg
         assert "不可达" not in msg, "端点可达，别把它说成不可达"
     finally:
         server.shutdown()
@@ -275,7 +275,7 @@ def test_sentence_wrapping_one_object_is_accepted() -> None:
 
 def test_two_objects_are_rejected_as_two_calls() -> None:
     """两个对象就是"一步串两个工具"的形状：拒，不许挑一个。"""
-    from veripen_core.agent.client import SchemaViolation
+    from hos_ares_core.agent.client import SchemaViolation
 
     with pytest.raises(SchemaViolation) as ei:
         _call_once('{"tool": "finish", "args": {}}\n{"tool": "finish", "args": {}}')
@@ -291,7 +291,7 @@ def test_chunked_content_array_is_accepted() -> None:
 
 def test_empty_content_blames_the_budget_not_the_model() -> None:
     """推理模型把预算烧在 reasoning 上 → content 空：错在预算，得说清。"""
-    from veripen_core.agent.client import SchemaViolation
+    from hos_ares_core.agent.client import SchemaViolation
 
     with pytest.raises(SchemaViolation) as ei:
         _call_once("", "length")

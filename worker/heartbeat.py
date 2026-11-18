@@ -9,7 +9,7 @@ from __future__ import annotations
 import threading
 from typing import Callable
 
-from veripen_core.lease import Lease, LeaseLost
+from hos_ares_core.lease import Lease, LeaseLost
 
 
 class Heartbeat(threading.Thread):

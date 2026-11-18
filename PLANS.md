@@ -19,13 +19,13 @@
 
 | id | 路径 | 版本 | 生效日 | 状态 | 权威范围 | 自检命令 | MANIFEST sha256（前 16） |
 |---|---|---|---|---|---|---|---|
-| `kernel` | `plan-veripen/` | `plan-v3.9` | 2026-11-03 | **frozen** | 判定 / 证据 / 地址治理 / 批次 B1–B34 账本 | `(cd plan-veripen && node check-plan.cjs)` | `9b07b6dd3feb9571` |
+| `kernel` | `plan-hos-ares/` | `plan-v3.9` | 2026-11-03 | **frozen** | 判定 / 证据 / 地址治理 / 批次 B1–B34 账本 | `(cd plan-hos-ares && node check-plan.cjs)` | `9b07b6dd3feb9571` |
 | `program` | `plan-hos-ares/` | `plan-hos-v1.0` | 2026-11-03 | active | 总规划：5 面 22 项、四波、B35–B59、A13–A20 | `node plan-hos-ares/check-plan.cjs` | `5a727ddc3968d920` |
 | `governance` | `PLANS.md` | `gov-v1.0` | 2026-11-03 | active | 本制度与注册表 | `node scripts/plan/check-plans.cjs` | —（自指不记录） |
 
 **注册新包**：填一行 + 在该包放 `README.md` 与自检脚本 + 跑 `check-plans.cjs` 绿，才算注册完成。
 
-**撤销包**（例：`plan-veripen-ui` 于 2026-11-03 撤销，内容并入 `program` 的 H06/H07）：
+**撤销包**（例：`plan-hos-ares-ui` 于 2026-11-03 撤销，内容并入 `program` 的 H06/H07）：
 从注册表移除 + 在 §8 台账记一行理由 + 目录不保留（避免双份权威）。
 
 ---
@@ -59,7 +59,7 @@
 | PR 号 | 修订记录 + §8 台账 | `#N` | 结论与代码/文档的绑定 |
 
 **时间口径**：一律 `YYYY-MM-DD`，时区 Asia/Shanghai；工期按 5 天/周、扣周末，**不扣法定节假日**（要扣就显式写明）。
-**"进行中"不写进账本**：账本只记已发生（`done`/`blocked`/`未验`），计划窗口写在方案里，不写进 `.veripen/batches.jsonl`。
+**"进行中"不写进账本**：账本只记已发生（`done`/`blocked`/`未验`），计划窗口写在方案里，不写进 `.hos-ares/batches.jsonl`。
 
 ---
 
@@ -91,7 +91,7 @@
 ## 6. 自检（三处门，缺一不算绿）
 
 ```bash
-(cd plan-veripen && node check-plan.cjs)   # kernel：结构/引用/schema/零地址/标签/断言表 12 条
+(cd plan-hos-ares && node check-plan.cjs)   # kernel：结构/引用/schema/零地址/标签/断言表 12 条
 node plan-hos-ares/check-plan.cjs     # program：结构/矩阵 22 项/批次 25 批/锚点/MANIFEST
 node scripts/plan/check-plans.cjs     # 治理：注册表 ↔ 包实际版本/时间节点/MANIFEST 哈希
 ```
@@ -117,8 +117,8 @@ node scripts/plan/check-plans.cjs     # 治理：注册表 ↔ 包实际版本/�
 
 | 日期 | 事件 | 版本 | 参考 |
 |---|---|---|---|
-| 2026-11-03 | `kernel` 基线（v3.6，40 篇 + 80 条账本） | `plan-v3.6` | `plan-veripen/MANIFEST.md` |
-| 2026-11-03 | 撤销 `plan-veripen-ui`（内容并入 program H06/H07，不留双份权威） | — | PR #50 |
+| 2026-11-03 | `kernel` 基线（v3.6，40 篇 + 80 条账本） | `plan-v3.6` | `plan-hos-ares/MANIFEST.md` |
+| 2026-11-03 | 撤销 `plan-hos-ares-ui`（内容并入 program H06/H07，不留双份权威） | — | PR #50 |
 | 2026-11-03 | `program` 立项（5 面 22 项 / 25 批 / 44.5 人天） | `plan-hos-v1.0` | PR #50 |
 | 2026-11-03 | 本制度立项（统一注册表 + 时间节点 + 三门） | `gov-v1.0` | 本文件 |
 | 2026-11-03 | 开工 B35（展示语义层，P0） | — | 见批次账本 |

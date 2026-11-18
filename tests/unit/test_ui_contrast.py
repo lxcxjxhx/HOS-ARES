@@ -92,7 +92,7 @@ def test_three_states_present() -> None:
 
 def test_density_is_local_only() -> None:
     assert 'data-density' in SRC and 'localStorage' in SRC
-    assert "veripen.density" in SRC
+    assert "hos-ares.density" in SRC
     assert "fetch(" in SRC and "density" not in SRC.split("fetch(")[1].split(")")[0], \
         "密度偏好不得进入任何请求"
 

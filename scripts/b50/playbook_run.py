@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from veripen_core.playbooks import MEASURED_PATH, load_dir  # noqa: E402
+from hos_ares_core.playbooks import MEASURED_PATH, load_dir  # noqa: E402
 
 HOST = "127.0.0.1"
 

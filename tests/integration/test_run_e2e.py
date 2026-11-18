@@ -1,4 +1,4 @@
-"""B66 · `veripen run` 端到端（H13 判据 A–E）。
+"""B66 · `hos-ares run` 端到端（H13 判据 A–E）。
 
 正负样本成对是这批的核心：同一个靶场切 ``secure``，脆弱态必须出 VERIFIED、
 安全态必须不 VERIFIED。只测正样本等于证明"会喊狼来了"。
@@ -19,10 +19,10 @@ DEAD_BASE = "http" + ":" + SEP + SEP + "127." + "0.0.1:1"
 
 def _spec(base: str) -> str:
     paths = {
-        f"{SEP}api{SEP}search": {"get": {"x-veripen-tags": ["param_injectable"]}},
-        f"{SEP}api{SEP}items{SEP}{{id}}": {"get": {"x-veripen-tags": ["object_read"]}},
-        f"{SEP}api{SEP}read": {"get": {"x-veripen-tags": ["file_read"]}},
-        f"{SEP}api{SEP}me": {"get": {"x-veripen-tags": ["protected_read"]}},
+        f"{SEP}api{SEP}search": {"get": {"x-hos_ares-tags": ["param_injectable"]}},
+        f"{SEP}api{SEP}items{SEP}{{id}}": {"get": {"x-hos_ares-tags": ["object_read"]}},
+        f"{SEP}api{SEP}read": {"get": {"x-hos_ares-tags": ["file_read"]}},
+        f"{SEP}api{SEP}me": {"get": {"x-hos_ares-tags": ["protected_read"]}},
     }
     return json.dumps({
         "openapi": "3.0.0",
@@ -58,7 +58,7 @@ def safe_lab():  # noqa: ANN201
 
 
 def _run(lab: Any, tmp_path: Path, *extra: str, out: str = "run") -> int:
-    from veripen_cli.cmd_run import main
+    from hos_ares_cli.cmd_run import main
 
     spec = tmp_path / "spec.json"
     spec.write_text(_spec(lab.base_url), encoding="utf-8")
@@ -98,8 +98,8 @@ def test_vulnerable_lab_verifies_at_least_one(vuln_lab: Any, tmp_path: Path) -> 
 def test_two_runs_same_findings(vuln_lab: Any, tmp_path: Path) -> None:
     import shutil
 
-    from veripen.report.render import ReportInput, render_json
-    from veripen.report.lint import build_manifest
+    from hos_ares.report.render import ReportInput, render_json
+    from hos_ares.report.lint import build_manifest
 
     assert _run(vuln_lab, tmp_path) == 0
     first = (tmp_path / "run" / "findings.json").read_text(encoding="utf-8")
@@ -128,7 +128,7 @@ def test_report_has_no_external_address(vuln_lab: Any, tmp_path: Path) -> None:
 
 # ── E：没有可跑 oracle 必须非 0 ────────────────────────────────
 def test_no_oracles_exits_nonzero(tmp_path: Path) -> None:
-    from veripen_cli.cmd_run import main
+    from hos_ares_cli.cmd_run import main
 
     spec = tmp_path / "empty.json"
     spec.write_text(json.dumps({
@@ -150,7 +150,7 @@ def test_second_run_into_same_out_is_refused(
     修前实测：同一 out 跑两次，`capsules/` 从 2 份变 4 份，`verify_chain` 返回 False，
     而报告仍写"2 份"——盘上是 4 份。默认 `--out` 是固定路径，第二次跑必然踩到。
     """
-    from veripen_core.evidence import load_capsule, order_chain, verify_chain
+    from hos_ares_core.evidence import load_capsule, order_chain, verify_chain
 
     out = tmp_path / "run"
     assert _run(vuln_lab, tmp_path) == 0
@@ -185,7 +185,7 @@ def test_run_writes_sarif_and_a_verifiable_manifest(vuln_lab: Any, tmp_path: Pat
     """
     import json as _json
 
-    from veripen.report.lint import verify_manifest
+    from hos_ares.report.lint import verify_manifest
 
     rc = _run(vuln_lab, tmp_path)
     out = tmp_path / "run"

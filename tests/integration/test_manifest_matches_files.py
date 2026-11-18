@@ -20,7 +20,7 @@ def _spec(base_url: str, path: Path) -> Path:
     path.write_text(json.dumps({
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": base_url}],
-        "paths": {f"{SEP}api{SEP}search": {"get": {"x-veripen-tags": ["param_injectable"]}}},
+        "paths": {f"{SEP}api{SEP}search": {"get": {"x-hos_ares-tags": ["param_injectable"]}}},
     }), encoding="utf-8")
     return path
 
@@ -42,7 +42,7 @@ def lab():  # noqa: ANN201
 
 
 def test_run_manifest_matches_the_files_on_disk(lab, tmp_path: Path) -> None:  # noqa: ANN001
-    from veripen_cli.cmd_run import main as run_main
+    from hos_ares_cli.cmd_run import main as run_main
 
     out = tmp_path / "run"
     rc = run_main(["--target", lab.base_url, "--openapi", str(_spec(lab.base_url, tmp_path / "s1.json")),
@@ -56,7 +56,7 @@ def test_run_manifest_matches_the_files_on_disk(lab, tmp_path: Path) -> None:  #
 
 
 def test_platform_manifest_matches_the_file_on_disk(lab, tmp_path: Path) -> None:  # noqa: ANN001
-    from veripen_cli.cmd_platform import main as platform_main
+    from hos_ares_cli.cmd_platform import main as platform_main
 
     out = tmp_path / "platform"
     platform_main(["--targets", lab.base_url,
@@ -71,7 +71,7 @@ def test_platform_manifest_matches_the_file_on_disk(lab, tmp_path: Path) -> None
 
 def test_hunt_manifest_matches_the_files_on_disk(lab, tmp_path: Path) -> None:  # noqa: ANN001
     """B319：hunt 之前没有清单，于是"这两份产物没被手改"无从证明。"""
-    from veripen_cli.cmd_hunt import main as hunt_main
+    from hos_ares_cli.cmd_hunt import main as hunt_main
 
     out = tmp_path / "hunt"
     rc = hunt_main(["--target", lab.base_url,

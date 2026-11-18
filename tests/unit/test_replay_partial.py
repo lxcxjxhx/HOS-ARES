@@ -10,8 +10,8 @@ import hashlib
 import capsule_fixture as F
 import pytest
 
-from veripen_core.evidence import ReplayEnv, ReplayMode, TraceResult, replay
-from veripen_core.models import ReplayStatus
+from hos_ares_core.evidence import ReplayEnv, ReplayMode, TraceResult, replay
+from hos_ares_core.models import ReplayStatus
 
 
 def _sha(text: str) -> str:

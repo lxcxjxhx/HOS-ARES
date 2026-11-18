@@ -12,22 +12,22 @@ from pathlib import Path
 
 import pytest
 
-from veripen_core import Capsule, Verdict
-from veripen_core.models import (
+from hos_ares_core import Capsule, Verdict
+from hos_ares_core.models import (
     Judgement,
     Oracle,
     RequestPair,
     canonical_json,
     seal_capsule,
 )
-from veripen_core.store import Store
+from hos_ares_core.store import Store
 
 ROOT = Path(__file__).resolve().parents[2]
-CORE_DIR = ROOT / "veripen_core"
-ORACLE_DIR = ROOT / "veripen_oracles"
+CORE_DIR = ROOT / "hos_ares_core"
+ORACLE_DIR = ROOT / "hos_ares_oracles"
 
 #: 唯一允许构造 RouteBinding 的模块（27 N1）。B1 阶段该文件尚不存在 → 集合为空。
-RESOLVER = "veripen_core/routes/resolver.py"
+RESOLVER = "hos_ares_core/routes/resolver.py"
 
 BANNED_SYMBOLS = {
     "fallback_path",
@@ -108,7 +108,7 @@ class _PureOracle:
 
 
 def _pair(body_a: str, body_b: str) -> RequestPair:
-    from veripen_core.models import HttpTrace
+    from hos_ares_core.models import HttpTrace
 
     base = HttpTrace(route_ref="route://contract/opaque0000000001", status=200, body_sha256=body_a)
     probe = HttpTrace(route_ref="route://contract/opaque0000000001", status=200, body_sha256=body_b)
@@ -119,7 +119,7 @@ def _pair(body_a: str, body_b: str) -> RequestPair:
 
 
 def test_core_does_not_import_oracles() -> None:
-    assert "veripen_oracles" not in _read_all_source(CORE_DIR)
+    assert "hos_ares_oracles" not in _read_all_source(CORE_DIR)
 
 
 # ── 2 判定是纯函数 ──────────────────────────────────────────────────
@@ -166,7 +166,7 @@ def test_capsule_is_content_addressed() -> None:
 
 def test_routetext_not_importable() -> None:
     with pytest.raises(ImportError):
-        from veripen_core import RouteText  # type: ignore[attr-defined]  # noqa: F401
+        from hos_ares_core import RouteText  # type: ignore[attr-defined]  # noqa: F401
 
 
 # ── 5 resolver 是唯一构造点 ─────────────────────────────────────────
@@ -235,7 +235,7 @@ def test_transition_rejects_double_claim() -> None:
             asset_id="web-01",
             oracle_ids=["idor_cross_account"],
         )
-        from veripen_core.models import TaskState
+        from hos_ares_core.models import TaskState
 
         assert store.transition(task_id, TaskState.QUEUED, TaskState.LEASED) is True
         assert store.transition(task_id, TaskState.QUEUED, TaskState.LEASED) is False

@@ -1,6 +1,6 @@
 """B246 · 交付报告正文的三处失真（都在 `render_markdown` 里，均可复现）。
 
-改前实测（用进程内靶场真跑一次 `veripen run`，读生成的 report.md）：
+改前实测（用进程内靶场真跑一次 `hos-ares run`，读生成的 report.md）：
 
 ```
 | high | 7 |                     ← §1 摘要按"全部条目"计数
@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import re
 
-from veripen.report import FindingView, Outcome, ReportInput, render_markdown
+from hos_ares.report import FindingView, Outcome, ReportInput, render_markdown
 
 
 def _fv(**kw) -> FindingView:  # noqa: ANN003

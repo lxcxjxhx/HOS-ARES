@@ -15,7 +15,7 @@ import json
 import pytest
 from conftest import Lab
 
-from veripen_core.agent import (
+from hos_ares_core.agent import (
     AgentState,
     Decision,
     DiscoveryTier,
@@ -26,8 +26,8 @@ from veripen_core.agent import (
     classify_discovery,
     pick_next,
 )
-from veripen_core.budget import Budget, BudgetKind, BudgetLimits
-from veripen_core.tools.registry import (
+from hos_ares_core.budget import Budget, BudgetKind, BudgetLimits
+from hos_ares_core.tools.registry import (
     RETIRED_TOOLS,
     TOOL_CALLS_PER_STEP,
     ToolCall,
@@ -36,8 +36,8 @@ from veripen_core.tools.registry import (
     tool_schemas,
     validate_call,
 )
-from veripen_oracles import ALL_ORACLES
-from veripen_oracles import policy
+from hos_ares_oracles import ALL_ORACLES
+from hos_ares_oracles import policy
 
 
 # ── 测试用的最小 runtime（进程内靶场）──────────────────────────────
@@ -72,7 +72,7 @@ class LabRuntime:
         tag = self.oracle_map.get(oracle_id)
         if tag is None:
             return {"verdict": "BLOCKED", "reason": "route_unresolved", "route_strength": "contract"}
-        from veripen_oracles.common.harness import run as run_oracle
+        from hos_ares_oracles.common.harness import run as run_oracle
 
         cls = next((c for c in ALL_ORACLES if c.meta.id == oracle_id), None)
         if cls is None:
@@ -231,7 +231,7 @@ def test_schema_errors_capped_at_three(vulnerable: Lab) -> None:
 
 # ── 4b. 端点不可达 ≠ 模型答错（B228）────────────────────────────
 def _dead(goal, ctx):  # noqa: ANN001, ANN202
-    from veripen_core.agent.client import ModelClientError
+    from hos_ares_core.agent.client import ModelClientError
 
     raise ModelClientError("模型不可达：<urlopen error timed out>")
 
@@ -273,7 +273,7 @@ def test_no_tool_can_take_an_address(vulnerable: Lab) -> None:
 
 
 def test_probe_asset_is_retired() -> None:
-    from veripen_core.tools.registry import ToolResult
+    from hos_ares_core.tools.registry import ToolResult
 
     assert "probe_asset" in RETIRED_TOOLS
     result = validate_call(ToolCall("probe_asset", {"asset_id": "web-01"}))
@@ -284,7 +284,7 @@ def test_probe_asset_is_retired() -> None:
 
 def test_extra_outer_field_is_rejected() -> None:
     """模型把 skip_guard 塞进外层 → 直接拒，不透传。"""
-    from veripen_core.tools.registry import ToolResult
+    from hos_ares_core.tools.registry import ToolResult
 
     result = validate_call(ToolCall("run_oracle", {"oracle_id": "a", "route_ref": "b", "skip_guard": True}))
     assert isinstance(result, ToolResult)
@@ -366,7 +366,7 @@ class _VerdictRuntime:
 
 
 def _run_two_faces(verdicts: list[str]) -> dict[str, str]:
-    from veripen_core.tools.registry import ToolCall
+    from hos_ares_core.tools.registry import ToolCall
 
     loop = Loop(runtime=_VerdictRuntime(verdicts), decider=object(), goal="g", max_steps=5)
     call = ToolCall("run_oracle", {"oracle_id": "sqli_bool_diff", "route_ref": ""})

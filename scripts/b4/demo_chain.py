@@ -19,7 +19,7 @@ for extra in (ROOT, ROOT / "tests" / "unit"):
 
 import capsule_fixture as F  # noqa: E402  (需要先修好 sys.path)
 
-from veripen_core.evidence import (  # noqa: E402
+from hos_ares_core.evidence import (  # noqa: E402
     ReplayEnv,
     ReplayMode,
     TraceResult,
@@ -28,7 +28,7 @@ from veripen_core.evidence import (  # noqa: E402
     save_capsule,
     verify_chain,
 )
-from veripen_core.models import ReplayStatus  # noqa: E402
+from hos_ares_core.models import ReplayStatus  # noqa: E402
 
 def _transport(traces: dict[str, TraceResult]):
     class _T:

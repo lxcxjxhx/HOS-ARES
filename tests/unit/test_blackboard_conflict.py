@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import pytest
 
-from veripen.report.render import render_conflict_table
-from veripen_core.blackboard import ORIGIN_RANK, Blackboard
-from veripen_core.store import Store
+from hos_ares.report.render import render_conflict_table
+from hos_ares_core.blackboard import ORIGIN_RANK, Blackboard
+from hos_ares_core.store import Store
 
 
 @pytest.fixture()

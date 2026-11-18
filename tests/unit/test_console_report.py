@@ -62,7 +62,7 @@ def test_report_page_says_where_to_get_one(tmp_path: Path) -> None:
     assert resp.status_code == 200
     data = resp.json()["data"]
     assert data["present"] is False
-    assert "veripen run" in data["empty_hint"]
+    assert "hos-ares run" in data["empty_hint"]
 
 
 def test_huge_report_is_truncated_and_says_so(tmp_path: Path) -> None:

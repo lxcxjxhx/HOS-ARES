@@ -136,7 +136,7 @@ def test_loader_real_artifact_shape() -> None:
 # ── B100：run 的 findings.json 也要能打开 ───────────────────────
 def _report_doc(outcome: str = "reported") -> dict:
     return {
-        "schema": "veripen.report/v1",
+        "schema": "hos-ares.report/v1",
         "engagement": "web-01",
         "findings": [
             {
@@ -167,7 +167,7 @@ def test_loader_accepts_report_findings_list() -> None:
 
 def test_report_shape_severity_comes_from_policy() -> None:
     """严重度只有一张表（policy）；loader 不再自己抄一份。"""
-    from veripen_oracles.policy import severity_for
+    from hos_ares_oracles.policy import severity_for
 
     assert SEVERITY["idor_cross_account"] == severity_for("idor_cross_account", "cross_account_read")[0]
     assert SEVERITY["open_redirect"] == severity_for("open_redirect", "unvalidated_redirect")[0]

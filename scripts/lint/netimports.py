@@ -5,7 +5,7 @@
 
 用法：
   python scripts/lint/netimports.py [--path DIR ...]
-默认扫描 veripen_core/routes 与 veripen_contract（若存在）。
+默认扫描 hos_ares_core/routes 与 hos_ares_contract（若存在）。
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_PATHS = ("veripen_core/routes", "veripen_contract")
+DEFAULT_PATHS = ("hos_ares_core/routes", "hos_ares_contract")
 FORBIDDEN = ("httpx", "requests", "aiohttp", "urllib.request", "urllib3", "http.client")
 
 

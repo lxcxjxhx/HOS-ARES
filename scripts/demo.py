@@ -23,7 +23,7 @@ import lab.routes as R  # noqa: E402
 from lab.app import App, make_token  # noqa: E402
 from lab.transport_oob import LabTransport  # noqa: E402
 
-from veripen_core.agent import (  # noqa: E402
+from hos_ares_core.agent import (  # noqa: E402
     AgentState,
     ClosedLoop,
     ClosedLoopDecider,
@@ -31,8 +31,8 @@ from veripen_core.agent import (  # noqa: E402
     ScriptedDecider,
     classify_discovery,
 )
-from veripen_core.budget import Budget, BudgetLimits  # noqa: E402
-from veripen.report import (  # noqa: E402
+from hos_ares_core.budget import Budget, BudgetLimits  # noqa: E402
+from hos_ares.report import (  # noqa: E402
     FindingView,
     advice_text,
     impact_text,
@@ -44,7 +44,7 @@ from veripen.report import (  # noqa: E402
     render_markdown,
     render_sarif,
 )
-from veripen_core.evidence import (  # noqa: E402
+from hos_ares_core.evidence import (  # noqa: E402
     ReplayEnv,
     ReplayMode,
     TraceResult,
@@ -54,10 +54,10 @@ from veripen_core.evidence import (  # noqa: E402
     save_capsule,
     verify_chain,
 )
-from veripen_core.profile import load_profile  # noqa: E402
-from veripen.bench.faces import extra_tags  # noqa: E402
-from veripen_oracles import ALL_ORACLES  # noqa: E402
-from veripen_oracles.common.harness import SymbolTable, run as run_oracle  # noqa: E402
+from hos_ares_core.profile import load_profile  # noqa: E402
+from hos_ares.bench.faces import extra_tags  # noqa: E402
+from hos_ares_oracles import ALL_ORACLES  # noqa: E402
+from hos_ares_oracles.common.harness import SymbolTable, run as run_oracle  # noqa: E402
 
 SYMBOLS = SymbolTable(
     {
@@ -84,7 +84,7 @@ SELECTOR = {
 
 def _impact_of(oracle_id: str) -> Any:
     """按 oracle id 回真表取写入等级（B217）：capsule 里不存这个字段。"""
-    from veripen_oracles import ALL_ORACLES
+    from hos_ares_oracles import ALL_ORACLES
 
     for oracle in ALL_ORACLES:
         if str(oracle.meta.id) == str(oracle_id):
@@ -206,7 +206,7 @@ def _params_from_capsule(cap) -> dict[int, dict[str, str]]:  # noqa: ANN001
 
 def _routeset_for(binding):  # noqa: ANN001, ANN201
     """只含该绑定的 RouteSet：capsule 的 route 块据此生成，replay 才能重解析到同一条。"""
-    from veripen_core.routes.types import RouteSet
+    from hos_ares_core.routes.types import RouteSet
 
     full = R.routeset()
     return RouteSet(
@@ -228,11 +228,11 @@ def step3_evidence(runtime: DemoRuntime, out: Path) -> list:  # noqa: ANN201
 
     **证据必须来自这次真跑**，不是夹具模板。早先这里用 ``capsule_fixture``
     合成 capsule，再把 oracle id 打补丁改掉——步骤与断言都是假的，
-    demo 却宣称"每条发现能复现"。现在改用 ``veripen.bench.capsule.build_capsule``，
+    demo 却宣称"每条发现能复现"。现在改用 ``hos_ares.bench.capsule.build_capsule``，
     步骤取自 ``result.pairs``（judge 真正读过的 trace）、断言取自 ``judgement``。
     """
-    from veripen.bench.capsule import build_capsule, step_params
-    from veripen_core.evidence import seal_capsule_doc
+    from hos_ares.bench.capsule import build_capsule, step_params
+    from hos_ares_core.evidence import seal_capsule_doc
 
     caps = []
     for item in runtime.capsules:
@@ -283,8 +283,8 @@ def step4_report(profile, sealed, out: Path, *, ledger=None, store=None) -> Path
     - 死信：本 demo 里 BLOCKED 的那条 oracle 走一次失败重试的完整路径。
     这样报告的每一段都能指回库里的一行，replay 时也不会出现"报告里有、库里没有"。
     """
-    from veripen_core.deadletter import render_section as render_dead
-    from veripen_core.leads import render_leads_section
+    from hos_ares_core.deadletter import render_section as render_dead
+    from hos_ares_core.leads import render_leads_section
 
     leads_md = render_leads_section(ledger, "demo") if ledger is not None else ""
     dead_md = render_dead(store) if store is not None else ""
@@ -366,7 +366,7 @@ def step5_replay(sealed, transport) -> None:  # noqa: ANN001
 
     class T:
         def send(self, step, binding):  # noqa: ANN001, ANN201
-            from veripen_core.evidence import TraceResult as _TR
+            from hos_ares_core.evidence import TraceResult as _TR
 
             try:
                 tr = inner.send(binding, params_by_n.get(int(step.n), {}), step.role, None)
@@ -412,9 +412,9 @@ def step2b_leads(sealed, store) -> object:  # noqa: ANN001
     线索与判定一一对应（一条 oracle 一条 lead），判出结论即闭环；
     BLOCKED 的那条则走一次「失败 → 重试耗尽 → 死信 → 人重新投递」的完整路径。
     """
-    from veripen_core.deadletter import to_dead_letter
-    from veripen_core.leads import LeadLedger, LeadState
-    from veripen_core.models import TaskState
+    from hos_ares_core.deadletter import to_dead_letter
+    from hos_ares_core.leads import LeadLedger, LeadState
+    from hos_ares_core.models import TaskState
 
     ledger = LeadLedger(store)
     for cap, _path in sealed:
@@ -468,7 +468,7 @@ def main(argv: list[str]) -> int:
     args = ap.parse_args(argv)
     out = Path(args.out)
 
-    from veripen_core.store import Store
+    from hos_ares_core.store import Store
 
     store = Store(str(out / "demo.db")).init()
 

@@ -21,7 +21,7 @@ SEP = chr(0x2F)
 
 
 def _rows(lab: Any, tmp_path: Path) -> list[tuple[str, str, str]]:
-    from veripen_cli.cmd_run import main as run_main
+    from hos_ares_cli.cmd_run import main as run_main
 
     tmp_path.mkdir(parents=True, exist_ok=True)
     spec = tmp_path / "s.json"
@@ -29,9 +29,9 @@ def _rows(lab: Any, tmp_path: Path) -> list[tuple[str, str, str]]:
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": lab.base_url}],
         "paths": {
-            f"{SEP}portal{SEP}authorize": {"get": {"x-veripen-tags": ["token_issue"]}},
-            f"{SEP}portal{SEP}token": {"get": {"x-veripen-tags": ["token_issue"]}},
-            f"{SEP}portal{SEP}admin": {"get": {"x-veripen-tags": ["token_issue"]}},
+            f"{SEP}portal{SEP}authorize": {"get": {"x-hos_ares-tags": ["token_issue"]}},
+            f"{SEP}portal{SEP}token": {"get": {"x-hos_ares-tags": ["token_issue"]}},
+            f"{SEP}portal{SEP}admin": {"get": {"x-hos_ares-tags": ["token_issue"]}},
         },
     }), encoding="utf-8")
     out = tmp_path / "run"
@@ -103,7 +103,7 @@ def test_control_token_is_denied_in_both_modes() -> None:
 
 
 def test_judge_scope_tiers() -> None:
-    from veripen_oracles.auth.checks import judge_scope_escalation
+    from hos_ares_oracles.auth.checks import judge_scope_escalation
 
     # 授权阶段就拒了 → 守住（不必再看资源端）
     assert judge_scope_escalation(

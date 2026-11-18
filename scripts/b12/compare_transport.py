@@ -12,7 +12,7 @@
 - 进程内：``WsgiTransport`` + ``lab.routes`` 的相对绑定（无 socket）；
 - 真网络：``NetTransport`` + ``SymbolSource(base=L…)`` 的绝对绑定（真 socket）。
 
-两侧共用 ``veripen.bench.faces`` 的面映射与 ``veripen.bench`` 的用例集，
+两侧共用 ``hos_ares.bench.faces`` 的面映射与 ``hos-ares.bench`` 的用例集，
 其余部分不共享——**共享的部分越少，这条对比才越有意义**。
 """
 
@@ -27,8 +27,8 @@ for extra in (ROOT, ROOT / "tests", ROOT / "tests" / "unit", ROOT / "tests" / "i
     if str(extra) not in sys.path:
         sys.path.insert(0, str(extra))
 
-from veripen.bench import load_cases  # noqa: E402
-from veripen.bench.faces import extra_tags  # noqa: E402
+from hos_ares.bench import load_cases  # noqa: E402
+from hos_ares.bench.faces import extra_tags  # noqa: E402
 
 SYMBOLS = {
     "OOB": "oob-SAMPLE",
@@ -52,9 +52,9 @@ def _in_process(case) -> tuple[str, str]:
     from lab.app import App
     from lab.transport_oob import LabTransport
 
-    from veripen.bench import Outcome
-    from veripen_oracles import ALL_ORACLES
-    from veripen_oracles.common.harness import SymbolTable, run as run_oracle
+    from hos_ares.bench import Outcome
+    from hos_ares_oracles import ALL_ORACLES
+    from hos_ares_oracles.common.harness import SymbolTable, run as run_oracle
 
     app = App(secure=False) if case.label == "positive" else App(secure=True)
     if "degenerate" in case.seeds:

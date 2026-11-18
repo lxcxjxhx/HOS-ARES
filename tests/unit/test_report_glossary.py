@@ -1,6 +1,6 @@
 """B248 · 判定码要有人话，且同一次输出里用同一种写法。
 
-改前实测（真跑 `veripen hunt`）：
+改前实测（真跑 `hos-ares hunt`）：
 
 ```
 | `xss_dom` | 1/1 | `5ab365e3` | REFUTED | marker_not_fired |
@@ -8,13 +8,13 @@
 ```
 
 同一份报告里，同一件事有两种写法：表格里裸码、汇总里异常串。客户两边都读不懂。
-本轮加 `veripen/report/glossary.py`（码 → 一句话），两处都用它；表里没有的码
+本轮加 `hos_ares/report/glossary.py`（码 → 一句话），两处都用它；表里没有的码
 **原样显示**，不猜。
 """
 
 from __future__ import annotations
 
-from veripen.report.glossary import explain, explain_with_code
+from hos_ares.report.glossary import explain, explain_with_code
 
 
 def test_known_code_becomes_a_sentence_with_the_code_kept() -> None:
@@ -65,7 +65,7 @@ def test_separator_is_a_dot_not_double_parens() -> None:
 
 # ── B294：replay 状态也是内部枚举，不许原样进报告 ────────────────
 def test_replay_status_gets_a_sentence() -> None:
-    from veripen.report.render import replay_text
+    from hos_ares.report.render import replay_text
 
     assert "未重放" in replay_text("NEVER")
     assert "已重放" in replay_text("OK")
@@ -73,7 +73,7 @@ def test_replay_status_gets_a_sentence() -> None:
 
 
 def test_unknown_replay_status_is_shown_verbatim() -> None:
-    from veripen.report.render import replay_text
+    from hos_ares.report.render import replay_text
 
     assert replay_text("SOMETHING_NEW") == "SOMETHING_NEW"
     assert replay_text("") == "-"
@@ -82,7 +82,7 @@ def test_unknown_replay_status_is_shown_verbatim() -> None:
 # ── B295：报告正文里第一次出现的 verdict 词要就地解释 ─────────────
 def test_advice_explains_refuted_inline() -> None:
     """报告没有术语表，"判定应变为 REFUTED"对没读过 hunt 报告的人是黑话。"""
-    from veripen.report.impact import advice_text
+    from hos_ares.report.impact import advice_text
 
     for severity in ("high", "medium", "low"):
         text = advice_text(severity)
@@ -94,7 +94,7 @@ def test_advice_explains_refuted_inline() -> None:
 def test_report_appendix_lists_the_machine_words() -> None:
     """正文里会出现 reported/REFUTED/NEVER 这些机器词；没有一节统一解释，
     就只能靠在每处就地打括号——那样迟早漏一处。"""
-    from veripen.report.render import TERMS
+    from hos_ares.report.render import TERMS
 
     words = {t for t, _ in TERMS}
     needed = "reported undetermined error not_run VERIFIED REFUTED BLOCKED INCONCLUSIVE NEVER PARTIAL"
@@ -104,7 +104,7 @@ def test_report_appendix_lists_the_machine_words() -> None:
 
 
 def test_rendered_report_contains_the_glossary() -> None:
-    from veripen.report import FindingView, Outcome, ReportInput, render_markdown
+    from hos_ares.report import FindingView, Outcome, ReportInput, render_markdown
 
     report = ReportInput(
         engagement="E", profile_hash="h", image_digest="d", root_sha256="a" * 64,
@@ -123,7 +123,7 @@ def test_rendered_report_contains_the_glossary() -> None:
 # ── B327：--exclude 要在交付物里留痕 ────────────────────────────
 def test_report_states_what_was_excluded() -> None:
     """报告只写"适用 2 对"，读者不知道原本有 3 类——操作员主动缩小范围必须写在交付物里。"""
-    from veripen.report.render import ReportInput, render_markdown
+    from hos_ares.report.render import ReportInput, render_markdown
 
     report = ReportInput(
         engagement="E", profile_hash="h", image_digest="d", root_sha256="a" * 64,
@@ -138,7 +138,7 @@ def test_report_states_what_was_excluded() -> None:
 
 
 def test_no_exclusion_means_no_line() -> None:
-    from veripen.report.render import ReportInput, render_markdown
+    from hos_ares.report.render import ReportInput, render_markdown
 
     md = render_markdown(ReportInput(
         engagement="E", profile_hash="h", image_digest="d", root_sha256="a" * 64,
@@ -148,7 +148,7 @@ def test_no_exclusion_means_no_line() -> None:
 
 # ── B330：三路的"排除"措辞共用一份 ──────────────────────────────
 def test_exclusion_line_is_shared_by_run_and_hunt() -> None:
-    from veripen.report.glossary import exclusion_line
+    from hos_ares.report.glossary import exclusion_line
 
     line = exclusion_line(["a", "b"], why="操作员按 `--exclude` 指定")
     assert line.startswith("已排除 2 类 oracle：`a`、`b`")
@@ -157,8 +157,8 @@ def test_exclusion_line_is_shared_by_run_and_hunt() -> None:
 
 
 def test_both_renderers_use_the_same_wording() -> None:
-    from veripen.report.hunt import render_hunt_markdown
-    from veripen.report.render import ReportInput, render_markdown
+    from hos_ares.report.hunt import render_hunt_markdown
+    from hos_ares.report.render import ReportInput, render_markdown
 
     md = render_markdown(ReportInput(
         engagement="E", profile_hash="h", image_digest="d", root_sha256="a" * 64,
@@ -178,7 +178,7 @@ def test_missing_face_reads_as_not_run_not_as_clean() -> None:
     以前覆盖页那一列是 `missing_face:/portal/login`，客户读成两种错的东西：
     「这个功能测过了」或「这里有洞」。真正的事实是第三种：方法还没走完。
     """
-    from veripen.report.glossary import explain
+    from hos_ares.report.glossary import explain
 
     text = explain("missing_face:/portal/login")
     assert "没找到" in text and "一步都没跑" in text, text

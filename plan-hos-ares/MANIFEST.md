@@ -6,9 +6,9 @@
 | 项 | 值 |
 |---|---|
 | 包版本 | `plan-hos-v1.0` |
-| 生成时间 | 2026-11-18T11:24:35.020Z |
+| 生成时间 | 2026-11-18T13:21:31.269Z |
 | 文件数 | 35 |
-| 总字节 | 289939 |
+| 总字节 | 290257 |
 | 总行数（文本） | 5094 |
 
 ## 校验
@@ -22,78 +22,78 @@ node plan-hos-ares/check-plan.cjs --write  # 内容改过之后重生成本文�
 
 | 文件 | 字节 | 行 | sha256（前 16） |
 |---|---:|---:|---|
-| `H00-总纲与四波排期.md` | 22207 | 281 | `b8e668c19e991b42` |
-| `H01-能力矩阵与对标口径.md` | 9860 | 126 | `1a0b2f4b73c3c62c` |
-| `H02-执行面规格-strix.md` | 11138 | 188 | `945a1ef82617a1ed` |
-| `H03-平台面规格-驭智.md` | 10519 | 168 | `b83aa32ea50a98a7` |
-| `H04-工作台规格-codex.md` | 5952 | 119 | `5547cf60b1b614ad` |
-| `H05-判定内核边界-VeriPen.md` | 5037 | 86 | `becfda5d4556efcd` |
-| `H06-产品面与控制台.md` | 8943 | 193 | `5db85ffb9b982aee` |
-| `H07-批次总表与排期.md` | 17087 | 319 | `6ef24798f3338c67` |
-| `H08-验收与断言.md` | 6640 | 130 | `935cfedbc35327ee` |
-| `H09-风险与决策项.md` | 6305 | 91 | `e4ce2957469fa8a3` |
-| `H10-PR与文件管理.md` | 7536 | 187 | `1c5ee708f38fafa6` |
-| `H11-二期接线与探测.md` | 10515 | 169 | `61a8fb2b84111cdc` |
-| `H12-界面演示与录屏.md` | 5562 | 103 | `cc499d43a58dc547` |
-| `H13-三支柱产品化入口.md` | 9151 | 155 | `ce90c6ae312fec82` |
-| `H14-体验录屏.md` | 3145 | 64 | `e473d780a32757f0` |
+| `H00-总纲与四波排期.md` | 22228 | 281 | `ee57865d52dda45b` |
+| `H01-能力矩阵与对标口径.md` | 9877 | 126 | `0de3da83129308d3` |
+| `H02-执行面规格-strix.md` | 11144 | 188 | `787fc61ff8e2674c` |
+| `H03-平台面规格-驭智.md` | 10536 | 168 | `3a2b2a216140a290` |
+| `H04-工作台规格-codex.md` | 5958 | 119 | `f0c16c74929882d4` |
+| `H05-判定内核边界-HOS-ARES.md` | 5047 | 86 | `635e0806dc9887e2` |
+| `H06-产品面与控制台.md` | 8944 | 193 | `c002d85bcc454cae` |
+| `H07-批次总表与排期.md` | 17107 | 319 | `a47f1e18ba507800` |
+| `H08-验收与断言.md` | 6645 | 130 | `99c16b3e4709e25e` |
+| `H09-风险与决策项.md` | 6310 | 91 | `05408b5b55db5ead` |
+| `H10-PR与文件管理.md` | 7553 | 187 | `318c3154c9482c81` |
+| `H11-二期接线与探测.md` | 10528 | 169 | `69918b1ec10b4cf3` |
+| `H12-界面演示与录屏.md` | 5563 | 103 | `5086f4956ef2179b` |
+| `H13-三支柱产品化入口.md` | 9173 | 155 | `ed8e2587bb4ed4a6` |
+| `H14-体验录屏.md` | 3148 | 64 | `528e8869666d98de` |
 | `H15-成片与一键演示.md` | 3057 | 68 | `ed6c6642592b074c` |
-| `H16-平台接profile.md` | 2963 | 60 | `e0d33dbf4ce31dd7` |
+| `H16-平台接profile.md` | 2967 | 60 | `f1535ccf2a4e1217` |
 | `H17-录屏第四幕.md` | 2837 | 58 | `96fe580a78164e48` |
-| `H18-报告面的显示.md` | 2370 | 54 | `7345f1438c78d2e2` |
-| `H19-结构标签接线.md` | 4314 | 81 | `4fdb2437152f5aaf` |
-| `H20-交互式Agent界面.md` | 6213 | 152 | `d0d786764b8aea57` |
-| `H21-对话面板接三支柱.md` | 3867 | 83 | `10048c317c8d8ecd` |
-| `H22-多步计划与会话延续.md` | 3340 | 82 | `ce0dd58a3bcb9c5e` |
-| `H23-让模型真的接进来.md` | 4033 | 82 | `6b25a2513f9a5fe7` |
-| `H24-统一CLI入口.md` | 3237 | 78 | `2de3c5db241529e9` |
-| `H25-项目入口文档.md` | 2693 | 58 | `d0097b00dabc5211` |
-| `H26-无容器时的受限执行.md` | 4025 | 93 | `7648a4b2c35ae57a` |
-| `H27-strix收割与无契约发现.md` | 20417 | 362 | `0175079e80bd89ec` |
-| `H29-交付说明.md` | 5560 | 115 | `e12e25176c4327d6` |
-| `H30-头类判定口径.md` | 4085 | 105 | `f7d48447443892d6` |
-| `H31-未结项归口.md` | 35770 | 366 | `0dbc8af9e7212cc2` |
-| `H32-交接说明.md` | 4223 | 94 | `d5dc879395d606bd` |
-| `H33-待裁规格事项.md` | 19313 | 321 | `da74f54f5499f568` |
-| `README.md` | 5532 | 117 | `da8281504885e3a6` |
-| `check-plan.cjs` | 12493 | 286 | `812044a1edd690cb` |
+| `H18-报告面的显示.md` | 2371 | 54 | `54597c9e5dc3298d` |
+| `H19-结构标签接线.md` | 4318 | 81 | `d479f265ae5cbad6` |
+| `H20-交互式Agent界面.md` | 6223 | 152 | `c87c09af6b98544a` |
+| `H21-对话面板接三支柱.md` | 3870 | 83 | `9c7b3d6bde368139` |
+| `H22-多步计划与会话延续.md` | 3343 | 82 | `54cf736edaa72700` |
+| `H23-让模型真的接进来.md` | 4037 | 82 | `6e7473ad8924fb9a` |
+| `H24-统一CLI入口.md` | 3255 | 78 | `bd42c8041d4aae3d` |
+| `H25-项目入口文档.md` | 2699 | 58 | `415f17b98dc6fcd8` |
+| `H26-无容器时的受限执行.md` | 4028 | 93 | `992559e3007f7b0c` |
+| `H27-strix收割与无契约发现.md` | 20448 | 362 | `fd429a22044f2f2b` |
+| `H29-交付说明.md` | 5578 | 115 | `3e8c865140c61bf1` |
+| `H30-头类判定口径.md` | 4087 | 105 | `e5f5deb72388e46a` |
+| `H31-未结项归口.md` | 35791 | 366 | `5b692a50e7cb95e2` |
+| `H32-交接说明.md` | 4225 | 94 | `33c23c13b9338b71` |
+| `H33-待裁规格事项.md` | 19323 | 321 | `cd8c2b4b3d2293f9` |
+| `README.md` | 5539 | 117 | `6bc6d08318f8376c` |
+| `check-plan.cjs` | 12500 | 286 | `d9aad9f919e09c0b` |
 
 ## 完整 sha256
 
 ```
-b8e668c19e991b429fb26fbf2b41d3f9734427b8bed1c4e212664ae9a49c235c  H00-总纲与四波排期.md
-1a0b2f4b73c3c62c6d47b844be3515d98146fdfad185cd68c40ad51f1410496e  H01-能力矩阵与对标口径.md
-945a1ef82617a1edfa49d8a3cb094fe7ee9194f4d8b97ebac006ae92c242cec7  H02-执行面规格-strix.md
-b83aa32ea50a98a7c19e0434aa0d39e405e648071e805dc163d48310658d816d  H03-平台面规格-驭智.md
-5547cf60b1b614adeb016e23a4634468d757740c8f077b5c598484b6752738a2  H04-工作台规格-codex.md
-becfda5d4556efcd3a45a2b5dcc9d3ba2714d686b486a1b114eb0193a132630d  H05-判定内核边界-VeriPen.md
-5db85ffb9b982aeeb1bd12a78b64af286ad96c7fec49e6ae2c43ef2df9fbf820  H06-产品面与控制台.md
-6ef24798f3338c674d92d1991bf87dc9d37a355420ef297a1119fa92c6082e7a  H07-批次总表与排期.md
-935cfedbc35327ee4da2b3b140f26fd959141d92194f7c0eab49609afea15ac6  H08-验收与断言.md
-e4ce2957469fa8a3e5fef214f86f919af1f902da204d89a333043d7b2279c7e0  H09-风险与决策项.md
-1c5ee708f38fafa6fc58896556377bf0d9b234a38f538bfc3fe9051df367efda  H10-PR与文件管理.md
-61a8fb2b84111cdcee7a507defaf0cbddbc2b6f27bc79b9326e4c60acff2ff94  H11-二期接线与探测.md
-cc499d43a58dc54711b7fe81e686163fa630994ce6cd8f1b2553fc1302189282  H12-界面演示与录屏.md
-ce90c6ae312fec82587c70447d4fe7907e2fe1a62029c000f81d8261b945c016  H13-三支柱产品化入口.md
-e473d780a32757f0cc887ad15808c25f3d25d1f7bd7a135e93af9d326915bf70  H14-体验录屏.md
+ee57865d52dda45b99889d9a82d85275ddee280b2479e9f39e8b0ab72f45dd7c  H00-总纲与四波排期.md
+0de3da83129308d3a30d56e8929cdfd20f746da3288ffc3a36601a56129eab08  H01-能力矩阵与对标口径.md
+787fc61ff8e2674ca92d422a3391bde875f8f696e0cd353b6fe4e943540be7b5  H02-执行面规格-strix.md
+3a2b2a216140a29073979a651f962a4aa285f0c6b50b6c428a694cb2821fb095  H03-平台面规格-驭智.md
+f0c16c74929882d4ca3d510d519fd1a0b54196c49f598e539b6dff13be1287f1  H04-工作台规格-codex.md
+635e0806dc9887e27641c3819bc65aa3bdc4cf8ba658211133cc344ea50b9768  H05-判定内核边界-HOS-ARES.md
+c002d85bcc454cae3ad184369051182a10dae028e827fb2de05580a1a36b576c  H06-产品面与控制台.md
+a47f1e18ba507800c4b33778bfc06cf9947c9e95722b1c44b643fa93e7957128  H07-批次总表与排期.md
+99c16b3e4709e25e5e60bb7d9cc75b7b30000d742b082db3e4607d224047b0c4  H08-验收与断言.md
+05408b5b55db5eadaadd235318ecfa206b75b64ad82b9e5bc7b06fcb89cc8187  H09-风险与决策项.md
+318c3154c9482c810b9c4720d343ebb52746759e03e680a1b681934cf8e71336  H10-PR与文件管理.md
+69918b1ec10b4cf3b6e53679957f92cc9258001f81b3182b78adf73a5c25c244  H11-二期接线与探测.md
+5086f4956ef2179b24d06bf3c338631a3bcb14036103618f71c433d27cffb414  H12-界面演示与录屏.md
+ed8e2587bb4ed4a6a29194c419b5e0f802dcc501c82a0d54a3e90c8d62b6b990  H13-三支柱产品化入口.md
+528e8869666d98defbd16896808c91cc14f174bc7089fe231429aad02ee6bb9a  H14-体验录屏.md
 ed6c6642592b074c672448869f5e20266c18073c9b033fca10c370d12ca56b8e  H15-成片与一键演示.md
-e0d33dbf4ce31dd7c6d13a28484f1ad9f470967a13ac7cd71d688b3f268604ec  H16-平台接profile.md
+f1535ccf2a4e12179fc86ed752b10e0652c1e7b2794738b8c837480dde32f7f4  H16-平台接profile.md
 96fe580a78164e48f5f387fdc5cb21e2dc59292079e9980b468a1e0f808cd08f  H17-录屏第四幕.md
-7345f1438c78d2e2d4579616fe7fdda45d19b2864a2fed8361b0b99b7ec3d3d9  H18-报告面的显示.md
-4fdb2437152f5aaf204a52c6dce2b296b23231e8837eca8bed9b1f245ffb0962  H19-结构标签接线.md
-d0d786764b8aea573a0a738d0b6a7b26f14195cd11920b97199f091106bf7611  H20-交互式Agent界面.md
-10048c317c8d8ecd63f8022596bd0caef1bf9340ce47ed22186f99c5ba8103e3  H21-对话面板接三支柱.md
-ce0dd58a3bcb9c5eb9916da5f76fbec8d3993bf52c37c1cbdd79c5df2f96bb22  H22-多步计划与会话延续.md
-6b25a2513f9a5fe7cbd257a9a5ef264adf792d5545ed7abfb2758dad6147e6e2  H23-让模型真的接进来.md
-2de3c5db241529e9d08d0caf6808ff07fad388f350063fe91fd45b32caf67f31  H24-统一CLI入口.md
-d0097b00dabc52113b96f0f1162517604a635c9b818eb254f6c974953d023735  H25-项目入口文档.md
-7648a4b2c35ae57a7cf6b2761c1a41a0ebdff4a1d3f4f73a21d856ae9c731d24  H26-无容器时的受限执行.md
-0175079e80bd89eca39e0b797712b47d50c87cf1ac0a3b6887c4dacc17ceb011  H27-strix收割与无契约发现.md
-e12e25176c4327d63e5c862ab4c665fe986e1f9eab6f466718359dea3dcfb76a  H29-交付说明.md
-f7d48447443892d677f1d73c2ba562c464ffc5e056de51534b9195553aea9e7a  H30-头类判定口径.md
-0dbc8af9e7212cc2df2c49be8c1c54a0294decb014a5f4fb768f58a440e908c0  H31-未结项归口.md
-d5dc879395d606bdea86457d8a7a69d3ac5d700300f0f92079c5a2b7807b8ea2  H32-交接说明.md
-da74f54f5499f568e85e8f76a77af8583432fb37cc48e8912bb75c8d829481c6  H33-待裁规格事项.md
-da8281504885e3a68755072c88bab3383823fefd15c3c93a6d27ae6e9a4d1207  README.md
-812044a1edd690cb8b2c26106b1d88082928869db407842ca54d96e8bf648260  check-plan.cjs
+54597c9e5dc3298dfb9f2e6ac1b3bbaa410919cf7320eea5d72993435bd6cd41  H18-报告面的显示.md
+d479f265ae5cbad6bf8eadb37d5aacd21bb26c69ce64a4ed7bdd2cb4a3e1d553  H19-结构标签接线.md
+c87c09af6b98544a82993ef2e25b71229837bd04835959ae2f965741b6e099e2  H20-交互式Agent界面.md
+9c7b3d6bde368139996786e66c1d2cc19a0ad1501c240c97a4ed7b08872aa698  H21-对话面板接三支柱.md
+54cf736edaa72700bb473a9fc6cf6528da75a477b80fc5cf045cd8841267a753  H22-多步计划与会话延续.md
+6e7473ad8924fb9afa097cd5b5f1a2651c2ea66c469c4b2fd9226cc3dea2c346  H23-让模型真的接进来.md
+bd42c8041d4aae3d35d6e2c0453e58a009e61dfc6a9cb5fc953cb083640dc58c  H24-统一CLI入口.md
+415f17b98dc6fcd80d318fd20865b826bb8d59c587f932a32e9b84da71ac0646  H25-项目入口文档.md
+992559e3007f7b0ca3ac03e00068d46c27192fbada2c7ae6cce3d309014e99a1  H26-无容器时的受限执行.md
+fd429a22044f2f2b268c942be69ab455ac650a1913ae8c43a533ef43a8f95ef4  H27-strix收割与无契约发现.md
+3e8c865140c61bf183cf98e68f2fb9677dc6f4f0ae07833660b570ed4173c27c  H29-交付说明.md
+e5f5deb72388e46ae8996a37595bac6964a5583668d48abb13e5b03d1e961a69  H30-头类判定口径.md
+5b692a50e7cb95e264a334bb6c6e6e2d7def7c4595d4dbf148aec614ec1e4381  H31-未结项归口.md
+33c23c13b9338b710cf3d84b123d3f620fc5e4bc070b778dfa2a3f631ccdf9f4  H32-交接说明.md
+cd8c2b4b3d2293f90954944c792749f937df160e40987f136850c9bc53422e7b  H33-待裁规格事项.md
+6bc6d08318f8376c817f8506b602b46ad04fcf84075b0b10c807552187671d55  README.md
+d9aad9f919e09c0b3009835de4728bee6afffd72dfee1434364c81d414469710  check-plan.cjs
 ```
