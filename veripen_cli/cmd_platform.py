@@ -526,7 +526,14 @@ def main(argv: list[str] | None = None) -> int:
             f"（本轮未产出 {sum(1 for a in per_asset if not a['produced'])} 个）"
             if any(not a["produced"] for a in per_asset) else ""
         ),
-        f"- 结论：已验证 **{verified}** / 总项 {total}",
+        f"- 结论：已验证 **{verified}** / 总项 {total}"
+        # 总项 0 必须解释（B417 / B353）：全被挡下时它确实是 0，但和"已验证 0"
+        # 并排出现会被读成"测了 0 项都没问题"。事实是**一项都没进入判定**。
+        + (
+            "（没有任何判定进入执行：资产被边界/输入挡下，或契约没匹配到面——"
+            "这不是「没有漏洞」，是「没有测」）"
+            if total == 0 else ""
+        ),
         # 「0 验证」必须解释（B356）：读者最容易把它读成"没有漏洞"，
         # 而全被挡下时它其实意味着"一项都没测"。
         *(

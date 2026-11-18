@@ -283,6 +283,8 @@ def test_rerun_does_not_reuse_stale_findings(two_assets: Any, tmp_path: Path) ->
     second = (tmp_path / "pf" / "platform-report.md").read_text(encoding="utf-8")
     assert "本轮未产出 1 个" in second
     assert "已验证 **0** / 总项 0" in second, "旧结论不许被算进这一轮"
+    # 数字不动，但必须解释（B417 / B353）：「0 / 0」并排会被读成「测了 0 项都没问题」
+    assert "没有任何判定进入执行" in second, "总项 0 必须有一句为什么"
     assert "| — | — | — |" in second, "未产出的资产三列都必须是 —，不能填数"
     assert "目录里的旧产物未被采用" in second
 
