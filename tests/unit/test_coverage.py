@@ -281,3 +281,96 @@ def test_gaps_by_severity_adds_up() -> None:
     counts = doc["summary"]["gaps_by_severity"]
     assert sum(counts.values()) == doc["summary"]["gaps"]
     assert set(counts) == {"critical", "warn", "info"}
+
+
+# ── B376：矩阵只数 14 类，表外能力必须列出来 ────────────────────
+def test_oracles_outside_the_14_class_spec_are_named() -> None:
+    """`覆盖 14/14` 会被读成"一共只有 14 个 oracle"。
+
+    实测：本轮接入 `session_fixation` 后，矩阵仍是 14/14——新能力在表里**看不见**。
+    这条钉住"表外能力要报名字"，否则接入再多也不会有读者知道。
+    """
+    from veripen_cli.cmd_coverage import build_report
+
+    report = build_report([])
+    outside = set(report["outside_spec"])
+    assert "session_fixation" in outside, report["outside_spec"]
+    assert "csp_absent" in outside, "响应头类一直不在 14 类口径内，早该露面"
+    # 14 类本身不许混进"表外"
+    assert not outside & {r["oracle"] for r in report["rows"]}, outside
+
+
+# ── B382：选不中的 oracle 必须点名 ──────────────────────────────
+def test_oracles_with_unselectable_tags_are_named() -> None:
+    """响应头四件套只选 `html_document`，而契约字表里没有这个标签。
+
+    它们注册着、bench 里能跑，`run` 里却永远选不到——"我们有 CSP 检测"这句话
+    在产品路径上是空的（`H33-待裁规格事项 §1`）。
+    """
+    from veripen_cli.cmd_coverage import build_report
+    from veripen_core.stream import SELECTOR_TAGS
+
+    report = build_report([])
+    # B403 把这一名单拆成了两层：这四条属于"契约写不进、但结构发现能选中"，
+    # 所以它们现在落在 `discoverable` 而不是 `unreachable`。
+    assert {"csp_absent", "frame_opt_absent", "nosniff_absent", "hsts_absent"} <= set(
+        report["discoverable"]), report["discoverable"]
+    # 两层加起来 = 字表外的那一批：名单必须与字表算出来的一致，不许手写
+    from veripen_oracles import ALL_ORACLES
+
+    expect = {c.meta.id for c in ALL_ORACLES
+              if c.meta.selector_tags and not (set(c.meta.selector_tags) & SELECTOR_TAGS)}
+    assert set(report["unreachable"]) | set(report["discoverable"]) == expect, (
+        report["unreachable"], report["discoverable"], expect)
+    # 两层互斥（同一个 oracle 不会既"能发现"又"彻底选不中"）
+    assert not set(report["unreachable"]) & set(report["discoverable"])
+
+
+# ── B395：被契约解析器丢弃的标签也要点名 ────────────────────────
+def test_oracles_whose_tags_the_contract_drops_are_named() -> None:
+    """`api_read` 在字表里，但契约解析器**故意丢弃**它（"响应是 JSON 只说明它是 API"）。
+
+    于是 `cors_misconfig` 写进 OpenAPI 也拿不到绑定——对外宣称"支持 CORS 检测"，
+    契约路径上却选不中。这条与"标签不在字表"是两种不同的选不中，都得点名。
+    """
+    from veripen_cli.cmd_coverage import build_report
+
+    report = build_report([])
+    assert report["contract_dropped"] == ["cors_misconfig"], report["contract_dropped"]
+    # 与"标签不在字表"那一类是**互斥**的：同一 oracle 不该两边都出现
+    assert not set(report["contract_dropped"]) & set(report["unreachable"]), (
+        report["contract_dropped"], report["unreachable"])
+
+
+# ── B403：契约选不中 ≠ 完全跑不了 ────────────────────────────────
+def test_structural_tags_match_what_infer_tags_actually_appends() -> None:
+    """`STRUCTURAL_TAGS` 是给读者看的承诺，必须与实现一致（会漂移的承诺就是谎言）。"""
+    import re
+    from pathlib import Path
+
+    from veripen_core.routes.tagging import STRUCTURAL_TAGS
+
+    src = Path("veripen_core/routes/tagging.py").read_text(encoding="utf-8")
+    body = src.split("def infer_tags(", 1)[1]
+    appended = set(re.findall(r'tags\.append\("([^"]+)"\)', body))
+    assert appended == set(STRUCTURAL_TAGS), (sorted(appended), sorted(STRUCTURAL_TAGS))
+
+
+def test_header_oracles_are_reachable_by_structural_discovery() -> None:
+    """响应头四件套在**契约**里选不中，但结构发现（HTML 响应）能选中。
+
+    以前 coverage 只说"在产品路径选不中"——这句话把 `--discover` 也算成没戏，
+    而它其实是可跑的（B403：实测 `infer_tags(content_type="text/html")` 就回 `html_document`）。
+    """
+    from veripen_core.routes.tagging import infer_tags
+
+    html_tags = infer_tags(method="GET", template=chr(0x2F) + "p", content_type="text/html")
+    assert "html_document" in html_tags, html_tags
+
+    from veripen_cli.cmd_coverage import build_report
+
+    report = build_report([])
+    assert set(report["discoverable"]) == {
+        "csp_absent", "frame_opt_absent", "hsts_absent", "nosniff_absent"}, report["discoverable"]
+    # 两类互斥：能在发现里选中的，就不该同时出现在"彻底选不中"里
+    assert not (set(report["discoverable"]) & set(report["unreachable"])), report

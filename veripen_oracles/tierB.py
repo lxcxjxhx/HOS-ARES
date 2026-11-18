@@ -409,6 +409,10 @@ class RateLimitAbsent(BaseOracle):
     def plan(self, binding: Any) -> list[Variant]:
         return []
 
+    def burst_sample_count(self) -> int:
+        # 走并发突发：串行 N 次 + 并发 N 次，判"有没有被限流"
+        return int(getattr(self.params, "samples", 10))
+
     def judge(self, pairs: list[Pair]) -> Judgement:
         return self.inconclusive("use_judge_burst")
 

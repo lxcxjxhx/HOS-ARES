@@ -227,7 +227,7 @@ def test_approval_blocks_without_signoff(two_assets: Any, tmp_path: Path) -> Non
     rows = conn.execute("SELECT state FROM approvals").fetchall()
     assert rows and rows[0][0] == "PENDING"
     kinds = [r[0] for r in conn.execute(
-        "SELECT kind FROM task_events WHERE task_id='platform-run'").fetchall()]
+        "SELECT kind FROM task_events WHERE task_id LIKE 'platform-run%'").fetchall()]
     assert "approval" in kinds, "审批阻断必须留痕"
 
 
@@ -302,3 +302,41 @@ def test_report_records_the_actual_signer(monkeypatch: pytest.MonkeyPatch,
     report = (tmp_path / "pf" / "platform-report.md").read_text(encoding="utf-8")
     assert "已签（chat）" in report, report[:400]
     assert "已签（operator）" not in report
+
+
+# ── B371：审计节只属于这一轮 ────────────────────────────────────
+def test_audit_section_is_scoped_to_this_run(two_assets: Any, tmp_path: Path) -> None:
+    """`--db` 默认落在 `out/platform.db` 上，**跨轮复用**。
+
+    用固定 task_id 时，第二轮的报告会把第一轮的审批账一起抱进来：实测一份
+    "没开 --require-approval" 的报告里出现 64 条 approval、12 条 APPROVED
+    （`by=operator`、`reason=批量验证放行`）——那份交付物写着"审批 未启用"，
+    审计节却在列别人签的字。判据：同一 DB 连跑两轮，第二轮的审计节只许有自己那轮。
+    """
+    a, b = two_assets
+    db = tmp_path / "shared.db"
+    first = _run(tmp_path, f"{a.base_url},{b.base_url}",
+                 "--require-approval", "--approve",
+                 "--out", str(tmp_path / "r1"), "--db", str(db))
+    assert first == 0, first
+    md1 = (tmp_path / "r1" / "platform-report.md").read_text(encoding="utf-8")
+    assert "已签（operator）" in md1, md1[:400]
+
+    second = _run(tmp_path, f"{a.base_url},{b.base_url}",
+                  "--out", str(tmp_path / "r2"), "--db", str(db))
+    assert second in (0, 1), second
+    md2 = (tmp_path / "r2" / "platform-report.md").read_text(encoding="utf-8")
+    assert "APPROVED" not in md2, "上一轮的签字混进这一轮的报告"
+    assert "| 事件数 | 0 |" in md2, "这一轮没开审批，事件数必须是 0"
+
+
+def test_refuted_rows_are_not_printed_as_not_run(two_assets: Any, tmp_path: Path) -> None:
+    """平台明细表的「结论」列读的是 findings.json，不是内存里的 FindingView。
+
+    所以那一位 `refuted` 必须**进 JSON**：否则"跑过、无该问题"只能印成 `not_run`，
+    跟"未执行"混在一列里——资产 2 那三行就全变成了"没跑"（B371 实测）。
+    """
+    a, _b = two_assets
+    _run(tmp_path, a.base_url)
+    md = (tmp_path / "pf" / "platform-report.md").read_text(encoding="utf-8")
+    assert "已判否（跑过、无该问题）" in md, md[:1200]

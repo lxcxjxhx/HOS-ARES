@@ -196,6 +196,13 @@ def test_run_writes_sarif_and_a_verifiable_manifest(vuln_lab: Any, tmp_path: Pat
     assert sarif["runs"][0]["tool"]["driver"].get("version"), "SARIF 缺工具版本"
     assert sarif["runs"][0]["results"], "SARIF 里没有任何结果"
 
+    # 证据链要真的从 cmd_run 走到 SARIF（B374）：只测渲染器的话，
+    # 忘了在 `_findings_view` 里填 traces 这类断线不会被发现。
+    first = sarif["runs"][0]["results"][0]
+    roles = [l["location"]["properties"]["role"]
+             for l in first["codeFlows"][0]["threadFlows"][0]["locations"]]
+    assert roles[0] == "baseline" and "probe" in roles, roles
+
     md = (out / "report.md").read_text(encoding="utf-8")
     js = _json.loads((out / "findings.json").read_text(encoding="utf-8"))
     manifest = _json.loads((out / "report.manifest.json").read_text(encoding="utf-8"))

@@ -100,6 +100,37 @@ def build_report(cases: Sequence[Any]) -> dict[str, Any]:
     uncovered = [str(r["oracle"]) for r in rows if not r["covered"]]
     # 反向：用例里出现了不在 14 类里的 oracle（拼错或新增未登记）
     unknown_in_cases = sorted(set(by_oracle) - set(SPEC_14))
+    # 表外能力（B376）：已注册、**不在 14 类口径内**的 oracle。它们能跑，但矩阵
+    # 只数 14 类——不列出来的话，读者会把"覆盖 14/14"读成"只有 14 个".
+    outside_spec = sorted(set(registered) - set(SPEC_14) - set(ALIASES))
+    # 选不中的 oracle（B382）：契约只接受 18 个标签，而它们的**全部**选择器都不在字表里。
+    # 这类 oracle 注册着、bench 里能跑，产品路径却永远选不到——不写出来，
+    # "我们有 CSP 检测"就是一句无法兑现的话（见 `H33-待裁规格事项 §1`）。
+    from veripen_core.stream import SELECTOR_TAGS  # noqa: PLC0415 - 避免顶层互相拖依赖
+
+    # 契约字表外（B403）：还要再分一层——**结构发现能推断出来的**就不算彻底选不中。
+    # 以前这里只有一个名单，于是"HTML 响应上的响应头四件套"被说成"在产品路径选不中"，
+    # 而 `--discover` 明明是产品路径之一（实测 `infer_tags(content_type="text/html")`
+    # 就回 `html_document`）。会误导的措辞比缺失更糟。
+    from veripen_core.routes.tagging import STRUCTURAL_TAGS  # noqa: PLC0415
+
+    outside_contract = sorted(
+        oid for oid, meta in registered.items()
+        if meta.selector_tags and not (set(meta.selector_tags) & SELECTOR_TAGS)
+    )
+    discoverable = sorted(
+        oid for oid in outside_contract
+        if set(registered[oid].selector_tags) & set(STRUCTURAL_TAGS)
+    )
+    unreachable = sorted(set(outside_contract) - set(discoverable))
+    # 另一类选不中（B395）：标签在字表里，但**契约解析器故意丢弃**它
+    # （`api_read` = "响应是 JSON 只说明它是 API"）。写进 OpenAPI 也拿不到绑定。
+    from veripen_contract.parser import CONTRACT_DROPPED_TAGS  # noqa: PLC0415
+
+    contract_dropped = sorted(
+        oid for oid, meta in registered.items()
+        if meta.selector_tags and set(meta.selector_tags) <= set(CONTRACT_DROPPED_TAGS)
+    )
     return {
         "denominator": len(SPEC_14),
         "cases_total": len(cases),
@@ -107,6 +138,10 @@ def build_report(cases: Sequence[Any]) -> dict[str, Any]:
         "uncovered": uncovered,
         "missing_impl": missing_impl,
         "unknown_in_cases": unknown_in_cases,
+        "outside_spec": outside_spec,
+        "unreachable": unreachable,
+        "discoverable": discoverable,
+        "contract_dropped": contract_dropped,
         "rows": rows,
         "by_tag": dict(sorted(by_tag.items())),
     }
@@ -159,6 +194,18 @@ def main(argv: list[str]) -> int:
         print("❌ 规格有但代码无实现：" + ", ".join(missing_impl))
     if unknown_in_cases:
         print("⚠ 用例里的 oracle 不在 14 类内：" + ", ".join(unknown_in_cases))
+    if report.get("contract_dropped"):
+        print(f"⚠ 另 {len(report['contract_dropped'])} 个的选择器**被契约解析器丢弃**"
+              f"（写进 OpenAPI 也拿不到绑定）：" + ", ".join(report["contract_dropped"]))
+    if report.get("discoverable"):
+        print(f"⚠ {len(report['discoverable'])} 个**契约里写不进去、但结构发现能选中**："
+              + ", ".join(report["discoverable"]) + "（这类只能用 --discover）")
+    if report.get("unreachable"):
+        print(f"⚠ {len(report['unreachable'])} 个**两条路径都选不中**"
+              "（选择器既不在契约字表、结构也推不出来）：" + ", ".join(report["unreachable"]))
+    if report.get("outside_spec"):
+        print(f"另有 {len(report['outside_spec'])} 个已注册、不在 14 类口径内的 oracle："
+              + ", ".join(report["outside_spec"]))
     print(f"证据：{out_dir / 'coverage.json'}")
     return 0 if not uncovered and not missing_impl else 1
 

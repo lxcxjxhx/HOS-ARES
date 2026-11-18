@@ -100,12 +100,17 @@ class DoctorReport:
 # 单项检查
 # ══════════════════════════════════════════════════════════════════
 def check_python(root: Path) -> CheckResult:
-    del root  # 签名统一成 (root)，方便注册表按名字遍历
     major, minor = sys.version_info[:2]
     ok = (major, minor) >= (3, 11)
+    # 解释器的**路径**也要报（B367）：版本号对上但环境不对（全局 python 缺
+    # playwright/mypy）时，只写 "3.13" 让人无从发现。
+    detail = f"{major}.{minor} · {sys.executable}"
+    venv = Path(root) / ".venv"
+    if venv.exists() and not Path(sys.executable).resolve().is_relative_to(venv.resolve()):
+        detail += "（注意：仓库自带 .venv，当前用的不是它）"
     return CheckResult(
         "python 版本", Status.OK if ok else Status.FAIL,
-        f"{major}.{minor}", "" if ok else "需要 ≥3.11",
+        detail, "" if ok else "需要 ≥3.11",
     )
 
 
@@ -158,9 +163,14 @@ def check_selfcheck(root: Path) -> CheckResult:
 
 
 def _run(cmd: Sequence[str], *, cwd: Path, timeout: int = 180) -> tuple[int, str]:
+    # 子进程的 stdout 走管道时用它自己的 locale 编码（Windows 是 cp936），
+    # 这里按 utf-8 解 → 中文全成 `��`（B365 实测：doctor 里 5 行 lint 摘要乱码，
+    # 而 verify.py 同样的子进程输出是好的，差别就在它设了 PYTHONIOENCODING）。
+    # 同一件事不写两份：子进程强制 utf-8，父进程按 utf-8 解。
     proc = subprocess.run(
         list(cmd), cwd=str(cwd), capture_output=True, text=True,
         encoding="utf-8", errors="replace", timeout=timeout,
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
     )
     return proc.returncode, (proc.stdout + proc.stderr).strip()
 

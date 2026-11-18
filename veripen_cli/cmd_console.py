@@ -22,7 +22,7 @@ if str(ROOT) not in sys.path:  # 允许 `python -m` 与直接执行两种方式
 from veripen_core.audit_source import load_audit  # noqa: E402
 from veripen_core.store import Store  # noqa: E402
 from web.console import build_app  # noqa: E402
-from web.loader import load_file, summarize  # noqa: E402
+from web.loader import load_approvals, load_file, summarize  # noqa: E402
 
 
 def artifact_note(path: str) -> str:
@@ -95,17 +95,26 @@ def main(argv: list[str] | None = None) -> int:
     state = load_file(record_path) if record_path else load_file("")
 
     audit_rows: list[dict[str, object]] = []
+    approval_rows: list[Any] = []
     db_note = "未接"
     if args.db:
         db = Path(args.db)
         if db.exists():
-            audit_rows = load_audit(Store(str(db)))
-            db_note = f"{db}（{len(audit_rows)} 条）"
+            store = Store(str(db))
+            try:
+                audit_rows = load_audit(store)
+                # 审批页也读这个库（B372）：以前只有 audit 页接库，approvals 页永远空着
+                approval_rows = load_approvals(store)
+            finally:
+                store.close()
+            db_note = f"{db}（审计 {len(audit_rows)} 条 / 审批 {len(approval_rows)} 条）"
         else:
             db_note = f"{db}（不存在，audit 页 unavailable）"
 
     if audit_rows:
         state = replace(state, audit=audit_rows)
+    if approval_rows:
+        state = replace(state, approvals=approval_rows)
 
     stats = summarize(state)
 

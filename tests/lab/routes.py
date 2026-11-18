@@ -42,7 +42,10 @@ def candidates(tags: Iterable[str] | None = None) -> list[RouteCandidate]:
                 response_shape={"semantic_tags": op["tags"]},
             )
         )
-    return out
+    # 同一标签可能有多条面（B384 起 `redirect_entry` 有两条）。顺序必须**确定性**：
+    # 否则"目录里插入一条新面"就会悄悄改变 bench 与断言被测的是哪一条——
+    # 本轮就是这样掉了 4 条集成用例（recall 掉、compare_transport 变红）。
+    return sorted(out, key=lambda c: str(c.template))
 
 
 def routeset(tags: Iterable[str] | None = None, min_confidence: float = 0.70) -> RouteSet:
@@ -62,7 +65,9 @@ def binding_for(tag: str, template: str | None = None) -> object:
     if not rs.bindings:
         raise LookupError(f"没有 {tag} 标签的绑定")
     if template is None:
-        return rs.bindings[0]
+        # 同一标签可能有多条面（B384 起 `redirect_entry` 就有两条）。取第一条必须**确定性**，
+        # 否则"插入顺序"会悄悄改变断言对象：按模板字典序取，老面（/api/…）自然在前。
+        return sorted(rs.bindings, key=lambda b: str(b.template))[0]
     for b in rs.bindings:
         if b.template == template:
             return b

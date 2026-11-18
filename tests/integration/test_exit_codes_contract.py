@@ -304,3 +304,30 @@ def test_all_refuted_exits_zero(tmp_path: Path) -> None:
 
     data = _json.loads((tmp_path / "run" / "findings.json").read_text(encoding="utf-8"))
     assert data["counts"]["by_outcome"]["reported"] == 0
+
+
+# ── B364：oracle 自己崩了，报告里不许出现异常原文 ────────────────
+def test_crashed_oracle_gets_a_stable_reason_not_a_traceback(  # noqa: ANN001
+        lab, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """这条钉子来自一次真跑：`playwright` 没装时，原因列里出现的是
+
+    ```
+    | veripen/xss_dom/CWE-79 | undetermined | `RuntimeError: 渲染线程启动失败：浏览器没起来` | - |
+    ```
+
+    那不是码也不是人话，换个 locale 就换个样。异常**类型**进码（`oracle_crash:RuntimeError`），
+    原文只进终端日志——报告里读者要读的是"这一项没跑成"，不是我们的堆栈。
+    """
+    from veripen_cli import cmd_run
+
+    def _boom(*_a: object, **_kw: object) -> None:
+        raise RuntimeError("渲染线程启动失败：浏览器没起来")
+
+    monkeypatch.setattr(cmd_run, "run_oracle", _boom)
+    cmd_run.main(["--target", lab.base_url,
+                  "--openapi", str(_spec(lab.base_url, tmp_path / "s.json")),
+                  "--out", str(tmp_path / "boom")])
+    md = (tmp_path / "boom" / "report.md").read_text(encoding="utf-8")
+    assert "oracle_crash:" in md, md[:800]
+    assert "工具自身出了问题" in md, "码表要给一句话，不能只有码"
+    assert "渲染线程启动失败" not in md, "异常原文不许进报告"

@@ -50,7 +50,10 @@ def test_each_run_gets_its_own_capsule_dir(tmp_path, capsys) -> None:  # noqa: A
     first = sorted((out / "capsules").iterdir())
     assert len(first) == 1, f"一次运行应当只有一个证据目录：{first}"
     caps1 = sorted(_capsule_dir(out, first[0]).glob("*.json"))
-    assert len(caps1) == 41, f"这一轮 sealed 41 份，盘上却有 {len(caps1)}"
+    # 份数不写死（B404）：以前钉 41，限流类判据接进产品路径后变成 44。
+    # 这里要证的是"每例一条结论证据、且**不串轮**"——精确值属于 bench 自己的账，
+    # 钉在这里会让每次能力增长都要改测试，还会改错。
+    assert len(caps1) >= 41, f"sealed 至少 41 份（每例一条结论证据），盘上只有 {len(caps1)}"
     _verify(_capsule_dir(out, first[0]))
 
     # 报告里的份数与盘上逐一对得上
@@ -64,7 +67,7 @@ def test_each_run_gets_its_own_capsule_dir(tmp_path, capsys) -> None:  # noqa: A
     assert second[0].name != second[1].name
     _verify(_capsule_dir(out, second[0]))
     _verify(_capsule_dir(out, second[1]))
-    assert len(list(_capsule_dir(out, second[1]).glob("*.json"))) == 41
+    assert len(list(_capsule_dir(out, second[1]).glob("*.json"))) == len(caps1)
 
 
 @pytest.mark.parametrize("case_id", ["P-23", "P-24", "N-14"])

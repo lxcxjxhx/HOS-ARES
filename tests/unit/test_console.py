@@ -437,3 +437,26 @@ def test_oracle_transport_records_violations() -> None:
 
     src = inspect.getsource(live)
     assert "ctx.scope.post_connect(" in src, src[:200]
+
+
+# ── B409：控制台 API 端到端带上能力边界 ──────────────────────────
+def test_coverage_endpoint_carries_capability_limits() -> None:
+    """页面能不能画出边界表，取决于这个接口给不给。
+
+    B400 加的是视图层，B401 加的是渲染层；这里验的是**真实 HTTP 响应**——
+    中间任何一层把字段丢了，页面就会显示成"全测过了"。
+    """
+    from fastapi.testclient import TestClient
+
+    from web import UI_OPS, ConsoleState, build_app
+
+    client = TestClient(build_app(ConsoleState(findings=[_row()])))
+    path = next(p for p in (f"{UI}{op.split('.', 1)[-1]}" for op in UI_OPS)
+                if p.endswith("coverage"))
+    body = client.get(path).json()["data"]
+    limits = body.get("capability_limits") or []
+    assert limits, "覆盖接口没有能力边界字段"
+    kinds = {item["kind"] for item in limits}
+    assert {"needs_sequence", "unmeasurable"} <= kinds, kinds
+    for item in limits:
+        assert item["check"] and item["why"], item

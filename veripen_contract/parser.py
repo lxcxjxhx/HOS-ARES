@@ -29,6 +29,10 @@ TAG_VOCAB: frozenset[str] = frozenset(
     "rate_sensitive content_write content_read api_read graphql_endpoint".split()
 )
 
+#: 契约里**故意丢弃**的标签（B395）：它们描述"这是个 API"，不描述"能测什么"。
+#: 写进 OpenAPI 也拿不到绑定——要用它们的 oracle 只能靠结构发现触达，或者无路可走。
+CONTRACT_DROPPED_TAGS: tuple[str, ...] = ("api_read",)
+
 #: 自指段词表：**只用于打标签**，不许用于构造请求（19 §3 末段）
 SELF_REF_WORDS = frozenset({"me", "self", "profile", "account", "my"})
 
@@ -496,8 +500,9 @@ def _merge_tags(
             )
     # api_read 是"通用面"：响应是 JSON 只说明它是 API，不说明能测什么。
     # 它既不采纳也不提议——否则每条 GET 都会变成一条"可测面"，把分母灌满。
-    by_tag.pop("api_read", None)
-    proposed.pop("api_read", None)
+    for dropped in CONTRACT_DROPPED_TAGS:
+        by_tag.pop(dropped, None)
+        proposed.pop(dropped, None)
     return (
         tuple(by_tag[t] for t in sorted(by_tag)),
         tuple(proposed[t] for t in sorted(proposed)),

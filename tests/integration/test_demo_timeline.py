@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -24,11 +25,15 @@ _LABEL = re.compile(r"^\[(\d+):(\d\d)\] ", re.MULTILINE)
 
 
 def _run_demo() -> str:
+    # 环境不能整份替换（B364）：以前只传 PATH + PYTHONIOENCODING，孩子进程里
+    # ① `yaml` 装在 user site，APPDATA 没了就 import 不到；
+    # ② `Path.home()` 直接 RuntimeError（没有 USERPROFILE）。
+    # 这不是"干净环境跑一遍"，是"缺了半台机器的环境跑一遍"。
     proc = subprocess.run(
         [sys.executable, "scripts/demo.py"],
         cwd=str(ROOT), capture_output=True, text=True,
         encoding="utf-8", errors="replace", timeout=180,
-        env={"PYTHONIOENCODING": "utf-8", "PATH": str(Path(sys.executable).parent)},
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
     )
     assert proc.returncode == 0, proc.stderr[-800:]
     return proc.stdout

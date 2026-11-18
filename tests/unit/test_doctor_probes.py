@@ -95,3 +95,19 @@ def test_green_stays_strict_on_skip() -> None:
     report = run_doctor(ROOT, only=["sandbox"])
     if report.results[0].status is Status.SKIP:
         assert report.green is False
+
+
+# ── B365：doctor 的子进程输出必须是 utf-8 ──────────────────────
+def test_child_processes_are_forced_to_utf8(tmp_path: Path) -> None:
+    """Windows 下子进程走管道时按 cp936 写，父进程按 utf-8 解 → 中文全成 `��`。
+
+    实测（本轮）：`python -m veripen_cli.cmd_doctor` 里 5 行 lint 摘要乱码，
+    而 `scripts/verify.py` 调同样的脚本却是好的——差别只在它设了 PYTHONIOENCODING。
+    这条用子进程**自报**环境变量来钉，不依赖本机 locale（POSIX 上同样成立）。
+    """
+    code, out = cmd_doctor._run(
+        [sys.executable, "-c", "import os;print(os.environ.get('PYTHONIOENCODING',''))"],
+        cwd=tmp_path,
+    )
+    assert code == 0, out
+    assert out.strip() == "utf-8", f"子进程没被强制 utf-8：{out!r}"

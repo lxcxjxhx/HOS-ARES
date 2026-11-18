@@ -41,10 +41,25 @@ def test_empty_code_does_not_crash() -> None:
     assert explain_with_code("") == "``"
 
 
+def test_crashed_oracle_becomes_a_stable_code_not_a_raw_exception() -> None:
+    """B364：`RuntimeError: 渲染线程启动失败…` 曾经整串落进原因列。
+
+    那不是码也不是人话，还随 locale 变（中文异常串）。异常**类型**进码，
+    原文只进日志——报告里读者要读的是"这一项没跑成"，不是我们的堆栈。
+    """
+    text = explain_with_code("oracle_crash:RuntimeError")
+    assert "工具自身出了问题" in text, text
+    assert "RuntimeError" in text, text
+    assert "`oracle_crash:RuntimeError`" in text, text
+    assert explain("oracle_crash:SomeWeirdError").startswith("这一项没跑成")
+
+
 def test_separator_is_a_dot_not_double_parens() -> None:
     """旧版写成 ``一句话（`code`）``，而多半句子自带括号 → 出现两层括号。"""
     text = explain_with_code("marker_not_fired")
-    assert "） · `" in text, text
+    # 判据是「用点号 + 反引号分隔」，不是「句子必须以右括号结尾」——B408 之后
+    # 有些句子以结论语气收尾（`——判否`），仍符合这个格式。
+    assert " · `marker_not_fired`" in text, text
     assert "）（`" not in text, text
 
 

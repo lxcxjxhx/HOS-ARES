@@ -56,12 +56,16 @@ def test_structure_renderers_match_baseline() -> None:
 def test_structure_no_page_falls_back_to_pre() -> None:
     """十个页各走专属渲染器（B38 打底，B65 补上 audit）。"""
     pairs = (("overview", "renderOverview"), ("engagement", "renderEngagement"),
-             ("coverage", "renderCoverage"), ("findings", "renderFindings"),
+             # coverage 的渲染器搬到了 coverage.js（B401：页面有行数预算），调用形态不同
+             ("findings", "renderFindings"),
              ("unverified", "renderUnverified"), ("finding", "renderFinding"),
              ("routes", "renderRoutes"), ("bounds", "renderBounds"),
              ("audit", "renderAudit"), ("approvals", "renderApprovals"))
     for op, fn in pairs:
         assert f'state.op === "{op}") view = {fn}(' in SRC, f"{op} 未接 {fn}"
+    # coverage 单独断言：函数在模块里，页面只负责传 `el` 与状态标签表
+    assert 'state.op === "coverage") view = renderCoverage(el, data, COVERAGE_LABEL);' in SRC
+    assert 'from "./coverage.js' in SRC
     # 兜底仍在：新增页未接专属渲染器时落到通用 JSON，而不是白屏
     assert "else view = renderGeneric(data)" in SRC
 
@@ -168,3 +172,52 @@ def test_generic_view_says_it_has_no_human_view() -> None:
     start = index.index("function renderGeneric")
     block = index[start:start + 320]
     assert "还没有人话视图" in block, "兜底页只丢 JSON，读者分不清「页面没做」还是「数据坏了」"
+
+
+# ── B401：能力边界必须在矩阵之前渲染 ────────────────────────────
+def test_coverage_page_renders_capability_limits_before_the_matrix() -> None:
+    """矩阵全绿 ≠ 都测过了：读者要先知道"哪些判定这一轮测不了"。
+
+    渲染器在 `coverage.js` 里（页面有行数预算），所以这里读模块源码断顺序。
+    """
+    src = (PAGE.parent / "coverage.js").read_text(encoding="utf-8")
+    body = src.split("export function renderCoverage", 1)[1]
+    limits_at = body.find("renderLimits(el, d.capability_limits)")
+    matrix_at = body.find("const table = el(\"table\");")
+    assert limits_at > 0, "覆盖页没有渲染能力边界"
+    assert matrix_at > limits_at, "能力边界必须渲染在矩阵之前"
+    # 没有边界时不留空标题
+    assert "if (!(list || []).length) return null;" in src
+
+
+def test_every_page_module_is_served_by_the_console() -> None:
+    """页面 `import` 的每个模块，控制台都得**显式**暴露（不做目录挂载）。
+
+    B401 踩过：新加 `coverage.js` 忘了登记，浏览器取回的是 HTML，
+    模块解析失败 → 整个页面静默不工作，只有真实浏览器用例能抓到。
+    """
+    import re
+
+    from web.console import _UI_MODULES
+
+    imported = set(re.findall(r'from "\./([^"?]+)', SRC))
+    for name in imported:
+        assert name in _UI_MODULES, f"{name} 被页面导入但没有登记到 _UI_MODULES"
+    for name in _UI_MODULES:
+        assert (PAGE.parent / name).exists(), f"登记了 {name} 但文件不存在"
+
+
+# ── B402：缓存失效不许靠手写版本号 ───────────────────────────────
+def test_module_imports_carry_no_hand_written_version() -> None:
+    """`?v=3` 这种手写版本号是**陷阱**：改模块忘改它，浏览器就命中旧缓存。
+
+    控制台对页面与模块都回 `Cache-Control: no-cache`（每次协商），
+    所以版本号不带来任何收益，只留下"忘了改"的风险。
+    """
+    import re
+
+    assert not re.search(r'from "\./[^"]*\?v=', SRC), "模块导入不该带手写版本号"
+
+    from web.console import UI_MODULES_SERVED_NO_CACHE
+
+    assert "router.js" in UI_MODULES_SERVED_NO_CACHE, UI_MODULES_SERVED_NO_CACHE

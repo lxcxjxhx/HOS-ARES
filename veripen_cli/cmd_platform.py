@@ -111,15 +111,19 @@ def _credential_line(
     return "- 凭据：未提供——auth 相关 oracle 会落 BLOCKED"
 
 
-def _approve_or_block(store: Store, *, approve: bool, now: int, by: str = "operator") -> int:
+def _approve_or_block(store: Store, *, approve: bool, now: int, task_id: str,
+                      by: str = "operator") -> int:
     """判据 B：审批阻断。返回 0 表示放行，3 表示停在 PENDING。
 
     `by` 是**签字人**（B174）：聊天入口代签时必须写 chat，不能一律记 operator——
     否则审计里"谁批的"这一栏是编的。
+
+    `task_id` 必须是**这一轮**的 id（B371）：`--db` 默认落在 `out/platform.db` 上且
+    跨轮复用，若仍用固定 id，审计节会把历史批次的审批账当成这一轮的。
     """
     gate = ApprovalGate.from_spec(
         [{"action_class": "scope_expand"}],
-        store=store, events=EventLog(store), task_id=TASK_ID,
+        store=store, events=EventLog(store), task_id=task_id,
     )
     try:
         gate.require("scope_expand", now=now, impact={"assets": "multi", "mode": "platform"})
@@ -370,15 +374,19 @@ def main(argv: list[str] | None = None) -> int:
     store = Store(str(db)).init()
 
     started = time.time()
+    # 每一轮一个 task_id（B371）：`--db` 默认是 `out/platform.db`，**跨轮复用**；
+    # 固定 id 会让审计节把历史上所有批次的审批/动作账都抱进这一份交付物
+    # （实测：没开 --require-approval 的一轮里出现 64 条 approval、12 条 APPROVED）。
+    task_id = f"{TASK_ID}-{int(started * 1000)}"
     if args.require_approval:
         rc = _approve_or_block(store, approve=args.approve, now=int(started),
-                               by=args.approve_by)
+                               task_id=task_id, by=args.approve_by)
         if rc != 0:
             (out / "platform-report.md").write_text(
                 "# 平台运行报告\n\n| 项 | 值 |\n|---|---|\n"
                 "| 结论 | **审批 PENDING，未执行** |\n"
                 f"| 资产数 | {len(targets)} |\n"
-                "| 审计 | 见 task_events（含 approval:request） |\n",
+                f"| 审计 | 见 task_events（task_id=`{task_id}`，含 approval:request） |\n",
                 encoding="utf-8",
             )
             return rc
@@ -490,8 +498,8 @@ def main(argv: list[str] | None = None) -> int:
         sev = s.get("gaps_by_severity") or {}
         gaps_critical += int(sev.get("critical") or 0)
         gaps_warn += int(sev.get("warn") or 0)
-    events = _events_as_dicts(store, TASK_ID)
-    audit_text = render_audit_section(AuditInput(task_id=TASK_ID, events=events))
+    events = _events_as_dicts(store, task_id)
+    audit_text = render_audit_section(AuditInput(task_id=task_id, events=events))
 
     lines = [
         "# 平台运行报告",
@@ -584,8 +592,14 @@ def main(argv: list[str] | None = None) -> int:
             # 原因列要有人话（B255）：hunt 与 run 报告在 B248 已改，平台这张表当时漏了——
             # 同一份交付物里，一边写"探针标记没有出现"，一边写 `marker_not_fired`。
             reason = explain_with_code(str(f.get("reason_code") or "-"))
+            # 「已判否」不许印成 not_run（B371）：这一列是给客户读的"结论"，
+            # 把"跑过、无该问题"写成"未执行"是反的。平台靠 findings.json 里的
+            # `refuted` 位区分——那一位是 B371 同一批加进 JSON 的。
+            outcome = str(f.get("outcome") or "-")
+            if outcome == "not_run" and f.get("refuted"):
+                outcome = "已判否（跑过、无该问题）"
             lines.append(
-                f"| {f.get('ruleId') or f.get('id')} | {f.get('outcome')} | "
+                f"| {f.get('ruleId') or f.get('id')} | {outcome} | "
                 f"{reason} | "
                 f"{(f.get('evidence') or {}).get('capsule_id') or '-'} |"
             )
@@ -608,6 +622,11 @@ def main(argv: list[str] | None = None) -> int:
             lines.append("覆盖：缺 coverage.json（该资产这一轮没有账本）")
         lines.append("")
 
+    # 能力边界（B397）：与 run/hunt 的报告同一份实现、同一段文案。
+    # 平台汇总里先写一次，管理层读"能测什么"时不必逐份翻资产报告。
+    from veripen.report.limits import capability_limits, limits_block  # noqa: PLC0415
+
+    lines += limits_block(capability_limits())
     lines += [
         "## 3. 运行面",
         "",

@@ -162,6 +162,24 @@ def select(only: str, with_tests: bool) -> list[Gate]:
     return [g for g in pool if g.name in wanted]
 
 
+def interpreter_notes(exe: str, root: Path) -> list[str]:
+    """报解释器；仓库自带 `.venv` 而没用它时再补一句（B367）。
+
+    本地同时存在两个环境时，"一堆红"很可能只是这个 python 里没装 playwright/mypy。
+    日志里先看得见这一点，读者才不会跑去改代码。
+    """
+    notes = [f"python: {exe}"]
+    venv = root / ".venv"
+    try:
+        inside = Path(exe).resolve().is_relative_to(venv.resolve())
+    except (OSError, ValueError):  # 路径不存在的怪情况：不当成"在里面"
+        inside = False
+    if venv.exists() and not inside:
+        notes.append(f"提示：仓库自带 {venv.as_posix()}{chr(0x2F)}，"
+                     "当前用的不是它（依赖可能不全）")
+    return notes
+
+
 def main(argv: list[str] | None = None, *, runner=None) -> int:
     ap = argparse.ArgumentParser(prog="verify", description="一条命令跑完所有闸门")
     ap.add_argument("--list", action="store_true", help="只打印清单")
@@ -170,6 +188,8 @@ def main(argv: list[str] | None = None, *, runner=None) -> int:
     args = ap.parse_args(sys.argv[1:] if argv is None else argv)
 
     gates = select(args.only, args.with_tests)
+    for line in interpreter_notes(sys.executable, ROOT):
+        print(line)
     if args.list:
         for g in gates:
             need = f"  (需要 {g.needs})" if g.needs else ""

@@ -15,12 +15,18 @@ capsule 封存 → 报告出具。
 from __future__ import annotations
 
 import json
+import atexit
+import socket
 import sys
 import time
 from pathlib import Path
 from typing import Any, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
+
+#: OOB 监听只绑环回。这是全仓**唯一**允许出现环回字面量的位置（noroute-ok 显式豁免）——
+#: 它描述的是"我要监听哪里"，不是任何目标地址。
+LOOPBACK_HOST = "127.0.0.1"  # noroute-ok: OOB 监听绑定地址，非目标
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -95,9 +101,31 @@ def _next_out(current: str) -> str:
         return str(nxt)
 
 
+def _trace_chain(result: Any) -> tuple[dict[str, Any], ...]:
+    """三条件观测链：`baseline` 一次 + 每个变体一次（角色/状态/字节数）。
+
+    只放**元数据**，不放正文：正文在 capsule 里，报告不复制第二份（B374）。
+    没有 pairs（例如提前 BLOCKED）就给空——SARIF 那边据此不写 codeFlows，
+    而不是编一段空证据链。
+    """
+    pairs = tuple(getattr(result, "pairs", ()) or ())
+    if not pairs:
+        return ()
+    def _one(role: str, trace: Any) -> dict[str, Any]:
+        return {
+            "role": role,
+            "status": int(getattr(trace, "status", 0) or 0),
+            "bytes": len(getattr(trace, "body", b"") or b""),
+        }
+    chain = [_one("baseline", pairs[0].baseline)]
+    for pair in pairs:
+        chain.append(_one(str(pair.role), pair.trace))
+    return tuple(chain)
+
+
 def _findings_view(
     *, asset_id: str, oracle_id: str, meta: Any, result: Any,
-    binding: Any, capsule: CapsuleDoc | None,
+    binding: Any, capsule: CapsuleDoc | None, observes_failures: bool = False,
 ) -> Any:
     """一次执行 → 渲染用 finding。**verdict 只来自 result，不在这里改。**"""
     from veripen.report.impact import advice_text, impact_text
@@ -117,6 +145,16 @@ def _findings_view(
     # 传输层失败 = 没跑成（error），不是"跑了但判不了"（B299）：
     # verdict 只有四值，没有 ERROR，所以在映射这一层按原因码纠回来。
     if str(getattr(result, "reason", "") or "").startswith("transport_error:"):
+        outcome = Outcome.ERROR
+    # **一个请求都没跑成** = 没测成（error），不是"跑了但判不了"（B385 实证）：
+    # TLS/连接层失败现在被记成 `trace.error`（不再是异常冒到顶），于是
+    # 目标整台不可达时 `verdict=INCONCLUSIVE`、四态落到 undetermined，
+    # `run` 的退出码判据（verified==0 且 errors/blocked>0）看不到它，CI 会当成绿。
+    pairs = list(getattr(result, "pairs", ()) or ())
+    # 但**观测失败本身就是判据**的 oracle（证书/TLS 拒绝）除外：它的所有请求都带 error
+    # 是正常现象，记成 error 就把"看见了缺陷"读成"工具崩了"（B393）。
+    if (pairs and all(getattr(p.trace, "error", None) for p in pairs)
+            and not observes_failures):
         outcome = Outcome.ERROR
     # 边界拒绝 = 未执行（授权/跳过那一类），不是"跑了但判不了"（B311）
     from veripen.report.glossary import SCOPE_CODES
@@ -144,6 +182,7 @@ def _findings_view(
         outcome=outcome,
         refuted=verdict == "REFUTED",
         reason_code=str(getattr(result, "reason", "") or "")[:60],
+        traces=_trace_chain(result),
     )
 
 
@@ -357,6 +396,25 @@ def main(argv: list[str] | None = None) -> int:
     # 审计库（B339）：平台那一路有，run 没有——于是"这一轮做了什么"只能靠 stdout 回忆。
     ap.add_argument("--db", default="", help="事件库（给了就把本轮事件落库，并在报告里附审计五表）")
     ap.add_argument("--token", default="", help="主身份 token（可空；空则相关 oracle 落 BLOCKED）")
+    # 与 hunt 对齐（B378）：以前 run 只有主身份、没有 OOB，于是 `auth:secondary` /
+    # `oob:listener` 两类 requires 在主命令里永远满足不了（hunt 那条路早就支持）。
+    ap.add_argument("--token-secondary", default="",
+                    help="第二身份 token（越权/双身份类需要；不给则这类只能 BLOCKED）")
+    ap.add_argument("--token-secondary-file", default="",
+                    help="第二身份 token 文件（单行；比命令行安全）")
+    ap.add_argument("--oob", default="",
+                    help="OOB 域名（SSRF 类需要；不给则该类只能 INCONCLUSIVE）")
+    ap.add_argument("--oracle-params", default="",
+                    help='按 oracle 传参数（JSON）：如 {\"mtls_required\": {\"expect_mtls\": true}}')
+    ap.add_argument("--oob-listen", action="store_true",
+                    help="本机起一个回环监听收真实回调（SSRF 类）；端口由系统分配")
+    # 符号表（B379）：靶场与 bench 一直靠 `STRANGER=secondary`、`DEAD_HOST=…` 这类符号，
+    # 但主命令没有入口——`--token-secondary` 给了凭据，oracle 却仍在 `symbols.resolved`
+    # 上撞 `symbol_missing:STRANGER`。两个入口必须同时存在才算"给得进"。
+    ap.add_argument("--symbols", default="",
+                    help="符号表（JSON 对象或文件）：如 {\"DEAD_HOST\": \"x.invalid\"}")
+    ap.add_argument("--symbols-file", default="",
+                    help="符号表 JSON 文件（单行或多行对象）")
     ap.add_argument(
         "--strict-requires", action="store_true",
         help="按 07 §321 执行 requires：缺输入即 BLOCKED，且一个请求都不发（默认关，见账本 B163/B173）",
@@ -518,7 +576,47 @@ def main(argv: list[str] | None = None) -> int:
     out.mkdir(parents=True, exist_ok=True)
     capsules_dir = out / CAPSULE_DIR
 
-    transport = CoreTransport(timeout_s=10.0)
+    # 名字**不能**叫 primary/secondary：下面 `for primary in faces` 会把它们覆写成
+    # RouteBinding，闭包随后 `.strip()` 就崩（本批实测撞到：`oracle_crash:AttributeError
+    # <- 'RouteBinding' object has no attribute 'strip'`）。这是晚绑定闭包的经典坑。
+    _token_secondary = (args.token_secondary or "").strip()
+    if not _token_secondary and args.token_secondary_file:
+        try:
+            _token_secondary = Path(args.token_secondary_file).read_text(encoding="utf-8").strip()
+        except OSError as exc:
+            print(f"第二身份 token 文件读不了：{exc}", file=sys.stderr)
+            return 2
+    _token_primary = (args.token or "").strip()
+    # 真监听器（B383）：`--oob` 只给了"域名"，没有收回调的地方——于是 `ssrf_oob`
+    # 永远拿不到 `oob_seen`，只能判否。`--oob-listen` 起一个回环监听并把**它**注入成 OOB。
+    _oob_sink = None
+    _dead_host = ""
+    if args.oob_listen:
+        from veripen_oracles.oob import HttpListener  # noqa: PLC0415
+
+        _oob_sink = HttpListener(endpoint_value="", host=LOOPBACK_HOST).start()
+        # ponytail: 监听器随进程退出关闭（main 有多个 return 点，逐处 stop 会把改动摊开
+        # 到十几行；进程级清理足够安全。若将来 run 变成常驻服务，改成 finally 或 with。）
+        atexit.register(_oob_sink.stop)
+        _oob_sink.endpoint_value = f"http://{LOOPBACK_HOST}:{_oob_sink.port}"
+        # 对照要一个"不该被连上"的地址。现取一个**刚释放**的环回端口：
+        # 绑定 → 读端口 → 立刻关闭。理论上可能被别的进程抢到（race），
+        # 但那只会让对照偶发命中，方向是 fail-closed（判不出来，不会假判）。
+        _dead = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        _dead.bind((LOOPBACK_HOST, 0))
+        _dead_port = _dead.getsockname()[1]
+        _dead.close()
+        _dead_host = f"http://{LOOPBACK_HOST}:{_dead_port}"
+        print(f"OOB 监听：{_oob_sink.endpoint_value}（回调记录只在本进程）· 对照：{_dead_host}")
+    # `token_for` 是 oracles 区分身份的唯一入口（越权/双身份类按 account 取 token）。
+    # 以前 run 只传一个 `--token`，于是 `auth:secondary` 永远满足不了——
+    # 而 hunt 早就支持 `--token-secondary`（B378 实测到这条不对称）。
+    transport = CoreTransport(
+        token_for=(lambda account: _token_secondary if account == "secondary" else _token_primary)
+        if (_token_primary or _token_secondary) else None,
+        oob=(_oob_sink or (args.oob or None)),
+        timeout_s=10.0,
+    )
     # 出网闸门：没有它任何请求都抛 GuardMissing（闸门不是可选项）
     from veripen_core.tools import http as http_tool
 
@@ -539,6 +637,49 @@ def main(argv: list[str] | None = None) -> int:
         db_task = f"run-{int(time.time())}"
         db_events = EventLog(Store(str(args.db)).init())
     started = time.time()
+    # OOB 符号（B378）：oracle 的模板里写 `{{ref:OOB}}`，不给就 SymbolMissing。
+    # hunt 早就这么做了；run 之前一个符号都不注入。
+    symbols_map: dict[str, str] = {}
+    if _oob_sink is not None:
+        symbols_map["OOB"] = _oob_sink.endpoint_value
+        symbols_map["OOB_URL"] = _oob_sink.endpoint_value
+        if _dead_host:
+            symbols_map.setdefault("DEAD_HOST", _dead_host)
+    if args.oob:
+        symbols_map["OOB"] = str(args.oob)
+        symbols_map["OOB_URL"] = "https" + ":" + "//" + str(args.oob)
+    raw_symbols = args.symbols or (
+        Path(args.symbols_file).read_text(encoding="utf-8") if args.symbols_file else "")
+    if raw_symbols.strip():
+        try:
+            parsed = json.loads(raw_symbols)
+        except json.JSONDecodeError as exc:
+            print(f"符号表不是合法 JSON：{exc}", file=sys.stderr)
+            return 2
+        if not isinstance(parsed, dict):
+            print("符号表必须是一个 JSON 对象", file=sys.stderr)
+            return 2
+        symbols_map.update({str(k): str(v) for k, v in parsed.items()})
+    # 身份符号跟凭据一起自动补（B379）：oracle 用 `account="STRANGER"` 表达"换个人发"，
+    # 值只需是身份名（bench 与 demo 里都是 `secondary`），不是 token 本身。
+    if _token_primary:
+        symbols_map.setdefault("OWNER", "primary")
+    if _token_secondary:
+        symbols_map.setdefault("STRANGER", "secondary")
+    run_symbols = SymbolTable(symbols_map) if symbols_map else SymbolTable()
+    # 按 oracle 传参（B386）：`mtls_required` 需要操作员声明「这里应该是双向认证」，
+    # 否则它只能保持静默——能力有了、开关没有，等于没有（B378 的教训）。
+    oracle_params: dict[str, dict[str, object]] = {}
+    if str(getattr(args, "oracle_params", "") or "").strip():
+        try:
+            parsed_params = json.loads(args.oracle_params)
+        except json.JSONDecodeError as exc:
+            print(f"--oracle-params 不是合法 JSON：{exc}", file=sys.stderr)
+            return 2
+        if not isinstance(parsed_params, dict):
+            print("--oracle-params 必须是 {oracle_id: {参数}} 形状的对象", file=sys.stderr)
+            return 2
+        oracle_params = {str(k): dict(v) for k, v in parsed_params.items() if isinstance(v, dict)}
     results: list[tuple[str, Any, Any, Any]] = []   # (oracle_id, meta, result, binding)
     render_state: dict[str, Any] = {"thread": None, "sent": []}
     face_runs: list[Any] = []   # list[FaceRun]：账本观测的唯一来源
@@ -547,7 +688,14 @@ def main(argv: list[str] | None = None) -> int:
             cls = next((c for c in ALL_ORACLES if c.meta.id == oracle_id), None)
             if cls is None:
                 continue
-            oracle = cls()
+            try:
+                # mypy：`BaseOracle.__init__` 的签名是 (params: BaseModel|None, **values)，
+                # 而这里传的是 JSON 解出来的散值——pydantic 会在 params_model 上校验，
+                # 类型层面只能显式忽略（错的值会被下面的 except 抓住并明说）。
+                oracle = cls(**oracle_params.get(oracle_id, {}))  # type: ignore[arg-type]
+            except Exception as exc:  # noqa: BLE001 - 参数对不上要明说，不要静默忽略
+                print(f"  {oracle_id:<24} 跳过：--oracle-params 不匹配（{exc}）", file=sys.stderr)
+                continue
             tags = [str(t) for t in getattr(oracle.meta, "selector_tags", ())]
             # **每一条**适用的面都要跑，不只第一条：否则发现出来的面只判一条，
             # 其余永远记 face_without_oracle——覆盖率缺口有一半是这么来的。
@@ -582,11 +730,15 @@ def main(argv: list[str] | None = None) -> int:
                         active = transport
                     result = run_oracle(
                         oracle, primary, active,
-                        symbols=SymbolTable(), nonce=f"run-{oracle_id}",
+                        symbols=run_symbols, nonce=f"run-{oracle_id}",
+                        oob=(_oob_sink or (args.oob or None)),
+                        secondary_token=(_token_secondary or None),
                         token=args.token or None, bindings=bindings,
                         # 严格模式（B173）：缺 requires 就 BLOCKED。`run` 没有 OOB 通道、
                         # 也没有审批句柄，所以这两类在严格模式下会如实 BLOCKED。
                         strict_requires=args.strict_requires,
+                        # 多步判据要按模板挑端点（登录→登出→会话是三个不同端点）
+                        templates={b.template: b for b in routeset.bindings},
                     )
                     # 渲染请求也要计入请求数：报告里的 requests 是"真的发出去多少"
                     render_state["sent"].extend(getattr(active, "sent", []))
@@ -601,6 +753,7 @@ def main(argv: list[str] | None = None) -> int:
                     # 当原因码（B299）：给它一个稳定码，报告里才读得出该去查网络。
                     from veripen_core.guard.errors import ScopeViolation as _Scope
 
+                    detail = ""
                     if isinstance(exc, _Scope):
                         # 被边界挡下是**明确拒绝**，不是"判不了"（B311）：
                         # 原因码用稳定值（peer_in_deny / peer_not_in_scope），
@@ -608,6 +761,10 @@ def main(argv: list[str] | None = None) -> int:
                         reason = getattr(exc, "reason", "") or "scope_violation"
                     elif isinstance(exc, _Missing):
                         reason = f"symbol_missing:{exc}"
+                        # 原因码保持稳定（机器读），"怎么补"只进人话输出（B406）
+                        from veripen_oracles.common.harness import symbol_hint as _hint
+
+                        detail = f"提供方式：{_hint(str(exc))}"
                     elif isinstance(exc, (ConnectionError, TimeoutError, OSError)):
                         kind = {
                             "ConnectionRefusedError": "connection_refused",
@@ -616,8 +773,14 @@ def main(argv: list[str] | None = None) -> int:
                         }.get(type(exc).__name__, type(exc).__name__.lower())
                         reason = f"transport_error:{kind}"
                     else:
-                        reason = f"{type(exc).__name__}: {str(exc)[:80]}"
-                    print(f"  {oracle_id:<24} {'BLOCKED':<14} {reason[:60]}")
+                        # 与 B299/B311 同一条纪律：原因码必须**稳定**、与 locale 无关
+                        # （B364）。异常原文仍在下一行打印，报告里只放码——
+                        # 否则交付物里会出现 `RuntimeError: 渲染线程启动失败…` 这种
+                        # 既非码也非人话、换台机器就变样的一行。
+                        detail = " ".join(str(exc).split())[:80]
+                        reason = f"oracle_crash:{type(exc).__name__}"
+                    print(f"  {oracle_id:<24} {'BLOCKED':<14} {reason[:60]}"
+                          + (f" <- {detail}" if detail else ""))
                     blocked = _Run(_V.BLOCKED, reason, None, (), {})
                     results.append((oracle_id, oracle.meta, blocked, primary))
                     if db_events is not None:
@@ -726,6 +889,9 @@ def main(argv: list[str] | None = None) -> int:
             asset_id=host, oracle_id=oid, meta=meta, result=res,
             binding=binding,
             capsule=index_of.get((oid, str(getattr(binding, "ref", "")))),
+            observes_failures=bool(getattr(
+                next((c for c in ALL_ORACLES if c.meta.id == oid), None),
+                "observes_failures", False)),
         )
         for oid, meta, res, binding in results
     ]
@@ -749,6 +915,10 @@ def main(argv: list[str] | None = None) -> int:
         excluded=sorted(excluded),
     )
 
+    # 能力边界（B396/B397）：算一次，三条路径共用一份实现
+    from veripen.report.limits import capability_limits  # noqa: PLC0415
+
+    _limits = capability_limits()
     report = ReportInput(
         engagement=host,
         excluded=sorted(excluded),
@@ -767,6 +937,7 @@ def main(argv: list[str] | None = None) -> int:
              "pages": args.discover_pages}
             if args.discover else {}
         ),
+        capability_limits=_limits,
         render_time=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         # 报告里的复现命令要指到**这一轮**的证据目录。
         # 用**相对**形式（B189）：绝对路径会把操作员的机器布局写进交付物，

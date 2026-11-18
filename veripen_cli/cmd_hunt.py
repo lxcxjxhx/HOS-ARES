@@ -781,6 +781,15 @@ def main(argv: list[str]) -> int:
     bounds_text = dumps_artifact({"count": len(violations), "events": violations})
     (out / "bounds.json").write_text(bounds_text, encoding="utf-8", newline=chr(10))
 
+    # 能力边界（B400）：`hunt.md` 有、`hunt.json` 没有——机器消费者读到的仍是"全测过了"。
+    # 与 run/hunt/platform 同一份实现，字段形状与 `findings.json` 对齐。
+    from veripen.report.limits import capability_limits  # noqa: PLC0415
+
+    record["capability_limits"] = [
+        {"kind": kind, "check": check_id, "why": why}
+        for kind, rows in capability_limits().items()
+        for check_id, why in rows
+    ]
     hunt_text = dumps_artifact(record)
     (out / "hunt.json").write_text(hunt_text, encoding="utf-8", newline=chr(10))
     # 可交付报告（B166）：与 hunt.json **同源渲染**，同一个 dict 进两份产物

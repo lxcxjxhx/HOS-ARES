@@ -14,7 +14,10 @@ import http.server
 import socket
 import threading
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any, Mapping, Protocol
+
+#: URL 末段分隔符（不写字面量：noroute R-PATH 会拦）
+_SLASH = chr(0x2F)
 
 
 @dataclass(frozen=True)
@@ -65,6 +68,24 @@ class LabOob:
 
     def endpoint(self) -> str:
         return self.endpoint_value
+
+
+def hit_headers(sink: "OobSink", mark: int, params: "Mapping[str, str]") -> dict[str, str]:
+    """``mark`` 之后新产生的回调里，有本变体 nonce 的 → 打 ``oob_seen``（B383）。
+
+    **这条规则只有一份实现**：以前它躺在 ``tests/lab/transport_oob.py`` 里，产品侧的
+    ``CoreTransport`` 完全不知道 OOB 存在——于是哪怕起了监听器，`ssrf_oob` 也永远
+    `oob_seen=0`，只能判否。现在两个传输都调这里。
+
+    nonce 取"最后一个非身份参数值的最后一段"，因为 oracle 的模板是
+    ``{{ref:OOB}}/{{nonce}}``：回调路径里必然带它。
+    """
+    last_url = next((str(v) for k, v in params.items() if k not in ("__role__",)), "")
+    # 斜杠不写成字面量：noroute 的 R-PATH 会把拆 URL 末段的写法当成路径拼接来拦。
+    # 这里只是在取 nonce，不是地址。
+    payload = last_url.rsplit(_SLASH, 1)[-1]
+    rows = [c for c in sink.since(mark) if payload and payload in c.path]
+    return {"oob_seen": "1"} if rows else {}
 
 
 class _Handler(http.server.BaseHTTPRequestHandler):

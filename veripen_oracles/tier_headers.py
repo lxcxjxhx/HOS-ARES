@@ -88,11 +88,15 @@ class _HeaderAbsent(BaseOracle):
 
         probe_has = self._present(probe.trace)
         ctrl_has = self._present(control.trace)
+        absent = not probe_has and not ctrl_has
         assertion = {
             "kind": "missing_security_header",
             "statement": f"两次独立请求都没有提供 {self.header_name} 保护",
-            # expected 的 schema 是 dict[str, list[int]]：1 = 有保护 / 0 = 没有
-            "expected": {"has_protection": [1]},
+            # expected 的 schema 是 dict[str, list[int]]：1 = 有保护 / 0 = 没有。
+            # **必须随结论方向变**（B381）：以前恒为 [1]，于是"头缺失"（VERIFIED）那份
+            # 证据的 expected 与它自己的结论相反——重放一算就 `assertion_not_reproduced`。
+            # 这三个 oracle 从 B123 起没有 bench 用例，所以这处一直没被重放过。
+            "expected": {"has_protection": [0] if absent else [1]},
             "observed": {
                 "probe_has": probe_has,
                 "control_has": ctrl_has,
@@ -104,7 +108,7 @@ class _HeaderAbsent(BaseOracle):
         }
         if probe.trace.error or control.trace.error:
             return self.inconclusive("fetch_failed", assertion)
-        if not probe_has and not ctrl_has:
+        if absent:
             return self.verified(self.absent_reason, assertion, 0.9)
         return self.refuted(self.present_reason, assertion)
 

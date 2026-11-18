@@ -162,3 +162,22 @@ def test_old_plan_manifest_matches_its_content() -> None:
         pytest.skip("缺 node")
     status, note = verify.run_gate(gate)
     assert status == verify.PASS, note
+
+
+# ── B367：日志里要看得见"这是哪个解释器" ────────────────────────
+def test_interpreter_note_flags_a_mismatched_virtualenv(tmp_path: Path) -> None:
+    """本地有两个环境时，"一堆红"经常只是这个 python 缺依赖。
+
+    实测（本轮）：用全局 python 跑集成 → 6 红、16 skip；换回仓库自带的 `.venv`
+    → 全绿。日志里没有解释器，第一反应只会是"改了代码导致回归"。
+    """
+    import verify
+
+    (tmp_path / ".venv").mkdir()
+    notes = verify.interpreter_notes(str(tmp_path / "python.exe"), tmp_path)
+    assert notes[0].startswith("python: "), notes
+    assert any("仓库自带" in n for n in notes), notes
+
+    inside = tmp_path / ".venv" / "Scripts" / "python.exe"
+    notes = verify.interpreter_notes(str(inside), tmp_path)
+    assert not any("仓库自带" in n for n in notes), "用对了就别再提示"

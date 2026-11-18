@@ -26,6 +26,7 @@ import hashlib
 import hmac
 import json
 import re
+import urllib.request
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping
@@ -159,6 +160,11 @@ class App:
             "primary": {"sub": "primary", "display_name": "p", "role": "user"},
             "secondary": {"sub": "secondary", "display_name": "s", "role": "user"},
             "rate_hits": 0,
+            "used_codes": set(),
+            # 会话表（B410）：sid → 账号。登出失效（S3）判的就是"登出后它还活着吗"
+            "sessions": {},
+            # 授权码 → code_challenge（B411）：PKCE 判定要看它
+            "challenges": {},
         }
     )
 
@@ -188,7 +194,31 @@ class App:
                 headers.append(("Access-Control-Allow-Origin", ALLOWED_ORIGIN))
                 headers.append(("Vary", "Origin"))
         if status in REDIRECT_STATUSES:
-            headers.append(("Location", query.get("to", [""])[0]))
+            target = query.get("redirect_uri", [""])[0] or query.get("to", [""])[0]
+            echoed = query.get("state", [""])[0]
+            if self.secure and echoed:
+                joiner = "&" if "?" in target else "?"
+                target = f"{target}{joiner}state={echoed}"
+            headers.append(("Location", target))
+        if path == "/portal/index" and self.secure:
+            # 响应头三件套（B381）：安全态齐全，脆弱态一个都不给——
+            # 这正是 csp_absent / frame_opt_absent / nosniff_absent 的判定面
+            headers.append(("Content-Security-Policy", "default-src 'self'"))
+            headers.append(("X-Frame-Options", "DENY"))
+            headers.append(("X-Content-Type-Options", "nosniff"))
+        if path == "/portal/login":
+            # 会话固定（B376）：**脆弱态采纳客户端给的 sid**，安全态一律新发。
+            # 这正是"攻击者预置会话 id，受害者登录后沿用"的最小可判定形状。
+            supplied = query.get("sid", [""])[0]
+            sid = supplied if (not self.secure and supplied) else new_id()
+            self.state["sessions"][sid] = str(query.get("account", [""])[0] or "primary")
+            # Cookie 标志（B390）：脆弱态只给 Path（没有 HttpOnly/Secure/SameSite），
+            # 安全态三件套齐全。S2 判的就是这三个标志。
+            if self.secure:
+                headers.append(("Set-Cookie",
+                                f"sid={sid}; Path=/; HttpOnly; Secure; SameSite=Lax"))
+            else:
+                headers.append(("Set-Cookie", f"sid={sid}; Path=/"))
         start_response(f"{status} X", headers)
         return [payload]
 
@@ -214,6 +244,23 @@ class App:
             return self._fetch(query.get("url", [""])[0])
         if path == "/api/read":
             return self._read(query.get("name", [""])[0])
+        if path == "/portal/index":
+            return 200, "text/html; charset=utf-8", "<html><body><h1>portal</h1></body></html>"
+        if path == "/portal/authorize":
+            return self._authorize(
+                query.get("redirect_uri", [""])[0],
+                query.get("state", [""])[0],
+                query.get("code_challenge", [""])[0],
+            )
+        if path == "/portal/token":
+            return self._portal_token(query.get("code", [""])[0],
+                                      query.get("code_verifier", [""])[0])
+        if path == "/portal/session":
+            return self._portal_session(environ)
+        if path == "/portal/logout":
+            return self._portal_logout(environ)
+        if path == "/portal/login":
+            return 200, "application/json", {"ok": True, "account": query.get("account", [""])[0]}
         if path == "/api/login":
             return self._login(query.get("account", [""])[0])
         if path == "/api/me":
@@ -281,6 +328,16 @@ class App:
             return 400, "application/json", {"error": "url_not_allowed"}
         if target.startswith(OOB_PREFIX):
             self.callbacks.append({"url": target, "ua": "veripen-lab/1.0"})
+        # B383：**真的去连一次**（短超时、失败吞掉）。只登记不出网的话，
+        # 产品侧的真监听器永远收不到回调——"两种传输同一条规则"就成了空话。
+        if target.startswith(("http" + "://", "http" + "s" + "://")):
+            try:
+                # 靶场就是 SSRF 的受害者：它去连谁由参数决定（这正是被测行为）
+                with urllib.request.urlopen(target, timeout=1.5) as resp:  # noqa: S310
+                    resp.read(16)
+            except Exception:  # noqa: BLE001 - 靶场不因外带失败而 5xx
+                pass
+        if target.startswith(OOB_PREFIX):
             return 200, "application/json", {"fetched": True, "bytes": 128}
         return 200, "application/json", {"fetched": True, "bytes": 128, "scheme": host}
 
@@ -399,6 +456,69 @@ class App:
             return 400, "application/json", {"error": "unknown_account"}
         return 200, "application/json", {"token": make_token(account)}
 
+    def _authorize(self, redirect_uri: str, state: str = "", code_challenge: str = "") -> tuple[int, str, Any]:
+        """OAuth 授权端点（B384）：脆弱态**照样跳外域**，安全态只放站内。
+
+        脆弱态还会先"预检"一次 redirect_uri（真的 GET 一次）——这是把外部 URL 当服务端
+        请求发的经典形态，也让 O1 的 `oob_hit` 有真实来源；安全态连跳都不跳。
+        """
+        external = redirect_uri.startswith(("http" + "://", "http" + "s" + "://"))
+        # 伪协议（javascript:/data:）连脆弱态也不跳：那不是"没校验外域"，
+        # 而是"跳转到了脚本"——真正的 OAuth 服务端不会这样做，靶场也不该这样演
+        if ":" in redirect_uri and not external:
+            return 400, "application/json", {"error": "invalid_scheme"}
+        # state（B389）：安全态**必须**带且原样回传；脆弱态完全忽略——
+        # 这正是 CSRF/授权码注入那一类问题的形状
+        if self.secure and not state:
+            return 400, "application/json", {"error": "missing_state"}
+        if self.secure and external:
+            return 400, "application/json", {"error": "invalid_redirect_uri"}
+        if external:
+            try:
+                with urllib.request.urlopen(redirect_uri, timeout=1.5) as resp:  # noqa: S310
+                    resp.read(16)
+            except Exception:  # noqa: BLE001 - 预检失败不影响后续跳转
+                pass
+        # PKCE（B411）：安全态**用了就校验**——带 challenge 的码，换码时必须对得上；
+        # 不带的码走非 PKCE 流程（O1/O2 的基线正是这种）。
+        # 脆弱态一律不校验，这正是"截到码就能换 token"的形状。
+        code = new_id()[:16]
+        self.state["challenges"][code] = code_challenge or ""
+        return 302, "application/json", {"redirect_uri": redirect_uri, "code": code}
+
+    def _portal_token(self, code: str, code_verifier: str = "") -> tuple[int, str, Any]:
+        """授权码换 token（B377）：**脆弱态同一个 code 能换两次**，安全态一次性。"""
+        if not code:
+            return 400, "application/json", {"error": "missing_code"}
+        # 形式校验（B391）：安全态先看码长什么样（16 位小写十六进制），脆弱态照单全收
+        if self.secure and not re.fullmatch(r"[0-9a-f]{16}", code):
+            return 400, "application/json", {"error": "malformed_code"}
+        # PKCE 校验（B411）：安全态要求 verifier 与 challenge 一致；脆弱态不看
+        if self.secure:
+            challenge = self.state["challenges"].get(code, "")
+            if challenge and challenge != _s256(code_verifier):
+                return 400, "application/json", {"error": "invalid_code_verifier"}
+        used: set[str] = self.state["used_codes"]
+        if self.secure and code in used:
+            return 400, "application/json", {"error": "invalid_grant"}
+        used.add(code)
+        return 200, "application/json", {"access_token": new_id(), "expires_in": 3600}
+
+    def _portal_session(self, environ: Mapping[str, Any]) -> tuple[int, str, Any]:
+        """带 sid 才能拿到会话（S3 的观测面）：登出后这里必须 401。"""
+        sid = _cookie(environ, "sid")
+        if sid and sid in self.state["sessions"]:
+            return 200, "application/json", {"sid_active": True,
+                                             "account": self.state["sessions"][sid]}
+        return 401, "application/json", {"error": "no_session"}
+
+    def _portal_logout(self, environ: Mapping[str, Any]) -> tuple[int, str, Any]:
+        """登出：安全态**真的吊销**，脆弱态只是回 200（这正是 S3 判的差别）。"""
+        sid = _cookie(environ, "sid")
+        if self.secure and sid:
+            self.state["sessions"].pop(sid, None)
+        return 200, "application/json", {"ok": True}
+
     def _me(self, token: str | None) -> tuple[int, str, Any]:
         claims = self._claims(token)
         if claims is None:
@@ -452,6 +572,24 @@ def _looks_like_escaping(name: str) -> bool:
     return False
 
 
+def _s256(verifier: str) -> str:
+    """RFC 7636 的 S256：base64url(sha256(verifier))，去掉填充。"""
+    if not verifier:
+        return ""
+    digest = hashlib.sha256(verifier.encode("utf-8")).digest()
+    return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+
+
+def _cookie(environ: Mapping[str, Any], name: str) -> str:
+    """从 Cookie 头里取一个值（S3 需要按 sid 识别会话）。"""
+    raw = str(environ.get("HTTP_COOKIE") or "")
+    for part in raw.split(";"):
+        key, _, value = part.strip().partition("=")
+        if key == name:
+            return value.strip()
+    return ""
+
+
 def _bearer(environ: Mapping[str, Any]) -> str | None:
     raw = str(environ.get("HTTP_AUTHORIZATION", "") or "")
     if raw.lower().startswith("bearer "):
@@ -498,8 +636,20 @@ def assets_json() -> dict[str, Any]:
              "params": []},
             {"method": "POST", "template": "/api/login?account={account}", "tags": ["token_issue"],
              "params": [{"name": "account", "kind": "str"}]},
+            {"method": "GET", "template": "/portal/index", "tags": ["html_document"],
+             "params": []},
+            {"method": "GET", "template": "/portal/token?code={code}",
+             "tags": ["token_issue"], "params": [{"name": "code", "kind": "str"}]},
+            {"method": "GET", "template": "/portal/login?account={account}",
+             "tags": ["token_issue"], "params": [{"name": "account", "kind": "str"}]},
+            {"method": "GET", "template": "/portal/logout", "tags": ["token_issue"],
+             "params": []},
+            {"method": "GET", "template": "/portal/session", "tags": ["token_issue"],
+             "params": []},
             {"method": "GET", "template": "/api/me", "tags": ["protected_read"],
              "params": []},
+            {"method": "GET", "template": "/portal/authorize?redirect_uri={redirect_uri}",
+             "tags": ["redirect_entry"], "params": [{"name": "redirect_uri", "kind": "str"}]},
         ],
     }
 

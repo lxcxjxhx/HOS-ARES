@@ -162,3 +162,83 @@ def test_sarif_still_renders_with_sections(ledger: LeadLedger) -> None:
 def test_empty_sections_do_not_add_headings(ledger: LeadLedger) -> None:
     md = render_markdown(_report(leads_section="", dead_section="   "))
     assert "## 线索" not in md and "## 死信" not in md
+
+
+# ── B368：§3 不许把"已判否"写成"未执行" ────────────────────────
+def _finding(fid: str, *, outcome: Outcome, refuted: bool, reason: str) -> FindingView:
+    return FindingView(
+        finding_id=fid, title="t", asset_id="a", oracle_id="sqli_bool_diff",
+        cwe="CWE-89", severity="high", confidence=0.0, route_strength="contract",
+        route_ref=REF, capsule_id=None, self_sha256=None, replay_status="NEVER",
+        situation="一句话", outcome=outcome, refuted=refuted, reason_code=reason,
+    )
+
+
+def test_unverified_section_does_not_call_refuted_items_not_run() -> None:
+    """四态没有"已判否"这一格，REFUTED 并进 NOT_RUN 桶——但**不能照着桶分节**。
+
+    实测（B368）：打一个只会返回垃圾的靶子，12 项里 10 项是"跑过、无该问题"，
+    §0 写着「真正未执行 0 条」，§3 却印「未执行（哪一类要写明） · 10」——
+    同一份报告上下自相矛盾，读者会得出"没测"的反结论。
+    """
+    report = ReportInput(
+        engagement="E", profile_hash="h", image_digest="d", root_sha256="a" * 64,
+        routeset_sha256=["b"], resolver_version="1", render_time="t", distribution="internal",
+        findings=[
+            _finding("f-refuted", outcome=Outcome.NOT_RUN, refuted=True,
+                     reason="no_differential"),
+            _finding("f-blocked", outcome=Outcome.NOT_RUN, refuted=False,
+                     reason="peer_in_deny"),
+        ])
+    md = render_markdown(report)
+    assert "### 未执行（哪一类要写明） · 1" in md, md
+    assert "### 已判否（跑过、无该问题） · 1" in md, md
+    assert "未执行（哪一类要写明） · 2" not in md, "已判否不许被算进未执行"
+
+
+# ── B396：能力边界要写进交付物 ─────────────────────────────────
+def test_capability_limits_are_rendered_with_reasons() -> None:
+    """「这一轮不可能有结论」的判定，报告里必须点名并写原因。
+
+    以前这些只活在矩阵脚本与账本里：客户拿到报告，看到的是"覆盖 14/14"，
+    读不到"哪些东西我们测不了、为什么测不了"。
+    """
+    from veripen.report.render import ReportInput, render_markdown
+
+    report = ReportInput(
+        engagement="demo", profile_hash="", image_digest="", root_sha256="",
+        capability_limits={
+            "needs_sequence": [("S3", "登出后再用旧会话：三次请求")],
+            "unmeasurable": [("M7", "ssl 不暴露 CertificateRequest")],
+            "unreachable": [("csp_absent", "选择器 `html_document` 不在契约字表")],
+        },
+    )
+    md = render_markdown(report)
+    assert "### 能力边界" in md
+    assert "`S3`" in md and "三次请求" in md
+    assert "`M7`" in md and "CertificateRequest" in md
+    assert "不在契约字表" in md
+    # 必须说清"不算未覆盖，也不算已覆盖"——否则读者会把它读成其中一种
+    assert "不算未覆盖" in md
+
+
+# ── B397：三条路径的报告必须说同一件事 ─────────────────────────
+def test_limits_block_is_shared_by_run_hunt_and_platform() -> None:
+    """`run` / `hunt` / `platform` 的报告都要有「能力边界」，且文案同源。
+
+    同一个产品在三条路径上对"能测什么"的表述不一致，是最伤交付信任的一类问题。
+    """
+    from veripen.report.hunt import render_hunt_markdown
+    from veripen.report.limits import capability_limits, limits_block
+
+    block = "\n".join(limits_block(capability_limits()))
+    assert "### 能力边界" in block
+    assert "不算未覆盖" in block
+
+    hunt_md = render_hunt_markdown(
+        {"target_host": "h", "faces_run": [], "coverage": {}, "findings": {}},
+        capsules_dir="capsules", generated_at="2026-01-01T00:00:00Z",
+    )
+    assert "### 能力边界" in hunt_md
+    # 同一段文案：hunt 里也能读到 run 报告那句话
+    assert "不算未覆盖" in hunt_md

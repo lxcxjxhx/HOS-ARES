@@ -94,6 +94,26 @@ SEVERITY_BY_RULE: dict[str, str] = {
     "dom_sink_execution": "high",
     # 缺安全响应头：是弱点，但单独不足以致命
     "missing_security_header": "medium",
+    # 会话固定（B376）：攻击者预置的会话延续到已认证状态，等同拿到登录态
+    "session_fixation": "high",
+    # 授权码可重放（B377）：截获一次就能反复换 token
+    "code_replay": "high",
+    # OAuth redirect_uri 未校验（B384）：授权码可被引到攻击者域
+    "oauth_redirect_unvalidated": "high",
+    # 声称双向认证但未要求客户端证书（B385）
+    "mtls_not_required": "high",
+    # 授权请求不强制 state（B389）：CSRF / 授权码注入的前提
+    "oauth_state_missing": "high",
+    # 会话 cookie 缺安全标志（B390）：XSS 直接升格为会话劫持
+    "cookie_flags_missing": "medium",
+    # 换码端点不校验授权码形式（B391）：任何字符串都能进下一步
+    "code_format_unchecked": "medium",
+    # 目标证书缺陷（B393）：过期 / 不受信 / 名字不符 / 算法太弱
+    "certificate_defect": "high",
+    # 登出后会话仍有效（B410）：任何一个拿到过这个 sid 的人都能继续用
+    "session_survived_logout": "high",
+    # PKCE 只当装饰（B411）：截到授权码就能换 token
+    "pkce_not_enforced": "medium",
     "readonly_field_accepted": "medium",
     "unvalidated_redirect": "medium",
     "acao_reflect": "medium",

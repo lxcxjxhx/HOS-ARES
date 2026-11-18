@@ -25,6 +25,12 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 #: 控制台的页面前缀：与 op 表同源（27 §6：我们自己的服务也不写死路由）
+#: 页面可加载的前端模块（白名单）：新增一个就得在这里登记，否则浏览器拿到的是 HTML。
+_UI_MODULES: tuple[str, ...] = ("router.js", "coverage.js")
+
+#: 这些模块**以 no-cache 服务**（每次协商）——所以页面里不需要 `?v=` 手写版本号。
+#: 手写版本号是陷阱：改模块忘改它，浏览器就命中旧缓存（B402）。
+UI_MODULES_SERVED_NO_CACHE: tuple[str, ...] = _UI_MODULES
 UI_PREFIX = chr(0x2F) + "ui" + chr(0x2F)
 
 #: 只读页面（op_id）；路由由 bindings 派生，这里只是白名单
@@ -74,6 +80,9 @@ class Row:
     hits: int | None = 1
     outcome: str = "reported"
     reason_code: str = ""
+    #: REFUTED（跑过、无该问题）在四态里没有独立那一格，靠这一位分开（B372）：
+    #: 少了它，界面只能把"已判否"读成"跑了但判不了"。
+    refuted: bool = False
     capsule_id: str | None = None
     #: 证据文件的实际路径（由 loader 解析；控制台只读它，不猜）。None = 盘上找不到。
     capsule_path: str | None = None
@@ -90,6 +99,8 @@ class Row:
     @property
     def verdict(self) -> str:
         """结论强度。**不由界面重算判定**，只做字符串映射（H06 §4 / B35）。"""
+        if self.refuted:
+            return "refuted"
         if self.outcome == "reported":
             return "verified"
         if self.outcome == "blocked":
@@ -306,6 +317,20 @@ def bounds_view(
     return view
 
 
+def _repro_evidence(path: str | None) -> str:
+    """证据路径给**相对**形式（B372）。
+
+    报告那边早就是 `capsules/<sha>.json`（可移植），界面却贴绝对路径
+    （`C:/…/out/hunt/capsules/<sha>.json`）——一截图给客户，操作员的目录结构就跟着走。
+    服务端判"文件在不在"仍用绝对路径，只有**给人抄的那行命令**用相对。
+    """
+    if not path:
+        return ""
+    cleaned = str(path).replace(chr(92), chr(0x2F)).rstrip(chr(0x2F))
+    tail = cleaned.rsplit(chr(0x2F), 2)
+    return chr(0x2F).join(tail[-2:]) if len(tail) >= 2 else tail[-1]
+
+
 def unverified_view(rows: Sequence[Row], *, asset: str = "") -> dict[str, Any]:
     """未能验证单列：按 outcome 分组，SKIPPED 两类分列（措辞中性）。
 
@@ -319,10 +344,13 @@ def unverified_view(rows: Sequence[Row], *, asset: str = "") -> dict[str, Any]:
     assets = sorted({r.asset_id for r in rows if r.asset_id})
     if asset:
         rows = [r for r in rows if r.asset_id == asset]
+    # 三组按 outcome 分是**既有契约**（B36）：已判否不在这里另起一组，
+    # 它走 by_verdict 的 `refuted` 档——前端按 VERDICT_LABEL 迭代，多一档自动多一节（B372）。
     groups: dict[str, list[dict[str, Any]]] = {"undetermined": [], "error": [], "not_run": []}
     for row in rows:
-        if row.outcome in groups:
-            groups[row.outcome].append(
+        key = row.outcome
+        if key in groups:
+            groups[key].append(
                 {"id": row.finding_id, "oracle": row.oracle_id, "asset": row.asset_id,
                  "reason": row.reason_code or "-",
                  # 人话单列一个字段（B263）：码留在 reason 里给机器对账，
@@ -332,7 +360,7 @@ def unverified_view(rows: Sequence[Row], *, asset: str = "") -> dict[str, Any]:
     # 兼容层：三组按 outcome 分（既有契约不动），另给一份按 verdict 分的视图（B36 新增）
     # 本页只装未验证行，所以四态即可（verified 不在这里）
     by_verdict: dict[str, list[str]] = {
-        "inconclusive": [], "blocked": [], "not_run": [], "error": [],
+        "refuted": [], "inconclusive": [], "blocked": [], "not_run": [], "error": [],
     }
     for row in rows:
         if row.verdict in by_verdict:
@@ -356,9 +384,21 @@ def unverified_view(rows: Sequence[Row], *, asset: str = "") -> dict[str, Any]:
     }
 
 
+def _capability_limits() -> list[dict[str, str]]:
+    """能力边界清单（延迟导入：只在真的要看覆盖时才付这份代价）。"""
+    from veripen.report.limits import capability_limits  # noqa: PLC0415
+
+    return [
+        {"kind": kind, "check": check_id, "why": why}
+        for kind, rows in capability_limits().items()
+        for check_id, why in rows
+    ]
+
+
 def coverage_view(
     *, assets: Sequence[str], oracles: Sequence[str],
     tested: Mapping[tuple[str, str], str], zero_hit_tags: Sequence[str],
+    capability_limits: Sequence[Mapping[str, str]] = (),
 ) -> dict[str, Any]:
     """资产 × oracle 矩阵 + 零命中标签（覆盖缺口一眼可见）。"""
     matrix: list[dict[str, Any]] = []
@@ -367,12 +407,18 @@ def coverage_view(
         for oracle in oracles:
             cells[oracle] = tested.get((asset, oracle), "not_run")
         matrix.append({"asset": asset, "cells": cells})
-    return {"assets": list(assets), "oracles": list(oracles), "matrix": matrix,
+    view = {"assets": list(assets), "oracles": list(oracles), "matrix": matrix,
             "zero_hit_tags": list(zero_hit_tags)}
+    if capability_limits:
+        # 能力边界（B400）：控制台也要能看到"这一轮不可能有结论的判定"，
+        # 否则运维读到的仍是"矩阵全绿 = 都测过了"。
+        view["capability_limits"] = [dict(item) for item in capability_limits]
+    return view
 
 
 def coverage_from_findings(
     rows: Sequence[Row], *, zero_hit_tags: Sequence[str] = (),
+    capability_limits: Sequence[Mapping[str, str]] = (),
 ) -> dict[str, Any]:
     """资产 × oracle 矩阵，从 findings 派生。
 
@@ -385,7 +431,8 @@ def coverage_from_findings(
     for r in rows:
         tested[(r.asset_id, r.oracle_id)] = r.verdict
     view = coverage_view(
-        assets=assets, oracles=oracles, tested=tested, zero_hit_tags=list(zero_hit_tags)
+        assets=assets, oracles=oracles, tested=tested, zero_hit_tags=list(zero_hit_tags),
+        capability_limits=capability_limits,
     )
     view["scope"] = "observed_only"
     return view
@@ -588,6 +635,10 @@ def build_app(
                     "completeness": ledger.get("completeness") or {},
                     "gaps": list(ledger.get("gaps") or ())[:50],
                 }
+            # 能力边界（B400）：控制台也要说清"这一轮不可能有结论的判定"。
+            # 数据是全局事实（不随资产变化），所以在这里补一次即可。
+            if "capability_limits" not in view:
+                view["capability_limits"] = _capability_limits()
             return view
         if op == "ui.overview":
             cov = coverage_from_findings(state.findings)
@@ -651,7 +702,8 @@ def build_app(
                 # 复现命令必须**跑得通**（B157）：`make replay ID=` 要的是 capsule 文件，
                 # 而这里原来塞的是 finding_id——那条命令照抄必然报"载入失败"。
                 "repro": (
-                    f"veripen replay --capsule {picked.capsule_path} --mode offline"
+                    f"veripen replay --capsule {_repro_evidence(picked.capsule_path)}"
+                    " --mode offline"
                     if picked.capsule_path else ""
                 ),
                 "repro_ok": picked.capsule_path is not None,
@@ -672,7 +724,7 @@ def build_app(
                 "name": "",
                 "bytes": 0,
                 "text": "",
-                "empty_hint": "还没有报告——跑一次 `veripen run` 或 `veripen platform` 后重开",
+                "empty_hint": "还没有报告——跑一次 `veripen run` / `hunt` / `platform` 后重开",
             }
         if op == "ui.audit":
             # 恒空的页签不允许留：有事件源就报 state，没有就显式 source=unavailable
@@ -750,13 +802,16 @@ def build_app(
             app.get(UI_PREFIX.rstrip(UI_PREFIX[-1]), include_in_schema=False)(_to_app)
             app.get(UI_PREFIX, include_in_schema=False)(_to_app)
             app.get(chr(0x2F), include_in_schema=False)(_to_app)
-        # 只暴露这一个纯函数模块：不做目录挂载（任何"顺手多挂一层"都会变成新的面）
-        router_js = static_dir / "router.js"
-        if router_js.exists():
-            app.get(UI_PREFIX + "router.js", include_in_schema=False)(
-                lambda: FileResponse(router_js, media_type="text/javascript",
-                                     headers={"Cache-Control": "no-cache"})
-            )
+        # 只暴露这几个纯函数模块：**不做目录挂载**（任何"顺手多挂一层"都会变成新的面）。
+        # 新增一个前端模块就得在这里加一行——这是有意的摩擦（B401：coverage.js 忘了加，
+        # 浏览器拿回的是 HTML，整个页面静默不工作，四条浏览器用例才把它抓出来）。
+        for module in _UI_MODULES:
+            asset = static_dir / module
+            if asset.exists():
+                app.get(UI_PREFIX + module, include_in_schema=False)(
+                    lambda asset=asset: FileResponse(asset, media_type="text/javascript",
+                                                     headers={"Cache-Control": "no-cache"})
+                )
 
     return app
 

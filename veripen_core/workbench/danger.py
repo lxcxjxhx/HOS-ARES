@@ -39,6 +39,19 @@ DANGEROUS: tuple[Danger, ...] = (
            "del-wildcard", "Windows 通配强删"),
     Danger(re.compile(r"\b(?:rd|rmdir)\s+/s\b", re.I),
            "rmdir-recursive", "Windows 递归删目录"),
+    # ── Windows 侧的同一件事（B366）─────────────────────────────
+    # 这张表原来是 Unix 视角：`mkfs` 拦了、`format` 没拦；`chmod 777 /` 拦了、
+    # `icacls … /grant Everyone:F` 没拦；`rm -rf /` 拦了、PowerShell 的
+    # `Remove-Item -Recurse -Force C:\` 没拦。而 `chat`/`agent` 在 win32 上跑的正是
+    # `cmd /c` —— 只防 Unix 口径等于在这台机器上没防。
+    Danger(re.compile(r"(?<![\w-])format\s+[A-Za-z]:(?:\s|$)", re.I),
+           "format-drive", "格式化 Windows 盘（= mkfs）：整盘数据不可逆"),
+    Danger(re.compile(r"\bicacls\b[^|]*\s/grant\b[^|]*(?:Everyone[:\s]*F\b|:F\b|\(F\))", re.I),
+           "icacls-open", "把整盘/整目录权限开给所有人（= chmod 777 /）；只读授权不算"),
+    Danger(re.compile(r"\btakeown\b[^|]*\s/[fr]\b[^|]*[A-Za-z]:[\\/]", re.I),
+           "takeown-root", "夺取盘上文件所有权：接管主机，越出渗透范围"),
+    Danger(re.compile(r"\b(?:remove-item|ri)\b[^|]*-recurse\b[^|]*(?:[A-Za-z]:[\\/]?\s*$|~\s*$|\s/\s*$)", re.I),
+           "ps-rm-root", "PowerShell 递归强删盘根/家目录（= rm -rf /）"),
     # ── 分区 / 磁盘 / 引导 ─────────────────────────────────────
     Danger(re.compile(r"\bmkfs(?:\.\w+)?\b", re.I), "mkfs", "格式化文件系统"),
     Danger(re.compile(r"\bdd\b.*\bof\s*=\s*(?:/dev/|[A-Za-z]:)", re.I),

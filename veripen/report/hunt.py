@@ -134,13 +134,21 @@ def render_hunt_markdown(
     ]
     if coverage.get("complete") is False:
         # "完整：否" 必须带原因：缺口为 0 也可能是"提前停"，读者否则会以为还有没跑的面
-        lines.append(
+        caveat_line = (
             f"> **覆盖不完整**：本轮以 `{decision}`（{reason}）结束，"
             "覆盖只反映停下之前做完的部分——不要把\"没写\"读成\"没问题\"。"
         )
+        lines.append(caveat_line)
+        # coverage.json 自己也带一句同义话（`本轮以 'X' 结束，覆盖只反映停下之前…`），
+        # 上面那句已经说过一遍——直接照抄会造成同一段里同一件事写两遍（B369 实测）。
+        # 机器账本那句要留着（单读 coverage.json 的人需要它），重复在**渲染这一层**去掉。
+        _said = "覆盖只反映停下之前做完的部分"
         for caveat in (coverage.get("caveats") or [])[:3]:
+            text = str(caveat).replace("**", "")
+            if _said in text:
+                continue
             lines.append(">")
-            lines.append("> " + str(caveat).replace("**", ""))
+            lines.append("> " + text)
         lines.append("")
 
     lines += ["## 3. 证据", ""]
@@ -179,6 +187,12 @@ def render_hunt_markdown(
 
     lines += [
         "",
+    ]
+    # 能力边界（B397）：与 run 的报告同一份实现、同一段文案
+    from .limits import capability_limits, limits_block  # noqa: PLC0415
+
+    lines.extend(limits_block(capability_limits()))
+    lines.extend([
         "## 5. 附录：口径",
         "",
         "- `VERIFIED` 表示判定成立且落了证据；**没有证据的结论不会出现在上表**。",
@@ -190,5 +204,5 @@ def render_hunt_markdown(
         "（绝对路径会把操作员的机器布局写进交付物）。",
         "- 模型自述是**它自己说的话**，不计入判定、不计入覆盖。",
         "",
-    ]
+    ])
     return "\n".join(lines)

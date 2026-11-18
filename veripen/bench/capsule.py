@@ -122,6 +122,8 @@ def build_capsule(
                 response=build_response(
                     status=int(first.baseline.status),
                     body=first.baseline.body.decode("utf-8", "replace"),
+                    # 响应头必须进证据（B381）：响应头类判定只能由它重算
+                    headers=dict(getattr(first.baseline, "headers", {}) or {}),
                 ),
             )
         )
@@ -146,6 +148,7 @@ def build_capsule(
                 response=build_response(
                     status=int(pair.trace.status),
                     body=pair.trace.body.decode("utf-8", "replace"),
+                    headers=dict(getattr(pair.trace, "headers", {}) or {}),
                 ),
             )
         )

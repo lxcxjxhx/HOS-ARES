@@ -39,6 +39,14 @@ def _path_param_count(template: str) -> int:
     return sum(1 for seg in template.split(SEP) if seg.startswith("{") and seg.endswith("}"))
 
 
+#: 结构发现**能推断出来**的标签（B403）：契约路径写不进去的标签，
+#: 只要有这一集合里的成员，就仍然能在 `--discover` 下被选中。
+#: 与 `infer_tags` 里的字面量保持一致——有测试扫描函数体核对。
+STRUCTURAL_TAGS: frozenset[str] = frozenset(
+    "html_document object_read object_list param_injectable file_read content_write".split()
+)
+
+
 def infer_tags(
     *,
     method: str,

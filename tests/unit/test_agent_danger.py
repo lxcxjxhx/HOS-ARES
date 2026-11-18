@@ -1,4 +1,4 @@
-﻿"""B214：`sh` 动词的危险命令闸门。
+"""B214：`sh` 动词的危险命令闸门。
 
 `chat` / `agent` 的 `sh` 是唯一能跳出工作台的出口——读写动词有根约束，`sh` 没有。
 闸门默认关（拦），要放行得显式 `--allow-dangerous`，且拒绝会被记成一步（ok=False）。
@@ -29,6 +29,12 @@ _SLASH = chr(0x2F)
     ("powershell -enc ZQBj", "ps-encoded"),
     ("cat /etc/shadow", "creds"),
     ("iptables -F", "fw-flush"),
+    # B366：Windows 侧的同一件事，不能只防 Unix 口径
+    ("format C: /y", "format-drive"),
+    ("icacls C:\\ /grant Everyone:F", "icacls-open"),
+    ("takeown /f C:\\ /r", "takeown-root"),
+    ("Remove-Item -Recurse -Force C:\\", "ps-rm-root"),
+    ("ri -Recurse -Force ~", "ps-rm-root"),
 ])
 def test_dangerous_commands_are_blocked(cmd: str, name: str) -> None:
     hit = check_command(cmd)
@@ -45,6 +51,11 @@ def test_dangerous_commands_are_blocked(cmd: str, name: str) -> None:
     "rm -rf ./out/tmp",
     "chmod 777 ./out",
     "git status",
+    # B366：新加的 Windows 规则不许误伤日常命令
+    "git log --format C:",
+    "Remove-Item -Recurse -Force ./out/tmp",
+    "takeown /f ./out",
+    "icacls ./out /grant Everyone:R",
 ])
 def test_pentest_commands_still_run(cmd: str) -> None:
     """**不拦渗透本身**：拦它等于把产品拦掉。"""

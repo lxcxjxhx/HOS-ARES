@@ -376,3 +376,37 @@ def test_no_refuted_keeps_plain_row() -> None:
     md = render_markdown(_report_with_outcomes([(Outcome.NOT_RUN, False)]))
     assert "真正未执行 1 条" in md
     assert "已判否" not in md
+
+
+# ── B371：JSON 也要带 `refuted` ─────────────────────────────────
+def test_json_carries_the_refuted_flag() -> None:
+    """四态把 REFUTED 并进 not_run（09 §4）。机器可读层必须把这个区别带出去：
+
+    平台 / 控制台读的是 findings.json 而不是内存对象，缺这一位就分不出
+    "跑过、无该问题"与"真的没执行"（B371 实测：平台整张表印成 not_run）。
+    """
+    from veripen.report.render import Outcome, render_json
+
+    payload = render_json(_report_with_outcomes(
+        [(Outcome.NOT_RUN, True), (Outcome.NOT_RUN, False)]))
+    flags = [f["refuted"] for f in payload["findings"]]
+    assert flags == [True, False], flags
+
+
+# ── B399：四类交付物都要能独立说清"测不了什么" ───────────────────
+def test_json_carries_capability_limits() -> None:
+    """`findings.json` 是控制台与下游系统的数据源，它也得有边界清单。
+
+    四个出口（md/json/sarif/hunt+platform）里只要有一个缺，用那个出口的人
+    就会被误导——他们恰恰最不会去翻报告正文。
+    """
+    from veripen.report.render import ReportInput, render_json, render_markdown, render_sarif
+
+    limits = {"needs_sequence": [("S3", "登出后再用旧会话")],
+              "unreachable": [("csp_absent", "选择器不在契约字表")]}
+    report = ReportInput(engagement="demo", profile_hash="", image_digest="",
+                         root_sha256="", capability_limits=limits)
+
+    assert [i["check"] for i in render_json(report)["capability_limits"]] == ["S3", "csp_absent"]
+    assert "capabilityLimits" in render_sarif(report)["runs"][0]["properties"]
+    assert "能力边界" in render_markdown(report)
