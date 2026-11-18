@@ -64,6 +64,9 @@ ALLOWED_ORIGIN = "site.invalid"
 ADMIN_ROLE = "admin"
 #: 安全态的限流阈值：超过就 429（脆弱态不计数）
 RATE_LIMIT_HITS = 5
+#: 这个部署**授权**的 scope 集合（B412）。请求里出现名单外的项，安全态在授权阶段
+#: 直接拒；脆弱态照单全收，并把它真的写进 token——这正是"scope 提升"的形状。
+ALLOWED_SCOPES = frozenset({"read", "write"})
 #: 靶场的两个"域"符号：允许取数的文档域，与用于外带证明的 OOB 前缀
 ALLOWED_FETCH_PREFIX = "doc-SAMPLE"
 OOB_PREFIX = "oob-SAMPLE"
@@ -165,6 +168,10 @@ class App:
             "sessions": {},
             # 授权码 → code_challenge（B411）：PKCE 判定要看它
             "challenges": {},
+            # 授权码 → 请求的 scope（B412）：换码时要把"请求的"变成"授予的"
+            "scopes": {},
+            # access_token → 实际授予的 scope（B412）：受限资源按它判，不按请求判
+            "grants": {},
         }
     )
 
@@ -251,10 +258,13 @@ class App:
                 query.get("redirect_uri", [""])[0],
                 query.get("state", [""])[0],
                 query.get("code_challenge", [""])[0],
+                query.get("scope", [""])[0],
             )
         if path == "/portal/token":
             return self._portal_token(query.get("code", [""])[0],
                                       query.get("code_verifier", [""])[0])
+        if path == "/portal/admin":
+            return self._portal_admin(token)
         if path == "/portal/session":
             return self._portal_session(environ)
         if path == "/portal/logout":
@@ -456,7 +466,8 @@ class App:
             return 400, "application/json", {"error": "unknown_account"}
         return 200, "application/json", {"token": make_token(account)}
 
-    def _authorize(self, redirect_uri: str, state: str = "", code_challenge: str = "") -> tuple[int, str, Any]:
+    def _authorize(self, redirect_uri: str, state: str = "",
+                   code_challenge: str = "", scope: str = "") -> tuple[int, str, Any]:
         """OAuth 授权端点（B384）：脆弱态**照样跳外域**，安全态只放站内。
 
         脆弱态还会先"预检"一次 redirect_uri（真的 GET 一次）——这是把外部 URL 当服务端
@@ -484,6 +495,12 @@ class App:
         # 脆弱态一律不校验，这正是"截到码就能换 token"的形状。
         code = new_id()[:16]
         self.state["challenges"][code] = code_challenge or ""
+        # scope（B412）：安全态**在授权阶段**就拒掉名单外的项——最小权限的守法样子。
+        # 脆弱态照单全收，于是超范围 scope 真的会进 token：O8 判的就是这个差别。
+        requested = [s for s in scope.split() if s]
+        if self.secure and not set(requested) <= ALLOWED_SCOPES:
+            return 400, "application/json", {"error": "invalid_scope"}
+        self.state["scopes"][code] = " ".join(requested) or "read"
         return 302, "application/json", {"redirect_uri": redirect_uri, "code": code}
 
     def _portal_token(self, code: str, code_verifier: str = "") -> tuple[int, str, Any]:
@@ -502,7 +519,27 @@ class App:
         if self.secure and code in used:
             return 400, "application/json", {"error": "invalid_grant"}
         used.add(code)
-        return 200, "application/json", {"access_token": new_id(), "expires_in": 3600}
+        # scope（B412）：授予的是**授权阶段请求的**范围，不是换码时再要一次。
+        # 安全态的名单外请求已在 authorize 被拒（走不到这里）；脆弱态照给，
+        # 于是"请求 admin 就真的拿到 admin"——这正是 O8 的指控点。
+        granted = self.state["scopes"].get(code, "read")
+        token = jwt_encode({"sub": "user", "role": "user", "scope": granted})
+        return 200, "application/json", {"access_token": token, "scope": granted,
+                                         "expires_in": 3600}
+
+    def _portal_admin(self, token: str | None) -> tuple[int, str, Any]:
+        """管理功能（O8 的观测面）：**两种模式都按 token 里的 scope 判**。
+
+        差别不在资源端（它对谁都一样严），而在**授权端给不给超范围 scope**。
+        把差别放在资源端会让对照组也 200，判定就只能落「这个面不看 scope」——
+        那是另一种缺陷（没鉴权），判不出"提升"。
+        """
+        claims = self._claims(token)
+        if claims is None:
+            return 401, "application/json", {"error": "unauthenticated"}
+        if "admin" not in str(claims.get("scope") or "").split():
+            return 403, "application/json", {"error": "insufficient_scope"}
+        return 200, "application/json", {"admin": True, "scope": claims.get("scope")}
 
     def _portal_session(self, environ: Mapping[str, Any]) -> tuple[int, str, Any]:
         """带 sid 才能拿到会话（S3 的观测面）：登出后这里必须 401。"""
@@ -643,6 +680,8 @@ def assets_json() -> dict[str, Any]:
             {"method": "GET", "template": "/portal/login?account={account}",
              "tags": ["token_issue"], "params": [{"name": "account", "kind": "str"}]},
             {"method": "GET", "template": "/portal/logout", "tags": ["token_issue"],
+             "params": []},
+            {"method": "GET", "template": "/portal/admin", "tags": ["token_issue"],
              "params": []},
             {"method": "GET", "template": "/portal/session", "tags": ["token_issue"],
              "params": []},

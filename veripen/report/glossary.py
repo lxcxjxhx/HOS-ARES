@@ -132,6 +132,19 @@ def explain(code: str) -> str:
                     f"（提供方式：{symbol_hint(tail)}）")
     if key == "no_probe":
         return "这一轮没有发出任何探针，判不了——不代表没问题"
+    # scope 越权（B412）
+    if key == "scope_not_enforced":
+        return "请求的范围超出授权，服务端照样授予：拿到这个 token 就能调原本不该碰的功能——这一条没守住"
+    if key == "scope_request_rejected":
+        return "授权阶段就拒绝了越权范围请求（没发出 token）：这一条守住了"
+    if key == "no_scope_semantics":
+        return "连正常范围的令牌也能进受限功能：这条面根本不看范围，判不了「提升」"
+    if key == "scope_enforced":
+        return "只读范围的 token 调管理功能被拒：服务端按 scope 授权了——这一条守住了"
+    if key == "no_token_semantics":
+        return "这条面换不到 token（连正常换码都失败）：判不了"
+    if key == "scope_effect_ambiguous":
+        return "越权访问的响应既不是成功也不是拒绝：看不出 scope 有没有被强制，判不了"
     # PKCE（B411）
     if key == "pkce_not_enforced":
         return "换码时不校验 code_verifier：截到授权码就能换 token——这一条没守住"

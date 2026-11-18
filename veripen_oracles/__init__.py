@@ -30,6 +30,7 @@ from .auth import (
     jwt_suite,
     logout,
     pkce,
+    scope,
     mtls,
     oauth,
     oauth_redirect,
@@ -66,6 +67,7 @@ AUTH: tuple[type[BaseOracle], ...] = (
     tls_cert.TlsCertificate,
     logout.SessionLogout,
     pkce.PkceEnforced,
+    scope.ScopeEscalation,
 )
 
 #: C 档 3 类（需跨会话/协议配合）

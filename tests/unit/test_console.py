@@ -457,6 +457,7 @@ def test_coverage_endpoint_carries_capability_limits() -> None:
     limits = body.get("capability_limits") or []
     assert limits, "覆盖接口没有能力边界字段"
     kinds = {item["kind"] for item in limits}
-    assert {"needs_sequence", "unmeasurable"} <= kinds, kinds
+    # 多步清单已清零（B410–B412 全实现），仍应有观测受限与选不中两类
+    assert {"unmeasurable", "discoverable"} <= kinds, kinds
     for item in limits:
         assert item["check"] and item["why"], item

@@ -114,6 +114,8 @@ SEVERITY_BY_RULE: dict[str, str] = {
     "session_survived_logout": "high",
     # PKCE 只当装饰（B411）：截到授权码就能换 token
     "pkce_not_enforced": "medium",
+    # scope 提升（B412）：请求超范围 scope 真的被授予，最小权限形同虚设
+    "scope_not_enforced": "high",
     "readonly_field_accepted": "medium",
     "unvalidated_redirect": "medium",
     "acao_reflect": "medium",

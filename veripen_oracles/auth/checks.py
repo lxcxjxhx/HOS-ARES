@@ -131,6 +131,35 @@ def judge_logout(*, control_ok: bool, probe_status: int) -> ProbeResult:
                        {"probe_status": probe_status})
 
 
+def judge_scope_escalation(
+    *, control_denied: bool, scope_granted: bool, probe_status: int
+) -> ProbeResult:
+    """O8：请求超出授权的 scope，服务端会不会**真的授予**。
+
+    顺序讲究（与 O4/S3 同一条纪律）：
+
+    1. `scope_granted`：授权阶段就把超范围请求拒了（没发出 token）——这本身就是守住，
+       不必再看资源端；
+    2. `control_denied`：用**正常** scope 的 token 访问受限资源，必须被拒。
+       它没被拒说明这个资源根本不看 scope（或看的是别的东西），
+       那"提升"就无从谈起，只能判不了；
+    3. `probe_status`：超范围 scope 的 token 拿到 200 → 提升成立。
+
+    为什么不在 2 失败时直接判否：那样会把「资源不做 scope 校验」写成「scope 守住了」，
+    方向正好反了——两者都是 200，区别在**对照组**。
+    """
+    if not scope_granted:
+        return ProbeResult("O8", "REFUTED", "scope_request_rejected")
+    if not control_denied:
+        return ProbeResult("O8", "INCONCLUSIVE", "no_scope_semantics")
+    if probe_status == 200:
+        return ProbeResult("O8", "VERIFIED", "scope_not_enforced")
+    if probe_status in (400, 401, 403):
+        return ProbeResult("O8", "REFUTED", "scope_enforced")
+    return ProbeResult("O8", "INCONCLUSIVE", "scope_effect_ambiguous",
+                       {"probe_status": probe_status})
+
+
 def judge_certificate_defect(*, error_reason: str, scheme: str) -> ProbeResult:
     """M2/M3/M4/M5：从"客户端为什么没连上"读出证书缺陷类型。
 
@@ -264,6 +293,8 @@ JUDGES: Mapping[str, str] = {
     "O5": "judge_code_replay",
     "O7": "judge_code_format",
     "O4": "judge_pkce",
+    "O8": "judge_scope",
+    "O8": "judge_scope_escalation",
     "S1": "judge_session_fixation",
     "S3": "judge_logout",
     "S2": "judge_cookie_flags",
@@ -292,12 +323,12 @@ UNMEASURABLE: Mapping[str, str] = {
 }
 
 
-#: 判据本身要求**多步序列**（登出→复用、发码→换码、发 token→越权使用），
-#: 而 harness 的一个变体只发**一次**请求，`plan()` 也拿不到上一次的响应（B392）。
-#: 这些不是"不会写"，是"当前执行模型装不下"——要么加多步支持，要么承认测不了。
-NEEDS_SEQUENCE: Mapping[str, str] = {
-    "O8": "先用限定 scope 换 token，再拿它访问超范围功能——两跳且第二跳要用第一跳的产物",
-}
+#: 判据本身要求**多步序列**、而当前执行模型装不下的检查项（B392 引入这一档）。
+#: B410 加了 `run_sequence` 之后，S3/O4 先后来取、O8（B412）最后一条也落了地——
+#: **这一档现在是空的**。留着它而不是删掉，是因为它是一条有意义的陈述：
+#: 「清单里有、写得出、但跑不了」这种状态仍可能出现，出现时必须落在这里，
+#: 不许混进 `auto_without_judge` 冒充"加个班就能补完"。
+NEEDS_SEQUENCE: Mapping[str, str] = {}
 
 
 def coverage_matrix(
@@ -356,6 +387,7 @@ __all__ = [
     "judge_certificate_defect",
     "judge_logout",
     "judge_pkce",
+    "judge_scope",
     "judge_code_format",
     "judge_cookie_flags",
     "judge_state_param",

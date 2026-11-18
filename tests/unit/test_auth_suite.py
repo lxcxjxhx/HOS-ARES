@@ -196,16 +196,16 @@ def test_all_check_ids_unique_and_ordered() -> None:
 
 # ── B375：`auto` 不等于「能测」 ─────────────────────────────────
 def test_auto_checks_are_split_into_implemented_and_paper_only() -> None:
-    """矩阵里 15 条 auto，只有 5 条真有判定函数（O1/O5/S1/M1/M7）。
+    """矩阵里 15 条 auto，现在全部有判定函数（B412 收尾）。
 
     其余 10 条（M2–M5、O2/O4/O7/O8、S2/S3）只有靶场计划与判据文字，**没有代码**——
     这条断言把它们单列出来，防止"清单里有"被读成"能测"（B9 的 open 拖了十几批）。
     """
     matrix = checks.coverage_matrix(oracle_hits={})
     assert matrix["auto_total"] == 15, matrix["by_automation"]
-    # B389/B390/B391/B393/B410：O2、S2、O7 各接一个，M2–M5 共用证书判定函数，
-    # S3（登出失效）与 O4（PKCE）补上 → 14
-    assert matrix["auto_implemented"] == 14, matrix["auto_implemented"]
+    # B389/B390/B391/B393/B410/B411/B412：O2、S2、O7 各接一个，M2–M5 共用证书判定函数，
+    # S3（登出失效）、O4（PKCE）、O8（scope 提升）补上 → 15 条 auto 全部有判定
+    assert matrix["auto_implemented"] == 15, matrix["auto_implemented"]
     missing = matrix["auto_without_judge"]
     # 名单不写成常量表（lint-nodata 会把长字面量当硬编码数据）：
     # 只钉"数量对得上 + 抽样的确在里面 + 它们真的没有判定函数"
@@ -230,8 +230,9 @@ def test_three_tiers_are_disjoint() -> None:
     # `unmeasurable` 不是"另一档"，而是一个**属性**：M7 有判定函数，只是观测不到。
     # 所以它必须落在 implemented 里面，不能取代它。
     assert unmeasurable <= implemented, unmeasurable - implemented
-    # S3（B410）与 O4（B411）都已实现，只剩 O8
-    assert sequence == {"O8"}, sequence
+    # S3（B410）、O4（B411）、O8（B412）都已落地——这一档现在是空的。
+    # 断言"空"而不是删断言：空档本身是要守的状态（再有写得出、跑不了的项，必须落这里）
+    assert sequence == set(), sequence
 
 
 def test_every_declared_judge_exists_and_is_callable() -> None:

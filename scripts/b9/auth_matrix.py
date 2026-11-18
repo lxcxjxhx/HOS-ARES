@@ -22,7 +22,7 @@ def main() -> int:
     # 本批实际有靶场用例的（B5/B6/B7 + B9 的 suite）
     for oid in ("sqli_bool_diff", "idor_cross_account", "ssrf_oob", "open_redirect",
                 "path_traversal", "sqli_error_based", "bola_functional", "xss_reflected_ctx",
-                "mass_assignment", "jwt_suite"):
+                "mass_assignment", "jwt_suite", "scope_escalation"):
         hits[oid] = 1
 
     matrix = checks.coverage_matrix(oracle_hits=hits)
