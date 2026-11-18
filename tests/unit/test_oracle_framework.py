@@ -125,3 +125,124 @@ def test_judge_cannot_ship_verified_alone(hardened: Lab, monkeypatch: pytest.Mon
                          symbols=hardened.symbols, nonce="z")
     assert result.verdict is Verdict.INCONCLUSIVE
     assert result.reason == "three_way_failed"
+
+
+# ── B387：授权面的 4xx 基线 ────────────────────────────────────
+def test_denied_baseline_only_counts_when_declared() -> None:
+    """`401` 基线：声明 `baseline_accepts_denied` 才成立；5xx 永远不成立。
+
+    授权类面不带凭据去请求，被拒（401/403）才是正确行为。以前 `three_way_holds`
+    把 4xx 一律当"基线异常"，于是 mTLS/BOLA 这类判定永远出不了 VERIFIED。
+    """
+    from types import SimpleNamespace
+
+    from veripen_oracles.common.harness import Pair, three_way_holds
+
+    def _pair(status: int, role: str = "probe", expect: str = "any_response") -> Pair:
+        trace = SimpleNamespace(status=status, headers={}, error=None, body=b"{}",
+                                is_normal=lambda: 200 <= status < 300,
+                                # Pair.stable() 会对 repeats 取 fingerprint()，假 trace 也得有
+                                fingerprint=lambda: (status, 0, ""))
+        variant = SimpleNamespace(role=role, expect=expect,
+                                  matches_expectation=lambda: True, stable=True)
+        return Pair(variant=variant, baseline=trace, trace=trace, repeats=(trace, trace))
+
+    class _Auth:
+        baseline_accepts_denied = True
+
+    class _Plain:
+        baseline_accepts_denied = False
+
+    # three_way 要求 probe 与 control 都存在；control 用 normal 语义即可
+    pairs = [_pair(401), _pair(401, role="control", expect="normal")]
+    assert three_way_holds(pairs, oracle=_Auth) is True
+    assert three_way_holds(pairs, oracle=_Plain) is False
+    # 5xx 在两种声明下都不算：那说明这次基线没有意义
+    assert three_way_holds(
+        [_pair(500), _pair(500, role="control", expect="normal")], oracle=_Auth) is False
+
+
+# ── B388：4xx 基线不能一刀切 ───────────────────────────────────
+def test_base_class_honours_the_flag_but_5xx_never_counts() -> None:
+    """基类的默认判据：声明后接受 4xx，5xx/连接失败永远不算。"""
+    from types import SimpleNamespace
+
+    from veripen_oracles.common.base import BaseOracle
+
+    class _Auth(BaseOracle):
+        baseline_accepts_denied = True
+
+        def baseline_params(self, binding: Any) -> dict[str, str]:
+            return {}
+
+    def _trace(status: int, error: str | None = None) -> Any:
+        return SimpleNamespace(status=status, headers={}, error=error, body=b"{}",
+                               is_normal=lambda: 200 <= status < 300)
+
+    assert _Auth().baseline_ok(_trace(200)) is True
+    assert _Auth().baseline_ok(_trace(401)) is True
+    assert _Auth().baseline_ok(_trace(500)) is False
+    assert _Auth().baseline_ok(_trace(0, "ConnectionResetError")) is False
+
+
+def test_idor_cannot_use_a_denied_baseline() -> None:
+    """IDOR 的基线必须**带一个真实对象**（`"owner"` 在 body 里），401 给不了。
+
+    所以 4xx 基线不是普适开关：mTLS 那种只看 TLS 层的判定用得上，
+    越权类不行——它要拿基线当"对象长什么样"的参照。
+    """
+    from types import SimpleNamespace
+
+    from veripen_oracles.tierA import IdorCrossAccount
+
+    assert IdorCrossAccount.baseline_accepts_denied is False
+    assert IdorCrossAccount().baseline_ok(SimpleNamespace(
+        status=401, headers={}, error=None, body=b"{}", is_normal=lambda: False)) is False
+
+
+# ── B404：并发突发型判据必须在产品路径上真的跑起来 ──────────────
+def test_harness_runs_burst_oracles_instead_of_no_control() -> None:
+    """`plan()` 为空的判据（限流类）以前永远落 `no_control`——写了却从不生效。
+
+    现在：oracle 声明 `burst_sample_count()` > 0 且有 `judge_burst`，
+    harness 就在 `no_control` 检查**之前**分叉，先采样再判。
+    """
+    from veripen_oracles.common import harness as H
+
+    class _Burst:
+        selector_tags: tuple[str, ...] = ("rate_sensitive",)
+        params = type("P", (), {"repeat": 1})()
+        baseline_ok = lambda self, trace: True  # noqa: E731
+        baseline_accepts_denied = False
+        observes_failures = False
+
+        def baseline_params(self, binding):  # noqa: ANN001, ANN201, D401
+            return {}
+
+        def plan(self, binding):  # noqa: ANN001, ANN201
+            return []
+
+        def burst_sample_count(self) -> int:
+            return 3
+
+        def judge_burst(self, samples):  # noqa: ANN001, ANN201
+            assert len(samples.traces) == 6, samples.traces  # 3 串行 + 3 并发
+            from veripen_core.models import Judgement, Verdict
+
+            return Judgement(verdict=Verdict.VERIFIED, reason="no_rate_limiting",
+                             confidence=0.7, assertion={}, route_strength="contract")
+
+        def judge(self, pairs):  # noqa: ANN001, ANN201
+            raise AssertionError("burst 型判据不该走三条件判")
+
+    calls = []
+
+    class _T:
+        def send(self, binding, params, role, headers=None, **kw):  # noqa: ANN001, ANN201
+            calls.append(role)
+            return H.Trace(status=200, route_ref="route://contract/deadbeef")
+
+    binding = object()
+    result = H.run(_Burst(), binding, _T())
+    assert result.verdict.value == "VERIFIED", result
+    assert len(calls) == 7, calls  # 1 次基线 + 3 串行 + 3 并发

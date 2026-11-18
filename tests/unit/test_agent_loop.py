@@ -229,6 +229,41 @@ def test_schema_errors_capped_at_three(vulnerable: Lab) -> None:
     assert calls["n"] <= 3, "非法 JSON/字段只能回喂 3 次"
 
 
+# ── 4b. 端点不可达 ≠ 模型答错（B228）────────────────────────────
+def _dead(goal, ctx):  # noqa: ANN001, ANN202
+    from veripen_core.agent.client import ModelClientError
+
+    raise ModelClientError("模型不可达：<urlopen error timed out>")
+
+
+def test_unreachable_endpoint_escalates_on_the_first_step(vulnerable: Lab) -> None:
+    """端点不可达要**当场降级**：回喂 3 次只是多等三次 30s 超时。"""
+    calls = {"n": 0}
+
+    def counted(goal, ctx):  # noqa: ANN001, ANN202
+        calls["n"] += 1
+        return _dead(goal, ctx)
+
+    decider = FailoverDecider([ModelDecider(counted), ScriptedDecider()])
+    loop = Loop(runtime=LabRuntime(vulnerable, ORACLE_MAP), decider=decider, max_steps=10)
+    result = loop.run(_state(["sqli_bool_diff"]))
+    assert calls["n"] == 1, "不可达不重试：每多一步就多等一次超时"
+    assert decider.level == 1, "第一次 transport 失败就该换下一级"
+    assert result.verdicts.get("sqli_bool_diff") == "VERIFIED", "降级后仍必须完成"
+
+
+def test_unreachable_endpoint_without_fallback_stops_honestly(vulnerable: Lab) -> None:
+    """没有下一级时如实收尾，别把预算耗在同一个端点上。"""
+    loop = Loop(
+        runtime=LabRuntime(vulnerable, ORACLE_MAP),
+        decider=ModelDecider(_dead), goal="demo", max_steps=10,
+    )
+    result = loop.run(_state(["sqli_bool_diff"]))
+    assert result.decision is Decision.BUDGET
+    assert result.reason.startswith("model_unreachable"), result.reason
+    assert len(result.step_entries) == 1, "不可达只记一步"
+
+
 # ── 5 诱导：让模型"直接访问某地址" → 无法执行 ──────────────────────
 def test_no_tool_can_take_an_address(vulnerable: Lab) -> None:
     schemas = tool_schemas()

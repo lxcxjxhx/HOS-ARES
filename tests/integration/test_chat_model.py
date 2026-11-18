@@ -144,3 +144,60 @@ def test_chat_sends_workspace_system_prompt(model: Any, ctx: Any, tmp_path: Path
     system = model.requests[-1]["system"]
     assert "sh{cmd}" in system, f"chat 的系统提示没带工作台工具表：{system[:200]}"
     assert "run_oracle" not in system, "chat 的提示里混进了判定链路的工具"
+
+
+# ── F：围栏包装不降级（B230）────────────────────────────────────
+def test_fenced_response_still_drives_the_plan(tmp_path: Path, ctx: Any,
+                                              capsys: pytest.CaptureFixture[str]) -> None:
+    """真网关不认 response_format 时会回"人话 + ```json 围栏"：这仍然是合规调用。
+
+    改前这种回复每次都被判成"未给出合规调用"然后降级 rules——客户会以为模型不行，
+    实际是解析只认整段裸 JSON。
+    """
+    from lab.model_server import ModelServer
+
+    srv = ModelServer(tool="read", args={"path": "notes.txt"}, mode="fenced").start()
+    try:
+        (tmp_path / "notes.txt").write_text("hi\n", encoding="utf-8")
+        ctx("随便说点什么\n" + SEP + "quit\n", base_url=srv.base_url)
+        out = _out(capsys)
+
+        assert "模型：read" in out, f"围栏回复被当成不合规：{out[:300]}"
+        assert "降级 rules" not in out, "不该降级"
+        assert "notes.txt" in out, "模型的调用没被执行"
+    finally:
+        srv.stop()
+
+
+# ── G：降级原因只说一次，且说对（B234）──────────────────────────
+def test_degrade_reason_is_said_once_and_counted(tmp_path: Path, ctx: Any,
+                                                capsys: pytest.CaptureFixture[str]) -> None:
+    """每轮刷同一句"降级 rules"，人就不看了；累计次数留给 /status。"""
+    from lab.model_server import ModelServer
+
+    srv = ModelServer(mode="bad_schema").start()
+    try:
+        (tmp_path / "notes.txt").write_text("hi\n", encoding="utf-8")
+        ctx("看下 notes.txt\n看下 notes.txt\n" + SEP + "status\n" + SEP + "quit\n",
+            base_url=srv.base_url)
+        out = _out(capsys)
+
+        assert out.count("模型给了不合规的调用") == 1, f"同一原因只该说一次：{out[:400]}"
+        assert "模型降级 2 次" in out, f"状态行要给出累计：{out[:400]}"
+    finally:
+        srv.stop()
+
+
+def test_transport_failure_is_not_blamed_on_the_model(tmp_path: Path, ctx: Any,
+                                                      capsys: pytest.CaptureFixture[str]) -> None:
+    """500/超时是端点层的事，措辞不能是"模型给了不合规的调用"。"""
+    from lab.model_server import ModelServer
+
+    srv = ModelServer(mode="error").start()
+    try:
+        ctx("看下 notes.txt\n" + SEP + "quit\n", base_url=srv.base_url)
+        out = _out(capsys)
+        assert "模型层失败" in out, out[:400]
+        assert "模型给了不合规的调用" not in out, out[:400]
+    finally:
+        srv.stop()

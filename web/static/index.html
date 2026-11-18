@@ -106,7 +106,8 @@
 <main id="main" tabindex="-1" aria-live="polite"><p class="muted" role="status">加载中…</p></main>
 <script type="module">
 // 页面清单、URL 状态、筛选排序全部来自 router.js（纯函数，可 node 测试）
-import { OPS, DEFAULT_SORT, parseHash, buildHash, isRouteHash, viewRows } from "./router.js?v=2";
+import { OPS, OP_LABEL, DEFAULT_SORT, parseHash, buildHash, isRouteHash, viewRows } from "./router.js";
+import { renderCoverage } from "./coverage.js";
 
 const main = document.getElementById("main");
 const nav = document.getElementById("nav");
@@ -165,12 +166,12 @@ const COVERAGE_LABEL = {
 
 const HITS = { zero: "0", single: "1", multi: "多处（已合并）", not_run: "未执行" };
 
-const VERDICT_LABEL = {
-  inconclusive: "未确认", blocked: "阻塞", not_run: "未执行", error: "错误",
+const VERDICT_LABEL = {  // refuted 单列（B372）：混进"未确认"读者会以为这项没测到
+  refuted: "已判否（跑过、无该问题）", inconclusive: "未确认", blocked: "阻塞", not_run: "未执行", error: "错误",
 };
 
 const VERDICT_FIX = {
-  inconclusive: "三向对照未成立：换载荷或复核基线",
+  refuted: "不用补：这条测过、不成立", inconclusive: "三向对照未成立：换载荷或复核基线",
   blocked: "补输入：凭据 / OOB 域名 / 放行限速",
   not_run: "本轮未覆盖（预算或标签缺失）",
   error: "环境错误：重跑或查网络",
@@ -279,8 +280,12 @@ function renderUnverified(data, params) {
     // 未验证行不在 findings 载荷里，用本页 entries（B39：blocked 在旧三组中没有位置）
     const entries = (data.entries || []).filter((e) => ids.includes(e.id));
     for (const e of entries) {
+      // 原因列先写人话，再附码（B263）：码要留，界面不该只给机器名
+      const reasonCell = e.reason_text
+        ? el("td", {}, `${e.reason_text} · `, el("code", {}, e.reason))
+        : el("td", {}, e.reason);
       table.append(el("tr", el("td", {}, e.id), el("td", {}, e.oracle),
-        el("td", {}, e.reason), el("td", { class: "muted" }, VERDICT_FIX[key] || "-")));
+        reasonCell, el("td", { class: "muted" }, VERDICT_FIX[key] || "-")));
     }
     wrap.append(table);
   }
@@ -335,7 +340,7 @@ function renderEngagement(d) {
   const rows = [
     ["engagement", d.id], ["资产", d.asset], ["范围", d.scope],
     ["已确认", d.confirmed], ["总条目", d.total],
-    ["决策", d.decision], ["原因", d.reason], ["绑定数", d.bindings],
+    ["决策", decisionText(d.decision)], ["原因", d.reason], ["绑定数", d.bindings],
   ];
   const table = el("table");
   for (const [k, v] of rows) {
@@ -343,55 +348,6 @@ function renderEngagement(d) {
       el("td", {}, v === undefined || v === null || v === "" ? "未提供" : String(v))));
   }
   return table;
-}
-
-function renderCoverage(d) {
-  const wrap = el("div");
-  wrap.append(el("p", { class: "muted" }, `口径：${d.scope || "unknown"}（分母只含跑过的面）`));
-  // B97：有账本就先把"哪条面根本没判定"摆出来——它比矩阵更接近客户问的那个问题。
-  if (d.ledger) {
-    const L = d.ledger;
-    const s = L.summary || {};
-    const done = (L.completeness || {}).complete;
-    wrap.append(el("p", {},
-      `${L.scope === "platform" ? "平台合计账本" : "账本"}：面 ${s.faces || 0}（有判定 ${s.faces_covered || 0}）· 适用 ${s.applicable_pairs || 0} 对`
-      + ` · 执行 ${s.executed || 0} · 缺口 ${s.gaps || 0} · 完整：${done ? "是" : "否"}`));
-    // 账本里的话是给 markdown 报告写的，控制台是纯文本：把 **强调** 去掉再显示
-    const plain = (s0) => String(s0).replace(/\*\*/g, "");
-    for (const c of ((L.completeness || {}).caveats || [])) {
-      wrap.append(el("p", { class: "muted" }, plain(c)));
-    }
-    const gaps = L.gaps || [];
-    if (gaps.length) {
-      const t = el("table");
-      t.append(el("tr", ...["缺口", "严重度", "说明"].map((h) => el("th", {}, h))));
-      for (const g of gaps) {
-        t.append(el("tr", el("td", {}, String(g.kind)),
-          el("td", {}, String(g.severity)), el("td", {}, plain(g.detail || ""))));
-      }
-      wrap.append(t);
-    }
-  }
-  if (!(d.matrix || []).length) {
-    wrap.append(el("p", { role: "status" }, "本轮没有可展示的覆盖数据"));
-    return wrap;
-  }
-  const table = el("table");
-  table.append(el("tr", el("th", {}, "资产"), ...(d.oracles || []).map((o) => el("th", {}, o))));
-  for (const row of d.matrix) {
-    const tr = el("tr", el("td", {}, row.asset));
-    for (const o of d.oracles || []) {
-      const st = row.cells[o] || "not_run";
-      tr.append(el("td", { class: "cell-" + st }, COVERAGE_LABEL[st] || st));
-    }
-    table.append(tr);
-  }
-  wrap.append(table);
-  if ((d.zero_hit_tags || []).length) {
-    wrap.append(el("p", { class: "muted" },
-      ...["零命中标签：", ...d.zero_hit_tags.map((x) => el("span", { class: "chip" }, x))]));
-  }
-  return wrap;
 }
 
 function renderRoutes(data) {
@@ -435,16 +391,23 @@ function renderAudit(data) {
 
 function renderBounds(data) {
   const wrap = el("div");
-  if (data.alert === "red") {
-    wrap.append(el("div", { class: "alert-red" }, `越界事件 ${data.count} 次 —— 这是事故，不是统计`));
-  } else {
-    wrap.append(el("p", { class: "muted" }, "越界事件：0（正常）"));
-  }
-  if (data.events && data.events.length) {
-    wrap.append(el("pre", {}, JSON.stringify(data.events, null, 2)));
+  wrap.append(data.alert === "red"
+    ? el("div", { class: "alert-red" }, `越界事件 ${data.count} 次 —— 这是事故，不是统计`)
+    : el("p", { class: "muted" }, "越界事件：0（正常）"));
+  if (data.events && data.events.length) wrap.append(el("pre", {}, JSON.stringify(data.events, null, 2)));
+  // 被边界挡下（B331）：不是事故，但得看得到，否则"0 事件"会被读成"边界没起作用"
+  if (data.blocked_count) {
+    wrap.append(el("p", {}, data.note || ""));
+    wrap.append(el("ul", {}, ...(data.blocked || []).map((b) => el("li", {}, `${b.oracle} · ${b.asset} · ${b.reason_text || b.reason}`))));
   }
   return wrap;
 }
+
+// 审批状态 → 人话（B264）：`pending`/`rejected` 这类码不该原样上屏
+const DECISION_LABEL = {
+  pending: "待批", approved: "已批准", rejected: "已驳回", expired: "已过期",
+};
+const decisionText = (v) => DECISION_LABEL[String(v || "")] || String(v || "-");
 
 const VERDICT_BADGE = {
   verified: "已确认", inconclusive: "未确认", blocked: "阻塞", not_run: "未执行", error: "错误",
@@ -473,7 +436,7 @@ function renderFinding(d) {
     el("p", {}, `${d.id} · ${a.oracle || "-"} · ${a.asset || "-"}`),
     el("p", { class: "muted" },
       `severity: ${a.severity || "（未验证，无分档）"} · 置信度 ${Number(a.confidence || 0).toFixed(2)}`
-      + (a.reason ? ` · 原因 ${a.reason}` : ""))));
+      + (a.reason ? ` · 原因 ${a.reason_text || a.reason}` : ""))));
 
   wrap.append(section("② 复现",
     el("p", { class: "muted" }, "关掉 agent，只用证据包重发三条请求："),
@@ -507,7 +470,7 @@ function renderFinding(d) {
 
 function renderError(op, status) {
   return el("div", { class: "state-error", role: "alert" },
-    el("p", {}, `接口不可用：${op} 返回 ${status}`),
+    el("p", {}, `接口不可用：${OP_LABEL[String(op).replace(/^ui\./, "")] || op} 返回 ${status}`),  // 人话页面名（B360）
     el("p", { class: "muted" }, "这是环境或契约问题，不是「没有发现」。"),
     el("p", {}, el("a", { href: "#/overview" }, "回到概览")));
 }
@@ -554,7 +517,7 @@ function renderApprovals(d) {
       buttons[0].addEventListener("click", () => send("approve"));
       buttons[1].addEventListener("click", () => send("reject"));
     } else {
-      box.append(el("p", {}, `决定：${row.status} · ${row.decided_by || "-"} · ${row.reason || "-"}`));
+      box.append(el("p", {}, `决定：${decisionText(row.status)} · ${row.decided_by || "-"} · ${row.reason || "-"}`));
     }
     wrap.append(box);
   }
@@ -574,11 +537,11 @@ function renderReport(d) {
   const body = el("pre", { class: "report" }, String(d.text || ""));
   return el("div", {}, head, body);
 }
-
+// 兜底页要自报身份（B361）：只丢一坨 JSON，读者分不清"页面没做"还是"数据坏了"
 function renderGeneric(data) {
-  return el("pre", {}, JSON.stringify(data, null, 2));
+  return el("div", {}, el("p", { class: "muted" }, "这个页面还没有人话视图——下面是原始数据（排查用）。"),
+    el("pre", {}, JSON.stringify(data, null, 2)));
 }
-
 function setHash(next, { replace = false } = {}) {
   const hash = buildHash(next);
   if (locations(hash)) return;
@@ -611,7 +574,7 @@ async function render() {
   let view;
   if (state.op === "overview") view = renderOverview(data);
   else if (state.op === "engagement") view = renderEngagement(data);
-  else if (state.op === "coverage") view = renderCoverage(data);
+  else if (state.op === "coverage") view = renderCoverage(el, data, COVERAGE_LABEL);
   else if (state.op === "findings") view = renderFindings(data, state.params);
   else if (state.op === "finding") view = renderFinding(data);
   else if (state.op === "approvals") view = renderApprovals(data);
@@ -625,7 +588,7 @@ async function render() {
 }
 
 for (const op of OPS) {
-  const btn = el("button", { "data-op": op }, op);
+  const btn = el("button", { "data-op": op }, OP_LABEL[op] || op);   // 人话标签（B359）
   btn.addEventListener("click", () => setHash({ op, params: {} }));
   nav.append(btn);
 }

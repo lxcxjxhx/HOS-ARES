@@ -12,9 +12,11 @@ from __future__ import annotations
 import sqlite3
 import time
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Callable, Protocol, TypeVar
 
 from .models import TaskState
+
+T = TypeVar("T")
 from .store import Store
 
 
@@ -203,3 +205,22 @@ class Lease:
 def is_transient(exc: BaseException) -> bool:
     """sqlite 忙等属于可重试；其余不在这里猜。"""
     return isinstance(exc, sqlite3.OperationalError) and "locked" in str(exc).lower()
+
+
+def with_transient_retry(fn: Callable[[], T], *, attempts: int = 3,
+                         base_sleep: float = 0.05) -> T:
+    """跑 `fn()`；遇到 `is_transient` 的异常就退避重试（B336）。
+
+    以前 `is_transient` 只被定义、没有任何调用方——并发写事件时
+    `database is locked` 会直接抛出去，而不是重试。
+    """
+    last: BaseException | None = None
+    for attempt in range(attempts):
+        try:
+            return fn()
+        except BaseException as exc:  # noqa: BLE001 - 只对 transient 重试，其余原样抛
+            if not is_transient(exc) or attempt == attempts - 1:
+                raise
+            last = exc
+            time.sleep(base_sleep * (attempt + 1))
+    raise last if last else RuntimeError("unreachable")

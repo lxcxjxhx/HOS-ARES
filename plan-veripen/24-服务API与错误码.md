@@ -205,9 +205,9 @@ ops:
 | **`make lint-noroute-report`** | `veripen report --lint-noroute` | 报告三视图 0 处可定位字面量 |
 | `make lint-noleak` | `scripts/lint-noleak.sh` | core 内无客户标识 |
 | `make lint-report` | `veripen report --lint` | 措辞合规 + 三视图同源 + 弱绑定不升级 |
-| `make verify-chain` | `veripen evidence --verify-chain` | 哈希链完整 |
+| `make verify-chain` | `python -m veripen_core.evidence --verify-chain`（产品入口：`veripen replay --chain <目录>`） | 哈希链完整 |
 | `make verify-manifest` | `veripen delivery --verify` | 交付封条完整 |
-| `make verify-capsule` | `veripen evidence --schema` | capsule v1.1 必含 `route` 块 |
+| `make verify-capsule` | `python -m veripen_core.evidence --verify-capsule`（产品入口：`veripen replay --capsule <文件>`） | capsule v1.1 必含 `route` 块 |
 | **`make routes ASSET=y`** | `veripen routes discover --asset y` | 解析成功且打印摘要（无地址） |
 | **`make routes-explain REF=r`** | `veripen routes explain --ref r` | 输出完整 provenance（审计第四问） |
 | **`make routes-diff A=a B=b`** | `veripen routes diff` | 结构差异可读 |

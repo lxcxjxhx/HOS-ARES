@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""veripen cases —— A7「接口能自动覆盖」的命令行形态（`19`）。
+"""cases（内部脚手架）—— A7「接口能自动覆盖」的命令行形态（`19`）。
+
+入口：`make cases CASES=contract` 或 `python -m veripen_cli.cmd_cases`。
+**没有 `veripen cases` 这个子命令**（B229：内部工具不进产品入口）。
 
 用法：
     python -m veripen_cli.cmd_cases --contract tests/fixtures/contract/sample.json
@@ -78,7 +81,7 @@ def _has_address(template: str) -> bool:
 
 
 def main(argv: list[str]) -> int:
-    ap = argparse.ArgumentParser(prog="veripen cases")
+    ap = argparse.ArgumentParser(prog="python -m veripen_cli.cmd_cases")
     ap.add_argument("--contract", required=True, help="OpenAPI JSON 路径")
     ap.add_argument("--out", default=str(ROOT / "out" / "cases"))
     ap.add_argument("--check", action="store_true", help="跑两次比摘要（A7 的核心断言）")

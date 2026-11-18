@@ -293,3 +293,44 @@ def test_broken_schema_reports_sql_error_not_silent_pass() -> None:
     broken = [o for o in outs if any("SQL_ERROR" in v for v in o.violations)]
     assert broken, "缺表必须暴露成 SQL_ERROR"
     s.close()
+
+
+# ── B336：`database is locked` 要重试（is_transient 早就有，没人用）──
+def test_with_transient_retry_retries_a_lock() -> None:
+    """`database is locked` 可重试；`is_transient` 以前没人用，事件写入直接抛。"""
+    import sqlite3
+
+    from veripen_core.lease import with_transient_retry
+
+    calls = {"n": 0}
+
+    def flaky() -> str:
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise sqlite3.OperationalError("database is locked")
+        return "done"
+
+    assert with_transient_retry(flaky) == "done"
+    assert calls["n"] == 3
+
+
+def test_with_transient_retry_does_not_swallow_other_errors() -> None:
+    import sqlite3
+
+    import pytest
+
+    from veripen_core.lease import with_transient_retry
+
+    def boom() -> None:
+        raise sqlite3.OperationalError("no such table: task_events")
+
+    with pytest.raises(sqlite3.OperationalError):
+        with_transient_retry(boom)
+
+
+def test_event_record_uses_the_retry_helper() -> None:
+    import inspect
+
+    from veripen_core import blackboard
+
+    assert "with_transient_retry" in inspect.getsource(blackboard.EventLog.record)

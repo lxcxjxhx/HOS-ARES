@@ -51,7 +51,9 @@ TASKS: dict[str, tuple[str, ...]] = {
                  "--out", "out/demo-alt"),
     "demo-offline": ("scripts/demo.py", "--out", "out/demo", "--offline-only"),
     "bench": ("scripts/b12/run_bench.py", "--rounds", "3", "--out", "out/b12"),
-    "verify-report": ("scripts/b11/verify_manifest.py", "out/b11/report"),
+    # 与 Makefile 的 verify-report 同一个动作（B324）：
+    # 以前这里指向一个写死的演示目录（新检出的仓库里没有它）。
+    "verify-report": ("-m", "veripen_cli", "replay", "--manifest", "out/run"),
     "replay-offline": ("-m", "veripen_core.evidence", "--offline-fixture"),
     "exec-isolation": ("-m", "pytest", "tests/unit/test_sandbox_policy.py",
                        "tests/integration/test_sandbox_isolation.py", "-q"),
@@ -63,13 +65,30 @@ def _python() -> str:
     return sys.executable or "python"
 
 
+def drop_overridden(argv: tuple[str, ...] | list[str], rest: list[str]) -> list[str]:
+    """用户额外给的 `--flag` 若与任务默认值同名，**去掉默认那对**（B325）。
+
+    改前实测：`tasks.py verify-report --manifest out/vr/run` 会拼成
+    `… --manifest out/run --manifest out/vr/run`——argparse 取最后一个所以能跑，
+    但打印出来的命令行有两份，读的人会以为自己在跑两个目录。
+    """
+    flags = {item for item in rest if item.startswith("--")}
+    out: list[str] = []
+    skip_next = False
+    for i, item in enumerate(argv):
+        if skip_next:
+            skip_next = False
+            continue
+        if item in flags and i + 1 < len(argv) and not argv[i + 1].startswith("-"):
+            skip_next = True          # 连同它的值一起丢掉
+            continue
+        out.append(item)
+    return out
+
+
 def run(task: str, rest: list[str]) -> int:
     argv = TASKS[task]
-    if task == "bench":
-        # 与 `make bench` 同义；`--rounds/--limit` 这类额外参数可继续透传
-        cmd = [_python(), *argv, *rest]
-    else:
-        cmd = [_python(), *argv, *rest]
+    cmd = [_python(), *drop_overridden(argv, rest), *rest]
     print(f"[tasks] {' '.join(cmd)}", flush=True)
     return subprocess.call(cmd, cwd=str(ROOT))  # noqa: S603 - 固定 argv，无 shell
 

@@ -61,6 +61,11 @@ def _round(results, *, sha="a" * 64, no=1) -> RoundResult:  # noqa: ANN001
 
 # ── 1 用例集冻结 ──────────────────────────────────────────────────
 def test_cases_are_44_with_28_16_split() -> None:
+    """10 §1：用例集是冻结的，增删要走 PR 并记入风险登记册。
+
+    B381 试过补响应头三件套的 6 条用例，被 parity V4 挡下——**用例只能引用规格 14 类
+    里的 oracle**，而响应头类不在其中。所以语料仍是 44（28/16），这件事记在账本里。
+    """
     cases = load_cases(CASES_PATH)
     assert len(cases) == 44
     assert sum(1 for c in cases if c.label == "positive") == 28
@@ -325,18 +330,28 @@ def test_bench_md_points_at_capsule_dir() -> None:
         capsules_dir="out/x/capsules",
     )
     assert "证据落盘" in with_dir
-    assert "out/x/capsules/r1/*.json" in with_dir
+    assert "out/x/capsules/r1" in with_dir, "要给出可复跑的链校验路径"
+    assert "veripen replay --chain" in with_dir, "提示的命令必须真的存在（B293）"
     without = render_bench_md([r], gates=check_hard_gates([r]), case_fp="f" * 64)
     assert "证据落盘" not in without
 
 
 def test_bench_md_names_unreproduced_cases() -> None:
-    """只报"未复现 6"等于把 6 条证据变成噪声：要点名，读者才查得到。"""
+    """只报个数等于把证据变成噪声：要点名，读者才查得到。"""
     r = _round([_ok("P-01", "positive", "VERIFIED")])
     md = render_bench_md([r], gates=check_hard_gates([r]), case_fp="f" * 64,
-                         unreproduced=["P-07（PARTIAL）"])
-    assert "未复现用例" in md
-    assert "P-07（PARTIAL）" in md
+                         unreproduced=["N-02（FAILED）"])
+    assert "重放对不上的用例" in md
+    assert "N-02（FAILED）" in md
+
+
+def test_bench_md_separates_partial_from_mismatch() -> None:
+    """PARTIAL 是"状态一致、字节不同"的已知边界（06 §7），不许和"对不上"混成一个数。"""
+    r = _round([_ok("P-01", "positive", "VERIFIED")])
+    md = render_bench_md([r], gates=check_hard_gates([r]), case_fp="f" * 64,
+                         partial_cases=["P-07", "P-08"])
+    assert "状态一致但字节不同的用例：P-07、P-08" in md, md
+    assert "重放对不上的用例" not in md
 
 
 def test_save_round_chain_writes_one_verifiable_chain(tmp_path) -> None:  # noqa: ANN001
@@ -367,3 +382,28 @@ def test_save_round_chain_writes_one_verifiable_chain(tmp_path) -> None:  # noqa
     # 同一批重写：同哈希同字节，不产生第二份证据
     save_round_chain(docs, tmp_path)
     assert len(sorted(tmp_path.glob("*.json"))) == 3
+
+
+# ── B380：bench 的 recall 只覆盖语料里的 oracle ──────────────────
+def test_bench_names_the_oracles_its_corpus_never_measures() -> None:
+    """`recall 0.86 / 44 例` 读起来像"覆盖了全部判定"，实际只覆盖 14 个 oracle。
+
+    这条把"没量到的"点出来：不点名，读者会把"没量"读成"没问题"。
+    """
+    import sys as _sys
+    from pathlib import Path as _Path
+
+    root = _Path(__file__).resolve().parents[2]
+    if str(root / "scripts" / "b12") not in _sys.path:
+        _sys.path.insert(0, str(root / "scripts" / "b12"))
+    import run_bench  # noqa: PLC0415
+
+    from veripen.bench.core import load_cases  # noqa: PLC0415
+
+    cases = load_cases(root / "tests" / "bench" / "cases.yaml")
+    gaps = run_bench.uncovered_oracles({c.oracle for c in cases})
+    assert gaps, "语料覆盖了全部注册 oracle？那这条断言该删"
+    # 抽两个抽样：本轮新接的与响应头类的
+    assert "session_fixation" in gaps, gaps
+    assert "csp_absent" in gaps, gaps
+    assert "sqli_bool_diff" not in gaps, "语料里的不该出现在未覆盖名单里"

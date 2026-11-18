@@ -134,7 +134,12 @@ def test_chain_links_and_root() -> None:
 
     report = verify_chain(caps)
     assert report.ok is True
-    assert report.root_sha256 == "0" * 64
+    assert report.genesis_prev_sha256 == "0" * 64
+    # B240：链的身份是**链头自哈希**，不是那个恒为零的 prev；
+    # 早先 ChainReport 把 prev 也叫 root_sha256，演示台本照打 → 观众看到 12 个 0。
+    assert report.head_sha256 == caps[0].chain.self_sha256
+    assert report.tip_sha256 == caps[-1].chain.self_sha256
+    assert report.head_sha256 != "0" * 64
 
 
 def test_chain_detects_middle_tamper_with_index() -> None:
@@ -178,7 +183,7 @@ def test_chain_reports_length_and_tip() -> None:
     assert report.length == 3
     assert report.head_sha256 == caps[0].chain.self_sha256
     assert report.tip_sha256 == caps[-1].chain.self_sha256
-    assert report.root_sha256 == "0" * 64
+    assert report.genesis_prev_sha256 == "0" * 64
 
 
 # ── 5b 重算不了 ≠ 被推翻（B151）────────────────────────────────────
@@ -299,3 +304,55 @@ def test_cli_reports_tampered(tmp_path, capsys) -> None:
 
     assert evidence_main(["--capsule", str(path), "--offline-fixture"]) == 1
     assert "TAMPERED" in capsys.readouterr().out
+
+
+# ── B275：把目录当 capsule 传进来，要说清是目录 ──────────────────
+def test_directory_capsule_path_says_it_is_a_directory(tmp_path) -> None:  # noqa: ANN001
+    """Windows 上对目录 read_bytes 抛 PermissionError，旧文案会让客户去查权限。"""
+    from veripen_core.evidence import CapsuleIncomplete, load_capsule
+
+    with pytest.raises(CapsuleIncomplete) as ei:
+        load_capsule(tmp_path)
+    msg = str(ei.value)
+    assert "目录" in msg, msg
+    assert "Permission" not in msg, "别把目录说成权限问题"
+
+
+# ── B381：响应头类结论必须能由证据重算 ──────────────────────────
+def test_response_headers_are_kept_but_credentials_are_redacted() -> None:
+    """证据要能重算"有没有 CSP"，但会话 id 不能落盘。
+
+    以前 `ResponseBlock` 根本没有 headers 字段，于是 csp/frame/nosniff/hsts 四个
+    oracle 的每份证据都只能落 `predicate_not_recomputable:has_protection`。
+    """
+    from veripen_core.evidence import build_response
+
+    block = build_response(
+        status=200, body="{}",
+        headers={"Content-Security-Policy": "default-src 'self'",
+                 "Set-Cookie": "sid=abc", "Cookies": "x"},
+    )
+    assert block.headers["Content-Security-Policy"] == "default-src 'self'"
+    assert block.headers["Set-Cookie"] == "<redacted>", "会话 id 不许进证据"
+
+
+def test_has_protection_is_recomputable_from_stored_headers() -> None:
+    """`expected.has_protection` 由证据里的响应头重算，两个方向都要对。"""
+    from veripen_core.evidence import TraceResult, _live_fingerprint
+
+    from types import SimpleNamespace
+
+    cap = SimpleNamespace(
+        assertion=SimpleNamespace(observed={"header": "content-security-policy"},
+                                  expected={"has_protection": [0]}),
+        steps=[SimpleNamespace(role=role, response=SimpleNamespace(status=200))
+               for role in ("probe", "control")],
+    )
+
+    traces = [TraceResult(status=200, body_sha256="a"),
+              TraceResult(status=200, body_sha256="b")]
+    # 两次都没有这个头 → 0，期望 [0] 成立（"头缺失"这条结论可以被复现）
+    assert _live_fingerprint(cap, traces)["has_protection"] is True
+    # 只要有一次带了，就不再是"缺失"
+    traces[1].headers["Content-Security-Policy"] = "default-src 'self'"
+    assert _live_fingerprint(cap, traces)["has_protection"] is False

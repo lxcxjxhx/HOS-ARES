@@ -129,7 +129,11 @@ def _routeset(base: str, tags: tuple[str, ...]):  # noqa: ANN001, ANN202
         RouteSymbols({LAB_BASE: base}), base_symbol=LAB_BASE,
     )
     q = RouteQuery(asset=AssetRef(id=R.ASSET), hints=RouteHints(), min_confidence=0.0)
-    return Resolver(sources=[src]).resolve(q, now=R.NOW)
+    rs = Resolver(sources=[src]).resolve(q, now=R.NOW)
+    # 同一标签可能有多条面（B384）：解析器按置信度排序，插入一条新面就会改变
+    # `bindings[0]`——bench 的被测对象会悄悄换人。这里按模板字典序固定下来。
+    rs.bindings = tuple(sorted(rs.bindings, key=lambda b: str(b.template)))
+    return rs
 
 
 def _last_params(transport) -> dict[str, str]:  # noqa: ANN001
@@ -384,9 +388,18 @@ def _seal_round(results: list[CaseResult], directory: Path) -> list[CaseResult]:
     return out
 
 
-def findings_snapshot(rounds: list[RoundResult]) -> list[str]:
-    """旧格式快照：向后再比一轮才叫"前后为空"。"""
-    return findings_fingerprint(rounds)
+def uncovered_oracles(case_oracles: set[str]) -> list[str]:
+    """已注册但**语料里没有用例**的 oracle（B380）。
+
+    `recall 0.86 / 44 例` 读起来像"覆盖了全部判定"，实际只覆盖了 14 个 oracle。
+    这几个（响应头四件套、xss_dom、jwt_replay、本轮新接的 session_fixation /
+    code_replay）在矩阵里"有名字、能跑"，但 bench 从没量过它们——不点名，
+    读者会把"没量"读成"没问题"。
+    """
+    from veripen_oracles import ALL_ORACLES
+
+    registered = [c.meta.id for c in ALL_ORACLES]
+    return sorted(oid for oid in registered if oid not in case_oracles)
 
 
 def main(argv: list[str]) -> int:
@@ -478,15 +491,27 @@ def main(argv: list[str]) -> int:
         if r.outcome in (Outcome.NOT_RUN, Outcome.ERROR)
     ]
     #: 有证据但重放对不上的用例：**点名**。只报一个数，那 6 条证据就成了噪声。
+    # PARTIAL 与"对不上"分开列（B292）：前者是已知边界，后者才要查。
+    partial_cases = [
+        r.case_id for r in rounds[0].results
+        if r.capsule_id and r.replay_status == "PARTIAL"
+    ]
+    # BLOCKED + timing_sensitive（B404）：并发突发类证据本来就重放不出来，
+    # 单独一档点名——既不算通过，也不算"结论不复现"。混在"对不上"里会毁掉这个指标。
+    timing_sensitive = [
+        r.case_id for r in rounds[0].results
+        if r.capsule_id and r.replay_status == "BLOCKED"
+    ]
     unreproduced = [
         f"{r.case_id}（{r.replay_status}）"
         for r in rounds[0].results
-        if r.capsule_id and r.replay_status not in ("OK", "NEVER")
+        if r.capsule_id and r.replay_status not in ("OK", "NEVER", "PARTIAL", "BLOCKED")
     ]
 
     md = render_bench_md(rounds, gates=gates, case_fp=fps, missed=missed,
                          capsules_dir=str(capsules_root),
-                         unreproduced=unreproduced)
+                         unreproduced=unreproduced, partial_cases=partial_cases,
+                         timing_sensitive=timing_sensitive)
     (out / "bench.md").write_text(md, encoding="utf-8")
     (out / "bench.json").write_text(
         json.dumps(to_json(rounds, gates=gates, case_fp=fps), ensure_ascii=False, indent=2),
@@ -499,6 +524,10 @@ def main(argv: list[str]) -> int:
     for failure in derivable.failures:
         print(f"ROUTE-DERIVABLE FAIL {failure}")
     print(f"route_derivable: {'OK' if derivable.ok else 'FAIL'}")
+
+    gaps = uncovered_oracles({c.oracle for c in cases})
+    if gaps:
+        print(f"语料未覆盖的 oracle（{len(gaps)} 个，recall 不含它们）：{', '.join(gaps)}")
 
     # B12.9：重跑前后 finding 集合差必须为空（补齐不改结论）
     fp_now = findings_fingerprint(rounds)

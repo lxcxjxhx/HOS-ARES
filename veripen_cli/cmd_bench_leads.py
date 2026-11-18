@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""veripen bench-leads —— A10「能打同时能证明」的**验收命令**（`35 §8`）。
+"""bench-leads（内部脚手架）—— A10「能打同时能证明」的**验收命令**（`35 §8`）。
+
+入口：`make bench-leads` 或 `python -m veripen_cli.cmd_bench_leads`。
 
 用法：python -m veripen_cli.cmd_bench_leads [--out out/leads]
 
@@ -390,7 +392,9 @@ def _record_leads(
 
 
 def main(argv: list[str]) -> int:
-    ap = argparse.ArgumentParser(prog="veripen bench-leads")
+    # 内部脚手架：入口是 `make bench-leads` / `python -m …`，不叫 `veripen bench-leads`
+    # （那个子命令不存在，抄 usage 会撞 unknown command —— B229）。
+    ap = argparse.ArgumentParser(prog="python -m veripen_cli.cmd_bench_leads")
     ap.add_argument("--out", default=str(ROOT / "out" / "leads"))
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)

@@ -175,3 +175,37 @@ def test_second_run_into_same_out_is_refused(
     # 换个 --out 就能继续
     assert _run(vuln_lab, tmp_path, out="run-2") == 0
     assert list((tmp_path / "run-2" / "capsules").glob("*.json"))
+
+
+# ── B254：三视图 + 清单必须由**产品路径**产出 ────────────────────
+def test_run_writes_sarif_and_a_verifiable_manifest(vuln_lab: Any, tmp_path: Path) -> None:
+    """演示脚本里有 SARIF 与 manifest，产品路径以前没有——客户的 CI 拿不到扫描输入。
+
+    这条同时证明：manifest 能验过，且改一个字符就红（它真的是凭据，不是装饰）。
+    """
+    import json as _json
+
+    from veripen.report.lint import verify_manifest
+
+    rc = _run(vuln_lab, tmp_path)
+    out = tmp_path / "run"
+    assert rc == 0
+
+    sarif = _json.loads((out / "report.sarif").read_text(encoding="utf-8"))
+    assert sarif["version"] == "2.1.0"
+    assert sarif["runs"][0]["tool"]["driver"].get("version"), "SARIF 缺工具版本"
+    assert sarif["runs"][0]["results"], "SARIF 里没有任何结果"
+
+    # 证据链要真的从 cmd_run 走到 SARIF（B374）：只测渲染器的话，
+    # 忘了在 `_findings_view` 里填 traces 这类断线不会被发现。
+    first = sarif["runs"][0]["results"][0]
+    roles = [l["location"]["properties"]["role"]
+             for l in first["codeFlows"][0]["threadFlows"][0]["locations"]]
+    assert roles[0] == "baseline" and "probe" in roles, roles
+
+    md = (out / "report.md").read_text(encoding="utf-8")
+    js = _json.loads((out / "findings.json").read_text(encoding="utf-8"))
+    manifest = _json.loads((out / "report.manifest.json").read_text(encoding="utf-8"))
+    ok, problems = verify_manifest(manifest, markdown=md, sarif=sarif, js=js)
+    assert ok, problems
+    assert verify_manifest(manifest, markdown=md + " ", sarif=sarif, js=js)[0] is False

@@ -192,3 +192,119 @@ def test_all_check_ids_unique_and_ordered() -> None:
         ("X", checks.SAML_CHECKS),
     ):
         assert all(i.id.startswith(prefix) for i in group)
+
+
+# ── B375：`auto` 不等于「能测」 ─────────────────────────────────
+def test_auto_checks_are_split_into_implemented_and_paper_only() -> None:
+    """矩阵里 15 条 auto，现在全部有判定函数（B412 收尾）。
+
+    其余 10 条（M2–M5、O2/O4/O7/O8、S2/S3）只有靶场计划与判据文字，**没有代码**——
+    这条断言把它们单列出来，防止"清单里有"被读成"能测"（B9 的 open 拖了十几批）。
+    """
+    matrix = checks.coverage_matrix(oracle_hits={})
+    assert matrix["auto_total"] == 15, matrix["by_automation"]
+    # B389/B390/B391/B393/B410/B411/B412：O2、S2、O7 各接一个，M2–M5 共用证书判定函数，
+    # S3（登出失效）、O4（PKCE）、O8（scope 提升）补上 → 15 条 auto 全部有判定
+    assert matrix["auto_implemented"] == 15, matrix["auto_implemented"]
+    missing = matrix["auto_without_judge"]
+    # 名单不写成常量表（lint-nodata 会把长字面量当硬编码数据）：
+    # 只钉"数量对得上 + 抽样的确在里面 + 它们真的没有判定函数"
+    # 需要多步序列的那几条（O4/O8/S3）不算"只有清单"——它们是执行模型装不下。
+    # B393 之后「只有清单」清零：剩下的要么有判定，要么是多步/观测受限。
+    assert missing == [], missing
+    assert all(not checks.JUDGES.get(cid) for cid in missing), missing
+
+
+def test_three_tiers_are_disjoint() -> None:
+    """有判定 / 只有清单 / 需要多步 —— 三档不许重叠（B392）。
+
+    重叠会让总数读起来是"还剩 7 条没写"，其实其中 3 条是执行模型装不下。
+    """
+    matrix = checks.coverage_matrix(oracle_hits={})
+    implemented = {c["id"] for c in matrix["checks"] if c.get("judge")}
+    paper = set(matrix["auto_without_judge"])
+    sequence = set(matrix["needs_sequence"])
+    unmeasurable = set(matrix["unmeasurable"])
+    assert not (paper & sequence), paper & sequence
+    assert not (implemented & (paper | sequence)), implemented
+    # `unmeasurable` 不是"另一档"，而是一个**属性**：M7 有判定函数，只是观测不到。
+    # 所以它必须落在 implemented 里面，不能取代它。
+    assert unmeasurable <= implemented, unmeasurable - implemented
+    # S3（B410）、O4（B411）、O8（B412）都已落地——这一档现在是空的。
+    # 断言"空"而不是删断言：空档本身是要守的状态（再有写得出、跑不了的项，必须落这里）
+    assert sequence == set(), sequence
+
+
+def test_every_declared_judge_exists_and_is_callable() -> None:
+    """`JUDGES` 不许指向不存在的函数（改名后静默失效最难查）。"""
+    for check_id, fn_name in checks.JUDGES.items():
+        assert check_id in {c.id for c in checks.ALL_CHECKS}, check_id
+        fn = getattr(checks, fn_name, None)
+        assert callable(fn), fn_name
+
+
+# ── B376：S1 会话固定真的接上了 oracle ──────────────────────────
+def test_session_fixation_oracle_is_registered_and_uses_the_judge() -> None:
+    """判定函数 → oracle 这条通路：注册表里有它，判据仍走 auth/checks 那一条。"""
+    from veripen_oracles import ALL_ORACLES
+    from veripen_oracles.auth import session
+
+    ids = {c.meta.id for c in ALL_ORACLES}
+    assert "session_fixation" in ids, "没注册就永远跑不到（B9 的 open）"
+    assert session.SessionFixation.meta.selector_tags == ("token_issue",)
+
+
+def test_set_cookie_sid_is_parsed_without_other_attributes() -> None:
+    from types import SimpleNamespace
+
+    from veripen_oracles.auth.session import _cookie_sid
+
+    assert _cookie_sid(SimpleNamespace(headers={"Set-Cookie": "sid=abc; Path=/; HttpOnly"})) == "abc"
+    assert _cookie_sid(SimpleNamespace(headers={"set-cookie": "a=1; sid=xyz"})) == "xyz"
+    assert _cookie_sid(SimpleNamespace(headers={})) == ""
+    assert _cookie_sid(SimpleNamespace(headers={"Set-Cookie": "other=1"})) == ""
+
+
+# ── B377：O5 授权码重放接成 oracle ─────────────────────────────
+def test_code_replay_oracle_is_registered_and_disposable_by_default() -> None:
+    from veripen_oracles import ALL_ORACLES
+    from veripen_oracles.auth import oauth
+
+    ids = {c.meta.id for c in ALL_ORACLES}
+    assert "code_replay" in ids
+    # 非幂等：默认 repeats=2 会把"一次性"读成"不稳定"，所以必须声明只发一次
+    assert oauth.CodeParams().repeat == 1
+
+
+def test_code_replay_baseline_uses_its_own_code() -> None:
+    """基线若消费掉一次性码，后面两发必然 400 → 把自己的探针算成"第一次失败"。"""
+    from veripen_oracles.auth.oauth import BASELINE_CODE, FIXED_CODE, CodeReplay
+
+    params = CodeReplay().baseline_params(binding=None)
+    assert params["code"] == BASELINE_CODE != FIXED_CODE
+
+
+# ── B384：O1 接成 oracle ───────────────────────────────────────
+def test_oauth_redirect_oracle_is_registered_and_needs_oob() -> None:
+    from veripen_oracles import ALL_ORACLES
+
+    ids = {c.meta.id for c in ALL_ORACLES}
+    assert "oauth_redirect_uri" in ids
+    cls = next(c for c in ALL_ORACLES if c.meta.id == "oauth_redirect_uri")
+    # 判据要 oob_hit：没有监听器就说清楚缺什么，不靠 Location 单独下结论
+    assert "oob:listener" in cls.meta.requires
+    assert cls.meta.selector_tags == ("redirect_entry",)
+
+
+# ── B386：M7 从客户端侧测不出，要写成事实 ──────────────────────
+def test_unmeasurable_checks_are_named_with_a_reason() -> None:
+    """M7（服务端压根没请求证书）在客户端侧测不出——不是"没接"，是"测不了"。
+
+    不写进来的话，后人会照着 M1 的模板再试一遍，然后得到一堆
+    "握手成功 = 没请求"的错误结论（TLS 1.3 下可选请求与不请求都握手成功）。
+    """
+    matrix = checks.coverage_matrix(oracle_hits={})
+    assert {"M7", "M5"} <= set(matrix["unmeasurable"]), matrix["unmeasurable"]
+    assert "CertificateRequest" in matrix["unmeasurable"]["M7"]
+    # M5：受信的弱签名证书客户端照收（实测），所以可分类但不可观测
+    assert "SHA1" in matrix["unmeasurable"]["M5"].upper(), matrix["unmeasurable"]["M5"]

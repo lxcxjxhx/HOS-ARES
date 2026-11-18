@@ -17,7 +17,7 @@ from typing import Any, Mapping, Sequence
 from veripen_oracles import ALL_ORACLES
 from veripen_oracles.policy import severity_for
 
-from web.console import ConsoleState, Row
+from web.console import Approval, ConsoleState, Row
 
 #: 严重度：**从 policy 的规则表算**，不在这里另抄一份。
 #:
@@ -36,7 +36,9 @@ _OUTCOME: Mapping[str, str] = {
     "BLOCKED": "blocked",
     "NOT_RUN": "not_run",
     "ERROR": "error",
-    "REFUTED": "undetermined",   # 判否也是"有结论"，但对"发现列表"而言不成立
+    # 判否也是"有结论"，对"发现列表"而言不成立——但**不等于判不了**（B372）。
+    # 行上另带 `refuted` 位，界面据此单列"已判否"，不会把它读成"跑了但判不了"。
+    "REFUTED": "undetermined",
 }
 
 #: 命中数：一行 = 一次观测。blocked 没跑完 → None（未执行），不能记 0。
@@ -72,6 +74,7 @@ def _row(oracle: str, verdict: str, *, reason: str, seq: int, asset: str) -> Row
         replay_status="NEVER",
         outcome=outcome,
         reason_code=reason_code,
+        refuted=verdict.upper() == "REFUTED",
         hits=_HITS[outcome],
         # 不编 capsule：产物里没有证据指针时就是 None，编一个等于给假证据
         capsule_id=None,
@@ -111,6 +114,8 @@ def _from_report_findings(record: Mapping[str, Any], findings: Sequence[Any]) ->
                 replay_status=str(evidence.get("replay_status") or "NEVER"),
                 outcome=outcome,
                 reason_code=str(raw.get("reason_code") or ""),
+                # findings.json 带这一位（B371 起）：四态里没有"已判否"，靠它区分
+                refuted=bool(raw.get("refuted")),
                 hits=_HITS.get(outcome),
                 capsule_id=(str(evidence["capsule_id"]) if evidence.get("capsule_id") else None),
             )
@@ -184,6 +189,7 @@ def _from_faces_run(record: Mapping[str, Any], faces: Sequence[Any]) -> ConsoleS
                 replay_status="NEVER",
                 outcome=outcome,
                 reason_code=str(raw.get("reason") or verdict.upper()),
+                refuted=verdict.upper() == "REFUTED",
                 hits=_HITS[outcome],
                 # 有证据就显示真的那份；没有才是 None（不编，也不瞒）
                 capsule_id=evidence.get((oracle, route_ref)) or None,
@@ -393,8 +399,10 @@ def load_platform(path: Path) -> ConsoleState:
     )
 
 
-#: 交付物文件名：单资产与平台各一份（B211）
-REPORT_NAMES: tuple[str, ...] = ("report.md", "platform-report.md")
+#: 交付物文件名：run / hunt / platform 各一份（B211 / B372）。
+#: `hunt.md` 原来漏了：把控制台指到 hunt 的产物目录会显示"还没有报告"，
+#: 而那份报告就躺在 `hunt.json` 旁边。
+REPORT_NAMES: tuple[str, ...] = ("report.md", "hunt.md", "platform-report.md")
 
 #: 报告正文上限：页面是"看"，不是"下载大文件"（超出按字节截断并明说）
 REPORT_MAX = 200_000
@@ -452,6 +460,17 @@ def load_file(path: str | Path) -> ConsoleState:
     report = load_report(p.parent)
     if report:
         state.report = report
+    # 越界事件（B332）：run 会写 `bounds.json`；老产物没有这个文件 → 保持空，
+    # 页面按"没有事件流"如实说，而不是假装查过。
+    bounds_file = p.parent / "bounds.json"
+    if bounds_file.is_file():
+        try:
+            got = json.loads(bounds_file.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            got = {}
+        events = got.get("events") if isinstance(got, Mapping) else None
+        if isinstance(events, list):
+            state.bounds = tuple(e for e in events if isinstance(e, Mapping))
     # 路由逐条摘要（B213）：以前产物只记条数，`ui.routes` 永远是空表。
     # 老产物没有这个字段 → 保持空，页面按"只有条数"如实说。
     detail = record.get("bindings_detail")
@@ -547,3 +566,53 @@ def summarize(state: ConsoleState) -> dict[str, Any]:
 
 
 __all__ = ["SEVERITY", "load_file", "load_record", "summarize"]
+
+
+# ── 审批记录（B372）──────────────────────────────────────────────
+#: `approvals.state` → 控制台 `Approval.decision`（大写库里存，小写界面用）
+_APPROVAL_STATE: Mapping[str, str] = {
+    "PENDING": "pending", "APPROVED": "approved", "REJECTED": "rejected",
+    "EXPIRED": "expired",
+}
+
+
+def load_approvals(store: Any) -> list[Approval]:
+    """从 ``--db`` 读出审批记录。
+
+    以前只有 `audit` 页读了库，`approvals` 页的 `state.approvals` 从头到尾没人填——
+    库里 56 条审批，页面显示 `count: 0, pending: 0, records: true`
+    （"记录可查"这句话是假的）。B372 补上：只读，不改库。
+    """
+    rows: list[Approval] = []
+    try:
+        with store.lock:
+            cur = store.conn.execute(
+                "SELECT id, action_class, impact_json, state, requested_at,"
+                " decided_at, decided_by, reason FROM approvals"
+                " ORDER BY requested_at DESC"
+            )
+            raw = cur.fetchall()
+    except Exception:  # noqa: BLE001 —— 库结构老一点就当没有记录，不炸控制台
+        return rows
+    for rid, action, impact_json, state, requested_at, decided_at, decided_by, reason in raw:
+        try:
+            impact = json.loads(impact_json or "{}")
+        except (TypeError, ValueError):
+            impact = {}
+        rows.append(
+            Approval(
+                id=str(rid),
+                action_class=str(action or ""),
+                impact=json.dumps(impact, ensure_ascii=False, sort_keys=True),
+                # `approvals` 表没有资产/请求数/可逆性列：不编，留空
+                asset="",
+                requests=0,
+                reversible=True,
+                created_at=float(requested_at or 0.0),
+                decision=_APPROVAL_STATE.get(str(state or "").upper(), "pending"),
+                decided_by=(str(decided_by) if decided_by else None),
+                reason=str(reason or ""),
+                decided_at=(float(decided_at) if decided_at else None),
+            )
+        )
+    return rows

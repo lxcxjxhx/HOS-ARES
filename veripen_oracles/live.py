@@ -18,11 +18,12 @@
 
 from __future__ import annotations
 
+import ssl
 from typing import Callable, Mapping
 
+from .oob import OobSink
 from .common.harness import Trace
 
-from veripen_core.guard.scope import check_post_connect
 from veripen_core.routes.types import RouteBinding
 from veripen_core.tools import http as http_tool
 from urllib.parse import quote
@@ -54,12 +55,12 @@ class CoreTransport:
         self,
         *,
         token_for: Callable[[str], str] | None = None,
-        oob: object | None = None,
+        oob: OobSink | None = None,
         timeout_s: float = 10.0,
         oracle_id: str = "",
     ) -> None:
         self.token_for = token_for
-        self.oob = oob
+        self.oob: OobSink | None = oob
         self.timeout_s = timeout_s
         self.oracle_id = oracle_id
         self.sent: list[dict[str, object]] = []
@@ -117,12 +118,9 @@ class CoreTransport:
             )
 
         def _post_connect(peer_ip: str) -> None:
-            check_post_connect(
-                peer_ip=peer_ip,
-                asset=ctx.scope.asset,
-                deny_nets=getattr(ctx.scope, "deny_nets", ()),
-                explicit_ips=(r.host,),
-            )
+            # 走 `scope.post_connect`（B332）：只有走方法才会 `_record`，
+            # 否则越界事件只活在异常里，控制台的"边界页"永远读不到。
+            ctx.scope.post_connect(peer_ip, explicit_ips=(r.host,))
 
         hdrs: dict[str, str] = {"User-Agent": USER_AGENT}
         if self.token_for is not None:
@@ -135,6 +133,12 @@ class CoreTransport:
         for name, value in (headers or {}).items():
             hdrs[name] = str(value)
 
+        # OOB 快照差（B383）：请求前记 mark，请求后看有没有**本变体 nonce** 的新回调。
+        # 以前产品侧完全不知道 OOB 存在，于是 `ssrf_oob` 永远 `oob_seen=0`，
+        # 哪怕部署真的起了监听器也只能判否。
+        from .oob import hit_headers  # noqa: PLC0415 - 避免模块级环依赖
+
+        mark = self.oob.snapshot() if self.oob is not None else 0
         try:
             status, resp_headers, payload = perform(
                 r, headers=hdrs, timeout_s=self.timeout_s, post_connect=_post_connect
@@ -142,7 +146,18 @@ class CoreTransport:
         except TransportError as exc:
             self.sent.append({"role": role, "error": str(exc)[:120]})
             return Trace(route_ref=binding.ref, status=0, body=b"", error=str(exc)[:200])
+        except (ssl.SSLError, OSError) as exc:
+            # TLS / 连接层失败是**观测事实**，不是程序崩溃（B385）。
+            # 以前只有 TransportError 被兜住，于是"服务端要求客户端证书"这种
+            # 完全正常的拒绝会冒到顶层变成 `oracle_crash:SSLError`——读者看到的
+            # 是"工具崩了"，而真相是"目标把没有证书的客户端拒了"。
+            detail = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
+            self.sent.append({"role": role, "error": detail[:120]})
+            return Trace(route_ref=binding.ref, status=0, body=b"", error=detail[:200],
+                         scheme=r.scheme)
 
+        if self.oob is not None:
+            resp_headers = {**(resp_headers or {}), **hit_headers(self.oob, mark, params)}
         self.sent.append({"role": role, "status": status, "bytes": len(payload)})
         # HttpTrace 只留 body 哈希，那是给 evidence 层用的形状；oracle 要判正文，
         # 所以这里返回完整的 Trace，不经过 models.HttpTrace。

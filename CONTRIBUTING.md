@@ -15,10 +15,14 @@ veripen doctor              # 25 项自检；缺条件的记 skip，不记 fail
 调用的也是它。所以不要在别处再写一份命令列表。
 
 ```bash
-python scripts/verify.py        # 全量（本机单进程约 30 分钟）
-python scripts/verify.py --gates   # 只跑 mypy + 六道 lint + 账本 + 计划结构（约 1 分钟）
+python scripts/verify.py                 # 快闸门：mypy + 各道 lint + 账本 + 计划结构（约 1 分钟）
+python scripts/verify.py --with-tests    # 再加三段 pytest（全量，本机约 1 小时）
 ```
 
+**用哪个解释器**：仓库根若有 `.venv`，用它跑（`.venv/Scripts/python scripts/verify.py`）。
+全局 python 往往缺 `playwright` / `mypy`，得到的是"环境红"而不是代码红（实测：同一个提交
+换解释器 = 6 failed / 16 skipped ↔ 全绿）。`verify.py` 与 `veripen doctor` 第一行都会打印
+它在用哪个解释器；不是 `.venv` 时会明说。
 分段跑：
 
 | 命令 | 覆盖 |

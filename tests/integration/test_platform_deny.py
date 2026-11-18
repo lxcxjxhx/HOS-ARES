@@ -86,7 +86,8 @@ def test_run_without_deny_stays_empty(monkeypatch: pytest.MonkeyPatch,
 @pytest.fixture()
 def profile_with_deny(tmp_path: Path) -> tuple[Path, str]:
     raw = (ROOT / "profiles" / "demo-a" / "profile.yaml").read_text(encoding="utf-8")
-    raw = raw.replace("deny: [DENY_SET_DEFAULT]", "deny: [web-01]")
+    # 演示档只挡云元数据（B312）；这里把 deny 换成资产 id，验证"档的 deny 传下去"。
+    raw = raw.replace("deny: [169.254.169.254/32]", "deny: [web-01]")
     path = tmp_path / "pf" / "profile.yaml"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(raw, encoding="utf-8")
@@ -127,7 +128,7 @@ def test_platform_passes_host_style_deny_through(tmp_path: Path,
     from veripen_cli import cmd_run
 
     raw = (ROOT / "profiles" / "demo-a" / "profile.yaml").read_text(encoding="utf-8")
-    raw = raw.replace("deny: [DENY_SET_DEFAULT]", "deny: [other.invalid]")
+    raw = raw.replace("deny: [169.254.169.254/32]", "deny: [other.invalid]")
     profile = tmp_path / "pf" / "profile.yaml"
     profile.parent.mkdir(parents=True, exist_ok=True)
     profile.write_text(raw, encoding="utf-8")

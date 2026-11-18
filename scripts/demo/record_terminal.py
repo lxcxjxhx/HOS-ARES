@@ -140,6 +140,25 @@ body {{ margin:0; background:{BG}; font-family: "JetBrains Mono", Consolas, mono
 </body></html>"""
 
 
+def _launch(pw):  # noqa: ANN001, ANN201
+    """起浏览器：先 playwright 自带 chromium，再退到系统 Edge / Chrome（B267）。
+
+    自带 chromium 在部分 Windows 上直接起不来（ICU / 沙箱），而产品的 BrowserRenderer
+    早就按这条链兜底了——演示脚本不该因为这一点整条链跑不了。
+    """
+    errors = []
+    try:
+        return pw.chromium.launch()
+    except Exception as exc:  # noqa: BLE001 - 起不来就换下一个通道
+        errors.append(f"chromium: {type(exc).__name__}")
+    for channel in ("msedge", "chrome"):
+        try:
+            return pw.chromium.launch(channel=channel)
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"{channel}: {type(exc).__name__}")
+    raise RuntimeError("起不了浏览器：" + "；".join(errors))
+
+
 def _capture(scenes: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
     from playwright.sync_api import sync_playwright
 
@@ -147,7 +166,7 @@ def _capture(scenes: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
     shots: list[dict[str, Any]] = []
     idx = 0
     with sync_playwright() as pw:
-        browser = pw.chromium.launch()
+        browser = _launch(pw)
         page = browser.new_context(viewport={"width": W, "height": H}).new_page()
         for scene in scenes:
             lines = scene["lines"]
@@ -228,12 +247,43 @@ def validate_manifest(m: dict[str, Any]) -> list[str]:
     return problems
 
 
+def _compare_runs(previous: dict[str, Any] | None, current: dict[str, Any]) -> dict[str, Any]:
+    """判据 D：两次运行的场景序列与行数是否一致（B268）。
+
+    以前这条靠手动比对。录屏本身是可复现的（靶场在环回、命令固定），所以只要上一次的
+    manifest 还在，就能当场比出来——写进新 manifest 的 `repeatable` 字段。
+    """
+    if not previous:
+        return {"checked": False, "reason": "没有上一轮 manifest，本次先当基线"}
+    prev = [(s.get("id"), s.get("lines")) for s in previous.get("scenes") or []]
+    cur = [(s.get("id"), s.get("lines")) for s in current.get("scenes") or []]
+    return {
+        "checked": True,
+        "same_scenes": [p[0] for p in prev] == [c[0] for c in cur],
+        "same_lines": prev == cur,
+        "previous_at": previous.get("generated_at"),
+        "previous": prev,
+        "current": cur,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
     ap = argparse.ArgumentParser(description="终端体验录屏")
     ap.add_argument("--keep-frames", action="store_true")
     args = ap.parse_args(sys.argv[1:] if argv is None else argv)
+
+    # 自己的产物目录先清干净（B268）：`cmd_run` 对已有 capsule 的目录会**拒绝重跑**，
+    # 于是第二次录屏第一幕就变成一条拒绝信息（40 行、缺 VERIFIED 2）——
+    # 判据 D"两次运行一致"根本没法成立。
+    for stale in ("run", "platform", "profile", "spec.json",
+                  "agent.db", "platform.db", "profile.db", "chat.db"):
+        target = OUT / stale
+        if target.is_dir():
+            shutil.rmtree(target, ignore_errors=True)
+        elif target.exists():
+            target.unlink()
 
     a = _lab()
     b = _lab()
@@ -331,6 +381,12 @@ def main(argv: list[str] | None = None) -> int:
         "all_lines": all_lines,
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
     }
+    previous: dict[str, Any] | None = None
+    try:
+        previous = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        previous = None
+    manifest["repeatable"] = _compare_runs(previous, manifest)
     MANIFEST.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     if not args.keep_frames:
         pass
@@ -344,7 +400,18 @@ def main(argv: list[str] | None = None) -> int:
         for p in problems:
             print(f"  判据未过：{p}")
         return 1
-    print("判据 A/B/C 通过（D 需两次运行比对 manifest）")
+    repeat = manifest["repeatable"]
+    if repeat["checked"]:
+        verdict = "一致" if repeat["same_lines"] else (
+            "场景一致但行数变了" if repeat["same_scenes"] else "场景序列变了")
+        print(f"判据 D：与上一轮（{repeat['previous_at']}）比对——{verdict}")
+        if not repeat["same_lines"]:
+            print(f"  上一轮：{repeat['previous']}")
+            print(f"  这一轮：{repeat['current']}")
+            return 1
+    else:
+        print(f"判据 D：{repeat['reason']}")
+    print("判据 A/B/C/D 通过")
     return 0
 
 

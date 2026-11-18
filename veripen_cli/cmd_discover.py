@@ -78,9 +78,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     add_discovery_args(ap, include_enable=False, legacy_aliases=True)
     ap.add_argument("--rate", type=float, default=1.0, help="每秒请求上限（默认 1）")
     ap.add_argument("--burst", type=float, default=2.0, help="突发桶容量（默认 2）")
-    ap.add_argument("--out", default="", help="把发现结果写成 JSON（可选）")
+    # `--out` 两用（B307）：给文件就写那个文件，给目录就写其中的 discover.json。
+    # 兄弟命令（run/hunt/platform）的 `--out` 都是目录，硬要用户记住差异没有意义。
+    ap.add_argument("--out", default="",
+                    help="把发现结果写成 JSON：给文件就写该文件，给目录则写其中的 discover.json")
     args = ap.parse_args(sys.argv[1:] if argv is None else argv)
     setup_stdout()
+
+    # `--out` 先解析再干活（B306/B307）：目录 → 写其中的 discover.json；
+    # 目标路径本身不可写（如指向已存在的目录里的同名目录）就在爬取**之前**报出来。
+    if args.out:
+        early = Path(args.out)
+        if early.is_dir():
+            args.out = str(early / "discover.json")
 
     host = _host_of(args.target)
     symbols = RouteSymbols({BASE_SYMBOL: args.target.rstrip(SEP)})
@@ -102,6 +112,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     pending: set[str] = set()
     skipped_all: list[tuple[str, str]] = []
     pages = 0
+    responded = 0
     candidates = [seed_candidate(BASE_SYMBOL), *well_known_candidates(BASE_SYMBOL)]
     truncated = False
 
@@ -124,6 +135,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             http_tool.uninstall_guard()
 
         pages += result.fetched
+        responded += result.responded
         fresh = [r.template for r in result.records if r.template not in known]
         known.update(fresh)
         skipped_all.extend(result.skipped)
@@ -132,7 +144,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         note = "（本轮触到页数/记录上限）" if result.truncated else ""
         if result.rendered:
             note += f"（渲染 {result.rendered} 页）"
-        print(f"第 {round_no} 轮：抓取成功 {result.fetched} 页 / 新面 {len(fresh)} 条{note}")
+        print(f"第 {round_no} 轮：尝试 {result.fetched} 页 / 拿到响应 {result.responded} 页"
+              f" / 新面 {len(fresh)} 条{note}")
         if not result.next:
             break
         for sighting in result.next:
@@ -145,7 +158,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"目标：{host}")
     print(
         f"发现：已抓面 {len(faces)} 条 / 待抓候选 {len(candidates_left)} 条"
-        f" / 抓取成功 {pages} 页 / 置信 0.70（crawl，未验证）"
+        f" / 尝试 {pages} 页 · 拿到响应 {responded} 页 / 置信 0.70（crawl，未验证）"
     )
     for template in faces[:40]:
         print(f"  · {template}")
@@ -160,7 +173,14 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.out:
         out = Path(args.out)
-        out.parent.mkdir(parents=True, exist_ok=True)
+        if out.is_dir():          # 爬取期间可能被建出来，写之前再看一眼
+            out = out / "discover.json"
+            args.out = str(out)
+        try:
+            out.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            print(f"--out 目录建不出来：{exc}", file=sys.stderr)
+            return 2
         out.write_text(
             json.dumps(
                 {

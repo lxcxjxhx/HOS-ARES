@@ -31,6 +31,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from veripen.report.glossary import explain_with_code
 from veripen_core.blackboard import EventLog  # noqa: E402
 from veripen_core.guard.approval import (  # noqa: E402
     ApprovalGate,
@@ -55,6 +56,21 @@ def _events_as_dicts(store: Store, task_id: str) -> list[dict[str, Any]]:
         }
         for e in EventLog(store).for_task(task_id)
     ]
+
+
+def _portable_path(raw: str) -> str:
+    """交付物里的路径要可移植（B247）。
+
+    能相对到当前目录就给相对路径；不在当前目录下就只留文件名——
+    绝对路径会把操作员本机的目录结构带进交付物，别人照抄也跑不了。
+    """
+    if not raw:
+        return "（未指定）"
+    p = Path(raw)
+    try:
+        return p.resolve().relative_to(Path.cwd().resolve()).as_posix()
+    except (ValueError, OSError):
+        return p.name
 
 
 def _report_line(profile: Any) -> str:
@@ -95,15 +111,19 @@ def _credential_line(
     return "- 凭据：未提供——auth 相关 oracle 会落 BLOCKED"
 
 
-def _approve_or_block(store: Store, *, approve: bool, now: int, by: str = "operator") -> int:
+def _approve_or_block(store: Store, *, approve: bool, now: int, task_id: str,
+                      by: str = "operator") -> int:
     """判据 B：审批阻断。返回 0 表示放行，3 表示停在 PENDING。
 
     `by` 是**签字人**（B174）：聊天入口代签时必须写 chat，不能一律记 operator——
     否则审计里"谁批的"这一栏是编的。
+
+    `task_id` 必须是**这一轮**的 id（B371）：`--db` 默认落在 `out/platform.db` 上且
+    跨轮复用，若仍用固定 id，审计节会把历史批次的审批账当成这一轮的。
     """
     gate = ApprovalGate.from_spec(
         [{"action_class": "scope_expand"}],
-        store=store, events=EventLog(store), task_id=TASK_ID,
+        store=store, events=EventLog(store), task_id=task_id,
     )
     try:
         gate.require("scope_expand", now=now, impact={"assets": "multi", "mode": "platform"})
@@ -166,6 +186,10 @@ def main(argv: list[str] | None = None) -> int:
         help="签字人（聊天入口代签时传 chat；审计里\"谁批的\"这一栏据实写）",
     )
     ap.add_argument("--exclude", default="", help="透传给单资产链路的 oracle 黑名单")
+    # 与 run / hunt 同一口径（B353）：平台是最危险的一条（多资产），
+    # 却原来只能靠客户档写 deny——不带档就没有任何黑名单入口。
+    ap.add_argument("--deny", default="",
+                    help="逗号分隔：资产 id / 主机名 / CIDR（如 DENY_SET_DEFAULT），透传给每个资产")
     ap.add_argument(
         "--token", default="",
         help="主身份 token（**单资产**用；多资产默认拒绝透传，见 --token-for）",
@@ -205,8 +229,15 @@ def main(argv: list[str] | None = None) -> int:
 
         try:
             profile = load_profile(args.profile)
-        except Exception as exc:  # noqa: BLE001 —— 档坏了要如实说，不猜
-            print(f"profile 解析失败：{type(exc).__name__}: {exc}", file=sys.stderr)
+        except FileNotFoundError:
+            # 档不存在是最常见的输入错（B343）：别把 Python 异常 repr 倒给客户
+            print(f"客户档不存在：{args.profile}", file=sys.stderr)
+            return 2
+        except ProfileError as exc:
+            print(f"客户档不合法：{exc}", file=sys.stderr)
+            return 2
+        except Exception as exc:  # noqa: BLE001 —— 其余异常如实说，不猜
+            print(f"客户档解析失败：{type(exc).__name__}: {exc}", file=sys.stderr)
             return 2
 
         resolved = {
@@ -223,6 +254,26 @@ def main(argv: list[str] | None = None) -> int:
         asset_ids = [a.id for a in profile.assets]
         targets = [resolved[a.id] for a in profile.assets]
         profile_hash = profile.profile_hash(resolved)
+
+        # 启动即校验（02 §6 第 8 步）——B259 之前**只有 profile_diff 脚本在调**，
+        # 产品路径没调：未知 oracle / 未知标签 / 未接线键在平台上都是静默的。
+        from veripen_contract import TAG_VOCAB
+        from veripen_core.profile import validate_profile
+
+        issues = validate_profile(
+            profile,
+            known_oracles={c.meta.id for c in ALL_ORACLES},
+            known_tags=TAG_VOCAB,
+            resolved=resolved,
+        )
+        fails = [i for i in issues if i.level == "fail"]
+        if fails:
+            for issue in fails:
+                print(f"档校验失败 {issue.code}：{issue.detail}", file=sys.stderr)
+            return 2
+        for issue in issues:
+            # 未接线的键也要说：客户写了 `scope.max_redirects: 0` 会以为已经限住
+            print(f"注意：{issue.code} —— {issue.detail}")
 
         # 档身份要打在终端上，不只是写进报告：操作员得知道自己按哪个档在跑
         print(f"客户档：{profile.name} · {profile.customer_id} · {profile.engagement_id}")
@@ -292,7 +343,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # 档的 scope.deny（B187）：原来只写进档的哈希，没有任何代码把它交给闸门——
     # 也就是"配了黑名单"，但闸门的 deny 永远是空集。现在按资产映射成主机传下去。
-    deny_hosts: list[str] = []
+    deny_hosts: list[str] = [x.strip() for x in args.deny.split(",") if x.strip()]
     if profile is not None and profile.deny:
         # deny 里既可以写资产 id，也可以直接写主机名：两种都收
         def _host_of(url: str) -> str:
@@ -306,7 +357,8 @@ def main(argv: list[str] | None = None) -> int:
             if a.id in set(profile.deny)
         } - {""}
         # 资产 id 映射成主机；不是资产的条目（主机名）原样留着
-        deny_hosts = sorted(mapped | (set(profile.deny) - profile_asset_ids))
+        deny_hosts = sorted(set(deny_hosts) | mapped | (set(profile.deny) - profile_asset_ids))
+    if deny_hosts:
         print(f"黑名单：{', '.join(deny_hosts)} —— 命中的资产整面 BLOCKED（不发包）")
 
     # 限速：命令行 --qps 优先，其次档里的 policy.qps，最后留 0（= run 的默认 1.0，不改口径）
@@ -322,15 +374,19 @@ def main(argv: list[str] | None = None) -> int:
     store = Store(str(db)).init()
 
     started = time.time()
+    # 每一轮一个 task_id（B371）：`--db` 默认是 `out/platform.db`，**跨轮复用**；
+    # 固定 id 会让审计节把历史上所有批次的审批/动作账都抱进这一份交付物
+    # （实测：没开 --require-approval 的一轮里出现 64 条 approval、12 条 APPROVED）。
+    task_id = f"{TASK_ID}-{int(started * 1000)}"
     if args.require_approval:
         rc = _approve_or_block(store, approve=args.approve, now=int(started),
-                               by=args.approve_by)
+                               task_id=task_id, by=args.approve_by)
         if rc != 0:
             (out / "platform-report.md").write_text(
                 "# 平台运行报告\n\n| 项 | 值 |\n|---|---|\n"
                 "| 结论 | **审批 PENDING，未执行** |\n"
                 f"| 资产数 | {len(targets)} |\n"
-                "| 审计 | 见 task_events（含 approval:request） |\n",
+                f"| 审计 | 见 task_events（task_id=`{task_id}`，含 approval:request） |\n",
                 encoding="utf-8",
             )
             return rc
@@ -377,23 +433,30 @@ def main(argv: list[str] | None = None) -> int:
                 route_args.append("--submit-forms")
         else:
             route_args = ["--openapi", str(spec_path)]
-        rc = cmd_run.main(["--target", target, *route_args, "--out", str(sub), *extra_args])
-        found: list[dict[str, Any]] = []
         findings_file = sub / "findings.json"
-        # **rc != 0 就不读 findings.json**（B159）：目录里躺着的是上一轮的产物，
-        # 这一轮什么都没发生。照旧读会把"重跑被拒"渲染成跟成功那次一模一样的数字
-        # ——rc 那一列说 2，结论列说"已验证 2"，自相矛盾。
-        if rc == 0 and findings_file.exists():
+        cov_file = sub / "coverage.json"
+
+        def _mtime(path: Path) -> float | None:
+            return path.stat().st_mtime if path.exists() else None
+
+        # 「这一轮有没有写产物」用**写之前/写之后的 mtime 差**判断（B363）：
+        # 之前用 `mtime >= t0 - 1`，1 秒容差太宽——重跑被拒（rc=2，什么都没写）时，
+        # 上一轮几秒前写的 findings.json 仍落在容差里，于是旧结论被当成新的采纳。
+        before_findings = _mtime(findings_file)
+        before_cov = _mtime(cov_file)
+        rc = cmd_run.main(["--target", target, *route_args, "--out", str(sub), *extra_args])
+        fresh = _mtime(findings_file) not in (None, before_findings)
+        found: list[dict[str, Any]] = []
+        if fresh:
             data = json.loads(findings_file.read_text(encoding="utf-8"))
             found = list(data.get("findings", []))
-        elif rc != 0:
+        elif findings_file.exists():
             print(f"  资产 {i} 退出码 {rc}：本轮没有产出，不采用 {findings_file.name} 里的旧结论",
                   file=sys.stderr)
         # 覆盖账本（B164）：单资产报告有"覆盖"一节，平台汇总里原来没有——
         # 于是"2 条结论"看上去像"只测了 2 项"，读者看不到分母。
         coverage: dict[str, Any] | None = None
-        cov_file = sub / "coverage.json"
-        if rc == 0 and cov_file.exists():
+        if _mtime(cov_file) not in (None, before_cov):
             try:
                 loaded = json.loads(cov_file.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError):
@@ -410,13 +473,18 @@ def main(argv: list[str] | None = None) -> int:
         per_asset.append({
             "target": target, "rc": rc, "dir": sub.name,
             "findings": found, "capsules": len(cap_ids),
-            "produced": rc == 0, "coverage": coverage,
+            # `produced` 的语义是"这一轮写没写产物"，不是"跑得成不成"（B355）：
+            # 全被挡下时 rc=1 但产物齐全，写"本轮未产出"会让报告自相矛盾。
+            "produced": fresh, "coverage": coverage,
         })
 
     # ── 汇总报告 ────────────────────────────────────────────────
     from veripen.report.audit import AuditInput, render_audit_section
 
     total = sum(len(a["findings"]) for a in per_asset)
+    not_run = sum(
+        1 for a in per_asset for f in a["findings"] if f.get("outcome") == "not_run"
+    )
     verified = sum(
         len([f for f in a["findings"] if f.get("outcome") == "reported"]) for a in per_asset
     )
@@ -430,8 +498,8 @@ def main(argv: list[str] | None = None) -> int:
         sev = s.get("gaps_by_severity") or {}
         gaps_critical += int(sev.get("critical") or 0)
         gaps_warn += int(sev.get("warn") or 0)
-    events = _events_as_dicts(store, TASK_ID)
-    audit_text = render_audit_section(AuditInput(task_id=TASK_ID, events=events))
+    events = _events_as_dicts(store, task_id)
+    audit_text = render_audit_section(AuditInput(task_id=task_id, events=events))
 
     lines = [
         "# 平台运行报告",
@@ -446,13 +514,33 @@ def main(argv: list[str] | None = None) -> int:
             f"- 档策略：可用 oracle {len(profile.allowed_oracles())} 类 / "
             f"需审批 {len(profile.oracles.needs_approval)} 类",
         ]
+    # 黑名单也要写进报告（B328/B355）：终端打了、报告没写，接手的人就不知道
+    # "这批资产里哪些是被边界挡下的"。放在档块**外面**——命令行 `--deny` 也要算。
+    if deny_hosts:
+        lines.append(
+            f"- 黑名单：`{'`、`'.join(sorted(deny_hosts))}` —— "
+            "命中的资产整面 BLOCKED（不发包）")
     lines += [
         f"- 资产数：{len(per_asset)}"
         + (
             f"（本轮未产出 {sum(1 for a in per_asset if not a['produced'])} 个）"
             if any(not a["produced"] for a in per_asset) else ""
         ),
-        f"- 结论：已验证 **{verified}** / 总项 {total}",
+        f"- 结论：已验证 **{verified}** / 总项 {total}"
+        # 总项 0 必须解释（B417 / B353）：全被挡下时它确实是 0，但和"已验证 0"
+        # 并排出现会被读成"测了 0 项都没问题"。事实是**一项都没进入判定**。
+        + (
+            "（没有任何判定进入执行：资产被边界/输入挡下，或契约没匹配到面——"
+            "这不是「没有漏洞」，是「没有测」）"
+            if total == 0 else ""
+        ),
+        # 「0 验证」必须解释（B356）：读者最容易把它读成"没有漏洞"，
+        # 而全被挡下时它其实意味着"一项都没测"。
+        *(
+            [f"- 说明：{not_run} 项全部未执行（被边界/输入挡下，请求没发出去）——"
+             "这不是「没有漏洞」，是「没有测」；解除黑名单或补齐输入后重跑"]
+            if verified == 0 and not_run and not_run >= total else []
+        ),
         # 覆盖率必须带分母（D3）：只写"2 条结论"会被读成"只测了 2 项"（B164）
         (
             f"- 覆盖合计：已判定 **{faces_covered}**/{faces_total} 面 · "
@@ -460,9 +548,12 @@ def main(argv: list[str] | None = None) -> int:
             if faces_total else "- 覆盖合计：—（本轮没有覆盖账本）"
         ),
         # 路由来源必须写进报告（B162）：契约面与探测面的证据强度不同，读者要知道。
+        # 路径要**可移植**（B247）：旧版原样打出 `--openapi` 参数，于是交付物里出现
+        # `C:\\1AAA-PROJECT\\…\\spec.json` 这种本机绝对路径——带出了操作员的目录结构，
+        # 别人拿到报告也照抄不了。
         (
             f"- 路由来源：主动探测（无契约，{args.discover_rounds} 轮 / 每轮 {args.discover_pages} 页）"
-            if args.discover else f"- 路由来源：契约 `{args.openapi}`"
+            if args.discover else f"- 路由来源：契约 `{_portable_path(args.openapi)}`"
         ),
         # 凭据只记"有没有 / 怎么给的"，**不落原文**：报告是要发给客户的（B163/B185）
         _credential_line(token_by_asset, shared_token, len(targets)),
@@ -493,6 +584,15 @@ def main(argv: list[str] | None = None) -> int:
             f"| {i} | `{a['target']}` | {a['rc']} | {len(a['findings'])} | {v} | "
             f"{a['capsules']} | {cov_cell} | {gap_cell} | `{a['dir']}` |"
         )
+    # B355：capsule 列 0 必须有一句解释——它要么是「没有结论需要取证」，要么是
+    # 「全被挡下」。读者只看到 0 会以为证据丢了。
+    if any(a["produced"] and a["capsules"] == 0 for a in per_asset):
+        lines += ["", "> capsule 为 0 的资产：这一轮没有一条结论需要取证（通常是被边界或输入挡下），"
+                      "不是证据丢了。"]
+    # B247：章节号从 §1 起，而单资产 report.md 从 §0 起（那里的 0 是摘要）——
+    # 两报告并排对照的人会绕，这里把基准写出来，代价是一行字。
+    lines += ["", "> 本文章节从 §1 起；单资产 `report.md` 从 §0 起（§0 是摘要），"
+                  "跨报告对照时注意编号基准不同。"]
     lines += ["", "## 2. 资产面明细", ""]
     for i, a in enumerate(per_asset, start=1):
         lines.append(f"### 资产 {i} · `{a['target']}`")
@@ -505,9 +605,18 @@ def main(argv: list[str] | None = None) -> int:
             continue
         lines += ["| 项 | 结论 | 原因 | 证据 |", "|---|---|---|---|"]
         for f in a["findings"]:
+            # 原因列要有人话（B255）：hunt 与 run 报告在 B248 已改，平台这张表当时漏了——
+            # 同一份交付物里，一边写"探针标记没有出现"，一边写 `marker_not_fired`。
+            reason = explain_with_code(str(f.get("reason_code") or "-"))
+            # 「已判否」不许印成 not_run（B371）：这一列是给客户读的"结论"，
+            # 把"跑过、无该问题"写成"未执行"是反的。平台靠 findings.json 里的
+            # `refuted` 位区分——那一位是 B371 同一批加进 JSON 的。
+            outcome = str(f.get("outcome") or "-")
+            if outcome == "not_run" and f.get("refuted"):
+                outcome = "已判否（跑过、无该问题）"
             lines.append(
-                f"| {f.get('ruleId') or f.get('id')} | {f.get('outcome')} | "
-                f"{f.get('reason_code') or '-'} | "
+                f"| {f.get('ruleId') or f.get('id')} | {outcome} | "
+                f"{reason} | "
                 f"{(f.get('evidence') or {}).get('capsule_id') or '-'} |"
             )
         lines.append("")
@@ -529,6 +638,11 @@ def main(argv: list[str] | None = None) -> int:
             lines.append("覆盖：缺 coverage.json（该资产这一轮没有账本）")
         lines.append("")
 
+    # 能力边界（B397）：与 run/hunt 的报告同一份实现、同一段文案。
+    # 平台汇总里先写一次，管理层读"能测什么"时不必逐份翻资产报告。
+    from veripen.report.limits import capability_limits, limits_block  # noqa: PLC0415
+
+    lines += limits_block(capability_limits())
     lines += [
         "## 3. 运行面",
         "",
@@ -544,11 +658,37 @@ def main(argv: list[str] | None = None) -> int:
         audit_text,
     ]
     report = out / "platform-report.md"
-    report.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    body = "\n".join(lines) + "\n"
+    report.write_text(body, encoding="utf-8", newline=chr(10))
+    # 汇总报告也要能证明"没被手改"（B256）：各资产早就有 report.manifest.json，
+    # 而交给管理层的那一份反而没有。
+    # 形状与 `veripen.report.lint.build_manifest` **对齐**（B257）：`version` + `sections`
+    # + `report_sha256`，只是 sections 里只有 markdown——平台汇总没有三视图，
+    # 别假装它有；这样同一个校验器能读两种清单，不用写两套。
+    import hashlib as _hashlib
+
+    md_sha = _hashlib.sha256(body.encode("utf-8")).hexdigest()
+    manifest = {
+        "version": 1,
+        "sections": {"markdown": md_sha},
+        # 逐文件哈希（B317）：与 run 那一路同形，客户可直接 `sha256sum` 核。
+        "files": {"platform-report.md": md_sha},
+        "report_sha256": md_sha,
+        "assets": len(per_asset),
+        "generated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+    # 清单自哈希（B321）：与 run/hunt 同形
+    from veripen.report.lint import dumps_artifact as _dumps
+
+    manifest["manifest_sha256"] = _hashlib.sha256(
+        _dumps(manifest).encode("utf-8")).hexdigest()
+    (out / "platform-report.manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
     print("-" * 62)
     print(f"汇总：{len(per_asset)} 资产 / 已验证 {verified} / 总项 {total}")
-    print(f"报告：{report}")
+    print(f"报告：{report}（+ platform-report.manifest.json）")
     bad = [a for a in per_asset if a["rc"] != 0]
     if bad:
         print(f"有 {len(bad)} 个资产退出码非 0（它们的旧产物未被采用，报告里标 —）",

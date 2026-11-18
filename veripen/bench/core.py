@@ -126,7 +126,17 @@ class RoundResult:
 
     @property
     def replay_ok_rate(self) -> float:
-        reported = [r for r in self.results if r.outcome is Outcome.REPORTED]
+        """可重放证据里的复现率。
+
+        `BLOCKED` 被排除在分母外（B404）：并发突发类的证据**本来就不可能重放**
+        （结论来自 N 次并发下的状态分布）。把它们算进分母，等于用一个它们无法满足的
+        标准去扣分——那既不是能力指标，也会掩盖真正的失败。
+        排除掉多少条，bench.md 里单独点名。
+        """
+        reported = [
+            r for r in self.results
+            if r.outcome is Outcome.REPORTED and r.replay_status != "BLOCKED"
+        ]
         if not reported:
             return 0.0
         return sum(1 for r in reported if r.replay_status == "OK") / len(reported)
@@ -378,7 +388,20 @@ def check_route_derivable(
 def load_cases(path: str | Path) -> list[BenchCase]:
     import yaml
 
-    raw = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+    p = Path(path)
+    # 路径来自命令行：读不到/不是 YAML 都要说人话，别把 traceback 甩给客户（B236）。
+    try:
+        text = p.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise BenchFailed(f"用例文件不存在：{p}") from exc
+    except OSError as exc:
+        raise BenchFailed(f"用例文件读不出来：{p}（{exc.strerror or exc}）") from exc
+    try:
+        raw = yaml.safe_load(text) or {}
+    except yaml.YAMLError as exc:
+        raise BenchFailed(f"用例文件不是合法 YAML：{p}（{exc}）") from exc
+    if not isinstance(raw, dict):
+        raise BenchFailed(f"用例文件的顶层必须是 `cases:` 映射：{p}")
     out: list[BenchCase] = []
     for item in raw.get("cases", []):
         out.append(
@@ -422,7 +445,9 @@ def score(*, precision: float, recall: float, cost_ratio: float, report_quality:
 def render_bench_md(rounds: Sequence[RoundResult], *, gates: GateResult,
                     case_fp: str, missed: Sequence[str] = (),
                     capsules_dir: str = "",
-                    unreproduced: Sequence[str] = ()) -> str:
+                    unreproduced: Sequence[str] = (),
+                    partial_cases: Sequence[str] = (),
+                    timing_sensitive: Sequence[str] = ()) -> str:
     lines: list[str] = []
     w = lines.append
     first = rounds[0] if rounds else None
@@ -479,20 +504,40 @@ def render_bench_md(rounds: Sequence[RoundResult], *, gates: GateResult,
     sealed = [r for rd in rounds for r in rd.results if r.capsule_id]
     ok = sum(1 for r in sealed if r.replay_status == "OK")
     if sealed:
+        # PARTIAL 不是"未复现"（B292）：它表示状态形状一致、结论能重算，只是 body 变了。
+        # capsule 只存 body 哈希不存正文（06 §7），所以这类差异是**已知边界**，
+        # 把它和"重放对不上"混成一个数，读者会把正常情况当事故。
+        partial = sum(1 for r in sealed if r.replay_status == "PARTIAL")
+        # BLOCKED 单列（B404）：并发突发类证据**不可重放**（结论来自状态分布），
+        # 它既不是"通过"也不是"对不上"。混进 other 会把正常情况记成事故。
+        blocked = sum(1 for r in sealed if r.replay_status == "BLOCKED")
+        other = sum(1 for r in sealed
+                    if r.replay_status not in ("OK", "NEVER", "PARTIAL", "BLOCKED"))
         w(f"证据：capsule {len(sealed)} 份（sealed）· 重放通过 {ok}"
-          f" · 未复现 {sum(1 for r in sealed if r.replay_status not in ('OK', 'NEVER'))}"
+          f" · 状态一致但字节不同 {partial}"
+          f" · 时序相关不可重放 {blocked}"
+          f" · 重放对不上 {other}"
           f" · 未重放 {sum(1 for r in sealed if r.replay_status == 'NEVER')}"
-          f"（未重放 = INCONCLUSIVE/BLOCKED：没有结论可复现）")
+          f"（未重放 = INCONCLUSIVE：没有结论可复现）")
+        if partial:
+            w("  状态一致但字节不同 = PARTIAL：结论能由证据重算，但 body 变了——"
+              "capsule 只存 body 哈希不存正文（06 §7），这是已知边界，不是事故")
     if capsules_dir:
         # 只给数量不给位置 = 读者拿不到证据；"sealed" 不等于"存过"。
         root = capsules_dir.replace("\\", "/").rstrip("/")
         w(f"证据落盘：`{root}/r<轮次>/` · 每轮一条链（链头 prev 为全零）"
-          f" · `veripen evidence --verify-chain {root}/r1/*.json` 可验"
+          f" · `veripen replay --chain {root}/r1` 可验"
           f" · 单份重放：`veripen replay --capsule <该文件>`")
+    if partial_cases:
+        w("状态一致但字节不同的用例：" + "、".join(partial_cases)
+          + "（结论可重算；body 变了，见上面的已知边界）")
+    if timing_sensitive:
+        w("时序相关、**不可重放**的用例：" + "、".join(timing_sensitive)
+          + "（并发突发类证据：结论来自 N 次并发下的状态分布，重发不保证同样分布）")
     if unreproduced:
         # "未复现 6" 不点名等于把 6 条证据变成噪声：哪几条、卡在哪，得读得出来。
-        w("未复现用例：" + "、".join(unreproduced)
-          + "（证据在盘上，重放对不上；逐条看 capsule 里的步骤与 headers）")
+        w("重放对不上的用例：" + "、".join(unreproduced)
+          + "（证据在盘上；逐条看 capsule 里的步骤与 headers）")
     total_tokens = sum(r.tokens for r in rounds)
     if total_tokens == 0:
         # 0 不等于"没测"。不写这一行，读者会以为 token 列漏了数据；

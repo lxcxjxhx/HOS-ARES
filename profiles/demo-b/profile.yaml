@@ -21,7 +21,10 @@ scope:
       value: ASSET_B1
       criticality: critical
       tags: [auto, api]
-  deny: [DENY_SET_DEFAULT]
+  # 实验目标是**回环**（lab 起在本机），而 DENY_SET_DEFAULT 会把回环/私网整段拒掉
+  # （B312 实测：档里写 DENY_SET_DEFAULT 时，回环靶场 0 验证 0 证据）。所以演示档只挡云元数据；
+  # 生产档请写 DENY_SET_DEFAULT（展开为元数据/回环/私网/链路本地/唯一本地）。
+  deny: [169.254.169.254/32]
   dns_policy: strict
   max_redirects: 0
 

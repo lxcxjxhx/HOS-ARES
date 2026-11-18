@@ -27,7 +27,7 @@ COMMANDS: tuple[tuple[str, str, str], ...] = (
     ("console", "veripen_cli.cmd_console", "只读控制台（11 个只读操作）"),
     ("agent", "veripen_cli.cmd_agent", "指令模式会话（白名单动词）"),
     ("tui", "veripen_cli.tui", "终端三面板（只读）"),
-    ("doctor", "veripen_cli.cmd_doctor", "部署自检（24 项）"),
+    ("doctor", "veripen_cli.cmd_doctor", "部署自检（25 项）"),
     ("parity", "veripen_cli.cmd_parity", "三对标总验收（5 面 × 22 项）"),
     ("playbook", "veripen_cli.cmd_playbook", "Playbook 资产库"),
     ("replay", "veripen_cli.cmd_replay", "证据重放"),
@@ -64,7 +64,13 @@ def _usage() -> str:
              "子命令："]
     for name, _, desc in COMMANDS:
         lines.append(f"  {name:<{width}}  {desc}")
-    lines += ["", "每个子命令都支持 --help：veripen chat --help", ""]
+    lines += [
+        "",
+        "每个子命令都支持 --help：veripen chat --help",
+        # 这两条都是**真的入口**，就别只让人去试错（B262）
+        "等价写法：veripen help chat ｜ 版本：veripen -V",
+        "",
+    ]
     return "\n".join(lines)
 
 
@@ -74,6 +80,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     # UnicodeEncodeError 直接把命令打死——B200（verify 脚本）与 B206（exe 启动）
     # 都是这个坑。放在分发处，所有子命令自动受益。
     setup_stdout()
+
+    # `veripen help chat` 要给出 chat 的帮助（B261）：以前 `help` 与 `--help` 同义，
+    # 于是 `veripen help chat` 只打印总览——读者会以为 chat 没有帮助。
+    if args and args[0] == "help" and len(args) > 1:
+        args = [args[1], "--help"]
 
     if not args or args[0] in ("-h", "--help", "help"):
         print(_usage())

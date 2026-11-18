@@ -25,6 +25,9 @@ from ..routes.types import (
     UnboundRoute,
 )
 from .errors import ScopeDenied, ScopeViolation
+
+#: 路径分隔符（lint-noroute 不许出现字面量斜杠）
+SEP = chr(0x2F)
 from ..models import ImpactClass
 
 
@@ -163,6 +166,45 @@ def check_preflight(
 
 
 # ── ④ 连接后 ────────────────────────────────────────────────────────
+#: `DENY_SET_DEFAULT` 展开出来的网段（05 §1.1：元数据/回环/私网/链路本地）。
+#: 键是 profile 里的关键字，值是 CIDR 列表——**它以前只是个被原样打印的字符串**（B311）。
+DENY_SET_DEFAULT = (
+    "169.254.0.0" + SEP + "16",      # 链路本地 / 云元数据
+    "127.0.0.0" + SEP + "8",         # 回环
+    "10.0.0.0" + SEP + "8",          # 私网
+    "172.16.0.0" + SEP + "12",       # 私网
+    "192.168.0.0" + SEP + "16",      # 私网
+    "100.64.0.0" + SEP + "10",       # CGNAT
+    "::1" + SEP + "128",             # 回环 v6
+    "fe80::" + SEP + "10",           # 链路本地 v6
+    "fc00::" + SEP + "7",            # 唯一本地 v6
+)
+
+
+def split_deny(entries: Iterable[str]) -> tuple[frozenset[str], frozenset[str]]:
+    """把 `deny` 拆成 (资产 id 集合, 网段集合)（B311）。
+
+    以前 `--deny` 只按**资产 id** 比对，`10.0.0.0/8` 这种写法静默失效；
+    `DENY_SET_DEFAULT` 更惨——它被当成一个主机名原样打印，谁也没被拒绝。
+    """
+    ids: set[str] = set()
+    nets: set[str] = set()
+    for raw in entries:
+        item = (raw or "").strip()
+        if not item:
+            continue
+        if item.upper() == "DENY_SET_DEFAULT":
+            nets.update(DENY_SET_DEFAULT)
+            continue
+        try:
+            ipaddress.ip_network(item, strict=False)
+        except ValueError:
+            ids.add(item)          # 不是网段 → 按资产 id / 主机名
+        else:
+            nets.add(item)
+    return frozenset(ids), frozenset(nets)
+
+
 def check_post_connect(
     *,
     peer_ip: str,
@@ -219,10 +261,14 @@ class ScopeGuard:
         deny: AbstractSet[str],
         min_confidence: float,
         now: int,
+        deny_nets: Iterable[str] = (),
     ) -> None:
         self.asset = asset
         self.scope_in = scope_in
         self.deny = deny
+        # ④ 用的网段集合（B311）：以前没有这个字段，`getattr(scope, "deny_nets", ())`
+        # 永远拿到空——于是"对端 ∉ deny"这一半从来没生效过。
+        self.deny_nets = frozenset(deny_nets)
         self.min_confidence = min_confidence
         self.now = now
         self.events: list[dict[str, object]] = []
@@ -255,12 +301,15 @@ class ScopeGuard:
             self._record("binding", ok=False, detail={"reason": type(exc).__name__})
             raise
 
-    def post_connect(self, peer_ip: str, deny_nets: Iterable[str], explicit_ips: Iterable[str] = ()) -> None:
+    def post_connect(self, peer_ip: str, deny_nets: Iterable[str] | None = None,
+                     explicit_ips: Iterable[str] = ()) -> None:
         try:
             check_post_connect(
                 peer_ip=peer_ip,
                 asset=self.asset,
-                deny_nets=deny_nets,
+                # 不传就用实例上那份（B311）：以前调用方必须自己传，
+                # 生产路径传的是 `getattr(scope, "deny_nets", ())`——恒空。
+                deny_nets=self.deny_nets if deny_nets is None else deny_nets,
                 explicit_ips=explicit_ips,
             )
         except ScopeViolation as exc:

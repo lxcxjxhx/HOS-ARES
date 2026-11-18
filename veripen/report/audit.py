@@ -55,6 +55,34 @@ def _sorted_events(events: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any
     return sorted(events, key=lambda e: (int(e.get("seq", 0)), str(e.get("kind", ""))))
 
 
+#: 详情里最值得上表的那几个键（其余按字母序附在后面）。**不是白名单**：
+#: 没列到的键照样输出，只是排在后面——审计表的价值在"不藏东西"。
+_DETAIL_FIRST = ("action_class", "approval_id", "state", "decision", "by", "reason", "phase")
+
+
+def _detail_text(value: Any) -> str:
+    """`detail` 是个 dict，别把 Python repr 直接倒进表格（B297）。
+
+    改前实测：`{'action_class': 'scope_expand', 'approval_id': 'adbc90e4…', 'impact':
+    {'assets': 'multi'}, 'phase': 'request', 'state': 'PENDING'}`——带单引号、嵌套 dict，
+    表格里挤成一团，读者只能跳过。现在按 `k=v · k=v` 铺平，嵌套值用 JSON 短串。
+    """
+    if not isinstance(value, Mapping):
+        return _cell(value)
+    if not value:
+        return "-"
+    import json
+
+    keys = [k for k in _DETAIL_FIRST if k in value]
+    keys += [k for k in value if k not in keys]
+    parts = []
+    for key in keys:
+        raw = value[key]
+        shown = json.dumps(raw, ensure_ascii=False) if isinstance(raw, (Mapping, list)) else str(raw)
+        parts.append(f"{key}={shown}")
+    return _cell(" · ".join(parts))
+
+
 def _cell(value: Any) -> str:
     text = "" if value is None else str(value)
     return text.replace("|", "\\|") if text else "-"
@@ -82,8 +110,10 @@ def render_audit_section(audit: AuditInput) -> str:
     ]
     denied, errored = _buckets(events)
     denied_rows = [[e.get("seq"), e.get("tool") or e.get("oracle_id"),
-                    e.get("err_class") or "approval", e.get("detail", {})] for e in denied]
-    error_rows = [[e.get("seq"), e.get("kind"), e.get("err_class"), e.get("detail", {})] for e in errored]
+                    e.get("err_class") or "approval", _detail_text(e.get("detail", {}))]
+                   for e in denied]
+    error_rows = [[e.get("seq"), e.get("kind"), e.get("err_class"),
+                   _detail_text(e.get("detail", {}))] for e in errored]
 
     budget_rows = []
     for key in BUDGET_KEYS:
@@ -112,6 +142,11 @@ def render_audit_section(audit: AuditInput) -> str:
         _table(("预算", "已用", "上限"), budget_rows),
         "",
         "### 拒绝账",
+        # 表名沿用 H03 的口径（"被 guard 拦下的动作 + 原因码"），但实现里这里装的是
+        # **审批事件的两端**：请求=被拦下待批，决定=放行或拒绝（B298）。
+        # 不加这行说明，读者看到 state=APPROVED 会以为表格放错了。
+        "含审批两端：`phase=request`（被 guard 拦下、待批）与 `phase=decision`"
+        "（放行或拒绝，结论看 `state`）。",
         _table(("seq", "动作", "原因", "详情"), denied_rows),
         "",
         "### 冲突账",

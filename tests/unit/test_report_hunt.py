@@ -116,3 +116,25 @@ def test_hunt_md_capsule_paths_are_relative() -> None:
     md = render_hunt_markdown(_record(), capsules_dir="capsules", generated_at="t")
     assert "--capsule capsules/" + SHA + ".json" in md
     assert "相对报告所在目录" in md
+
+
+# ── B369：同一句"提前停"的提醒不许写两遍 ────────────────────────
+def test_early_stop_caveat_is_not_printed_twice() -> None:
+    """`coverage.json` 自带一句 `本轮以 'X' 结束，覆盖只反映停下之前…`，
+
+    渲染器自己又写一句同义话 → hunt.md 同一段里同一件事出现两次（实测：20:21 那份
+    报告连续两行都在说这件事，一行带引号一行不带）。机器账本那句要留着（单读
+    coverage.json 的人需要），重复在渲染这一层去掉。
+    """
+    record = _record(coverage={
+        "summary": {"faces": 2, "faces_covered": 2, "applicable_pairs": 4,
+                    "executed": 4, "gaps": 0},
+        "gaps": 0, "complete": False,
+        "caveats": [
+            "本轮以 'converged' 结束，覆盖只反映停下之前做完的部分。",
+            "3/5 项缺口（critical+warn）使得本账本**不能**读作完整覆盖。",
+        ],
+    })
+    md = _render(record)
+    assert md.count("覆盖只反映停下之前做完的部分") == 1, md
+    assert "3/5 项缺口" in md, "别的提醒不许被一起去掉"

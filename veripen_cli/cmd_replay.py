@@ -104,12 +104,141 @@ def _tamper_probe(cap: CapsuleDoc, out: Path) -> int:
     return _fail("篡改 1 字节后仍通过自哈希校验——A4 不成立")
 
 
+def _chain(target: Path) -> int:
+    """校验一整条证据链：目录 / 通配符 / 一串文件（B293）。
+
+    **它验的是"证据没被改、顺序没断"**，不是"漏洞还在"——和单份重放同一条边界。
+    """
+    import glob
+
+    from veripen_core.evidence import (
+        CapsuleTampered,
+        assert_self_sha,
+        order_chain,
+        verify_chain,
+    )
+
+    if target.is_dir():
+        files = sorted(target.glob("*.json"))
+    else:
+        files = sorted(Path(p) for p in glob.glob(str(target)))
+    if not files:
+        return _fail(f"没找到 capsule：{target}（给目录、通配符，或一份 .json）")
+
+    caps = []
+    for path in files:
+        try:
+            cap = load_capsule(path)
+            assert_self_sha(cap)      # 单份完整性先过，再谈链
+        except CapsuleTampered as exc:
+            # 别抛 traceback（B349）：这是"证据被改过"，不是程序坏了
+            print(f"TAMPERED：{path.name} 的内容与 self_sha256 不符（{exc}）", file=sys.stderr)
+            print("说明：这说明这份证据被改过；**不是**「漏洞结论变了」", file=sys.stderr)
+            return 1
+        caps.append(cap)
+
+    # 多条链混在一个目录里不是"被改过"（B350）：先数链头，说清是哪种情况
+    genesis = [c for c in caps if c.chain.prev_sha256 == "0" * 64]
+    if len(genesis) > 1:
+        print(f"注意：这一批里有 {len(genesis)} 个链头（多条链混在一起）——"
+              "这不是「证据被改过」，而是两轮证据放在了一起；分批校验更清楚",
+              file=sys.stderr)
+
+    # **按血缘排序**（B349）：文件名字典序不是链序，直接排会把干净链判成断点。
+    report = verify_chain(order_chain(caps))
+    print(f"链：{len(caps)} 份 · 完整={report.ok} · 链头={report.head_sha256[:12] or '-'}")
+    print(f"链头 prev：{report.genesis_prev_sha256[:12]}（合法链恒为全零）")
+    if not report.ok:
+        for brk in report.breaks:
+            print(f"  断点：{brk}")
+        print("说明：断点表示证据顺序或内容被改过；这**不是**\"漏洞没了\"的判断")
+        return 1
+    print("说明：这只证明证据自洽且顺序未断；**不**证明洞还在（那要 live 重放）")
+    return 0
+
+
+def _manifest(target: Path) -> int:
+    """校验交付清单：逐文件 sha256 对盘上字节（B320）。
+
+    支持三路的清单（`report.manifest.json` / `hunt.manifest.json` /
+    `platform-report.manifest.json`）：形状一致，所以一个校验器就够。
+    """
+    import hashlib
+
+    if not target.exists():
+        return _fail(f"没有这个路径：{target}（先跑一次 run / hunt / platform 产出产物）")
+
+    if target.is_dir():
+        candidates = sorted(target.glob("*.manifest.json"))
+        if not candidates:
+            return _fail(f"{target} 里没有 *.manifest.json（清单不在这个目录？）")
+        if len(candidates) > 1:
+            names = "、".join(p.name for p in candidates)
+            return _fail(f"这个目录有多份清单：{names}——指到具体一份")
+        target = candidates[0]
+
+    try:
+        manifest = json.loads(target.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return _fail(f"清单读不出来：{exc}")
+
+    from veripen.report.lint import verify_manifest_self
+
+    if not verify_manifest_self(manifest):
+        return _fail(f"{target.name} 的自哈希不符——清单本身被改过"
+                     f"（改哈希值再改文件，是最容易被忽略的一种）")
+
+    files = manifest.get("files") or {}
+    if not files:
+        return _fail(f"{target.name} 里没有 files 段——这份清单证明不了文件没被改")
+
+    base = target.parent
+    bad: list[str] = []
+    for name, want in files.items():
+        path = base / name
+        if not path.is_file():
+            bad.append(f"{name}（文件不在）")
+            continue
+        got = hashlib.sha256(path.read_bytes()).hexdigest()
+        if got != want:
+            bad.append(f"{name}（哈希不符：{got[:12]} ≠ {str(want)[:12]}）")
+
+    print(f"清单：{target.name} · 覆盖 {len(files)} 份文件 · 一致={not bad}")
+    if bad:
+        for item in bad:
+            print(f"  不符：{item}")
+        print("说明：不一致表示文件被改过或不是同一批产物——**不是**\"漏洞结论变了\"")
+        return 1
+    print("说明：这只证明这几份产物没被手改、清单没被改过；**不**证明结论正确"
+          "（那要看证据链与重放）。有意改仍挡不住——那要签名")
+    return 0
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(prog="veripen replay")
     ap.add_argument("--capsule", help="capsule JSON 路径")
-    ap.add_argument("--out", default="out/replay", help="输出目录")
-    ap.add_argument("--mode", choices=["live", "dry", "offline"], default="live")
-    ap.add_argument("--selftest", action="store_true", help="只做篡改证明（不需要靶场）")
+    ap.add_argument("--out", default="out/replay", help="输出目录（写 replay.json）")
+    ap.add_argument(
+        "--mode", choices=["live", "dry", "offline"], default="live",
+        help=(
+            "live：真发包（需注入 RouteSet 与 transport，缺件即拒）；"
+            "offline：不解析路由、不发包，用证据里存的状态与 body 哈希重跑判定纯函数"
+            "（能说「判定能否由证据重算」，不能说「洞还在」）；"
+            "dry：只给「将要发什么」，**不注入 RouteSet**（路由门必然 UNRESOLVED，"
+            "那是设计使然而非「路由没了」）"
+        ),
+    )
+    ap.add_argument("--selftest", action="store_true",
+                    help="只做篡改证明（不需要靶场）；**需要 --capsule**，它篡改的是真证据")
+    # 链校验（B293）：bench 一直在提示 `veripen evidence --verify-chain`，而那个子命令不存在。
+    # 能力（verify_chain）早就在 core 里，缺的只是一个入口——放到 replay 下最自然。
+    ap.add_argument("--chain", help=(
+        "校验一整条证据链：给目录或通配符（如 out/x/capsules/r1）。"
+        "证明的是「顺序未断、每份自哈希一致」；**不**证明结论正确（那要看重放）"))
+    # 清单校验（B320）：三路交付都有 manifest，但以前只能手工 sha256sum。
+    ap.add_argument("--manifest", help=(
+        "校验交付清单：给 manifest 文件或含它的目录。"
+        "逐文件核 sha256 并先核清单自哈希；挡得住手误与半途编辑，**挡不住有意改**（那要签名）"))
     args = ap.parse_args(argv)
 
     if args.selftest:
@@ -125,6 +254,12 @@ def main(argv: list[str]) -> int:
         except CapsuleError as exc:
             return _fail(f"capsule 载入失败：{exc}")
         return _tamper_probe(cap, Path(args.out))
+
+    if args.manifest:
+        return _manifest(Path(args.manifest))
+
+    if args.chain:
+        return _chain(Path(args.chain))
 
     if not args.capsule:
         return _fail("需要 --capsule <path>（重放一份证据）；"
@@ -191,6 +326,11 @@ def main(argv: list[str]) -> int:
     print(f"含义    : {STATE_MEANING.get(result.state.value, '')}")
     if result.reason:
         print(f"原因    : {result.reason}")
+    if mode is ReplayMode.DRY and result.state.value == "ROUTE_UNRESOLVED":
+        # dry 模式刻意不注入 RouteSet（见上面的注释），路由门必然 UNRESOLVED（B347）：
+        # 不说明的话，用户会以为"我的环境里这条路没了"。
+        print("说明    : dry 不注入 RouteSet（刻意给空），路由门必然 UNRESOLVED——"
+              "这不是「路由没了」；要按真实环境校验路由，用 --mode offline 或注入绑定")
     if mode is ReplayMode.OFFLINE and result.fingerprint:
         # 让人看见"算了哪些"，才知道"没算哪些"不是被悄悄放过。
         print("谓词    : " + " ".join(f"{k}={v}" for k, v in sorted(result.fingerprint.items())))

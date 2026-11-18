@@ -36,7 +36,7 @@ from typing import Any, Iterable
 from urllib.parse import urlsplit
 
 from ._discover_args import add_discovery_args
-from ._io import setup_stdout  # noqa: E402
+from ._io import read_text_arg, setup_stdout  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -49,6 +49,7 @@ from veripen_contract.parser import ContractError, parse_openapi  # noqa: E402
 from veripen_contract.planner import plan  # noqa: E402
 from veripen_contract.spec_detect import SpecFormatError, as_openapi_text  # noqa: E402
 from veripen_core.agent import AgentState, Loop, build_decider  # noqa: E402
+from veripen_core.agent.loop import MODEL_ERROR_TOOL  # noqa: E402
 from veripen_core.agent.client import from_env  # noqa: E402
 from veripen.bench.capsule import build_capsule  # noqa: E402
 from veripen_core.evidence import ZERO_SHA, save_capsule, seal_capsule_doc  # noqa: E402
@@ -348,11 +349,14 @@ def _resolve_ips(host: str) -> frozenset[str]:
 
 
 def _host_of(target: str) -> str:
+    # 参数不合法属"输入有问题"（退出码 2），不是"跑完了"（1）——B342
     parts = urlsplit(target)
     if not parts.hostname:
-        raise SystemExit(f"--target 没有主机名：{target}")
+        print(f"--target 没有主机名：{target}", file=sys.stderr)
+        raise SystemExit(2)
     if parts.scheme.lower() not in ("http", "https"):
-        raise SystemExit(f"--target 只接受 http/https：{target}")
+        print(f"--target 只接受 http/https：{target}", file=sys.stderr)
+        raise SystemExit(2)
     return parts.hostname.lower()
 
 
@@ -417,6 +421,7 @@ def build_guard(
     burst: float = 2.0,
     deny: Iterable[str] = (),
     ceiling: str = "read_only",
+    deny_nets: Iterable[str] = (),
 ) -> GuardContext:
     """装配出网闸门（`hunt` 与 `run` 共用）。
 
@@ -424,10 +429,16 @@ def build_guard(
     所以两个入口必须走同一个构造函数，否则新入口会漏装。
     """
     resolved = _resolve_ips(host)
+    # `deny` 里混着"资产 id"与"网段"两种写法（B311）：拆开，网段进 ④ 的对端校验。
+    # 以前整串只按资产 id 比对，`10.0.0.0/8` 与 `DENY_SET_DEFAULT` 都静默失效。
+    from veripen_core.guard.scope import split_deny
+
+    deny_ids, nets_from_deny = split_deny(deny)
     scope = ScopeGuard(
         asset=AssetScope(id=host, host_keys=frozenset({host}), resolved_ips=resolved),
         scope_in=frozenset({host}),
-        deny=frozenset(deny),
+        deny=deny_ids,
+        deny_nets=nets_from_deny | frozenset(deny_nets),
         min_confidence=0.0,
         now=int(time.time()),
     )
@@ -514,8 +525,11 @@ def main(argv: list[str]) -> int:
         routeset = _discover_routeset(args, host)
     else:
         # 契约格式先归一（B89）：swagger 2.0 折成 OpenAPI 3，Postman/认不出的当场说清。
+        raw_text = read_text_arg(args.openapi, what="契约文件")
+        if raw_text is None:
+            return 2
         try:
-            text = as_openapi_text(Path(args.openapi).read_text(encoding="utf-8"))
+            text = as_openapi_text(raw_text)
         except SpecFormatError as exc:
             print(f"契约格式不支持：{exc}", file=sys.stderr)
             return 2
@@ -554,7 +568,14 @@ def main(argv: list[str]) -> int:
     }
     symbols_map: dict[str, str] = {}
     if args.symbols:
-        symbols_map.update(json.loads(Path(args.symbols).read_text(encoding="utf-8")))
+        raw_symbols = read_text_arg(args.symbols, what="符号表")
+        if raw_symbols is None:
+            return 2
+        try:
+            symbols_map.update(json.loads(raw_symbols))
+        except (json.JSONDecodeError, TypeError) as exc:
+            print(f"符号表不是可用的 JSON 对象：{args.symbols}（{exc}）", file=sys.stderr)
+            return 2
     if args.oob:
         symbols_map["OOB"] = args.oob
         symbols_map["OOB_URL"] = "https" + ":" + "//" + args.oob
@@ -573,20 +594,14 @@ def main(argv: list[str]) -> int:
     resolved = _resolve_ips(host)
     if resolved:
         print(f"解析：{len(resolved)} 个 IP —— {', '.join(sorted(resolved))}")
-    scope = ScopeGuard(
-        asset=AssetScope(id=host, host_keys=frozenset({host}), resolved_ips=resolved),
-        scope_in=frozenset({host}),
-        deny=frozenset(x.strip() for x in args.deny.split(",") if x.strip()),
-        min_confidence=0.0,
-        now=int(time.time()),
-    )
-    ctx = GuardContext(
-        scope=scope,
-        routeset=routeset,
-        plan=_plan_decision(scope, oracles, args.max_impact),
-        bucket=TokenBucket(ThrottleConfig(rate_per_s=args.rate, burst=args.burst)),
-        budget=Budget(),
-        now=int(time.time()),
+    # **只走 `build_guard` 这一个构造点**（B335）：以前这里 inline 又建了一个 ScopeGuard，
+    # 于是 B311 修好 run 的 deny 拆分后，hunt 这一路仍旧惰性——同一个对象两处构造，
+    # 修一处等于只修一半。
+    ctx = build_guard(
+        host, routeset, oracles,
+        rate=args.rate, burst=args.burst,
+        deny=[x.strip() for x in args.deny.split(",") if x.strip()],
+        ceiling=args.max_impact,
     )
 
     http_tool.install_guard(ctx)
@@ -616,10 +631,23 @@ def main(argv: list[str]) -> int:
     finally:
         http_tool.uninstall_guard()
 
+    model_errors = []
     for e in result.step_entries:
         flag = "ok " if e.ok else "ERR"
         verdict = f" verdict={e.verdict}" if e.verdict else ""
-        print(f"  {e.step:>2} {flag} {e.tool:<20} facts+{e.new_facts}{verdict}")
+        # B238：`--model live` 失败时这里原本直接打内部哨兵 `__model_error__`，
+        # 客户看到一行下划线开头的名字，既不知道发生了什么事，也不知道该动哪里。
+        label = "模型调用失败" if e.tool == MODEL_ERROR_TOOL else e.tool
+        if e.tool == MODEL_ERROR_TOOL:
+            model_errors.append(e)
+        print(f"  {e.step:>2} {flag} {label:<20} facts+{e.new_facts}{verdict}")
+    if model_errors:
+        classes = {str(e.error_class or "") for e in model_errors}
+        why = "模型端点不可达/报错" if "transport" in classes else "模型输出不合窄 schema"
+        print(f"注意：{len(model_errors)} 步没拿到可用调用（{why}）——已降级到 scripted 继续；"
+              "判定结果不受影响，但这几步没参与决策")
+        if "transport" in classes:
+            print("      `veripen doctor` 的「模型后端」项可复现")
     print("-" * 78)
     print(f"决策：{result.decision.value}（{result.reason}）")
     # 模型自述：**展示，但不计入判定**（B158）。早先这段文本被整个丢掉，
@@ -700,8 +728,17 @@ def main(argv: list[str]) -> int:
             for b in routeset.bindings[:BINDINGS_DETAIL_MAX]
         ],
         "oracles": list(oracles),
+        # 排除要留痕（B329）：终端打了"已排除：…"，而 hunt.json / hunt.md 里一个字都没有，
+        # 读者看到"可跑 2 个"不知道原本有 5 个。
+        "excluded": sorted(excluded),
         "decision": result.decision.value,
         "reason": result.reason,
+        # 决策词是 `converged` 时读起来像"正常收敛"，而本轮可能一面都没判成（B334）
+        "blocked_note": (
+            f"本轮 {len(ctx.scope.violations())} 次被边界挡下，没有一面判成——"
+            "决策词不等于「正常收敛」，看 bounds.json"
+            if (not findings and ctx.scope.violations()) else ""
+        ),
         "findings": findings,
         # 模型自述（B158）：与 findings/faces_run 分列——自述**不能**算覆盖，
         # 但把它丢掉等于让模型白说。两者并列，读者自己判断。
@@ -718,8 +755,11 @@ def main(argv: list[str]) -> int:
         "faces_run": [row.as_dict() for row in runtime.faces_run],
         "not_confirmed": blocked,
         "steps": [
-            {"step": e.step, "tool": e.tool, "ok": e.ok,
-             "error_class": e.error_class, "verdict": e.verdict}
+            # 机器产物里也别留内部哨兵名（B258）：`__model_error__` 是 loop 的实现细节，
+            # 下游按 tool 名做统计/告警的人不该被迫认这个名字。对外统一叫 `model_error`。
+            {"step": e.step,
+             "tool": "model_error" if e.tool == MODEL_ERROR_TOOL else e.tool,
+             "ok": e.ok, "error_class": e.error_class, "verdict": e.verdict}
             for e in result.step_entries
         ],
         "budget": dict(result.budget),
@@ -732,22 +772,61 @@ def main(argv: list[str]) -> int:
         # 为什么"不完整"要跟着走：报告里只写"完整：否"而不给原因，读者会以为还有面没跑（B166）
         "caveats": list(coverage["completeness"]["caveats"]),
     }
-    (out / "hunt.json").write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
+    # 与 run 同口径（B319）：落盘字符串固定 LF、清单逐文件哈希——客户能 `sha256sum` 核。
+    from veripen.report.lint import dumps_artifact
+
+    # 越界事件落盘（B334）：run 那一路有 bounds.json，hunt 没有——同样会被边界挡下，
+    # 却没有可核的痕迹。写出来，并纳进清单。
+    violations = ctx.scope.violations()
+    bounds_text = dumps_artifact({"count": len(violations), "events": violations})
+    (out / "bounds.json").write_text(bounds_text, encoding="utf-8", newline=chr(10))
+
+    # 能力边界（B400）：`hunt.md` 有、`hunt.json` 没有——机器消费者读到的仍是"全测过了"。
+    # 与 run/hunt/platform 同一份实现，字段形状与 `findings.json` 对齐。
+    from veripen.report.limits import capability_limits  # noqa: PLC0415
+
+    record["capability_limits"] = [
+        {"kind": kind, "check": check_id, "why": why}
+        for kind, rows in capability_limits().items()
+        for check_id, why in rows
+    ]
+    hunt_text = dumps_artifact(record)
+    (out / "hunt.json").write_text(hunt_text, encoding="utf-8", newline=chr(10))
     # 可交付报告（B166）：与 hunt.json **同源渲染**，同一个 dict 进两份产物
     from veripen.report.hunt import render_hunt_markdown
 
     # 报告里的证据路径用**相对 `--out`** 的形式（B191）：与 run 的报告同口径
     cap_rel = "capsules"
     report_path = out / "hunt.md"
-    report_path.write_text(
-        render_hunt_markdown(
-            record,
-            # 相对 `--out`（B191）：与 run 的报告同口径，绝对路径换台机器就读不出来
-            capsules_dir=cap_rel,
-            generated_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"),
-        ),
-        encoding="utf-8",
+    md_text = render_hunt_markdown(
+        record,
+        # 相对 `--out`（B191）：与 run 的报告同口径，绝对路径换台机器就读不出来
+        capsules_dir=cap_rel,
+        generated_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"),
     )
+    report_path.write_text(md_text, encoding="utf-8", newline=chr(10))
+    # 清单（B319）：hunt 之前**没有**清单，于是"这两份产物没被手改"无从证明。
+    import hashlib as _hashlib
+
+    md_sha = _hashlib.sha256(md_text.encode("utf-8")).hexdigest()
+    js_sha = _hashlib.sha256(hunt_text.encode("utf-8")).hexdigest()
+    manifest = {
+        "version": 1,
+        "sections": {"markdown": md_sha, "json": js_sha},
+        "files": {
+            "hunt.md": md_sha,
+            "hunt.json": js_sha,
+            "bounds.json": _hashlib.sha256(bounds_text.encode("utf-8")).hexdigest(),
+        },
+        "report_sha256": _hashlib.sha256((md_sha + js_sha).encode("utf-8")).hexdigest(),
+    }
+    # 清单自哈希（B321）：与 run 那一路同形
+    import hashlib as _h2
+
+    manifest["manifest_sha256"] = _h2.sha256(
+        dumps_artifact(manifest).encode("utf-8")).hexdigest()
+    (out / "hunt.manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8", newline=chr(10))
     cov_path = write_coverage(out, coverage)
     print()
     cov_summary = coverage["summary"]
@@ -760,7 +839,7 @@ def main(argv: list[str]) -> int:
         for caveat in coverage["completeness"]["caveats"]:
             print(f"  注意：{caveat}")
     print(f"证据：{len(runtime.sealed)} 份 capsule → {capsules_dir}")
-    print(f"产物：{out / 'hunt.json'}")
+    print(f"产物：{out / 'hunt.json'} / {out / 'hunt.manifest.json'}")
     print(f"报告：{report_path}")
     return 0
 

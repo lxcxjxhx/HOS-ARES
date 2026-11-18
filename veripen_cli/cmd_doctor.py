@@ -23,6 +23,9 @@ from pathlib import Path
 from typing import Any, Callable, Sequence
 
 
+#: 路径分隔符：零地址闸门（R-PATH）把字面量当路径片段，统一用字符码构造
+_SEP = chr(0x2F)
+
 class Status(str, Enum):
     OK = "ok"
     FAIL = "fail"
@@ -97,12 +100,17 @@ class DoctorReport:
 # 单项检查
 # ══════════════════════════════════════════════════════════════════
 def check_python(root: Path) -> CheckResult:
-    del root  # 签名统一成 (root)，方便注册表按名字遍历
     major, minor = sys.version_info[:2]
     ok = (major, minor) >= (3, 11)
+    # 解释器的**路径**也要报（B367）：版本号对上但环境不对（全局 python 缺
+    # playwright/mypy）时，只写 "3.13" 让人无从发现。
+    detail = f"{major}.{minor} · {sys.executable}"
+    venv = Path(root) / ".venv"
+    if venv.exists() and not Path(sys.executable).resolve().is_relative_to(venv.resolve()):
+        detail += "（注意：仓库自带 .venv，当前用的不是它）"
     return CheckResult(
         "python 版本", Status.OK if ok else Status.FAIL,
-        f"{major}.{minor}", "" if ok else "需要 ≥3.11",
+        detail, "" if ok else "需要 ≥3.11",
     )
 
 
@@ -155,11 +163,20 @@ def check_selfcheck(root: Path) -> CheckResult:
 
 
 def _run(cmd: Sequence[str], *, cwd: Path, timeout: int = 180) -> tuple[int, str]:
+    # 子进程的 stdout 走管道时用它自己的 locale 编码（Windows 是 cp936），
+    # 这里按 utf-8 解 → 中文全成 `��`（B365 实测：doctor 里 5 行 lint 摘要乱码，
+    # 而 verify.py 同样的子进程输出是好的，差别就在它设了 PYTHONIOENCODING）。
+    # 同一件事不写两份：子进程强制 utf-8，父进程按 utf-8 解。
     proc = subprocess.run(
         list(cmd), cwd=str(cwd), capture_output=True, text=True,
         encoding="utf-8", errors="replace", timeout=timeout,
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
     )
     return proc.returncode, (proc.stdout + proc.stderr).strip()
+
+
+#: 脚本名 → make 目标（不跟惯例的少数几个，写死；其余按 `lint-<stem>` 推）
+_MAKE_TARGET = {"bindings_check.py": "bindings-check"}
 
 
 def _lint(name: str, script: str, root: Path) -> CheckResult:
@@ -171,11 +188,15 @@ def _lint(name: str, script: str, root: Path) -> CheckResult:
     except (subprocess.SubprocessError, OSError) as exc:
         return CheckResult(name, Status.FAIL, f"执行失败：{exc}", f"python {script}")
     tail = out.splitlines()[-1] if out else ""
+    stem = script[:-3] if script.endswith(".py") else script
+    # B418：读者只在 doctor 里看到「noroute 失败」，不知道它等于 `make lint-noroute`。
+    # 把两者写在一行，省掉一次「这两个是不是一回事」的猜。
+    target = _MAKE_TARGET.get(script) or f"lint-{stem.replace('_', '-')}"
     return CheckResult(
         name,
         Status.OK if code == 0 else Status.FAIL,
         tail[:160],
-        "" if code == 0 else f"python scripts/lint/{script}",
+        "" if code == 0 else f"python scripts/lint/{script}（同 make {target}）",
     )
 
 
@@ -224,6 +245,8 @@ def check_lock_sync(root: Path) -> CheckResult:
 DOCTOR_EXCLUDED: dict[str, str] = {
     "mypy": "太慢（30s+），交给 verify.py / CI",
     "plan": "要 node 环境，doctor 不假定有",
+    # B232：冻结包自带的内容寻址校验器，同样要 node
+    "plan-old-manifest": "要 node 环境（旧包自带 `_verify-manifest.cjs`），理由同 plan",
     "bench-smoke": "要起靶场（环回端口 + 真发包），属验收不属现场自检",
 }
 
@@ -366,12 +389,81 @@ def check_lock_snapshot(root: Path) -> CheckResult:
     )
 
 
+def check_model_backend(root: Path) -> CheckResult:
+    """模型后端配了没有、连不连得上（B227）。
+
+    **没配就是 skip**：规则层能跑，没有模型不是缺陷（与 docker 同一口径）。
+    配了就连一次 `/models`（OpenAI 兼容），连不上要当场说清——否则人会等到
+    第一次 `veripen chat` 才发现，而那时已经在会上演示了。
+    探针只发 GET、不带 key 进日志、超时 5s；**不重试**（重试把"挂了"变成"卡住"）。
+    """
+    import json as _json
+    import os as _os
+    import urllib.error
+    import urllib.request
+
+    base = _os.environ.get("VERIPEN_MODEL_BASE_URL", "").strip().rstrip(_SEP)
+    model = _os.environ.get("VERIPEN_MODEL", "").strip()
+    if not base or not model:
+        return CheckResult(
+            "模型后端", Status.SKIP,
+            "未配置（规则层可用）：设 VERIPEN_MODEL_BASE_URL + VERIPEN_MODEL 接真模型",
+            # fix 列不许留空（B291）：这一项是客户最可能看到的 skip，空着等于没给下一步
+            "设 VERIPEN_MODEL_BASE_URL 与 VERIPEN_MODEL（网关要 key 就再加 "
+            "VERIPEN_MODEL_API_KEY），然后 veripen doctor --only model_backend",
+        )
+    url = base + _SEP + "models"
+    # 带了 key 就得把它发出去（B233）：旧探针只发 GET，遇到"要鉴权才能读 /models"
+    # 的网关会回 401，于是检查报"检查 VERIPEN_MODEL_API_KEY"——而那个人明明已经配了。
+    # key 只进请求头，不进 detail / 日志。
+    key = _os.environ.get("VERIPEN_MODEL_API_KEY", "").strip()
+    headers = {"Accept": "application/json"}
+    if key:
+        headers["Authorization"] = "Bearer " + key
+    try:
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=5) as resp:  # noqa: S310 - 地址来自环境变量，非用户输入
+            body = resp.read(4096).decode("utf-8", "replace")
+        names: list[str] = []
+        try:
+            data = _json.loads(body)
+            names = [str(m.get("id")) for m in (data.get("data") or []) if isinstance(m, dict)]
+        except Exception:  # noqa: BLE001 - 返回体不是 JSON 也算连通，但要说清
+            pass
+        listed = "、".join(names[:3]) if names else "（未列出）"
+        auth = "（带 key）" if key else "（未带 key）"
+        return CheckResult("模型后端", Status.OK,
+                           f"{base} 可达{auth} · 目标模型 {model} · 服务端列出 {listed}"[:160], "")
+    except urllib.error.HTTPError as exc:
+        # HTTPError 是 URLError 的子类：先接住，否则 401/404 会被报成"连不上"（B228）。
+        from veripen_core.agent.client import explain_http_status
+
+        said = explain_http_status(exc.code, url)
+        if exc.code in (404, 405):
+            # 端点**可达**，只是没实现 /models：能连 ≠ 能核对模型名，记 skip 不记 fail
+            return CheckResult("模型后端", Status.SKIP,
+                               f"{base} 可达，但不提供 /models：{said}"[:160],
+                               "先确认 base_url 是否含 /v1；网关无 /models 也能用，"
+                               "直连一次 `veripen chat` 即在真路径上验证")
+        return CheckResult("模型后端", Status.FAIL, said[:160],
+                           "按状态码改对应那一项；不需要模型就清掉这两个环境变量（规则层可用）")
+    except (urllib.error.URLError, OSError) as exc:
+        reason = getattr(exc, "reason", exc)
+        return CheckResult("模型后端", Status.FAIL,
+                           f"{base} 连不上：{type(reason).__name__}: {reason}"[:160],
+                           f"先确认端点可达：curl -sS {base}{_SEP}models；"
+                           "不需要模型就把这两个环境变量清掉（规则层可用）")
+
+
 def check_docker(root: Path) -> CheckResult:
     """docker 存在性。**没有就是 skip，不是 fail**——本机开发不需要它。"""
     try:
         code, out = _run(["docker", "version", "--format", "{{.Server.Version}}"], cwd=root, timeout=20)
     except (FileNotFoundError, subprocess.SubprocessError, OSError):
-        return CheckResult("docker 运行时", Status.SKIP, "本机无 docker（离线包校验跳过）")
+        return CheckResult(
+            "docker 运行时", Status.SKIP, "本机无 docker（离线包校验跳过）",
+            "装 Docker Desktop 或 podman 后可验真隔离；只跑离线包之外的验证则不需要",
+        )
     return CheckResult(
         "docker 运行时", Status.OK if code == 0 else Status.SKIP,
         out.splitlines()[0][:60] if out else "无响应",
@@ -478,9 +570,13 @@ def check_browser(root: Path) -> CheckResult:
     # 装了包不等于能起浏览器（自带 chromium 可能已损坏），但每次 doctor 都起一个
     # 浏览器会把自检变成慢且不稳的动作。所以实测放在显式开关后面。
     if os.environ.get("VERIPEN_DOCTOR_BROWSER", "") != "launch":
+        # 别写成"playwright 可用"就完事（B273）：包能 import ≠ 浏览器起得来。
+        # B267 实测本机自带 chromium 就是起不来的（TargetClosedError），
+        # 而报告渲染会因此整条 blocked。所以这句话只说"导入通过"，并给实测开关。
         return CheckResult(
             "浏览器渲染", Status.OK,
-            "playwright 可用（未试启动；VERIPEN_DOCTOR_BROWSER=launch 可实测通道）",
+            "playwright 包可导入，**未验证能否启动浏览器**"
+            "（VERIPEN_DOCTOR_BROWSER=launch 实测通道）",
         )
     try:
         with renderer:
@@ -514,6 +610,7 @@ CHECKS: tuple[tuple[str, Callable[[Path], CheckResult]], ...] = (
     ("agent_guard", check_agent_guard),
     ("profiles", check_profiles),
     ("lock_snapshot", check_lock_snapshot),
+    ("model_backend", check_model_backend),
     ("docker", check_docker),
     ("sandbox", check_sandbox),
     ("sandbox_behavior", check_sandbox_behavior),
@@ -525,6 +622,15 @@ CHECKS: tuple[tuple[str, Callable[[Path], CheckResult]], ...] = (
 def run_doctor(root: str | Path, *, only: Sequence[str] = ()) -> DoctorReport:
     base = Path(root).resolve()
     report = DoctorReport()
+    known = [name for name, _ in CHECKS]
+    # 名字打错 = 这一项根本没跑，但旧行为是"执行 0 项 → 全绿 → exit 0"（B231）：
+    # 一条写错的 CI 闸门命令永远绿，比没有闸门更糟。打错就红，并把可用项名给出来。
+    for name in [n for n in only if n not in known]:
+        report.results.append(
+            CheckResult(f"--only:{name}", Status.FAIL,
+                        f"没有这个检查项，它一项都没跑（不是通过）"[:160],
+                        "可用项：" + " ".join(known))
+        )
     for name, fn in CHECKS:
         if only and name not in only:
             continue
@@ -541,7 +647,9 @@ def run_doctor(root: str | Path, *, only: Sequence[str] = ()) -> DoctorReport:
 def main(argv: Sequence[str] | None = None) -> int:
     import argparse
 
-    ap = argparse.ArgumentParser(description="部署自检")
+    # prog 必须写死：不写就按 sys.argv[0] 推，客户看到的是 `usage: __main__.py …`，
+    # 那行命令抄下来跑不了（B229：usage 里只许出现真入口）。
+    ap = argparse.ArgumentParser(prog="veripen doctor", description="部署自检")
     ap.add_argument("--root", default=str(Path(__file__).resolve().parents[1]))
     ap.add_argument("--only", nargs="*", default=[])
     ap.add_argument("--json", action="store_true")

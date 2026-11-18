@@ -227,7 +227,7 @@ def test_approval_blocks_without_signoff(two_assets: Any, tmp_path: Path) -> Non
     rows = conn.execute("SELECT state FROM approvals").fetchall()
     assert rows and rows[0][0] == "PENDING"
     kinds = [r[0] for r in conn.execute(
-        "SELECT kind FROM task_events WHERE task_id='platform-run'").fetchall()]
+        "SELECT kind FROM task_events WHERE task_id LIKE 'platform-run%'").fetchall()]
     assert "approval" in kinds, "审批阻断必须留痕"
 
 
@@ -283,6 +283,8 @@ def test_rerun_does_not_reuse_stale_findings(two_assets: Any, tmp_path: Path) ->
     second = (tmp_path / "pf" / "platform-report.md").read_text(encoding="utf-8")
     assert "本轮未产出 1 个" in second
     assert "已验证 **0** / 总项 0" in second, "旧结论不许被算进这一轮"
+    # 数字不动，但必须解释（B417 / B353）：「0 / 0」并排会被读成「测了 0 项都没问题」
+    assert "没有任何判定进入执行" in second, "总项 0 必须有一句为什么"
     assert "| — | — | — |" in second, "未产出的资产三列都必须是 —，不能填数"
     assert "目录里的旧产物未被采用" in second
 
@@ -302,3 +304,75 @@ def test_report_records_the_actual_signer(monkeypatch: pytest.MonkeyPatch,
     report = (tmp_path / "pf" / "platform-report.md").read_text(encoding="utf-8")
     assert "已签（chat）" in report, report[:400]
     assert "已签（operator）" not in report
+
+
+# ── B371：审计节只属于这一轮 ────────────────────────────────────
+def test_audit_section_is_scoped_to_this_run(two_assets: Any, tmp_path: Path) -> None:
+    """`--db` 默认落在 `out/platform.db` 上，**跨轮复用**。
+
+    用固定 task_id 时，第二轮的报告会把第一轮的审批账一起抱进来：实测一份
+    "没开 --require-approval" 的报告里出现 64 条 approval、12 条 APPROVED
+    （`by=operator`、`reason=批量验证放行`）——那份交付物写着"审批 未启用"，
+    审计节却在列别人签的字。判据：同一 DB 连跑两轮，第二轮的审计节只许有自己那轮。
+    """
+    a, b = two_assets
+    db = tmp_path / "shared.db"
+    first = _run(tmp_path, f"{a.base_url},{b.base_url}",
+                 "--require-approval", "--approve",
+                 "--out", str(tmp_path / "r1"), "--db", str(db))
+    assert first == 0, first
+    md1 = (tmp_path / "r1" / "platform-report.md").read_text(encoding="utf-8")
+    assert "已签（operator）" in md1, md1[:400]
+
+    second = _run(tmp_path, f"{a.base_url},{b.base_url}",
+                  "--out", str(tmp_path / "r2"), "--db", str(db))
+    assert second in (0, 1), second
+    md2 = (tmp_path / "r2" / "platform-report.md").read_text(encoding="utf-8")
+    assert "APPROVED" not in md2, "上一轮的签字混进这一轮的报告"
+    assert "| 事件数 | 0 |" in md2, "这一轮没开审批，事件数必须是 0"
+
+
+def test_refuted_rows_are_not_printed_as_not_run(two_assets: Any, tmp_path: Path) -> None:
+    """平台明细表的「结论」列读的是 findings.json，不是内存里的 FindingView。
+
+    所以那一位 `refuted` 必须**进 JSON**：否则"跑过、无该问题"只能印成 `not_run`，
+    跟"未执行"混在一列里——资产 2 那三行就全变成了"没跑"（B371 实测）。
+    """
+    a, _b = two_assets
+    _run(tmp_path, a.base_url)
+    md = (tmp_path / "pf" / "platform-report.md").read_text(encoding="utf-8")
+    assert "已判否（跑过、无该问题）" in md, md[:1200]
+
+
+# ── K：两份报告章节号基准不同，必须写出来（B418 / B247）──
+def test_report_states_the_section_numbering_baseline(two_assets: Any,
+                                                     tmp_path: Path) -> None:
+    a, _b = two_assets
+    _run(tmp_path, a.base_url)
+    md = (tmp_path / "pf" / "platform-report.md").read_text(encoding="utf-8")
+    assert "本文章节从 §1 起" in md, md[:800]
+    assert "编号基准不同" in md
+
+
+# ── L：capsule 列是 0 时，要说清"不是证据丢了"（B418 / B355）──
+def test_zero_capsule_assets_are_explained(tmp_path: Path) -> None:
+    """面在靶场上不存在 → 全部挡下、没有一条结论需要取证；读者只看到 0 会以为丢了。"""
+    from lab.app import App
+    from lab.net_server import LabServer
+    from veripen_cli.cmd_platform import main
+
+    srv = LabServer(App(secure=False)).start()
+    try:
+        spec = tmp_path / "missing.json"
+        spec.write_text(json.dumps({
+            "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
+            "servers": [{"url": srv.base_url}],
+            "paths": {f"{SEP}nope": {"get": {"x-veripen-tags": ["param_injectable"]}}},
+        }), encoding="utf-8")
+        out = tmp_path / "pf"
+        main(["--targets", srv.base_url, "--openapi", str(spec), "--out", str(out),
+              "--db", str(tmp_path / "pf.db"), "--qps", "6"])
+        md = (out / "platform-report.md").read_text(encoding="utf-8")
+    finally:
+        srv.stop()
+    assert "不是证据丢了" in md, md[:900]

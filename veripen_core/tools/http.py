@@ -88,19 +88,17 @@ def _dispatch(
     ctx.preflight()            # ③ 预算 / 令牌 / 审批
 
     # ── 传输（B10/B12 接线）：渲染、建连、④ post_connect、发请求 ──
-    from ..guard.scope import check_post_connect
     from .transport import perform, render, trace
 
     r = render(binding, params)
 
     def _post_connect(peer_ip: str) -> None:
-        """④ 实际对端必须 ∈ 解析集合且 ∉ deny（05 §1）。"""
-        check_post_connect(
-            peer_ip=peer_ip,
-            asset=ctx.scope.asset,
-            deny_nets=getattr(ctx.scope, "deny_nets", ()),
-            explicit_ips=(r.host,),
-        )
+        """④ 实际对端必须 ∈ 解析集合且 ∉ deny（05 §1）。
+
+        走 `scope.post_connect` 而不是模块函数（B332）：只有走方法才会 `_record`，
+        否则越界事件只活在异常里，控制台的"边界页"永远读不到。
+        """
+        ctx.scope.post_connect(peer_ip, explicit_ips=(r.host,))
 
     headers: dict[str, str] = {"User-Agent": "veripen/1"}
     if auth:

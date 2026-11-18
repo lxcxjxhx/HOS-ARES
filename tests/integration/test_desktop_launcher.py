@@ -45,9 +45,14 @@ def test_free_port_is_actually_free() -> None:
         sock.close()
 
 
-def test_record_precedence_prefers_explicit_then_defaults_then_empty(tmp_path: Path) -> None:
+def test_record_precedence_prefers_explicit_then_defaults_then_empty(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from veripen_cli.desktop import pick_record
 
+    # `pick_record` 会看**当前目录**（B287），所以这个用例必须把 cwd 挪开：
+    # 否则仓库根下只要有 out/hunt.json，"什么都没有"这一断言就会红（B324 实测）。
+    monkeypatch.chdir(tmp_path)
     assert pick_record(str(tmp_path / "x.json")) == tmp_path / "x.json", "显式给的优先"
 
     assert pick_record("", tmp_path) is None, "什么都没有就该是空态"

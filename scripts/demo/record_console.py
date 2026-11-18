@@ -202,6 +202,39 @@ def wait_ready(url: str, timeout_s: float = 20.0) -> None:
     raise TimeoutError(f"控制台未在 {timeout_s}s 内就绪：{url}")
 
 
+def _launch(pw):  # noqa: ANN001, ANN201
+    """起浏览器：先 playwright 自带 chromium，再退到系统 Edge / Chrome（B269）。
+
+    与 `record_terminal.py` 同一个兜底（B267）——两处写死同一行，就一起坏。
+    """
+    errors = []
+    try:
+        return pw.chromium.launch()
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"chromium: {type(exc).__name__}")
+    for channel in ("msedge", "chrome"):
+        try:
+            return pw.chromium.launch(channel=channel)
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"{channel}: {type(exc).__name__}")
+    raise RuntimeError("起不了浏览器：" + "；".join(errors))
+
+
+def _compare_runs(previous: dict[str, Any] | None, current: dict[str, Any]) -> dict[str, Any]:
+    """判据 D：两次运行的页序列是否一致（B269，与终端录屏同一口径）。"""
+    if not previous:
+        return {"checked": False, "reason": "没有上一轮 manifest，本次先当基线"}
+    prev = list(previous.get("page_order") or [])
+    cur = list(current.get("page_order") or [])
+    return {
+        "checked": True,
+        "same_pages": prev == cur,
+        "previous_at": previous.get("generated_by"),
+        "previous": prev,
+        "current": cur,
+    }
+
+
 def capture(pages_dir: Path, *, port: int, ops: Sequence[str]) -> list[dict[str, Any]]:
     """逐页截图。每页一张干净帧，互相之间由 ffmpeg 拉时长。"""
     from playwright.sync_api import sync_playwright
@@ -210,7 +243,7 @@ def capture(pages_dir: Path, *, port: int, ops: Sequence[str]) -> list[dict[str,
     pages_dir.mkdir(parents=True, exist_ok=True)
     shots: list[dict[str, Any]] = []
     with sync_playwright() as pw:
-        browser = pw.chromium.launch()
+        browser = _launch(pw)
         ctx = browser.new_context(viewport={"width": VIEWPORT_W, "height": VIEWPORT_H})
         page = ctx.new_page()
         for idx, op in enumerate(ops, start=1):
@@ -354,6 +387,12 @@ def main(argv: list[str] | None = None) -> int:
 
     video = compose_video(shots, VIDEO)
     manifest = build_manifest(shots, video, counts)
+    previous: dict[str, Any] | None = None
+    try:
+        previous = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        previous = None
+    manifest["repeatable"] = _compare_runs(previous, manifest)
     MANIFEST.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
     problems = validate_manifest(manifest, ops)
@@ -365,7 +404,17 @@ def main(argv: list[str] | None = None) -> int:
         for p in problems:
             print(f"  判据未过：{p}")
         return 1
-    print("判据 A/B/C 通过（D 需两次运行比对 manifest）")
+    repeat = manifest["repeatable"]
+    if repeat["checked"]:
+        verdict = "一致" if repeat["same_pages"] else "页序列变了"
+        print(f"判据 D：与上一轮比对——{verdict}")
+        if not repeat["same_pages"]:
+            print(f"  上一轮：{repeat['previous']}")
+            print(f"  这一轮：{repeat['current']}")
+            return 1
+    else:
+        print(f"判据 D：{repeat['reason']}")
+    print("判据 A/B/C/D 通过")
     return 0
 
 

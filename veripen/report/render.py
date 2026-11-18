@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+from .glossary import exclusion_line, explain
+
 import hashlib
 import json
 from veripen_core.routes.types import short_ref
@@ -91,6 +93,10 @@ class FindingView:
     refuted: bool = False
     reason_code: str = ""        # undetermined / error / not_run 的原因码
     wording_key: str = ""        # 直接指定措辞档（默认按 state 推）
+    #: 三条件观测链（baseline / control / probe …）：只放角色、状态码、字节数，
+    #: **不放正文**（正文在 capsule 里，报告不复制）。SARIF 用它生成 `codeFlows`，
+    #: 让 CI 侧看得见"凭什么判的"，而不只是看到一句 error（B374）。
+    traces: tuple[Mapping[str, Any], ...] = ()
 
     @property
     def route_short(self) -> str:
@@ -132,6 +138,8 @@ class ReportInput:
     render_time: str = ""
     #: 报告头部"结论四态"计数来源
     route_sources_failed: Sequence[str] = ()
+    #: 操作员按 `--exclude` 排除的 oracle（B327）：不算缺口，但**审计要看得到**
+    excluded: Sequence[str] = ()
     #: 库层四态计数（``Store.counts_by_outcome()``）。给了就以库为准（B12.2），
     #: 没有就从 findings 现算——**两条路径都不许把 error/not_run 并进 reported**。
     outcome_counts: Mapping[str, int] = field(default_factory=dict)
@@ -142,6 +150,10 @@ class ReportInput:
     dead_section: str = ""
     #: 证据目录（复现命令里用）。每轮一个子目录，路径由调用方给——报告层不猜盘上布局。
     capsule_dir: str = "out/capsules"
+    #: 能力边界（B396）：这一轮**不可能**给出结论的判定，按类分组
+    #: ``{"needs_sequence": [(id, why), ...], "unmeasurable": [...], "unreachable": [...]}``。
+    #: 由调用方算好传进来——报告层不连 oracle 注册表，也不猜标签表。
+    capability_limits: Mapping[str, Sequence[tuple[str, str]]] = field(default_factory=dict)
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -258,6 +270,10 @@ def render_json(report: ReportInput) -> dict[str, Any]:
                     "replay_at": f.replay_at,
                 },
                 "outcome": f.outcome.value,
+                # 四态没有"已判否"这一格，REFUTED 因此并进 not_run（B368）。机器可读层
+                # 必须把这个区别带出去（B371）：平台读的是 findings.json 而不是内存里的
+                # FindingView，缺了这一位，它只能把"跑过、无该问题"印成"未执行"。
+                "refuted": bool(f.refuted),
                 "reason_code": f.reason_code,
                 "unverified_in_image": f.sandbox_overridden,
                 "fingerprints": fingerprints(f),
@@ -294,6 +310,13 @@ def render_json(report: ReportInput) -> dict[str, Any]:
             ],
             "route_causes": dict(report.coverage.get("route_causes") or {}),
         },
+        # 能力边界（B399）：机器消费者（控制台/下游系统）也要能读到，
+        # 而不是只有 markdown 与 SARIF 两个出口有。与它们同源，不另立口径。
+        "capability_limits": [
+            {"kind": kind, "check": check_id, "why": why}
+            for kind, rows in dict(report.capability_limits or {}).items()
+            for check_id, why in rows
+        ],
         "findings": findings,
         "compliance": dict(report.coverage.get("compliance") or {}),
         "frameworks": list(report.frameworks),
@@ -344,7 +367,17 @@ def render_sarif(report: ReportInput) -> dict[str, Any]:
     assert_renderable(report)
     rules: dict[str, dict[str, Any]] = {}
     results: list[dict[str, Any]] = []
+    # **只有真结论才进 results**（B373）：SARIF 消费者（GitHub code scanning、
+    # DefectDojo、SIEM）按 result 计数报问题。以前"已判否/未执行/连不上"也各出一条
+    # result，于是**安全靶**和**连不上的靶**都在界面上显示 3 个 error。
+    not_reported: list[dict[str, Any]] = []
     for f in report.findings:
+        if f.outcome is not Outcome.REPORTED:
+            not_reported.append({
+                "oracle": f.oracle_id, "outcome": f.outcome.value,
+                "refuted": bool(f.refuted), "reason": f.reason_code or "",
+            })
+            continue
         rid = rule_id(f.oracle_id, f.cwe)
         meta = report.rules.get(rid) or report.rules.get(f.oracle_id) or {}
         rules.setdefault(
@@ -384,6 +417,24 @@ def render_sarif(report: ReportInput) -> dict[str, Any]:
                         "properties": {"routeRef": f.route_short, "routeStrength": f.route_strength},
                     }
                 ],
+                # 证据链投影（B374）：docs/research/01 里写的方向——用 SARIF 的
+                # codeFlows 承载三条件观测，CI 才能读"凭什么"，而不是只读到一句 error。
+                # 没有 trace 就不写这一段（不编空的证据链）。
+                **({"codeFlows": [{"threadFlows": [{"locations": [
+                    {
+                        "location": {
+                            "physicalLocation": {
+                                "artifactLocation": {"uri": f"asset:{f.asset_id}"},
+                                "region": {"startLine": i + 1},
+                            },
+                            "message": {"text": f"{t.get('role', '-')} → "
+                                                f"{t.get('status', '-')} "
+                                                f"（{t.get('bytes', 0)}B）"},
+                            "properties": dict(t),
+                        }
+                    }
+                    for i, t in enumerate(f.traces)
+                ]}]}]} if f.traces else {}),
                 "properties": {
                     "outcome": f.outcome.value,
                     "capsuleId": f.capsule_id,
@@ -397,10 +448,34 @@ def render_sarif(report: ReportInput) -> dict[str, Any]:
         "version": "2.1.0",
         "runs": [
             {
+                # 扫描器要能区分"干净"与"没跑成"（B373）：`results: []` 在
+                # GitHub code scanning 里读作"没有发现"——而目标连不上时也是空的。
+                "invocations": [
+                    {
+                        "executionSuccessful": not any(
+                            f.outcome is Outcome.ERROR for f in report.findings
+                        ),
+                        "toolExecutionNotifications": (
+                            [{
+                                "level": "error",
+                                "message": {"text": (
+                                    f"{sum(1 for f in report.findings if f.outcome is Outcome.ERROR)}"
+                                    " 项执行失败（目标不可达/传输层报错）——"
+                                    "`results` 为空不等于没有漏洞，详见 properties.notReported"
+                                )},
+                            }]
+                            if any(f.outcome is Outcome.ERROR for f in report.findings) else []
+                        ),
+                    }
+                ],
                 "tool": {
                     "driver": {
                         "name": "veripen",
-                        "informationUri": "about:blank",
+                        # 工具版本必填（B250）：SARIF 消费者要拿它把结果对到某个构建上；
+                        # 留空的话，同一个 ruleId 在两版之间的行为差异就无从解释。
+                        "version": _tool_version(),
+                        # `informationUri` 是**可选**的：不写比写 `about:blank` 好——
+                        # 后者在扫描界面里是一条点开空白的链接（规则层的 helpUri 早就这么处理了，B219）。
                         "rules": list(rules.values()),
                     }
                 },
@@ -410,6 +485,16 @@ def render_sarif(report: ReportInput) -> dict[str, Any]:
                     "distribution": report.distribution,
                     # 三视图四态计数同源（B12.2）：SARIF 里藏一套单独口径就是第二份事实
                     "outcomes": counts_by_outcome(report),
+                    # 没成结论的那些**照样列出来**（不静默丢）：它们不是 finding，
+                    # 但读者得知道"为什么没有 finding"（B373）
+                    "notReported": not_reported,
+                    # 能力边界（B398）：SARIF 消费者（code scanning/SIEM）只读这里，
+                    # 报告里的那节它们看不到。缺了这段，「results 为空」会被读成"很干净"。
+                    "capabilityLimits": [
+                        {"kind": kind, "check": check_id, "why": why}
+                        for kind, rows in dict(report.capability_limits or {}).items()
+                        for check_id, why in rows
+                    ],
                 },
             }
         ],
@@ -453,6 +538,53 @@ def render_markdown_with_audit(report: ReportInput, audit_text: str) -> str:
     return body + chr(10) + chr(10) + audit_text.strip() + chr(10)
 
 
+#: 报告附录里的术语表（B296）。**加新机器词就往这里加一条**，别只写在某一处正文里。
+TERMS: tuple[tuple[str, str], ...] = (
+    ("reported", "已验证并出报告——结论由证据链支撑"),
+    ("undetermined", "跑了但判不了（证据不足或谓词算不出来）"),
+    ("error", "执行失败：没跑成，须附原因"),
+    ("not_run", "未执行：授权/预算/跳过，哪一类要写明"),
+    ("VERIFIED", "已验证：现象成立，证据可复查"),
+    ("REFUTED", "测了、不成立：目标没有该问题"),
+    ("BLOCKED", "缺输入（如符号未解析），没测成——不是「没有问题」"),
+    ("INCONCLUSIVE", "判不了：现象既不能证实也不能证伪"),
+    ("NEVER", "未重放：这份证据只做了自哈希校验"),
+    ("PARTIAL", "状态一致但字节不同：body 变了，结论仍可重算"),
+    ("predicate_not_recomputable", "谓词重算不了：不是「结论被推翻」"),
+)
+
+#: replay 状态 → 人话（B294）。`NEVER`/`PARTIAL` 这类内部枚举不该原样进报告正文。
+REPLAY_TEXT = {
+    "OK": "已重放且一致",
+    "NEVER": "未重放（这份证据只做了自哈希校验）",
+    "PARTIAL": "状态一致但字节不同（body 变了，结论仍可重算）",
+    "ROUTE_UNRESOLVED": "路由在当前环境解析不到（不是漏洞没了）",
+    "ROUTE_DRIFT": "路由与出证时不一致（环境变过）",
+    "FAILED": "重放对不上（证据或目标变过）",
+    "TAMPERED": "证据被改过（自哈希不符）",
+}
+
+
+def replay_text(status: str) -> str:
+    """状态 → 一句话；不认识的码原样返回（不猜）。"""
+    return REPLAY_TEXT.get((status or "").strip(), status or "-")
+
+
+def _code_or_absent(value: str, width: int = 16) -> str:
+    """有值就给短哈希，没值就写「未提供」——**不许渲染成空反引号**（B247）。"""
+    return f"`{value[:width]}`" if value else "未提供"
+
+
+def _tool_version() -> str:
+    """本程序版本（写进 SARIF 的 driver.version）；取不到就给一个不含空白的占位。"""
+    try:
+        from veripen_cli import __version__
+
+        return str(__version__) or "unknown"
+    except Exception:  # noqa: BLE001 - 取版本失败不该让报告渲染失败
+        return "unknown"
+
+
 def render_markdown(report: ReportInput) -> str:
     assert_renderable(report)
     counts = counts_by_outcome(report)
@@ -461,7 +593,10 @@ def render_markdown(report: ReportInput) -> str:
 
     w(f"# {report.engagement} 渗透验证报告")
     w("")
-    w(f"- profile_hash: `{report.profile_hash[:16]}` · image: `{report.image_digest[:16]}`")
+    # 空值要写成「未提供」，不是两个空反引号（B247）：`veripen run` 不走客户档，
+    # profile_hash / image 本来就是空的，渲染成 `` 看着像渲染坏了。
+    w(f"- profile_hash: {_code_or_absent(report.profile_hash)}"
+      f" · image: {_code_or_absent(report.image_digest)}")
     w(_root_fingerprint_line(report.root_sha256))
     for s in report.routeset_sha256:
         w(f"- routeset_sha256: `{s[:12]}`")
@@ -497,15 +632,40 @@ def render_markdown(report: ReportInput) -> str:
     w("")
     w("> 禁止把 `error` / `not_run` 写进「未发现」或「安全」的表述附近。")
     w("")
+    # 「0 验证」必须解释（B357）：与平台报告同一句话术，别让读者把
+    # `reported 0` 读成「没有漏洞」——全被挡下时它意味着「一项都没测」。
+    if counts["reported"] == 0 and actually_not_run:
+        # 未执行的部分要单说：读者最容易把 `reported 0` 读成「没有漏洞」
+        parts = [f"{actually_not_run} 项未执行（请求没发出去）"]
+        if refuted_in_not_run:
+            parts.append(f"{refuted_in_not_run} 项已判否（跑过、无该问题）")
+        w(f"> 本轮 0 项已验证：其中 {'、'.join(parts)}——"
+          "「0 已验证」不等于「没有漏洞」；先补齐输入或解除黑名单再重跑。")
+        w("")
+    if report.excluded:
+        # 排除要留痕（B327）；措辞与 hunt 共用一份（B330）
+        w("> " + exclusion_line(report.excluded, why="操作员按 `--exclude` 指定") + "。")
+        w("")
 
     reported = [f for f in report.findings if f.outcome is Outcome.REPORTED]
     w("## 1. 摘要")
     w("")
     w("| 严重度 | 数量 |")
     w("|---|---|")
-    for sev, n in _by_severity(report).items():
+    # **只统计已出报告的条目**（B246）：旧版按全部 findings 计数，于是标题下面写着
+    # `high 7`，紧接着"已验证发现"只有 2 条——读者以为报告漏了 5 条。
+    sev_of_reported: dict[str, int] = {}
+    for f in reported:
+        sev_of_reported[f.severity] = sev_of_reported.get(f.severity, 0) + 1
+    for sev, n in dict(sorted(sev_of_reported.items())).items():
         w(f"| {sev} | {n} |")
+    if not sev_of_reported:
+        w("| （无） | 0 |")
     w("")
+    others = len(report.findings) - len(reported)
+    if others:
+        w(f"> 另有 {others} 条未判定/未执行，未计入上表（逐条见 §3）。")
+        w("")
 
     w("## 2. 已验证发现")
     w("")
@@ -521,7 +681,8 @@ def render_markdown(report: ReportInput) -> str:
         if f.situation:
             w(f"- 现象：{f.situation}")
         sha_short = (f.self_sha256 or "")[:16]
-        w(f"- 证据：`capsule {f.capsule_id}` · `self_sha256 {sha_short}…` · replay `{f.replay_status}`")
+        w(f"- 证据：`capsule {f.capsule_id}` · `self_sha256 {sha_short}…` · "
+          f"replay {replay_text(f.replay_status)}")
         # 落盘文件名是**裸 hex**（`save_capsule` 用 self_sha256 命名），不是 `capsule_id`：
         # 用 `sha256:<hex>` 拼路径会得到一份不存在的文件，命令看着能跑、其实是死链（B149）。
         # `--mode offline` 必须写上：默认是 live，而 live 缺 RouteSet/transport 就拒跑，
@@ -545,10 +706,20 @@ def render_markdown(report: ReportInput) -> str:
             w(f"- {fw}")
         w("")
 
-    w("## 6. 附录")
+    # 章节号不能写死：§5（合规映射）只在有框架时出现，写死 6 会让没有框架的报告
+    # 从 §4 直接跳到 §6，读者以为中间丢了一整节（B246）。
+    appendix_no = 6 if report.frameworks else 5
+    w(f"## {appendix_no}. 附录")
     w("")
     w(f"`{str(report.root_sha256 or '')[:12] or '未计算'}` · {report.engagement} · "
           f"{report.render_time} · {report.distribution}")
+    w("")
+    # 术语表（B296）：报告里会出现 reported/undetermined/REFUTED/NEVER 这些机器词，
+    # 没有一节统一解释，就只能靠在每处就地打括号——那样迟早漏一处。
+    w("术语（正文里出现的机器词都在这里）")
+    w("")
+    for term, meaning in TERMS:
+        w(f"- `{term}`：{meaning}")
     w("")
     # 复现口径要写死：把"离线重判"当成"洞还在"是这类报告最常见的误读。
     w("复现口径：`--mode offline` 只用证据里存的状态与 body 哈希重算判定（不重发请求）；"
@@ -559,15 +730,26 @@ def render_markdown(report: ReportInput) -> str:
 
 def _render_unverified(report: ReportInput, lines: list[str]) -> None:
     w = lines.append
-    w("## 3. 未能验证（按 outcome 分组）")
+    # 标题也随内容变：没有已判否时不该出现这四个字（空标题、空分类一律不加）。
+    has_refuted = any(bool(f.refuted) for f in report.findings)
+    w("## 3. 未能验证与已判否（按 outcome 分组）" if has_refuted
+      else "## 3. 未能验证（按 outcome 分组）")
     w("")
-    groups = {
-        Outcome.UNDETERMINED: "未能判定（跑了但判不了）",
-        Outcome.ERROR: "执行失败（没跑成，须附原因）",
-        Outcome.NOT_RUN: "未执行（哪一类要写明）",
-    }
-    for outcome, label in groups.items():
-        items = [f for f in report.findings if f.outcome is outcome]
+    # 四态里没有"已判否"这一格，REFUTED 于是并进了 NOT_RUN 桶（09 §4）。
+    # 但 §0 那张表会明写"真正未执行 N 条，另 M 条为已判否"——本节若照桶一寸不差地
+    # 分组，同一份报告就会上半部说"真正未执行 0 条"、下半部说"未执行 · 10"（B368 实测）。
+    # 所以这里按 `refuted` 再拆一次，桶分先后：先真正未执行，再已判否。
+    groups: list[tuple[Outcome, str, bool]] = [
+        (Outcome.UNDETERMINED, "未能判定（跑了但判不了）", False),
+        (Outcome.ERROR, "执行失败（没跑成，须附原因）", False),
+        (Outcome.NOT_RUN, "未执行（哪一类要写明）", False),
+        (Outcome.NOT_RUN, "已判否（跑过、无该问题）", True),
+    ]
+    for outcome, label, only_refuted in groups:
+        items = [f for f in report.findings
+                 if f.outcome is outcome and bool(f.refuted) is only_refuted]
+        if only_refuted and not items:
+            continue          # 没有已判否就别多一个空标题（与线索/死信同一条纪律）
         w(f"### {label} · {len(items)}")
         w("")
         if not items:
@@ -576,8 +758,19 @@ def _render_unverified(report: ReportInput, lines: list[str]) -> None:
             continue
         for f in items:
             reason = f.reason_code or "-"
-            title = TITLE_BY_STATUS.get(reason, reason)
-            w(f"- `{f.asset_id}` · {f.oracle_id} · {title}（`{reason}`）")
+            title = TITLE_BY_STATUS.get(reason, "")
+            gloss = explain(reason)
+            if title and title != reason:
+                w(f"- `{f.asset_id}` · {f.oracle_id} · {title}（`{reason}`）")
+            elif gloss:
+                w(f"- `{f.asset_id}` · {f.oracle_id} · {gloss}（`{reason}`）")
+            else:
+                # 码表认的是四态状态名（BLOCKED / ROUTE_UNRESOLVED…），oracle 自己的
+                # 失败码（baseline_abnormal / marker_not_fired）不在表里。旧版把码当标题，
+                # 于是同一行印两遍：`baseline_abnormal（`baseline_abnormal`）`（B246）。
+                # B248 起先查人话表，仍未登记的码就如实说它是机器码。
+                w(f"- `{f.asset_id}` · {f.oracle_id} · 判定码 `{reason}`"
+                  "（机器码：该 oracle 为何没出结论，原文见 findings.json）")
         w("")
 
 
@@ -644,6 +837,13 @@ def _render_coverage(report: ReportInput, lines: list[str]) -> None:
     else:
         w("无。")
     w("")
+
+    # 能力边界（B396/B397）：比"缺口"更上一层——**这一轮不可能有结论**的那些判定。
+    # 与缺口分开写：缺口是"该跑没跑"，边界是"跑也跑不出来"。渲染走共用实现，
+    # 保证 run/hunt/platform 三条路径的表述一致。
+    from .limits import limits_block  # noqa: PLC0415 - 避免与 limits 互相拖依赖
+
+    lines.extend(limits_block(dict(report.capability_limits or {})))
 
     # 缺口清单（B87）：上面回答"覆盖来源分档"，这里回答"哪条面根本没判定"。
     # 两节必须分开写——前者是统计，后者是点名。

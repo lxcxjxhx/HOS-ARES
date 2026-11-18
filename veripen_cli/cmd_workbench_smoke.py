@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""veripen workbench-smoke —— A12「工作台」的**验收命令**（`38`）。
+"""workbench-smoke（内部脚手架）—— A12「工作台」的**验收命令**（`38`）。
+
+入口：`make workbench-smoke` 或 `python -m veripen_cli.cmd_workbench_smoke`。
 
 用法：python -m veripen_cli.cmd_workbench_smoke [--out out/workbench]
 
@@ -119,7 +121,7 @@ def _probe_shell_gates() -> dict[str, object]:
 
 
 def main(argv: list[str]) -> int:
-    ap = argparse.ArgumentParser(prog="veripen workbench-smoke")
+    ap = argparse.ArgumentParser(prog="python -m veripen_cli.cmd_workbench_smoke")
     ap.add_argument("--out", default=str(ROOT / "out" / "workbench"))
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)

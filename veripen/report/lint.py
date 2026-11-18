@@ -116,15 +116,52 @@ def _sha(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def build_manifest(*, markdown: str, sarif: dict[str, Any], js: dict[str, Any]) -> dict[str, Any]:
-    """每节 sha256 + 总哈希。**改一个字符即校验失败。**"""
+def dumps_artifact(obj: Any) -> str:
+    """**落盘用**的 JSON 序列化——与写文件、与算哈希必须是同一份字符串（B316）。
+
+    以前 manifest 用 `sort_keys=True` 算哈希、文件用 `indent=2` 无排序写出，
+    于是 `sha256sum findings.json` 与 manifest 里的值永远对不上——
+    客户按常规办法验，只会得出"文件被改过"的结论。
+    """
+    return json.dumps(obj, ensure_ascii=False, indent=2)
+
+
+def build_manifest(*, markdown: str, sarif: dict[str, Any], js: dict[str, Any],
+                   extra_files: Mapping[str, str] | None = None) -> dict[str, Any]:
+    """每节 sha256 + 总哈希 + **逐文件哈希**。改一个字符即校验失败。
+
+    `files` 里的值可以直接用 `sha256sum` 对盘上文件核（B316）：
+    哈希算的就是落盘那一串字节（文本按 `
+` 换行写，不做平台翻译）。
+    """
+    sarif_text = dumps_artifact(sarif)
+    js_text = dumps_artifact(js)
     sections = {
         "markdown": _sha(markdown),
-        "sarif": _sha(json.dumps(sarif, ensure_ascii=False, sort_keys=True)),
-        "json": _sha(json.dumps(js, ensure_ascii=False, sort_keys=True)),
+        "sarif": _sha(sarif_text),
+        "json": _sha(js_text),
     }
     total = _sha("".join(sections[k] for k in sorted(sections)))
-    return {"version": 1, "sections": sections, "report_sha256": total}
+    files = {
+        "report.md": sections["markdown"],
+        "findings.json": sections["json"],
+        "report.sarif": sections["sarif"],
+    }
+    # 追加文件（B333）：`bounds.json` 这类审计证据也要能被清单核
+    files.update({k: v for k, v in (extra_files or {}).items() if k not in files})
+    body = {"version": 1, "sections": sections, "files": files, "report_sha256": total}
+    # 清单自哈希（B321）：改清单里某个哈希值时能被发现。**挡不住有意改**
+    # （改的人可以重算），挡的是手误与半途编辑——要挡有意改得签名，未做。
+    return {**body, "manifest_sha256": _sha(dumps_artifact(body))}
+
+
+def verify_manifest_self(manifest: Mapping[str, Any]) -> bool:
+    """核清单自哈希；没有该字段的旧清单返回 True（不因此判红）。"""
+    want = manifest.get("manifest_sha256")
+    if not want:
+        return True
+    body = {k: v for k, v in manifest.items() if k != "manifest_sha256"}
+    return bool(_sha(dumps_artifact(dict(body))) == want)
 
 
 def verify_manifest(manifest: Mapping[str, Any], *, markdown: str, sarif: dict[str, Any],

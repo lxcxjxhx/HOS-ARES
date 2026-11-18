@@ -2,7 +2,6 @@ renderFindings
 renderUnverified
 renderOverview
 renderEngagement
-renderCoverage
 renderRoutes
 renderAudit
 renderBounds

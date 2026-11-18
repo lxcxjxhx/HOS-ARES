@@ -133,7 +133,13 @@ def candidate_of(sighting: Sighting, base_symbol: str) -> RouteCandidate:
 
 @dataclass(frozen=True)
 class CrawlRound:
-    """一轮的结果。``next`` 是**还没绑定的**入口，交给调用方去解析。"""
+    """一轮的结果。``next`` 是**还没绑定的**入口，交给调用方去解析。
+
+    ⚠️ ``fetched`` 计的是**尝试抓的页数**（预算是按它扣的），不是成功数：
+    `_fetch` 返回 None 时它也已经加了 1。所以"抓取成功 N 页"这类话必须用
+    ``responded``——否则目标整台不可达时，报告会写着"抓取成功 3 页"再加一行
+    "跳过 3 条：fetch_failed×3"，两句互相打脸（B236）。
+    """
 
     fetched: int
     records: tuple[ObservedRecord, ...]
@@ -144,9 +150,20 @@ class CrawlRound:
     rendered: int = 0
 
     @property
+    def unreachable(self) -> int:
+        """连不上/没拿到响应的页数。"""
+        return sum(1 for _key, why in self.skipped if why == "fetch_failed")
+
+    @property
+    def responded(self) -> int:
+        """**拿到响应**的页数（含 4xx/5xx：那也是 HTTP 层成功）。"""
+        return max(self.fetched - self.unreachable, 0)
+
+    @property
     def counts(self) -> dict[str, int]:
         return {
             "fetched": self.fetched,
+            "responded": self.responded,
             "records": len(self.records),
             "next": len(self.next),
             "skipped": len(self.skipped),

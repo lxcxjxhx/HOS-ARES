@@ -29,7 +29,8 @@ CAPSULE_VERSION = "1.1"
 LEGACY_VERSION = "1.0"
 ZERO_SHA = "0" * 64
 REDACTED = "<redacted>"
-SENSITIVE_HEADERS = ("cookie", "authorization", "x-api-key")
+#: set-cookie 也是凭据：会话 id 落盘等于把登录态写进证据（B381）
+SENSITIVE_HEADERS = ("cookie", "set-cookie", "authorization", "x-api-key")
 
 _FROZEN = ConfigDict(frozen=True, extra="forbid")
 
@@ -138,6 +139,10 @@ class ResponseBlock(BaseModel):
     persisted_ref: str | None = None
     persisted_size: int | None = None
     return_code_semantics: str = "ok"
+    #: 响应头（B381）。**响应头类判定**（csp/x-frame/nosniff/hsts）的结论只能由它重算：
+    #: 以前证据里只有状态码与 body 哈希，于是这些 oracle 的每一份证据都"重算不了"。
+    #: 值走 `redact_headers`：凭据类（含 set-cookie）只留名字。
+    headers: dict[str, str] = Field(default_factory=dict)
 
 
 class Step(BaseModel):
@@ -251,6 +256,7 @@ def build_response(
     body: str = "",
     content_type: str = "application/json",
     excerpt_b64: str | None = None,
+    headers: Mapping[str, str] | None = None,
 ) -> ResponseBlock:
     return ResponseBlock(
         status=status,
@@ -259,6 +265,7 @@ def build_response(
         body_sha256=sha256_text(body),
         body_excerpt_b64=excerpt_b64,
         excerpt_truncated=False,
+        headers=redact_headers(headers or {}),
     )
 
 
@@ -351,12 +358,14 @@ def chain_capsules(caps: Sequence[CapsuleDoc]) -> list[CapsuleDoc]:
 @dataclass(frozen=True)
 class ChainReport:
     ok: bool
-    root_sha256: str
+    #: **链头的 prev**（合法链恒为全零）。**它不是"报告指纹"**（B240）：
+    #: 报告头部的 root_sha256 是 `head_sha256`。这个名字以前也叫 root_sha256，
+    #: 于是 `scripts/demo.py` 老老实实把 12 个 0 打给了观众，看着像哈希坏了。
+    genesis_prev_sha256: str
     breaks: tuple[str, ...]
     #: 链上真的串起来多少条。报告说"证据 N 份"，这里就该是 N（多面之后会变长）。
     length: int = 0
-    #: 链头（第一环）的自哈希。报告头部的 ``root_sha256`` 就是这个值——
-    #: 名字撞了：本结构的 ``root_sha256`` 是**链头的 prev**（合法链恒为全零）。
+    #: 链头（第一环）的自哈希——**报告指纹用的就是这个**。
     head_sha256: str = ""
     #: 链尾（最后一环）的自哈希：报告侧只钉了链头，链尾得自己露出来。
     tip_sha256: str = ""
@@ -422,7 +431,7 @@ def verify_chain(caps: Sequence[CapsuleDoc], *, root_sha256: str | None = None) 
     tip = caps[-1].chain.self_sha256 if caps else ""
     return ChainReport(
         ok=not breaks,
-        root_sha256=root or "",
+        genesis_prev_sha256=root or "",
         breaks=tuple(breaks),
         length=len(caps),
         head_sha256=head,
@@ -475,7 +484,24 @@ def save_capsule(cap: CapsuleDoc, directory: str | Path) -> Path:
 
 
 def load_capsule(path: str | Path) -> CapsuleDoc:
-    return loads_capsule(Path(path).read_bytes())
+    """读一份 capsule 文件。**读不到也要说人话**（B235）。
+
+    传进来的路径来自命令行，第一次失败几乎总是打错一个字母；把 `FileNotFoundError`
+    原样抛出去，CLI 就只能打一屏 traceback——客户既看不出是哪份文件，也看不出该改什么。
+    """
+    p = Path(path)
+    # 目录要先判（B275）：Windows 上对目录 read_bytes 抛的是 PermissionError，
+    # 于是客户看到「读不出这份证据：out（Permission denied）」——以为权限配错了，
+    # 其实是把目录当成了 capsule 文件。
+    if p.is_dir():
+        raise CapsuleIncomplete(f"这是个目录，不是 capsule 文件：{p}（指到其中的 *.json）")
+    try:
+        raw = p.read_bytes()
+    except FileNotFoundError as exc:
+        raise CapsuleIncomplete(f"没有这个文件：{p}") from exc
+    except OSError as exc:
+        raise CapsuleIncomplete(f"读不出这份证据：{p}（{exc.strerror or exc}）") from exc
+    return loads_capsule(raw)
 
 
 # ── replay ──────────────────────────────────────────────────────────
@@ -496,6 +522,8 @@ class TraceResult:
     status: int
     body_sha256: str
     error: str | None = None
+    #: 重放/离线重算用的响应头；空 = 这条证据没存头（老证据）
+    headers: dict[str, str] = dataclass_field(default_factory=dict)
     persisted_ref: str | None = None
     #: 403 是"对照成立"还是"请求被挡"——两者都长 403，语义必须显式（29 零件 B）
     return_code_semantics: str = "ok"
@@ -605,6 +633,17 @@ def _live_fingerprint(cap: CapsuleDoc, traces: Sequence[TraceResult]) -> dict[st
         out["control_denied"] = out["control_status_ok"]
     if base is not None:
         out["baseline_status_ok"] = _status_ok(base, expected.get("baseline_status", []), recorded["baseline"])
+    # 响应头类判定（B381）：`has_protection` 由证据里的响应头重算。
+    # 以前证据不存头，这三个 oracle 的每份证据都只能落"重算不了"。
+    if "has_protection" in expected:
+        header = str((getattr(cap.assertion, "observed", {}) or {}).get("header") or "").lower()
+        probes = [t for t in (probe, control) if t is not None]
+        # 语义跟 oracle 的 judge 对齐（tier_headers）：**两次都没有**才算"缺失"，
+        # 只要有一次带了保护就不算——所以这里用 any，不是 all。
+        present = [any(k.lower() == header for k in (t.headers or {})) for t in probes]
+        observed = 1 if any(present) else 0
+        allowed = [int(v) for v in expected["has_protection"]]
+        out["has_protection"] = observed in allowed
     return out
 
 
@@ -729,6 +768,7 @@ def _stored_traces(cap: CapsuleDoc) -> tuple[TraceResult, ...]:
         TraceResult(
             status=step.response.status,
             body_sha256=step.response.body_sha256,
+            headers=dict(step.response.headers or {}),
             error=step.err,
             persisted_ref=step.response.persisted_ref,
             return_code_semantics=step.response.return_code_semantics,
@@ -777,6 +817,15 @@ def replay(
     sender: Transport | None = transport
     if sender is None:
         raise ReplayBlocked("live 模式缺少 Transport：不许把'没测'记成六态之一")
+
+    # 并发突发型证据（B404）：结论来自"并发 N 次的状态分布"，重发**不保证**同样的分布
+    # （靶场的令牌桶按墙钟补充）。硬重放只会得到一条"对不上"的噪声，所以这里如实拒绝重放，
+    # 而不是假装验过、也不把时序差异记成"结论不复现"。
+    _roles = {str(getattr(step, "role", "")) for step in cap.steps} - {"baseline"}
+    if env.mode is ReplayMode.LIVE and _roles == {"burst"}:
+        return ReplayResult(
+            ReplayStatus.BLOCKED, "timing_sensitive", (), {}, stale,
+        )
 
     traces: list[TraceResult] = []
     for step in cap.steps:

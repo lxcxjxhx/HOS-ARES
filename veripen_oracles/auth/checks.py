@@ -99,6 +99,141 @@ def judge_redirect_uri(
     return ProbeResult("O1", "REFUTED", "redirect_uri_checked", {"oob_hit": oob_hit})
 
 
+def judge_pkce(*, control_ok: bool, probe_status: int) -> ProbeResult:
+    """O4：PKCE 是否真的校验 code_verifier。
+
+    先看对照（正确 verifier 能不能换到 token）——换不到说明这条面根本不走 PKCE，
+    判不了；再看错误 verifier：**200 = 没校验**（截到授权码就能换 token）。
+    """
+    if not control_ok:
+        return ProbeResult("O4", "INCONCLUSIVE", "no_pkce_semantics")
+    if probe_status == 200:
+        return ProbeResult("O4", "VERIFIED", "pkce_not_enforced")
+    if probe_status in (400, 401, 403):
+        return ProbeResult("O4", "REFUTED", "pkce_enforced")
+    return ProbeResult("O4", "INCONCLUSIVE", "pkce_effect_ambiguous",
+                       {"probe_status": probe_status})
+
+
+def judge_logout(*, control_ok: bool, probe_status: int) -> ProbeResult:
+    """S3：登出后旧会话还能用吗。
+
+    顺序讲究：先看对照（登出前带着会话能不能取到东西）——取不到说明这条面
+    根本没有会话语义，判不了；否则再看探针：**200 = 登出没失效**。
+    """
+    if not control_ok:
+        return ProbeResult("S3", "INCONCLUSIVE", "no_session_semantics")
+    if probe_status == 200:
+        return ProbeResult("S3", "VERIFIED", "session_survived_logout")
+    if probe_status in (400, 401, 403):
+        return ProbeResult("S3", "REFUTED", "session_revoked")
+    return ProbeResult("S3", "INCONCLUSIVE", "logout_effect_ambiguous",
+                       {"probe_status": probe_status})
+
+
+def judge_scope_escalation(
+    *, control_denied: bool, scope_granted: bool, probe_status: int
+) -> ProbeResult:
+    """O8：请求超出授权的 scope，服务端会不会**真的授予**。
+
+    顺序讲究（与 O4/S3 同一条纪律）：
+
+    1. `scope_granted`：授权阶段就把超范围请求拒了（没发出 token）——这本身就是守住，
+       不必再看资源端；
+    2. `control_denied`：用**正常** scope 的 token 访问受限资源，必须被拒。
+       它没被拒说明这个资源根本不看 scope（或看的是别的东西），
+       那"提升"就无从谈起，只能判不了；
+    3. `probe_status`：超范围 scope 的 token 拿到 200 → 提升成立。
+
+    为什么不在 2 失败时直接判否：那样会把「资源不做 scope 校验」写成「scope 守住了」，
+    方向正好反了——两者都是 200，区别在**对照组**。
+    """
+    if not scope_granted:
+        return ProbeResult("O8", "REFUTED", "scope_request_rejected")
+    if not control_denied:
+        return ProbeResult("O8", "INCONCLUSIVE", "no_scope_semantics")
+    if probe_status == 200:
+        return ProbeResult("O8", "VERIFIED", "scope_not_enforced")
+    if probe_status in (400, 401, 403):
+        return ProbeResult("O8", "REFUTED", "scope_enforced")
+    return ProbeResult("O8", "INCONCLUSIVE", "scope_effect_ambiguous",
+                       {"probe_status": probe_status})
+
+
+def judge_certificate_defect(*, error_reason: str, scheme: str) -> ProbeResult:
+    """M2/M3/M4/M5：从"客户端为什么没连上"读出证书缺陷类型。
+
+    顺序讲究：先看是不是 https（http 上谈不上证书），再看错误文本。
+    文本匹配用下划线归一化后的形式——OpenSSL 的宏名带下划线，人写的带空格（B385 的教训）。
+    """
+    if scheme not in ("https", ""):
+        return ProbeResult("M2", "INCONCLUSIVE", "not_https", {"scheme": scheme})
+    if not error_reason:
+        return ProbeResult("M2", "REFUTED", "cert_ok")
+    low = error_reason.lower().replace("_", " ")
+    if "certificate verify failed" not in low:
+        # 连不上但原因与证书无关（拒绝连接、路由不通…）：判不了
+        return ProbeResult("M2", "INCONCLUSIVE", "not_a_certificate_error",
+                           {"error": error_reason[:120]})
+    checks = (
+        ("M2", "cert_expired", ("expired", "not yet valid")),
+        ("M4", "cert_san_mismatch", ("hostname mismatch", "ip address mismatch",
+                                     "doesn't match", "no appropriate commonname")),
+        ("M5", "cert_weak_signature", ("md too weak", "ca md too weak", "sha1")),
+        ("M3", "cert_untrusted", ("self-signed", "unable to get local issuer",
+                                  "unable to verify", "unknown ca")),
+    )
+    for code, reason, needles in checks:
+        if any(needle in low for needle in needles):
+            return ProbeResult(code, "VERIFIED", reason, {"error": error_reason[:160]})
+    return ProbeResult("M3", "INCONCLUSIVE", "cert_error_unclassified",
+                       {"error": error_reason[:160]})
+
+
+def judge_code_format(*, malformed_accepted: tuple[str, ...],
+                      probe_count: int) -> ProbeResult:
+    """O7：换码端点看不看授权码的形状。
+
+    一支被受理就够了——那说明"任何字符串都能进下一步"。把被受理的**形状名**带出去，
+    读者才知道是漏了长度、字符集还是两者都漏。
+    """
+    if probe_count <= 0:
+        return ProbeResult("O7", "INCONCLUSIVE", "no_probe")
+    if malformed_accepted:
+        return ProbeResult("O7", "VERIFIED", "code_format_unchecked",
+                           {"accepted_shapes": list(malformed_accepted)})
+    return ProbeResult("O7", "REFUTED", "code_format_checked")
+
+
+def judge_cookie_flags(*, missing: tuple[str, ...], https: bool) -> ProbeResult:
+    """S2：Cookie 三件套（HttpOnly / Secure / SameSite）。
+
+    `Secure` 只在 https 上有意义：http 目标缺它不是缺陷（浏览器也不会发回来）。
+    一条都不缺 → 判否；缺任一条 → 成立，并把缺的项原样带出去（读者要知道缺哪个）。
+    """
+    del https  # 调用方已经把不适用项从 missing 里剔掉了
+    if not missing:
+        return ProbeResult("S2", "REFUTED", "cookie_flags_complete")
+    return ProbeResult("S2", "VERIFIED", "cookie_flags_missing", {"missing": list(missing)})
+
+
+def judge_state_param(*, control_redirects: bool, control_echoed: bool,
+                       probe_accepted: bool) -> ProbeResult:
+    """O2：`state` 是否被强制与回传。
+
+    顺序讲究：先看对照会不会跳（不跳 = 这个面没有跳转语义），再看"不带 state 会不会被受理"，
+    最后才看回传。**受理本身就够定罪**——回传与否是另一件事。
+    """
+    if not control_redirects:
+        return ProbeResult("O2", "INCONCLUSIVE", "control_not_redirecting")
+    if probe_accepted:
+        return ProbeResult("O2", "VERIFIED", "state_not_enforced",
+                           {"control_echoed": control_echoed})
+    if control_echoed:
+        return ProbeResult("O2", "REFUTED", "state_enforced")
+    return ProbeResult("O2", "INCONCLUSIVE", "state_not_observed")
+
+
 def judge_code_replay(*, first_ok: bool, second_ok: bool) -> ProbeResult:
     """O5：第二次成功才是漏洞；两次都要 trace（20 §3 取证纪律）。"""
     if not first_ok:
@@ -127,9 +262,13 @@ def judge_mtls_handshake(*, handshake_ok: bool, error_reason: str | None,
                            {"reason": None})
     if not error_reason:
         return ProbeResult("M1", "INCONCLUSIVE", "reason_unknown")
-    if "certificate required" in error_reason.lower():
+    # OpenSSL 的原文是 `TLSV13_ALERT_CERTIFICATE_REQUIRED`（下划线），而人的写法是
+    # "certificate required"（空格）。不归一化就永远匹配不上——B385 实测到：
+    # 真实的双向认证靶场被判成 `reason_not_accepted`，而它其实是对的。
+    normalized = error_reason.lower().replace("_", " ")
+    if "certificate required" in normalized:
         return ProbeResult("M1", "REFUTED", "cert_required", {"reason": error_reason})
-    if "unknown ca" in error_reason.lower():
+    if "unknown ca" in normalized:
         # 用了自签证书：M1 其实没被测到（测的是 M3）
         return ProbeResult("M1", "INCONCLUSIVE", "measured_M3_not_M1", {"reason": error_reason})
     return ProbeResult("M1", "INCONCLUSIVE", "reason_not_accepted", {"reason": error_reason})
@@ -145,17 +284,84 @@ def judge_mtls_one_way(*, client_cert_requested: bool) -> ProbeResult:
 # ══════════════════════════════════════════════════════════════════
 # 覆盖矩阵（20 §7：0 命中的标签必须列出来，不藏）
 # ══════════════════════════════════════════════════════════════════
+#: 已经有**判定函数**的检查项（B375）。矩阵里的 `auto` 一直是"本批打算自动"，
+#: 而不是"已经有判定"——15 条 auto 里只有这 5 条真有函数，其余 10 条连判定都没写。
+#: 把两者分开列，读者才不会把"清单里有"读成"能测"。
+JUDGES: Mapping[str, str] = {
+    "O1": "judge_redirect_uri",
+    "O2": "judge_state_param",
+    "O5": "judge_code_replay",
+    "O7": "judge_code_format",
+    "O4": "judge_pkce",
+    "O8": "judge_scope",
+    "O8": "judge_scope_escalation",
+    "S1": "judge_session_fixation",
+    "S3": "judge_logout",
+    "S2": "judge_cookie_flags",
+    "M1": "judge_mtls_handshake",
+    # 四类证书缺陷共用一条判定函数（它按错误文本分类）
+    "M2": "judge_certificate_defect",
+    "M3": "judge_certificate_defect",
+    "M4": "judge_certificate_defect",
+    "M5": "judge_certificate_defect",
+    "M7": "judge_mtls_one_way",
+}
+
+
+#: 判定函数有、但**客户端侧观测不到**的检查项（B386）。
+#: 列出来是为了让后人别重试：这不是"还没接"，是"从这一侧测不出来"。
+UNMEASURABLE: Mapping[str, str] = {
+    "M7": (
+        "Python 的 ssl 不暴露 CertificateRequest；TLS 1.3 下"
+        "「服务端可选地请求证书」与「压根不请求」都会握手成功——客户端无法区分"
+    ),
+    "M5": (
+        "客户端**信任**了弱签名证书就不会报错：实测用 openssl 造一张 ECDSA-SHA1 证书、"
+        "把它当受信 CA 去连，Python 的默认上下文照样握手成功（错误文本里没有 md too weak）。"
+        "判定函数已能分类该文本，但没有可观测的触发条件——要测得换一侧（服务端/抓包）"
+    ),
+}
+
+
+#: 判据本身要求**多步序列**、而当前执行模型装不下的检查项（B392 引入这一档）。
+#: B410 加了 `run_sequence` 之后，S3/O4 先后来取、O8（B412）最后一条也落了地——
+#: **这一档现在是空的**。留着它而不是删掉，是因为它是一条有意义的陈述：
+#: 「清单里有、写得出、但跑不了」这种状态仍可能出现，出现时必须落在这里，
+#: 不许混进 `auto_without_judge` 冒充"加个班就能补完"。
+NEEDS_SEQUENCE: Mapping[str, str] = {}
+
+
 def coverage_matrix(
     *, oracle_hits: Mapping[str, int], checks: tuple[CheckItem, ...] = ALL_CHECKS
 ) -> dict[str, Any]:
-    """把"测了哪些 / 没测哪些"汇成一张矩阵；**空的一列也要出现**。"""
+    """把"测了哪些 / 没测哪些"汇成一张矩阵；**空的一列也要出现**。
+
+    `auto` 还要再分一刀（B375）：`implemented=True` 才真有判定函数。
+    没有的那一类单独计数并列名——它们有靶场计划、没有代码，不能算覆盖。
+    """
     by_automation: dict[str, int] = {}
+    rows: list[dict[str, str]] = []
+    missing_judge: list[str] = []
     for item in checks:
         by_automation[item.automation] = by_automation.get(item.automation, 0) + 1
+        row = item.to_row()
+        row["judge"] = JUDGES.get(item.id, "")
+        # 三档互斥（B392）：有判定函数 / 只有清单（写得出但还没写）/ 需要多步序列
+        # （执行模型装不下）。以前后两者混在一个名单里，读起来像"还有 7 条没写"。
+        if item.automation == "auto" and not row["judge"] and item.id not in NEEDS_SEQUENCE:
+            missing_judge.append(item.id)
+        rows.append(row)
     zero = sorted(name for name, hits in oracle_hits.items() if hits == 0)
+    auto = [r for r in rows if r["automation"] == "auto"]
     return {
-        "checks": [item.to_row() for item in checks],
+        "checks": rows,
         "by_automation": dict(sorted(by_automation.items())),
+        "auto_total": len(auto),
+        "auto_implemented": len([r for r in auto if r["judge"]]),
+        #: 声明 auto 但没有判定函数——**这不是覆盖，是待办**
+        "auto_without_judge": sorted(missing_judge),
+        "unmeasurable": dict(sorted(UNMEASURABLE.items())),
+        "needs_sequence": dict(sorted(NEEDS_SEQUENCE.items())),
         "oracle_hits": dict(sorted(oracle_hits.items())),
         "zero_hit_oracles": zero,
         "manual_count": by_automation.get("manual", 0),
@@ -164,6 +370,9 @@ def coverage_matrix(
 
 __all__ = [
     "ALL_CHECKS",
+    "NEEDS_SEQUENCE",
+    "UNMEASURABLE",
+    "JUDGES",
     "CheckItem",
     "MTLS_CHECKS",
     "OAUTH_CHECKS",
@@ -175,5 +384,12 @@ __all__ = [
     "judge_mtls_handshake",
     "judge_mtls_one_way",
     "judge_redirect_uri",
+    "judge_certificate_defect",
+    "judge_logout",
+    "judge_pkce",
+    "judge_scope",
+    "judge_code_format",
+    "judge_cookie_flags",
+    "judge_state_param",
     "judge_session_fixation",
 ]

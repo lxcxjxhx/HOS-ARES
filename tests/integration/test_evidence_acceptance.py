@@ -45,7 +45,7 @@ def test_three_findings_chain_complete(tmp_path) -> None:
     paths = [save_capsule(c, tmp_path) for c in caps]
     report = verify_chain([E.load_capsule(p) for p in paths])
     assert report.ok is True
-    assert report.root_sha256 == "0" * 64
+    assert report.genesis_prev_sha256 == "0" * 64
 
 
 # ── 2 改一个字节 → TAMPERED（CLI 也要报）─────────────────────────────
@@ -148,3 +148,221 @@ def test_replay_status_written_back(tmp_path) -> None:
         assert path.read_bytes() == E.dumps_capsule(cap), "回写不得改动 capsule 文件"
     finally:
         store.close()
+
+
+# ── B293：链校验要有产品入口（bench 一直提示的那个命令不存在）────────
+def test_replay_chain_verifies_a_directory(tmp_path: Path) -> None:
+    """`veripen evidence --verify-chain` 是条不存在的命令；能力在 core 里，缺的是入口。"""
+    from veripen_cli.cmd_replay import main as replay_main
+    from veripen_core.evidence import save_capsule, seal_capsule_doc
+
+    caps_dir = tmp_path / "capsules"
+    caps_dir.mkdir()
+    prev = "0" * 64
+    for _ in range(2):
+        cap = seal_capsule_doc(F.capsule(), prev_sha256=prev)
+        save_capsule(cap, caps_dir)
+        prev = cap.chain.self_sha256
+    assert replay_main(["--chain", str(caps_dir)]) == 0
+
+
+def test_replay_chain_refuses_an_empty_target(tmp_path: Path) -> None:
+    from veripen_cli.cmd_replay import main as replay_main
+
+    empty = tmp_path / "none"
+    empty.mkdir()
+    assert replay_main(["--chain", str(empty)]) == 1
+
+
+# ── B320：清单校验要有产品入口（以前只能手工 sha256sum）────────────
+def test_replay_manifest_verifies_a_clean_delivery(tmp_path: Path) -> None:
+    from veripen.report.lint import build_manifest, dumps_artifact
+    from veripen_cli.cmd_replay import main as replay_main
+
+    md, sarif, js = "# 报告\n", {"version": "2.1.0"}, {"findings": []}
+    (tmp_path / "report.md").write_text(md, encoding="utf-8", newline=chr(10))
+    (tmp_path / "report.sarif").write_text(dumps_artifact(sarif), encoding="utf-8", newline=chr(10))
+    (tmp_path / "findings.json").write_text(dumps_artifact(js), encoding="utf-8", newline=chr(10))
+    (tmp_path / "report.manifest.json").write_text(
+        json.dumps(build_manifest(markdown=md, sarif=sarif, js=js), ensure_ascii=False),
+        encoding="utf-8", newline=chr(10))
+    assert replay_main(["--manifest", str(tmp_path)]) == 0
+
+
+def test_replay_manifest_catches_a_tampered_file(tmp_path: Path) -> None:
+    from veripen.report.lint import build_manifest, dumps_artifact
+    from veripen_cli.cmd_replay import main as replay_main
+
+    md, sarif, js = "# 报告\n", {"version": "2.1.0"}, {"findings": []}
+    (tmp_path / "report.md").write_text(md + "手改\n", encoding="utf-8", newline=chr(10))
+    (tmp_path / "report.sarif").write_text(dumps_artifact(sarif), encoding="utf-8", newline=chr(10))
+    (tmp_path / "findings.json").write_text(dumps_artifact(js), encoding="utf-8", newline=chr(10))
+    (tmp_path / "report.manifest.json").write_text(
+        json.dumps(build_manifest(markdown=md, sarif=sarif, js=js), ensure_ascii=False),
+        encoding="utf-8", newline=chr(10))
+    assert replay_main(["--manifest", str(tmp_path)]) == 1
+
+
+def test_replay_manifest_refuses_a_manifest_without_files(tmp_path: Path) -> None:
+    from veripen_cli.cmd_replay import main as replay_main
+
+    (tmp_path / "report.manifest.json").write_text(
+        json.dumps({"version": 1, "sections": {}}), encoding="utf-8")
+    assert replay_main(["--manifest", str(tmp_path)]) == 1
+
+
+# ── B321：清单自哈希——改清单里的哈希值也要被发现 ────────────────
+def test_manifest_self_hash_catches_an_edited_hash(tmp_path: Path) -> None:
+    from veripen.report.lint import build_manifest, dumps_artifact
+    from veripen_cli.cmd_replay import main as replay_main
+
+    md, sarif, js = "# 报告\n", {"version": "2.1.0"}, {"findings": []}
+    for name, text in (("report.md", md), ("report.sarif", dumps_artifact(sarif)),
+                       ("findings.json", dumps_artifact(js))):
+        (tmp_path / name).write_text(text, encoding="utf-8", newline=chr(10))
+    manifest = build_manifest(markdown=md, sarif=sarif, js=js)
+    path = tmp_path / "report.manifest.json"
+    path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8", newline=chr(10))
+    assert replay_main(["--manifest", str(tmp_path)]) == 0
+
+    tampered = dict(manifest)
+    tampered["files"] = {**manifest["files"], "report.md": "0" * 64}
+    path.write_text(json.dumps(tampered, ensure_ascii=False), encoding="utf-8", newline=chr(10))
+    assert replay_main(["--manifest", str(tmp_path)]) == 1
+
+
+def test_hunt_and_platform_manifests_carry_a_self_hash() -> None:
+    import inspect
+
+    from veripen_cli import cmd_hunt, cmd_platform
+
+    assert "manifest_sha256" in inspect.getsource(cmd_hunt.main)
+    assert "manifest_sha256" in inspect.getsource(cmd_platform.main)
+
+
+# ── B338：造 capsule 必须走校验版 route_block ─────────────────────
+def test_build_capsule_refuses_a_ref_not_in_the_routeset() -> None:
+    """"证据不得凭空生成 route 块"：以前 build_capsule 直接把 route_ref 与 binding 拼上，
+    两者对不上也照样出证。"""
+    import pytest
+
+    import capsule_fixture as F
+    from veripen.bench.capsule import build_capsule
+    from veripen_core.evidence import CapsuleIncomplete
+
+    rs = F.routeset()
+    binding = rs.bindings[0]
+    with pytest.raises(CapsuleIncomplete):
+        build_capsule(
+            case_id="c", oracle_id="idor_cross_account", oracle_version="1",
+            verdict=F.Verdict.VERIFIED, judgement=type("J", (), {"assertion": {}})(),
+            pairs=(), baseline_params={}, routeset=rs,
+            route_ref="route://contract/" + "f" * 16, binding=binding,
+        )
+
+
+# ── B347：dry 模式的 ROUTE_UNRESOLVED 是设计使然，要说清 ────────────
+def test_dry_mode_explains_the_unresolved_route(tmp_path: Path, capsys) -> None:  # noqa: ANN001
+    """dry 刻意不注入 RouteSet，路由门必然 UNRESOLVED——不说明会被读成"路由没了"。"""
+    import capsule_fixture as F
+    from veripen_cli.cmd_replay import main as replay_main
+    from veripen_core.evidence import save_capsule, seal_capsule_doc
+
+    caps = tmp_path / "c"
+    caps.mkdir()
+    save_capsule(seal_capsule_doc(F.capsule(), prev_sha256="0" * 64), caps)
+    path = next(caps.glob("*.json"))
+    rc = replay_main(["--capsule", str(path), "--mode", "dry", "--out", str(tmp_path / "o")])
+    out = capsys.readouterr().out
+    assert rc in (0, 1), rc
+    if "ROUTE_UNRESOLVED" in out:
+        assert "刻意给空" in out, out
+
+
+# ── B349：--chain 要按血缘排序，且篡改不抛 traceback ──────────────
+def _two_capsule_chain(tmp_path: Path) -> Path:
+    import capsule_fixture as F
+    from veripen_core.evidence import save_capsule, seal_capsule_doc
+
+    caps = tmp_path / "caps"
+    caps.mkdir()
+    prev = "0" * 64
+    for _ in range(2):
+        cap = seal_capsule_doc(F.capsule(), prev_sha256=prev)
+        save_capsule(cap, caps)
+        prev = cap.chain.self_sha256
+    return caps
+
+
+def test_chain_is_ordered_by_lineage_not_filename(tmp_path: Path) -> None:
+    """文件名字典序不是链序——直接排会把干净链判成断点（实测过）。"""
+    from veripen_cli.cmd_replay import main as replay_main
+
+    assert replay_main(["--chain", str(_two_capsule_chain(tmp_path))]) == 0
+
+
+def test_chain_reports_tampering_without_a_traceback(tmp_path: Path, capsys) -> None:  # noqa: ANN001
+    import json as _json
+
+    from veripen_cli.cmd_replay import main as replay_main
+
+    caps = _two_capsule_chain(tmp_path)
+    first = sorted(caps.glob("*.json"))[0]
+    doc = _json.loads(first.read_text(encoding="utf-8"))
+    doc["finding_id"] = "tampered"
+    first.write_text(_json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    rc = replay_main(["--chain", str(caps)])
+    err = capsys.readouterr().err
+    assert rc == 1
+    assert "TAMPERED" in err and "Traceback" not in err, err
+
+
+# ── B350：多条链混在一起 ≠ 证据被改过 ───────────────────────────
+def test_multiple_genesis_gets_a_specific_hint(tmp_path: Path, capsys) -> None:  # noqa: ANN001
+    """两个独立链头放在一个目录里，断点信息会被读成"证据被改过"——要说清是哪种情况。"""
+    import capsule_fixture as F
+    from veripen_cli.cmd_replay import main as replay_main
+    from veripen_core.evidence import save_capsule, seal_capsule_doc
+
+    caps = tmp_path / "two"
+    caps.mkdir()
+    for item in ("41", "42"):
+        save_capsule(seal_capsule_doc(F.capsule(item_id=item), prev_sha256="0" * 64), caps)
+    rc = replay_main(["--chain", str(caps)])
+    err = capsys.readouterr().err
+    assert rc == 1
+    assert "2 个链头" in err and "不是「证据被改过」" in err, err
+
+
+# ── B351：内容寻址让"环"不可能存在；改名也不影响链序 ────────────
+def test_a_cycle_is_impossible_by_construction() -> None:
+    """self_sha256 含 prev_sha256，所以 A.prev=B.self 且 B.prev=A.self 无解（哈希不动点）。"""
+    import capsule_fixture as F
+    from veripen_core.evidence import seal_capsule_doc
+
+    a = seal_capsule_doc(F.capsule(item_id="41"), prev_sha256="0" * 64)
+    b = seal_capsule_doc(F.capsule(item_id="42"), prev_sha256=a.chain.self_sha256)
+    # 若把 a 的 prev 改成 b 的自哈希，a 的自哈希就会变——链断而不是成环
+    a2 = seal_capsule_doc(F.capsule(item_id="41"), prev_sha256=b.chain.self_sha256)
+    assert a2.chain.self_sha256 != a.chain.self_sha256
+    assert b.chain.prev_sha256 == a.chain.self_sha256
+
+
+def test_renaming_capsule_files_does_not_break_the_chain(tmp_path: Path) -> None:
+    """文件名只是存放方式；链序由 prev 决定（B349 的排序就是为了这个）。"""
+    import capsule_fixture as F
+    from veripen_cli.cmd_replay import main as replay_main
+    from veripen_core.evidence import save_capsule, seal_capsule_doc
+
+    caps = tmp_path / "c"
+    caps.mkdir()
+    prev = "0" * 64
+    for i, item in enumerate(("41", "42")):
+        cap = seal_capsule_doc(F.capsule(item_id=item), prev_sha256=prev)
+        save_capsule(cap, caps)
+        prev = cap.chain.self_sha256
+    # 把文件名改成与链序相反
+    files = sorted(caps.glob("*.json"))
+    for i, f in enumerate(reversed(files)):
+        f.rename(caps / f"zz{i}.json")
+    assert replay_main(["--chain", str(caps)]) == 0

@@ -10,6 +10,13 @@ export const OPS = [
   "coverage", "routes", "audit", "bounds", "approvals", "report",
 ];
 
+/** 页面按钮上写人话（B359）：op 名是内部标识符，不该出现在客户界面上。 */
+export const OP_LABEL = {
+  overview: "总览", engagement: "本次评估", findings: "发现", finding: "单条发现",
+  unverified: "未确认", coverage: "覆盖", routes: "路由", audit: "审计",
+  bounds: "边界", approvals: "审批", report: "报告",
+};
+
 /** 允许出现在 hash 里的参数（未知键丢弃，避免 URL 长毛） */
 export const PARAMS = ["q", "sev", "oracle", "asset", "queue", "strength", "sort", "low", "id"];
 

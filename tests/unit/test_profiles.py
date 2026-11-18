@@ -164,3 +164,63 @@ def test_enabled_oracles_never_bypass_default_off() -> None:
         profile = load_profile(path)
         leaked = set(profile.oracles.enabled) & set(policy.DEFAULT_OFF)
         assert not leaked, f"{path.name} 的 enabled 里出现默认关闭的 {leaked}"
+
+
+# ── 4 未知键与"写了不生效"的键（B259）──────────────────────────
+def _write(tmp_path: Path, mutate) -> Path:  # noqa: ANN001
+    import yaml
+
+    raw = yaml.safe_load(A.read_text(encoding="utf-8"))
+    mutate(raw)
+    out = tmp_path / "profile.yaml"
+    out.write_text(yaml.safe_dump(raw, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    return out
+
+
+def test_a_typo_in_a_section_key_is_rejected_with_a_hint(tmp_path: Path) -> None:
+    """拼错 `policy` 会被默默忽略并落到 qps=0（不限速）——那是最危险的一种"默认值"。"""
+    path = _write(tmp_path, lambda raw: raw.__setitem__("polcy", raw.pop("policy")))
+    with pytest.raises(ProfileError) as ei:
+        load_profile(path)
+    assert "未知键" in str(ei.value), ei.value
+    assert "policy" in str(ei.value), "要给拼写建议"
+
+
+def test_a_typo_inside_a_known_section_is_rejected(tmp_path: Path) -> None:
+    def mutate(raw) -> None:  # noqa: ANN001
+        raw["policy"]["qpss"] = raw["policy"].pop("qps")
+
+    with pytest.raises(ProfileError) as ei:
+        load_profile(_write(tmp_path, mutate))
+    assert "policy.qpss" in str(ei.value), ei.value
+
+
+def test_unwired_keys_are_reported_instead_of_silently_ignored() -> None:
+    """`scope.max_redirects: 0` 这种话躺在档里，客户会以为已经限住了。"""
+    profile = load_profile(A)
+    assert "scope.max_redirects" in profile.unwired, profile.unwired
+    # `auth.providers` 被 noleak 拿去扫泄漏，所以它不算"写了不生效"（B260）
+    assert "auth" not in profile.unwired, profile.unwired
+
+    issues = validate_profile(profile, known_oracles=_known_oracles(), known_tags=TAG_VOCAB)
+    warn = [i for i in issues if i.code == "unwired_profile_keys"]
+    assert warn and warn[0].level == "warn", issues
+    assert "max_redirects" in warn[0].detail
+
+
+def test_known_good_profile_has_no_unknown_keys() -> None:
+    """两条真档都必须能过——新校验不许把交付样例判死。"""
+    for path in (A, B):
+        assert load_profile(path).assets, path
+
+
+def test_tooling_owned_keys_are_not_called_dead() -> None:
+    """`auth.providers` 被 `scripts/lint/noleak.py` 拿去扫泄漏——它不是"写了不生效"。
+
+    分类错了会给出**错误的告警**：客户会去删掉一个其实在起作用的段（B260）。
+    """
+    from veripen_core.profile import NOT_LOADED_KEYS, TOOLING_KEYS, UNWIRED_KEYS
+
+    assert "auth" in NOT_LOADED_KEYS and "auth" in TOOLING_KEYS
+    assert "auth" not in UNWIRED_KEYS, "有工具在读的键不许进「写了不生效」那批"
+    assert "scope.max_redirects" in UNWIRED_KEYS

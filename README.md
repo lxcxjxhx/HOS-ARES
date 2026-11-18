@@ -17,7 +17,7 @@
 # 1. 装依赖（Python 3.11+）
 pip install -e ".[dev]"
 
-# 2. 环境自检（24 项，缺条件的记 skip 不记 fail）
+# 2. 环境自检（25 项，缺条件的记 skip 不记 fail）
 veripen doctor
 
 # 3. 坐下干活
@@ -105,9 +105,34 @@ ubuntu 上跑快闸门，windows 上把测试分三段跑——避免"CI 跑的"
 
 | 面 | 命令 | 产物 |
 |---|---|---|
-| **自动化渗透** | `veripen run --target <url> --openapi <spec>` | `report.md` / `findings.json` / `capsules/` |
-| **企业编排** | `veripen platform --profile profiles/<档名>/profile.yaml --openapi <spec>` | `platform-report.md`（逐资产 + 审计五表） |
+| **自动化渗透** | `veripen run --target <url> --openapi <spec>` | `report.md` / `findings.json` / `report.sarif` / `report.manifest.json` / `capsules/` |
+| **智能体渗透** | `veripen hunt --target <url> --openapi <spec>` | `hunt.md` / `hunt.json` / `hunt.manifest.json` / `coverage.json` / `capsules/` |
+| **企业编排** | `veripen platform --profile profiles/<档名>/profile.yaml --openapi <spec>` | `platform-report.md` / `platform-report.manifest.json`（逐资产 + 审计五表） |
 | **对话界面** | `veripen chat` | 会话事件（`task_events`），可 `--resume` |
+
+四份清单同形（`sections` + `files` + `manifest_sha256`），一条命令就能核：
+
+    veripen replay --manifest <产物目录>
+
+它逐文件核 sha256、并先核清单自哈希；输出会写清"挡得住手误，挡不住有意改"。
+
+### 退出码（写脚本 / 接 CI 用）
+
+三条主命令的退出码是**分开的语义**，别把 1 和 2 都当"失败"：
+
+| 命令 | 0 | 1 | 2 | 3 |
+|---|---|---|---|---|
+| `veripen run` | 跑完并产出交付物 | 一项都没跑成；或**0 项验证成功且有执行失败**（目标不可达等）；或证据自校验失败 | 输入有问题（契约/目标/档） | — |
+| `veripen hunt` | 本轮结束（含模型降级） | 契约里没有带语义标签的 operation | 输入有问题 | — |
+| `veripen platform` | 全部资产跑完 | 有资产退出码非 0（报告里标 —） | 输入有问题 | **审批 PENDING，未执行** |
+
+`3` 单独留出来，是为了让 CI 能区分"等人签字"与"跑挂了"——前者不该报警。
+
+长驻命令（`chat` / `agent` / `console` / `tui`）只有两档：`0` = 正常结束或 Ctrl+C 中断；
+`2` = 起不来（参数不对 / 端口被占 / 工作根不存在）。
+
+这张表有对应的可执行契约：`tests/integration/test_exit_codes_contract.py`（12 格逐格真跑，改坏了会红）。
+
 
 配合：
 

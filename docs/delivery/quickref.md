@@ -4,14 +4,15 @@
 
 ```
 $ python scripts/tasks.py console   # 起只读控制台（原先那行指向一个不存在的 make 目标）
-# 没有 make 的机器（含 Windows 安装包环境）一律用：python scripts/tasks.py <同名任务>
+# 没有 make 的机器（含 Windows 安装包环境）：上面这 8 条在 scripts/tasks.py 里都有同名入口
+# （`python scripts/tasks.py --list` 看全部 12 条）；其余 make 目标是开发用的，需要 make
 $ make demo          # 端到端演示：发现 → 判定 → 证据 → 报告 → replay → 缩 scope
 $ make demo-alt      # 换客户档跑同一份镜像（A1）
 $ make bench         # 44 例 × 3 轮，FP=0 / 越界=0 / routeset 三轮一致
 $ make replay-offline# 断网只走判定纯函数
-$ make doctor        # 24 项自检，失败项会指出该改哪里
+$ make doctor        # 25 项自检，失败项会指出该改哪里
 $ make lint          # 零地址 / 禁数据桩 / 绑定覆盖 / 默认关闭
-$ make verify-report # 报告三视图零地址 + manifest 未手改
+$ make verify-report # 交付清单逐文件核哈希（DIR= 指到任意一路产物）
 ```
 
 ## 4 种故障对应
@@ -20,7 +21,7 @@ $ make verify-report # 报告三视图零地址 + manifest 未手改
 |---|---|---|
 | **装不上** | `make doctor` | `default-off` 或 `bindings` 不过 → 看 fix 那列 |
 | **跑不动** | `make demo-offline` | 网络/模型不可用 → 离线链路只走纯函数 |
-| **结果可疑** | `make bench` + `make verify-report` | FP≠0 → 看负样本；manifest 不过 → 报告被改过 |
+| **结果可疑** | `make bench` + `make verify-report` | FP≠0 → 看负样本；清单不过 → 产物被改过或不是同一批 |
 | **要立刻停** | 缩 scope 再跑 | `REPLAY_BLOCKED` + 零发包 = 门在工作；仍发包 = P0 |
 
 ## 三条不能让步的

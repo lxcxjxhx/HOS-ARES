@@ -24,7 +24,20 @@ from .common.harness import (
 
 #: 全部已注册 oracle（B5 的 4 类 + B6 的 2 类）；B7 起继续追加
 from . import tierA, tierA_rest, tierB  # noqa: E402
-from .auth import jwt_suite  # noqa: E402
+from .auth import (
+    code_format,
+    cookie_flags,
+    jwt_suite,
+    logout,
+    pkce,
+    scope,
+    mtls,
+    oauth,
+    oauth_redirect,
+    oauth_state,
+    session,
+    tls_cert,
+)  # noqa: E402
 from . import tierC, tier_dom, tier_headers  # noqa: E402
 
 TIER_A: tuple[type[BaseOracle], ...] = tierA.REGISTRY + (
@@ -42,7 +55,20 @@ TIER_B: tuple[type[BaseOracle], ...] = (
 )
 
 #: 认证清单（B9）：J1–J10 全量变体（jwt_replay 的单点能力已被它覆盖）
-AUTH: tuple[type[BaseOracle], ...] = (jwt_suite.JwtSuite,)
+AUTH: tuple[type[BaseOracle], ...] = (
+    jwt_suite.JwtSuite,
+    session.SessionFixation,
+    oauth.CodeReplay,
+    oauth_redirect.OAuthRedirectUri,
+    mtls.MtlsRequired,
+    oauth_state.OAuthState,
+    cookie_flags.CookieFlags,
+    code_format.CodeFormat,
+    tls_cert.TlsCertificate,
+    logout.SessionLogout,
+    pkce.PkceEnforced,
+    scope.ScopeEscalation,
+)
 
 #: C 档 3 类（需跨会话/协议配合）
 TIER_C: tuple[type[BaseOracle], ...] = (

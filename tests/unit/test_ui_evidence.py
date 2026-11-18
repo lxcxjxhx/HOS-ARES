@@ -76,11 +76,17 @@ def test_repro_points_at_a_real_capsule_file(tmp_path: Path) -> None:
     assert data["capsule_present"] is True
     assert data["capsule_path"], "loader 没解析出证据文件路径"
     assert data["repro_ok"] is True
-    assert data["repro"] == f"veripen replay --capsule {data['capsule_path']} --mode offline"
+    # 命令里给的是**相对**路径（B372）：报告那边早就是 `capsules/<sha>.json`，
+    # 界面贴绝对路径等于把操作员的目录结构写进截图。可移植性用例见 test_ui_console_truth。
+    assert data["repro"] == (
+        "veripen replay --capsule capsules" + SEP + f"{data['capsule_path'].rsplit(SEP, 1)[-1]}"
+        " --mode offline"
+    ), data["repro"]
     assert "make replay" not in data["repro"], "旧命令把 finding_id 当 capsule 路径"
 
-    # 命令里那条路径真的能载入，且是同一份证据
-    assert load_capsule(data["capsule_path"]).capsule_id == cid
+    # 命令里的相对路径按"报告所在目录"解析后真的能载入，且是同一份证据
+    rel = data["repro"].split("--capsule ", 1)[1].split(" --mode", 1)[0]
+    assert load_capsule(run / rel).capsule_id == cid
 
 
 def test_missing_capsule_file_means_no_command(tmp_path: Path) -> None:
