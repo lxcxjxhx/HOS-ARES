@@ -584,6 +584,15 @@ def main(argv: list[str] | None = None) -> int:
             f"| {i} | `{a['target']}` | {a['rc']} | {len(a['findings'])} | {v} | "
             f"{a['capsules']} | {cov_cell} | {gap_cell} | `{a['dir']}` |"
         )
+    # B355：capsule 列 0 必须有一句解释——它要么是「没有结论需要取证」，要么是
+    # 「全被挡下」。读者只看到 0 会以为证据丢了。
+    if any(a["produced"] and a["capsules"] == 0 for a in per_asset):
+        lines += ["", "> capsule 为 0 的资产：这一轮没有一条结论需要取证（通常是被边界或输入挡下），"
+                      "不是证据丢了。"]
+    # B247：章节号从 §1 起，而单资产 report.md 从 §0 起（那里的 0 是摘要）——
+    # 两报告并排对照的人会绕，这里把基准写出来，代价是一行字。
+    lines += ["", "> 本文章节从 §1 起；单资产 `report.md` 从 §0 起（§0 是摘要），"
+                  "跨报告对照时注意编号基准不同。"]
     lines += ["", "## 2. 资产面明细", ""]
     for i, a in enumerate(per_asset, start=1):
         lines.append(f"### 资产 {i} · `{a['target']}`")

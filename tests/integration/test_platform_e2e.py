@@ -342,3 +342,37 @@ def test_refuted_rows_are_not_printed_as_not_run(two_assets: Any, tmp_path: Path
     _run(tmp_path, a.base_url)
     md = (tmp_path / "pf" / "platform-report.md").read_text(encoding="utf-8")
     assert "已判否（跑过、无该问题）" in md, md[:1200]
+
+
+# ── K：两份报告章节号基准不同，必须写出来（B418 / B247）──
+def test_report_states_the_section_numbering_baseline(two_assets: Any,
+                                                     tmp_path: Path) -> None:
+    a, _b = two_assets
+    _run(tmp_path, a.base_url)
+    md = (tmp_path / "pf" / "platform-report.md").read_text(encoding="utf-8")
+    assert "本文章节从 §1 起" in md, md[:800]
+    assert "编号基准不同" in md
+
+
+# ── L：capsule 列是 0 时，要说清"不是证据丢了"（B418 / B355）──
+def test_zero_capsule_assets_are_explained(tmp_path: Path) -> None:
+    """面在靶场上不存在 → 全部挡下、没有一条结论需要取证；读者只看到 0 会以为丢了。"""
+    from lab.app import App
+    from lab.net_server import LabServer
+    from veripen_cli.cmd_platform import main
+
+    srv = LabServer(App(secure=False)).start()
+    try:
+        spec = tmp_path / "missing.json"
+        spec.write_text(json.dumps({
+            "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
+            "servers": [{"url": srv.base_url}],
+            "paths": {f"{SEP}nope": {"get": {"x-veripen-tags": ["param_injectable"]}}},
+        }), encoding="utf-8")
+        out = tmp_path / "pf"
+        main(["--targets", srv.base_url, "--openapi", str(spec), "--out", str(out),
+              "--db", str(tmp_path / "pf.db"), "--qps", "6"])
+        md = (out / "platform-report.md").read_text(encoding="utf-8")
+    finally:
+        srv.stop()
+    assert "不是证据丢了" in md, md[:900]

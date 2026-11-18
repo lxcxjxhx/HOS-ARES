@@ -175,6 +175,10 @@ def _run(cmd: Sequence[str], *, cwd: Path, timeout: int = 180) -> tuple[int, str
     return proc.returncode, (proc.stdout + proc.stderr).strip()
 
 
+#: 脚本名 → make 目标（不跟惯例的少数几个，写死；其余按 `lint-<stem>` 推）
+_MAKE_TARGET = {"bindings_check.py": "bindings-check"}
+
+
 def _lint(name: str, script: str, root: Path) -> CheckResult:
     path = root / "scripts" / "lint" / script
     if not path.exists():
@@ -184,11 +188,15 @@ def _lint(name: str, script: str, root: Path) -> CheckResult:
     except (subprocess.SubprocessError, OSError) as exc:
         return CheckResult(name, Status.FAIL, f"执行失败：{exc}", f"python {script}")
     tail = out.splitlines()[-1] if out else ""
+    stem = script[:-3] if script.endswith(".py") else script
+    # B418：读者只在 doctor 里看到「noroute 失败」，不知道它等于 `make lint-noroute`。
+    # 把两者写在一行，省掉一次「这两个是不是一回事」的猜。
+    target = _MAKE_TARGET.get(script) or f"lint-{stem.replace('_', '-')}"
     return CheckResult(
         name,
         Status.OK if code == 0 else Status.FAIL,
         tail[:160],
-        "" if code == 0 else f"python scripts/lint/{script}",
+        "" if code == 0 else f"python scripts/lint/{script}（同 make {target}）",
     )
 
 
