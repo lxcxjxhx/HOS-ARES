@@ -170,3 +170,16 @@ def test_both_renderers_use_the_same_wording() -> None:
         capsules_dir="capsules", generated_at="t")
     assert "已排除 1 类 oracle：`x`" in md
     assert "已排除 1 类 oracle：`x`" in hunt
+
+
+def test_missing_face_reads_as_not_run_not_as_clean() -> None:
+    """B416：多步判据缺面时，码表必须说「一步都没跑」，不能留裸模板名。
+
+    以前覆盖页那一列是 `missing_face:/portal/login`，客户读成两种错的东西：
+    「这个功能测过了」或「这里有洞」。真正的事实是第三种：方法还没走完。
+    """
+    from veripen.report.glossary import explain
+
+    text = explain("missing_face:/portal/login")
+    assert "没找到" in text and "一步都没跑" in text, text
+    assert "不是「测过了没问题」" in text, text

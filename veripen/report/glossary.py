@@ -130,6 +130,12 @@ def explain(code: str) -> str:
 
             return (f"缺输入符号 {tail}：这类判定必须先拿到它才能构造请求"
                     f"（提供方式：{symbol_hint(tail)}）")
+    # missing_face（B416）：多步判据要打的面没找到。以前这条在覆盖页上只有裸模板名，
+    # 客户读成「这个功能测过了」——反过来才对：它一个字都没测到。
+    if low.startswith("missing_face:"):
+        face = key.split(":", 1)[1].strip()
+        return (f"要打的面 {face} 在目标上没找到：契约里没声明，或路径不同——"
+                f"这条判定一步都没跑，不是「测过了没问题」")
     if key == "no_probe":
         return "这一轮没有发出任何探针，判不了——不代表没问题"
     # scope 越权（B412）

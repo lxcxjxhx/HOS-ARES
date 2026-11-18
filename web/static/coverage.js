@@ -59,11 +59,18 @@ export function renderCoverage(el, d, labelMap) {
     }
     const gaps = L.gaps || [];
     if (gaps.length) {
+      // B416：先说清「缺口」是什么，再列。以前是一张表加一列机器码，
+      // 客户要么读成「有洞」，要么读成「没测」——它其实是「这一轮判不了」。
+      wrap.append(el("p", { class: "muted" },
+        "缺口 = 这一轮没拿到结论的判定（缺输入 / 基线不成立 / 面找不到）。"
+        + "它不是「有洞」，也不是「没漏洞」——「说明」列写的是为什么。"));
       const t = el("table");
       t.append(el("tr", ...["缺口", "严重度", "说明"].map((h) => el("th", {}, h))));
       for (const g of gaps) {
+        const why = g.reason_text
+          ? `${g.detail || ""} · ${g.reason_text}` : String(g.detail || "");
         t.append(el("tr", el("td", {}, String(g.kind)),
-          el("td", {}, String(g.severity)), el("td", {}, plain(g.detail || ""))));
+          el("td", {}, String(g.severity)), el("td", {}, plain(why))));
       }
       wrap.append(t);
     }

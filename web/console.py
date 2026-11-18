@@ -633,7 +633,12 @@ def build_app(
                     "scope": ledger.get("scope") or "",
                     "summary": ledger.get("summary") or {},
                     "completeness": ledger.get("completeness") or {},
-                    "gaps": list(ledger.get("gaps") or ())[:50],
+                    # B416：缺口不能只印机器码。`baseline_abnormal` / `missing_face:…`
+                    # 在页面上是黑话，客户会读成「没漏洞」或「没测」——两者都不对。
+                    "gaps": [
+                        {**dict(gap), "reason_text": explain(str(gap.get("detail") or ""))}
+                        for gap in list(ledger.get("gaps") or ())[:50]
+                    ],
                 }
             # 能力边界（B400）：控制台也要说清"这一轮不可能有结论的判定"。
             # 数据是全局事实（不随资产变化），所以在这里补一次即可。
