@@ -5,7 +5,7 @@
 不在他们的路径上；一个 exe 是最短的路。
 
 打包口径（与 CI 的 `.github/workflows/build-exe.yml` 一致）：
-* 入口是 `veripen_cli/desktop.py`（起服务 → 打印地址 → 打开浏览器）；
+* 入口是 `hos_ares_cli/desktop.py`（起服务 → 打印地址 → 打开浏览器）；
 * `web/static` 必须整目录带上（页面与 router.js 是数据文件，不是 import）；
 * 自己的包用 `collect_submodules` 收全，避免"某个模块只在运行期才被 import"时漏掉。
 
@@ -22,7 +22,7 @@ from PyInstaller.utils.hooks import collect_submodules
 ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))
 
 hidden = []
-for pkg in ("web", "veripen_core", "veripen_cli", "veripen_oracles", "veripen"):
+for pkg in ("web", "hos_ares_core", "hos_ares_cli", "hos_ares_oracles", "hos_ares"):
     hidden += collect_submodules(pkg)
 
 # uvicorn 的循环/协议是运行期按字符串选的，静态分析看不到
@@ -35,7 +35,7 @@ hidden += [
 ]
 
 a = Analysis(
-    [os.path.join(ROOT, "veripen_cli", "desktop.py")],
+    [os.path.join(ROOT, "hos_ares_cli", "desktop.py")],
     pathex=[ROOT],
     binaries=[],
     datas=[(os.path.join(ROOT, "web", "static"), os.path.join("web", "static"))],

@@ -166,7 +166,7 @@ def app_answers(port: int, timeout_s: float = 20.0, *, host: str = _HOST) -> boo
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
-        prog="hos_ares-desktop",
+        prog="hos-ares-desktop",
         description="打开就是界面：起只读控制台并打开浏览器",
     )
     ap.add_argument("--record", default="", help="运行产物路径（hunt.json 或 findings.json）")
