@@ -25,6 +25,11 @@ hos-ares doctor              # 25 项自检；缺条件的记 skip，不记 fail
 python scripts/verify.py > /tmp/v.log 2>&1; echo "exit=$?"; tail -3 /tmp/v.log
 ```
 
+**定位失败用例要看 junit-xml，别看「第几个点」**：`pytest -q` 的点阵只能告诉你"有 F"，
+按 `--collect-only` 的项数反推是哪个文件会算错——fixture 展开与参数化都会改变归组。
+B454 就是这么把 `test_compare_transport` 当成 `test_bench_gates`，整轮分析建在错的文件上。
+加 `--junit-xml=out/junit.xml` 再读 `testcase` 的 `classname`/`name`，一步到位。
+
 **改「谁都会读」的文件，多加一步**：`pyproject.toml`、`packaging/`、常量表这类东西动过之后，
 跑 `verify.py --quick-tests`（12 项 + 2000 条单测，约 2 分钟）。不带 `--quick-tests` 的闸门只看 lint、
 账本与结构——B439 改了 `pyproject` 的包声明，三条打包用例红了，而当时闸门 12/12 全绿。
