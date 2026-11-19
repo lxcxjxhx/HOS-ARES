@@ -131,7 +131,9 @@ def _dump(name: str, text: str) -> str:
 
 
 def _default_runner(argv: Sequence[str], name: str = "gate", *, cwd: str = "") -> tuple[int, str]:
-    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+    # PYTHONUNBUFFERED（B425）：闸门里跑的是 pytest，输出进管道时默认块缓冲——
+    # 长跑时日志几十分钟不变，看的人会把它当"挂死"（B424 就是这么误判两轮的）。
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1"}
     where = str(ROOT / cwd) if cwd else str(ROOT)
     proc = subprocess.run(  # noqa: S603 - 命令来自上面的常量清单
         list(argv), cwd=where, capture_output=True, text=True,

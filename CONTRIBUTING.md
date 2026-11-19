@@ -14,6 +14,10 @@ hos-ares doctor              # 25 项自检；缺条件的记 skip，不记 fail
 **本地跑的和 CI 跑的是同一份定义** —— 清单在 `scripts/verify.py`，`.github/workflows/verify.yml`
 调用的也是它。所以不要在别处再写一份命令列表。
 
+**看长跑进度别用日志文件大小**：pytest 输出重定向到文件时是**块缓冲**，几十分钟不刷新是正常的，
+进程其实在跑（B424 踩过：40 分钟只长 3 字节，被误判成挂死，还写进了账本）。
+要么 `PYTHONUNBUFFERED=1`，要么加 `--junit-xml` 看产物；判断"跑完了"只看**退出码**，不看点了多少个。
+
 ```bash
 python scripts/verify.py                 # 快闸门：mypy + 各道 lint + 账本 + 计划结构（约 1 分钟）
 python scripts/verify.py --with-tests    # 再加三段 pytest（全量，本机约 1 小时）

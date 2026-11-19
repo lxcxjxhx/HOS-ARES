@@ -181,3 +181,22 @@ def test_interpreter_note_flags_a_mismatched_virtualenv(tmp_path: Path) -> None:
     inside = tmp_path / ".venv" / "Scripts" / "python.exe"
     notes = verify.interpreter_notes(str(inside), tmp_path)
     assert not any("仓库自带" in n for n in notes), "用对了就别再提示"
+
+
+def test_gate_children_are_unbuffered() -> None:
+    """B425：闸门跑的是 pytest，输出进管道时默认块缓冲——长跑时日志几十分钟不变，
+    看的人会当"挂死"（B424 误判两轮）。用子进程**自报**环境变量来钉，不依赖本机行为。
+    """
+    import os
+    import subprocess
+    import sys
+
+    from scripts.verify import _default_runner
+
+    code, out = _default_runner(
+        [sys.executable, "-c",
+         "import os;print(os.environ.get('PYTHONUNBUFFERED',''))"],
+        name="unbuffered-probe",
+    )
+    assert code == 0, out
+    assert "1" in out, f"子进程没被解除缓冲：{out!r}（os.environ={os.environ.get('PYTHONUNBUFFERED')!r}）"
