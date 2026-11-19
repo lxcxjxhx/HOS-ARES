@@ -231,3 +231,7 @@ node plan-hos-ares/check-plan.cjs        # 规划包结构
 ```
 
 批次账本在 `.hos-ares/batches.jsonl`，只增不改。
+
+**当前状态总账**：[`docs/delivery/status-2026-11-20.md`](docs/delivery/status-2026-11-20.md) ——
+能做什么、验过什么、还有什么没验、差谁给什么，每条数字都带复核命令。
+要拍板的口径全在 [`plan-hos-ares/H33-待裁规格事项.md`](plan-hos-ares/H33-待裁规格事项.md)。
