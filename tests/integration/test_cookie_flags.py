@@ -28,7 +28,7 @@ def _rows(lab: Any, tmp_path: Path, path_name: str) -> list[tuple[str, str, str]
     spec.write_text(json.dumps({
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": lab.base_url}],
-        "paths": {path_name: {"get": {"x-hos_ares-tags": ["token_issue"]}}},
+        "paths": {path_name: {"get": {"x-hos-ares-tags": ["token_issue"]}}},
     }), encoding="utf-8")
     out = tmp_path / "run"
     run_main(["--target", lab.base_url, "--openapi", str(spec), "--out", str(out)])

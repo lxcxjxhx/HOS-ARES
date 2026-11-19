@@ -29,10 +29,10 @@ def _spec(base: str) -> str:
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": base}],
         "paths": {
-            f"{SEP}api{SEP}search": {"get": {"x-hos_ares-tags": ["param_injectable"]}},
-            f"{SEP}api{SEP}read": {"get": {"x-hos_ares-tags": ["file_read"]}},
-            f"{SEP}api{SEP}fetch": {"get": {"x-hos_ares-tags": ["url_fetch"]}},
-            f"{SEP}portal{SEP}token": {"get": {"x-hos_ares-tags": ["token_issue"]}},
+            f"{SEP}api{SEP}search": {"get": {"x-hos-ares-tags": ["param_injectable"]}},
+            f"{SEP}api{SEP}read": {"get": {"x-hos-ares-tags": ["file_read"]}},
+            f"{SEP}api{SEP}fetch": {"get": {"x-hos-ares-tags": ["url_fetch"]}},
+            f"{SEP}portal{SEP}token": {"get": {"x-hos-ares-tags": ["token_issue"]}},
         },
     }, ensure_ascii=False)
 

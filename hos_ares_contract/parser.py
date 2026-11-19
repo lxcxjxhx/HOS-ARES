@@ -46,8 +46,8 @@ PAGING_PARAM_NAMES = frozenset({"limit", "offset", "page", "cursor"})
 HEALTH_WORDS = frozenset({"health", "healthz", "readyz", "ping", "livez"})
 STATIC_EXTS = frozenset({".js", ".css", ".png", ".jpg", ".svg", ".ico", ".woff", ".map"})
 
-#: 词 → 标签的显式扩展（契约里 x-hos_ares-tags 直接给）
-EXTENSION_KEY = "x-hos_ares-tags"
+#: 词 → 标签的显式扩展（契约里 x-hos-ares-tags 直接给）
+EXTENSION_KEY = "x-hos-ares-tags"
 
 
 # ── 错误（24 §4 的 1xxx 段）─────────────────────────────────────────
@@ -290,7 +290,7 @@ def _security_requirement(security: Any, doc: Mapping[str, Any]) -> str | None:
     scheme = next(iter(first))
     schemes = (doc.get("components") or {}).get("securitySchemes") or {}
     spec = schemes.get(scheme) or {}
-    role = spec.get("x-hos_ares-role")
+    role = spec.get("x-hos-ares-role")
     return str(role) if role else "primary"
 
 

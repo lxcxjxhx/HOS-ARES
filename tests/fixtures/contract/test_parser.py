@@ -65,7 +65,7 @@ def _gen(count: int) -> str:
         "openapi": "3.0.3",
         "servers": [{"url": f"http://{HOST}"}],
         "components": {"securitySchemes": {"bearer_low": {"type": "http", "scheme": "bearer",
-                                                          "x-hos_ares-role": "secondary"}}},
+                                                          "x-hos-ares-role": "secondary"}}},
         "paths": paths,
     }
     return json.dumps(doc)
@@ -161,7 +161,7 @@ def test_host_check_skipped_when_no_allowlist() -> None:
 
 def test_unknown_tag_rejected() -> None:
     doc = json.loads(SAMPLE)
-    doc["paths"]["/api/echo"]["get"]["x-hos_ares-tags"] = ["not_a_real_tag"]
+    doc["paths"]["/api/echo"]["get"]["x-hos-ares-tags"] = ["not_a_real_tag"]
     with pytest.raises(UnknownTag):
         parse_openapi(json.dumps(doc), asset_id=ASSET, allowed_hosts=[HOST])
 

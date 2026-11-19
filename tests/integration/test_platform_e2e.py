@@ -17,8 +17,8 @@ SEP = chr(0x2F)
 
 def _spec(base: str) -> str:
     paths = {
-        f"{SEP}api{SEP}search": {"get": {"x-hos_ares-tags": ["param_injectable"]}},
-        f"{SEP}api{SEP}read": {"get": {"x-hos_ares-tags": ["file_read"]}},
+        f"{SEP}api{SEP}search": {"get": {"x-hos-ares-tags": ["param_injectable"]}},
+        f"{SEP}api{SEP}read": {"get": {"x-hos-ares-tags": ["file_read"]}},
     }
     return json.dumps({
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
@@ -367,7 +367,7 @@ def test_zero_capsule_assets_are_explained(tmp_path: Path) -> None:
         spec.write_text(json.dumps({
             "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
             "servers": [{"url": srv.base_url}],
-            "paths": {f"{SEP}nope": {"get": {"x-hos_ares-tags": ["param_injectable"]}}},
+            "paths": {f"{SEP}nope": {"get": {"x-hos-ares-tags": ["param_injectable"]}}},
         }), encoding="utf-8")
         out = tmp_path / "pf"
         main(["--targets", srv.base_url, "--openapi", str(spec), "--out", str(out),

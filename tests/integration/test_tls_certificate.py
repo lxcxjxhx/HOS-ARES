@@ -44,7 +44,7 @@ def _row(certs: tuple[Path, Path], tmp_path: Path, *, trust: bool) -> dict[str, 
         spec.write_text(json.dumps({
             "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
             "servers": [{"url": srv.base_url}],
-            "paths": {PREFIX: {"get": {"x-hos_ares-tags": ["protected_read"]}}},
+            "paths": {PREFIX: {"get": {"x-hos-ares-tags": ["protected_read"]}}},
         }), encoding="utf-8")
         out = tmp_path / "run"
         run_main(["--target", srv.base_url, "--openapi", str(spec), "--out", str(out)])

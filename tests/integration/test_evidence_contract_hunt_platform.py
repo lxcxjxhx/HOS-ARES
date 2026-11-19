@@ -39,8 +39,8 @@ def _spec(tmp: Path, base: str) -> str:
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": base}],
         "paths": {
-            S + "api" + S + "search": {"get": {"x-hos_ares-tags": ["param_injectable"]}},
-            S + "api" + S + "read": {"get": {"x-hos_ares-tags": ["file_read"]}},
+            S + "api" + S + "search": {"get": {"x-hos-ares-tags": ["param_injectable"]}},
+            S + "api" + S + "read": {"get": {"x-hos-ares-tags": ["file_read"]}},
         },
     }), encoding="utf-8")
     return str(spec)

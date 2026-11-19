@@ -19,10 +19,10 @@ DEAD_BASE = "http" + ":" + SEP + SEP + "127." + "0.0.1:1"
 
 def _spec(base: str) -> str:
     paths = {
-        f"{SEP}api{SEP}search": {"get": {"x-hos_ares-tags": ["param_injectable"]}},
-        f"{SEP}api{SEP}items{SEP}{{id}}": {"get": {"x-hos_ares-tags": ["object_read"]}},
-        f"{SEP}api{SEP}read": {"get": {"x-hos_ares-tags": ["file_read"]}},
-        f"{SEP}api{SEP}me": {"get": {"x-hos_ares-tags": ["protected_read"]}},
+        f"{SEP}api{SEP}search": {"get": {"x-hos-ares-tags": ["param_injectable"]}},
+        f"{SEP}api{SEP}items{SEP}{{id}}": {"get": {"x-hos-ares-tags": ["object_read"]}},
+        f"{SEP}api{SEP}read": {"get": {"x-hos-ares-tags": ["file_read"]}},
+        f"{SEP}api{SEP}me": {"get": {"x-hos-ares-tags": ["protected_read"]}},
     }
     return json.dumps({
         "openapi": "3.0.0",

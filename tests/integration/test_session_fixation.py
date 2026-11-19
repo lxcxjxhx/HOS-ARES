@@ -27,7 +27,7 @@ def _spec(base: str, path: Path, tag: str, path_name: str) -> Path:
     path.write_text(json.dumps({
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": base}],
-        "paths": {path_name: {"get": {"x-hos_ares-tags": [tag]}}},
+        "paths": {path_name: {"get": {"x-hos-ares-tags": [tag]}}},
     }), encoding="utf-8")
     return path
 

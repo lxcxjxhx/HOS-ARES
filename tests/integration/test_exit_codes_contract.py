@@ -35,7 +35,7 @@ def _spec(base: str, path: Path) -> Path:
     path.write_text(json.dumps({
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": base}],
-        "paths": {f"{SEP}api{SEP}search": {"get": {"x-hos_ares-tags": ["param_injectable"]}}},
+        "paths": {f"{SEP}api{SEP}search": {"get": {"x-hos-ares-tags": ["param_injectable"]}}},
     }), encoding="utf-8")
     return path
 

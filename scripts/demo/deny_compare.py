@@ -76,7 +76,7 @@ def main(argv: list[str] | None = None) -> int:
             "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
             "servers": [{"url": base_url}],
             "paths": {chr(0x2F) + "api" + chr(0x2F) + "search":
-                      {"get": {"x-hos_ares-tags": ["param_injectable"]}}},
+                      {"get": {"x-hos-ares-tags": ["param_injectable"]}}},
         }), encoding="utf-8")
     if not base_url or not openapi:
         print("要么给 --base-url 与 --openapi，要么用 --lab", file=sys.stderr)

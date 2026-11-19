@@ -30,8 +30,8 @@ CANARY = "vp-canary-do-not-leak-7f3a9c"
 
 def _spec(base: str) -> str:
     paths = {
-        f"{SEP}api{SEP}ping": {"get": {"x-hos_ares-tags": ["rate_sensitive"]}},
-        f"{SEP}api{SEP}me": {"get": {"x-hos_ares-tags": ["protected_read"]}},
+        f"{SEP}api{SEP}ping": {"get": {"x-hos-ares-tags": ["rate_sensitive"]}},
+        f"{SEP}api{SEP}me": {"get": {"x-hos-ares-tags": ["protected_read"]}},
     }
     return json.dumps(
         {

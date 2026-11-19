@@ -87,9 +87,9 @@ def _spec(path: Path, base: str) -> Path:
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": base}],
         "paths": {
-            f"{SEP}api{SEP}search": {"get": {"x-hos_ares-tags": ["param_injectable"]}},
-            f"{SEP}api{SEP}items{SEP}{{id}}": {"get": {"x-hos_ares-tags": ["object_read"]}},
-            f"{SEP}api{SEP}me": {"get": {"x-hos_ares-tags": ["protected_read"]}},
+            f"{SEP}api{SEP}search": {"get": {"x-hos-ares-tags": ["param_injectable"]}},
+            f"{SEP}api{SEP}items{SEP}{{id}}": {"get": {"x-hos-ares-tags": ["object_read"]}},
+            f"{SEP}api{SEP}me": {"get": {"x-hos-ares-tags": ["protected_read"]}},
         },
     }
     path.parent.mkdir(parents=True, exist_ok=True)

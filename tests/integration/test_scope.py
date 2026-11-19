@@ -29,9 +29,9 @@ def _rows(lab: Any, tmp_path: Path) -> list[tuple[str, str, str]]:
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": lab.base_url}],
         "paths": {
-            f"{SEP}portal{SEP}authorize": {"get": {"x-hos_ares-tags": ["token_issue"]}},
-            f"{SEP}portal{SEP}token": {"get": {"x-hos_ares-tags": ["token_issue"]}},
-            f"{SEP}portal{SEP}admin": {"get": {"x-hos_ares-tags": ["token_issue"]}},
+            f"{SEP}portal{SEP}authorize": {"get": {"x-hos-ares-tags": ["token_issue"]}},
+            f"{SEP}portal{SEP}token": {"get": {"x-hos-ares-tags": ["token_issue"]}},
+            f"{SEP}portal{SEP}admin": {"get": {"x-hos-ares-tags": ["token_issue"]}},
         },
     }), encoding="utf-8")
     out = tmp_path / "run"

@@ -28,7 +28,7 @@ def _spec(base: str, path: Path) -> Path:
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": base}],
         "paths": {
-            f"{SEP}portal{SEP}token": {"get": {"x-hos_ares-tags": ["token_issue"]}},
+            f"{SEP}portal{SEP}token": {"get": {"x-hos-ares-tags": ["token_issue"]}},
         },
     }), encoding="utf-8")
     return path

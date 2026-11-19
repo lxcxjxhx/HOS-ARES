@@ -32,9 +32,9 @@ def _rows(lab: Any, tmp_path: Path) -> list[tuple[str, str, str]]:
         "paths": {
             # 三个面都要声明：序列的各步打的是不同端点（只给登录面时，
             # 判定必须如实说"缺面"，而不是拿登录面冒充登出面）
-            f"{SEP}portal{SEP}login": {"get": {"x-hos_ares-tags": ["token_issue"]}},
-            f"{SEP}portal{SEP}logout": {"get": {"x-hos_ares-tags": ["token_issue"]}},
-            f"{SEP}portal{SEP}session": {"get": {"x-hos_ares-tags": ["token_issue"]}},
+            f"{SEP}portal{SEP}login": {"get": {"x-hos-ares-tags": ["token_issue"]}},
+            f"{SEP}portal{SEP}logout": {"get": {"x-hos-ares-tags": ["token_issue"]}},
+            f"{SEP}portal{SEP}session": {"get": {"x-hos-ares-tags": ["token_issue"]}},
         },
     }), encoding="utf-8")
     out = tmp_path / "run"

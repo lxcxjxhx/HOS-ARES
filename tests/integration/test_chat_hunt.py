@@ -21,8 +21,8 @@ ANSI = re.compile(chr(27) + r"\[[0-9;]*m")
 
 def _spec(base: str) -> str:
     paths = {
-        f"{SEP}api{SEP}search": {"get": {"x-hos_ares-tags": ["param_injectable"]}},
-        f"{SEP}api{SEP}read": {"get": {"x-hos_ares-tags": ["file_read"]}},
+        f"{SEP}api{SEP}search": {"get": {"x-hos-ares-tags": ["param_injectable"]}},
+        f"{SEP}api{SEP}read": {"get": {"x-hos-ares-tags": ["file_read"]}},
     }
     return json.dumps({
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},

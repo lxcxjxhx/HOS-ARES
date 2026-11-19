@@ -37,7 +37,7 @@ def _spec(tmp_path: Path) -> Path:
     path.write_text(json.dumps({
         "openapi": "3.0.0", "info": {"title": "x", "version": "1"},
         "servers": [{"url": DEAD}],
-        "paths": {SEP + "api" + SEP + "x": {"get": {"x-hos_ares-tags": ["param_injectable"]}}},
+        "paths": {SEP + "api" + SEP + "x": {"get": {"x-hos-ares-tags": ["param_injectable"]}}},
     }), encoding="utf-8")
     return path
 
@@ -52,7 +52,7 @@ def lab_run(tmp_path: Path):  # noqa: ANN201
     spec.write_text(json.dumps({
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": srv.base_url}],
-        "paths": {SEP + "api" + SEP + "search": {"get": {"x-hos_ares-tags": ["param_injectable"]}}},
+        "paths": {SEP + "api" + SEP + "search": {"get": {"x-hos-ares-tags": ["param_injectable"]}}},
     }), encoding="utf-8")
     try:
         yield srv.base_url, spec

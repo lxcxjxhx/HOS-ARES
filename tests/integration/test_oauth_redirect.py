@@ -30,7 +30,7 @@ def _row(lab: Any, tmp_path: Path) -> dict[str, Any]:
     spec.write_text(json.dumps({
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": lab.base_url}],
-        "paths": {f"{SEP}portal{SEP}authorize": {"get": {"x-hos_ares-tags": ["redirect_entry"]}}},
+        "paths": {f"{SEP}portal{SEP}authorize": {"get": {"x-hos-ares-tags": ["redirect_entry"]}}},
     }), encoding="utf-8")
     out = tmp_path / "run"
     run_main(["--target", lab.base_url, "--openapi", str(spec), "--out", str(out),

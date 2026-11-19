@@ -222,3 +222,21 @@ def test_build_scripts_have_no_old_package_names() -> None:
     bad = [p.name for p in candidates
            if "veripen" in p.read_text(encoding="utf-8", errors="replace").lower()]
     assert not bad, f"构建脚本里还有旧包名：{bad}"
+
+
+# ── B448：`--quick-tests` 只加单测段，`--with-tests` 才加全部三段 ──────
+def test_quick_tests_adds_only_the_unit_chunk() -> None:
+    """B445 加了 `--quick-tests`：12 项闸门 + 单测（约 2 分钟）。
+
+    钉住两件事：①它确实只加一段；②加的那一段是 `tests-unit` 而不是别的。
+    若哪天 `TEST_CHUNKS` 重排，这条会红——那时正该有人看一眼顺序。
+    """
+    from scripts.verify import TEST_CHUNKS, select
+
+    plain = select("", with_tests=False)
+    quick = select("", with_tests=False, quick_tests=True)
+    full = select("", with_tests=True)
+
+    assert len(quick) == len(plain) + 1, "quick 应只多一段"
+    assert len(full) == len(plain) + len(TEST_CHUNKS), "with-tests 应多出全部测试段"
+    assert [g.name for g in quick][-1] == "tests-unit", "quick 加的那段不是单测"

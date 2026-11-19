@@ -16,7 +16,7 @@ _UNREACHABLE = "http" + ":" + SEP * 2 + "127." + "0.0.1:1"
 
 
 def _spec(base: str, tags: list[str]) -> str:
-    paths = {f"{SEP}api{SEP}search": {"get": {"x-hos_ares-tags": tags}}}
+    paths = {f"{SEP}api{SEP}search": {"get": {"x-hos-ares-tags": tags}}}
     return json.dumps({"openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
                        "servers": [{"url": base}], "paths": paths})
 

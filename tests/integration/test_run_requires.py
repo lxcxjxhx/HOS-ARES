@@ -30,7 +30,7 @@ def _run(lab: Any, tmp_path: Path, tag: str, *extra: str) -> list[tuple[str, str
     spec.write_text(json.dumps({
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": lab.base_url}],
-        "paths": {f"{SEP}api{SEP}items": {"get": {"x-hos_ares-tags": [tag]}}},
+        "paths": {f"{SEP}api{SEP}items": {"get": {"x-hos-ares-tags": [tag]}}},
     }), encoding="utf-8")
     out = tmp_path / "run"
     run_main(["--target", lab.base_url, "--openapi", str(spec), "--out", str(out),
@@ -89,7 +89,7 @@ def test_second_identity_reaches_a_judgement_not_a_missing_symbol(lab, tmp_path:
     spec.write_text(json.dumps({
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": lab.base_url}],
-        "paths": {f"{SEP}api{SEP}items": {"get": {"x-hos_ares-tags": ["object_read"]}}},
+        "paths": {f"{SEP}api{SEP}items": {"get": {"x-hos-ares-tags": ["object_read"]}}},
     }), encoding="utf-8")
     out = tmp_path / "run"
     run_main(["--target", lab.base_url, "--openapi", str(spec), "--out", str(out),
@@ -117,7 +117,7 @@ def test_oob_listen_turns_ssrf_into_a_real_finding(lab, tmp_path: Path) -> None:
     spec.write_text(json.dumps({
         "openapi": "3.0.0", "info": {"title": "lab", "version": "1"},
         "servers": [{"url": lab.base_url}],
-        "paths": {f"{SEP}api{SEP}fetch": {"get": {"x-hos_ares-tags": ["url_fetch"]}}},
+        "paths": {f"{SEP}api{SEP}fetch": {"get": {"x-hos-ares-tags": ["url_fetch"]}}},
     }), encoding="utf-8")
 
     out = tmp_path / "run"

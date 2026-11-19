@@ -1,7 +1,7 @@
 """B94 · 观测面打标签：没有契约时，标签从"看见的形状"推。
 
 为什么需要这一层：`plan()` 只给**带标签**的 operation 出候选，而标签原本只来自
-契约（显式 `x-hos_ares-tags` 或 `_structural_tags` 读 operation 形状）。
+契约（显式 `x-hos-ares-tags` 或 `_structural_tags` 读 operation 形状）。
 无契约路径上这两样都没有，于是 discover 攒到的面进不了 oracle 选择——
 `hos_ares discover` 与 `hos-ares run` 之间断在"标签"这一步。
 

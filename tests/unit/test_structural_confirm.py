@@ -16,7 +16,7 @@ SEP = chr(0x2F)
 
 
 def _spec() -> str:
-    """一份**没有 x-hos_ares-tags** 的契约：只能靠结构推断。"""
+    """一份**没有 x-hos-ares-tags** 的契约：只能靠结构推断。"""
     item = {
         "responses": {
             "200": {
@@ -105,7 +105,7 @@ def test_default_behaviour_unchanged() -> None:
 def test_explicit_tags_still_win() -> None:
     """契约显式标签不受影响：不采纳推断时它照样进候选。"""
     spec = json.loads(_spec())
-    spec["paths"][f"{SEP}api{SEP}search"]["get"]["x-hos_ares-tags"] = ["param_injectable"]
+    spec["paths"][f"{SEP}api{SEP}search"]["get"]["x-hos-ares-tags"] = ["param_injectable"]
     opset = parse_openapi(json.dumps(spec), asset_id="a.test", allowed_hosts=["a.test"])
     plain = plan(opset)
     assert len(plain.candidates) == 1, "显式标签的 operation 不该被推断逻辑影响"

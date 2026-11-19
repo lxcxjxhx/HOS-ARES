@@ -25,7 +25,7 @@ SPEC = {
     "paths": {
         S + "files": {
             "get": {
-                "x-hos_ares-tags": ["file_read"],
+                "x-hos-ares-tags": ["file_read"],
                 "parameters": [
                     {"name": "name", "in": "query", "required": True,
                      "schema": {"type": "string"}}
