@@ -68,7 +68,7 @@ def _usage() -> str:
         "",
         "每个子命令都支持 --help：hos-ares chat --help",
         # 这两条都是**真的入口**，就别只让人去试错（B262）
-        "等价写法：hos-ares help chat ｜ 版本：hos_ares -V",
+        "等价写法：hos-ares help chat ｜ 版本：hos-ares -V",
         "",
     ]
     return "\n".join(lines)

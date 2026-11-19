@@ -547,11 +547,18 @@ def check_sandbox(root: Path) -> CheckResult:
 
 
 def check_tui(root: Path) -> CheckResult:
-    """TUI（B56）。缺 curses 意味着只能走非交互降级路径。"""
+    """TUI（B56）。缺 curses 意味着只能走非交互降级路径。
+
+    B428：`tui --once` 在无 curses 的 Windows 上实测可跑（渲染三面板并退出），
+    所以这条 skip 说的是**交互面板**不可用，不是 TUI 整个不可用——措辞要分清，
+    否则读者会以为整个界面没验过。
+    """
     try:
         import curses  # noqa: F401, PLC0415
     except Exception:  # noqa: BLE001
-        return CheckResult("TUI", Status.SKIP, "无 curses（Windows 需 windows-curses）",
+        return CheckResult("TUI", Status.SKIP,
+                           "无 curses（Windows 需 windows-curses）：交互面板不可用，"
+                           "非交互 `tui --once` 实测可跑",
                            "pip install windows-curses")
     return CheckResult("TUI", Status.OK, "curses 可用")
 
