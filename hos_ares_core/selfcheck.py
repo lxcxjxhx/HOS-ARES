@@ -46,6 +46,8 @@ class SelfCheck:
 
 #: 03 §7 的 17 条，逐条照抄（SQL 尽量保持原样，便于与文档对照）
 CHECKS: tuple[SelfCheck, ...] = (
+    # B517：`idem_key` 有 UNIQUE 约束（store 的 tasks 表），重复值进不了库，
+    # 所以这条自检**永远不会触发**——它是事后核对，不是防线。留着以便换库/换存储时仍有核对。
     SelfCheck(1, "重复幂等键", "SELECT idem_key FROM tasks GROUP BY idem_key HAVING COUNT(*)>1"),
     SelfCheck(2, "卡死任务",
               "SELECT id FROM tasks WHERE state IN ('LEASED','RUNNING')"
