@@ -272,7 +272,12 @@ def _routeset(base: str, tag: str) -> RouteSet:
         RouteSymbols({_LAB_BASE: base}), base_symbol=_LAB_BASE,
     )
     q = RouteQuery(asset=AssetRef(id=R.ASSET), hints=RouteHints(), min_confidence=0.0)
-    return Resolver(sources=[src]).resolve(q, now=R.NOW)
+    rs = Resolver(sources=[src]).resolve(q, now=R.NOW)
+    # B457：与 `run_bench._routeset` 同一规则——**同一标签多条面时按模板字典序固定**。
+    # 这里原先直接返回 resolver 的结果，`rs.bindings[0]` 落在 sha 序上；
+    # 那条面的选择会随哈希变化，和 B455 里 N-07 的分叉是同一个坑。
+    rs.bindings = sorted(rs.bindings, key=lambda b: str(b.template))
+    return rs
 
 
 def _verify_lead(verifiable_by: tuple[str, ...], srv: Any, app: Any) -> tuple[str, str]:
