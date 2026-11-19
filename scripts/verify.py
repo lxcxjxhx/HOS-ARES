@@ -153,8 +153,12 @@ def _default_runner(argv: Sequence[str], name: str = "gate", *, cwd: str = "") -
     return proc.returncode, " ⏎ ".join(head + ["…"] + tail + [f"完整输出：{saved}"])
 
 
-def select(only: str, with_tests: bool) -> list[Gate]:
-    pool = list(GATES) + list(SMOKES) + (list(TEST_CHUNKS) if with_tests else [])
+def select(only: str, with_tests: bool, quick_tests: bool = False) -> list[Gate]:
+    # B445：`--quick-tests` 只跑单测（约 2 分钟）。全量 `--with-tests` 本机要一小时，
+    # 于是「改了 pyproject 之后该跑什么」这个问题，实际答案成了「什么也不跑」——
+    # B439 就是这么红了三条打包用例而没人发现的。
+    extra = list(TEST_CHUNKS) if with_tests else ([TEST_CHUNKS[0]] if quick_tests else [])
+    pool = list(GATES) + list(SMOKES) + extra
     if not only:
         return pool
     wanted = {x.strip() for x in only.split(",") if x.strip()}
@@ -186,10 +190,11 @@ def main(argv: list[str] | None = None, *, runner=None) -> int:
     ap = argparse.ArgumentParser(prog="verify", description="一条命令跑完所有闸门")
     ap.add_argument("--list", action="store_true", help="只打印清单")
     ap.add_argument("--with-tests", action="store_true", help="追加分段 pytest")
+    ap.add_argument("--quick-tests", action="store_true", help="只追加单测（约 2 分钟）")
     ap.add_argument("--only", default="", help="只跑这几道（逗号分隔）")
     args = ap.parse_args(sys.argv[1:] if argv is None else argv)
 
-    gates = select(args.only, args.with_tests)
+    gates = select(args.only, args.with_tests, args.quick_tests)
     for line in interpreter_notes(sys.executable, ROOT):
         print(line)
     if args.list:
