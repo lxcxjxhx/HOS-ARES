@@ -44,6 +44,10 @@ def _py(root: Path) -> list[Path]:
     return [p for p in root.rglob("*.py") if "__pycache__" not in p.parts]
 
 
+#: 框架会回调的方法名前缀（HTMLParser / socketserver / 事件源）
+CALLBACK_PREFIXES = ("handle_", "parse_", "do_", "on_")
+
+
 def _rel(p: Path) -> str:
     return p.relative_to(ROOT).as_posix()
 
@@ -87,6 +91,10 @@ def scan() -> list[dict[str, object]]:
 
     rows: list[dict[str, object]] = []
     for name, owners in defs.items():
+        # 框架回调不算死代码（B437）：`HTMLParser` 的 handle_*、`BaseHTTPRequestHandler`
+        # 的 do_*、事件源的 on_* —— 调用方是基类或运行时，文本里搜不到名字是正常的。
+        if any("#" in o for o in owners) and name.startswith(CALLBACK_PREFIXES):
+            continue
         owner_files = {o.split("#")[0] for o in owners}
         pattern = re.compile(r"\b" + re.escape(name) + r"\b")
         callers = [

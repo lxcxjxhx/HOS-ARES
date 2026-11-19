@@ -300,3 +300,33 @@ def test_dead_exports_counts_same_file_usage(tmp_path: Path,
     names = {str(r["symbol"]) for r in rows}
     assert "FsReadCall" not in names, "同文件里注册的类被算成死代码"
     assert "NobodyUsesMe" in names, "真死代码反而没报"
+
+
+# ── B437：框架回调不算死代码 ─────────────────────────────────────
+def test_dead_exports_ignores_framework_callbacks(tmp_path: Path,
+                                                 monkeypatch: pytest.MonkeyPatch) -> None:
+    """`HTMLParser` 的 `handle_starttag` 由基类回调，文本里搜不到名字是正常的。
+
+    上一轮修了「同文件在用」，这轮修「框架回调」——两条加起来，误报从 89 降到 23。
+    """
+    import dead_exports
+
+    core = tmp_path / "hos_ares_core"
+    core.mkdir(parents=True)
+    (core / "parser.py").write_text(
+        "from html.parser import HTMLParser\n\n\n"
+        "class Outline(HTMLParser):\n"
+        "    def handle_starttag(self, tag, attrs):\n"
+        "        return None\n\n"
+        "    def a_real_dead_method(self):\n"
+        "        return 1\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(dead_exports, "ROOT", tmp_path)
+    monkeypatch.setattr(dead_exports, "CORE", core)
+    monkeypatch.setattr(dead_exports, "CLI", tmp_path / "hos_ares_cli")
+    monkeypatch.setattr(dead_exports, "TESTS", tmp_path / "tests")
+
+    names = {str(r["symbol"]) for r in dead_exports.scan()}
+    assert "handle_starttag" not in names, "框架回调被算成死代码"
+    assert "a_real_dead_method" in names, "非回调的私有方法仍应报"
