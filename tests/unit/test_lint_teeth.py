@@ -228,3 +228,44 @@ def test_ui_zero_address_passes_route_ref(tmp_path: Path,
                                           monkeypatch: pytest.MonkeyPatch) -> None:
     body = 'const u = "route' + ":" + SEP + SEP + 'finding-42";\n// 只允许不透明引用\n'
     assert _ui_scan(tmp_path, monkeypatch, body) == 0, "干净样本被误伤"
+
+
+# ── B435：`lint-policy`（默认关闭必须真关着）也要证明它有牙 ──────────
+def test_policy_check_flags_a_leaked_default_off(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """若有 default_off 的 oracle 没被挡住，这道闸门必须红——否则它就是一句口号。"""
+    import policy_check
+
+    class _Leaked:
+        blocked: dict[str, str] = {}          # 一个都没挡
+
+    monkeypatch.setattr(policy_check.policy, "check_enabled",
+                        lambda *a, **k: _Leaked())
+    assert policy_check.main() == 1, "默认关闭失效却没红"
+    assert "FAIL" in capsys.readouterr().err
+
+
+def test_policy_check_flags_when_ceiling_is_not_enforced(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """显式开启后仍要受 max_impact 顶棚约束；不受就必须红。"""
+    import policy_check
+
+    class _Pass1:
+        blocked = {oid: "default_off" for oid in policy_check.policy.DEFAULT_OFF}
+
+    class _Pass2:
+        blocked: dict[str, str] = {}          # 开启后没被顶棚挡
+
+    seq = iter([_Pass1(), _Pass2()])
+    monkeypatch.setattr(policy_check.policy, "check_enabled",
+                        lambda *a, **k: next(seq))
+    assert policy_check.main() == 1, "开启后未受顶棚约束却没红"
+    assert "max_impact" in capsys.readouterr().err
+
+
+def test_policy_check_passes_on_this_repo() -> None:
+    import policy_check
+
+    assert policy_check.main() == 0, "当前仓库的默认关闭策略本身失效了"
