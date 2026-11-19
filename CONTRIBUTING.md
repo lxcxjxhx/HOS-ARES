@@ -25,6 +25,11 @@ hos-ares doctor              # 25 项自检；缺条件的记 skip，不记 fail
 python scripts/verify.py > /tmp/v.log 2>&1; echo "exit=$?"; tail -3 /tmp/v.log
 ```
 
+**数进程之前先把 baseline 清零**：`Get-Process msedge` 的数里可能混着上一轮留下的孤儿，
+它们不退，`Get-Process` 一直数得到。所以我曾连续四轮（B428→B506）拿同一个数得出不同结论，
+最后一次「跑前 `Stop-Process` 清到 0」才问清：集成正常路径**不产生遗留**。
+排查任何「资源泄漏」时，先清空再观察，否则测的是历史。
+
 **定位失败用例要看 junit-xml，别看「第几个点」**：`pytest -q` 的点阵只能告诉你"有 F"，
 按 `--collect-only` 的项数反推是哪个文件会算错——fixture 展开与参数化都会改变归组。
 B454 就是这么把 `test_compare_transport` 当成 `test_bench_gates`，整轮分析建在错的文件上。
