@@ -18,6 +18,13 @@ hos-ares doctor              # 25 项自检；缺条件的记 skip，不记 fail
 进程其实在跑（B424 踩过：40 分钟只长 3 字节，被误判成挂死，还写进了账本）。
 要么 `PYTHONUNBUFFERED=1`，要么加 `--junit-xml` 看产物；判断"跑完了"只看**退出码**，不看点了多少个。
 
+**看闸门结果也别用管道**：`verify.py | tail -2 && git commit` 里那个 `&&` 判的是 `tail` 的退出码，
+不是 `verify.py` 的——闸门红了照样提交、照样推（B441 实际发生过）。正确写法：
+
+```bash
+python scripts/verify.py > /tmp/v.log 2>&1; echo "exit=$?"; tail -3 /tmp/v.log
+```
+
 ```bash
 python scripts/verify.py                 # 快闸门：mypy + 各道 lint + 账本 + 计划结构（约 1 分钟）
 python scripts/verify.py --with-tests    # 再加三段 pytest（全量，本机约 1 小时）
