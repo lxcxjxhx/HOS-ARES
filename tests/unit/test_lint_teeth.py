@@ -269,3 +269,34 @@ def test_policy_check_passes_on_this_repo() -> None:
     import policy_check
 
     assert policy_check.main() == 0, "当前仓库的默认关闭策略本身失效了"
+
+
+# ── B436：dead_exports 不能把「同文件在用」当成死代码 ─────────────
+def test_dead_exports_counts_same_file_usage(tmp_path: Path,
+                                            monkeypatch: pytest.MonkeyPatch) -> None:
+    """`tools/surface.py` 里 `"fs.read": FsReadCall` 这种注册表值曾被算成死代码。
+
+    规则原来只扫「别的文件」，于是同文件里的注册与类型注解全被排除——
+    89 个「死代码」里大半是活的，**按它删会删掉有用代码**。
+    """
+    import dead_exports
+
+    core = tmp_path / "hos_ares_core"
+    core.mkdir(parents=True)
+    (core / "reg.py").write_text(
+        "class FsReadCall:\n    pass\n\nREGISTRY = {'fs.read': FsReadCall}\n",
+        encoding="utf-8",
+    )
+    (core / "really_dead.py").write_text(
+        "class NobodyUsesMe:\n    pass\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(dead_exports, "ROOT", tmp_path)
+    monkeypatch.setattr(dead_exports, "CORE", core)
+    monkeypatch.setattr(dead_exports, "CLI", tmp_path / "hos_ares_cli")
+    monkeypatch.setattr(dead_exports, "TESTS", tmp_path / "tests")
+
+    rows = dead_exports.scan()
+    names = {str(r["symbol"]) for r in rows}
+    assert "FsReadCall" not in names, "同文件里注册的类被算成死代码"
+    assert "NobodyUsesMe" in names, "真死代码反而没报"

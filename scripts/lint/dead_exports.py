@@ -96,6 +96,16 @@ def scan() -> list[dict[str, object]]:
         ]
         if callers:
             continue
+        # 同文件内的引用也算使用（B436）：`tools/surface.py` 里 `"fs.read": FsReadCall`
+        # 这种注册表值、以及同文件的类型注解，以前全被排除（`f not in owner_files`），
+        # 于是 89 个「死代码」里大半其实是**同文件在用**——按它删会删掉活代码。
+        # 判定用「出现次数 > 1」：定义本身占一次，多于一次说明别处还在用。
+        same_file_uses = [
+            f for f, text in prod.items()
+            if f in owner_files and len(pattern.findall(text)) > 1
+        ]
+        if same_file_uses:
+            continue
         rows.append(
             {
                 "symbol": name,
