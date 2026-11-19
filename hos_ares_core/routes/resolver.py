@@ -258,8 +258,15 @@ class Resolver:
         bindings = _bindings_from(merged, q)
         # 同一标签可能有多条面（B384）：解析顺序原本取决于合并与置信度，
         # 于是"目录里插入一条同标签的新面"就会改变 `bindings[0]`——被测对象悄悄换人。
-        # 按模板字典序固定下来：调用方拿到的顺序从此与插入顺序无关。
-        bindings = sorted(bindings, key=lambda b: str(getattr(b, "template", "")))
+        #
+        # B450：这里原先是「按 template 字典序」重排，**把 L0-25 规定的 sort_key 覆盖掉了**
+        # （`(-confidence, source_rank, template_sha256)`）。两条规则打架的结果是
+        # `test_l0_25` 直接红：同分时该按 sha 排，实际按模板字符串排。
+        # 现在两者兼容——主排序仍走 sort_key，template 只作最后一级 tie-break（本来也用不上）。
+        bindings = sorted(
+            bindings,
+            key=lambda b: (sort_key(b), str(getattr(b, "template", ""))),
+        )
         rs = RouteSet(
             resolver_version=RESOLVER_VERSION,
             asset_id=q.asset.id,
