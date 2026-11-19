@@ -53,6 +53,12 @@ class Scheduler:
         return report
 
     def run_forever(self, worker_id: str, stop: Callable[[], bool]) -> None:
+        """**仅演示/嵌入用**：一直 tick 到 `stop()` 为真。
+
+        生产路径没有调用它（B518 分诊结论）——`hos-ares platform` 走的是显式的
+        `tick()` 循环，便于在每轮之间做审批检查与退出判断。保留此方法是为了让
+        嵌入方与演示脚本有现成的常驻循环，别把它当调度器的主入口。
+        """
         interval = self.lease.cfg.scan_s
         while not stop():
             report = self.tick(worker_id)
