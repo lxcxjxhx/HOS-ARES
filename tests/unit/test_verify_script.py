@@ -200,3 +200,25 @@ def test_gate_children_are_unbuffered() -> None:
     )
     assert code == 0, out
     assert "1" in out, f"子进程没被解除缓冲：{out!r}（os.environ={os.environ.get('PYTHONUNBUFFERED')!r}）"
+
+
+def test_build_scripts_have_no_old_package_names() -> None:
+    """B430：`.spec` / `.iss` / Makefile / Dockerfile 不在 lint 与用例的扫描范围里。
+
+    八轮改名走过 495 个文件、5553 处，`packaging/HOS-ARES.spec` 与 `Dockerfile` 一次没被碰到——
+    而它们恰恰是「产品怎么装、怎么构建」的入口。这条把「构建脚本也要跟改名」钉住。
+    """
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    candidates = [
+        *root.glob("packaging/*.spec"),
+        *root.glob("packaging/*.iss"),
+        *root.glob("Dockerfile"),
+        *root.glob("Makefile"),
+        *root.glob("docker-compose.yml"),
+    ]
+    assert candidates, "没找到任何构建脚本，扫描表可能失效"
+    bad = [p.name for p in candidates
+           if "veripen" in p.read_text(encoding="utf-8", errors="replace").lower()]
+    assert not bad, f"构建脚本里还有旧包名：{bad}"

@@ -10,7 +10,7 @@ COPY pyproject.toml requirements.lock ./
 # 演练剧本就 ModuleNotFoundError。锁里带 dev 的 pytest，镜像多几 MB，换"只有一处真相"。
 RUN pip install --no-cache-dir -r requirements.lock
 
-COPY veripen_core ./veripen_core
+COPY hos_ares_core ./hos_ares_core
 COPY api ./api
 COPY config ./config
 

@@ -1,4 +1,4 @@
-# VeriPen —— 人机共用入口（24 §5 的 make 目标子集，B1 只落必要项）
+# HOS-ARES —— 人机共用入口（24 §5 的 make 目标子集，B1 只落必要项）
 #
 # 一次只跑一批；每批 DoD 全绿即停（21 §4）。
 
@@ -464,7 +464,7 @@ b12.16: plan-test types-check lint
 # B29 模型发现能力：拿掉「pending 非空就 run_oracle」，测模型会不会自己验。
 # **模型未配置时 SKIP，不算通过也不算失败**——没测过的东西不许记成测过（D3）。
 agent-discover:
-	$(PY) scripts/b26/agent_live.py --discover --no-fallback --out out/b29 		|| echo "SKIP: 模型未配置（需要 VERIPEN_MODEL_BASE_URL / VERIPEN_MODEL / VERIPEN_MODEL_API_KEY）"
+	$(PY) scripts/b26/agent_live.py --discover --no-fallback --out out/b29 		|| echo "SKIP: 模型未配置（需要 HOS_ARES_MODEL_BASE_URL / HOS_ARES_MODEL / HOS_ARES_MODEL_API_KEY）"
 
 # 同一份用例带上 scripted 兜底：用来区分「模型验的」与「降级后验的」
 agent-discover-fallback:
