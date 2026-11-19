@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Iterable
 
 from hos_ares_core.routes import (
@@ -59,15 +60,23 @@ def routeset(tags: Iterable[str] | None = None, min_confidence: float = 0.70) ->
     )
 
 
+def first_binding(bindings: Sequence[object]) -> object:
+    """同一标签有多条面时，取第一条的**唯一**规则（B455）。
+
+    `redirect_entry` 从 B384 起就有两条面。进程内一侧曾按模板字典序取、真网络一侧
+    直接取 `bindings[0]`（resolver 的 sha 排序）——两边各自"确定性"，答案却不同，
+    于是 N-07 一条报 REFUTED、另一条报 BLOCKED。取第一条的规则只许有一份。
+    """
+    return sorted(bindings, key=lambda b: str(getattr(b, "template", "")))[0]
+
+
 def binding_for(tag: str, template: str | None = None) -> object:
     """按标签取一条绑定。``template`` 仅在测试需要"改版"时用于构造原始候选。"""
     rs = routeset([tag])
     if not rs.bindings:
         raise LookupError(f"没有 {tag} 标签的绑定")
     if template is None:
-        # 同一标签可能有多条面（B384 起 `redirect_entry` 就有两条）。取第一条必须**确定性**，
-        # 否则"插入顺序"会悄悄改变断言对象：按模板字典序取，老面（/api/…）自然在前。
-        return sorted(rs.bindings, key=lambda b: str(b.template))[0]
+        return first_binding(rs.bindings)
     for b in rs.bindings:
         if b.template == template:
             return b

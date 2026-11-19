@@ -22,7 +22,7 @@ import pytest
 from lab.app import App, make_token
 from lab.net_server import LabServer
 from lab.net_transport import NetTransport
-from lab.routes import candidates
+from lab.routes import candidates, first_binding
 
 from hos_ares.bench import Outcome, load_cases
 from hos_ares_core.routes import (
@@ -97,18 +97,14 @@ def _run_on_network(case) -> tuple[str, str]:  # noqa: ANN001
             return "not_run", "BLOCKED"
         if not rs.bindings:
             return "not_run", "BLOCKED"
-        # B455：与 `lab.routes.binding_for` 同一规则取第一条（模板字典序）。
-        # 原先直接取 `bindings[0]`，那是 resolver 的置信度/sha 排序；
-        # 同一个 `redirect_entry` 有两条面时，两侧会各自选中不同的一条，
-        # 于是 N-07 在进程内报 REFUTED、在真网络报 BLOCKED。
-        binding = sorted(rs.bindings, key=lambda b: str(b.template))[0]
+        binding = first_binding(rs.bindings)
 
         bindings = {case.selector: binding}
         for extra in extra_tags(case.oracle):
             rs2 = _routeset(srv.base_url, (extra,))
             if not rs2.bindings:
                 return "not_run", "BLOCKED"
-            bindings[extra] = sorted(rs2.bindings, key=lambda b: str(b.template))[0]
+            bindings[extra] = first_binding(rs2.bindings)
 
         try:
             res = run_oracle(
