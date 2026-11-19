@@ -43,9 +43,9 @@
 ## 2. 验收证据（全绿，2026-11-20 实测）
 
 ```
-tests/integration                 453 项   0 失败   exit=0
+tests/integration                 454 项   0 失败   exit=0（约 78 分钟）
 tests/routes + lab + fixtures      66 项   0 失败
-tests/unit                       2000+ 项  0 失败（1 skip：Windows 符号链接）
+tests/unit                       2088 项   0 失败（1 skip：Windows 符号链接）
 verify                             13 项   全绿（含 mypy / 五道 lint / 账本 / 结构）
 doctor                       21 ok / 0 fail / 4 skip
 hos-ares parity               22 项：green 21 / 未验 1 / red 0
@@ -67,7 +67,7 @@ python scripts/verify.py --quick-tests    # 13 项，约 2 分钟（含单测）
 |---|---|---|
 | E1 容器隔离未验 | 环境 | parity 的 1 项未验；宿主渲染可用 |
 | 真模型路径未验 | 环境（需 key） | `chat` 只验了规则模式；协议由假端点 11 条覆盖 |
-| 集成 75 分钟 | 工程 | 贴着 CI 单 job 上限，见 §10.4 |
+| 集成约 78 分钟 | 工程 | 贴着 CI 单 job 上限，见 §10.4 |
 | ~~浏览器进程残留~~ | **已结案（B506/B507）** | 曾连续四轮误判。真正原因是：清空前的 baseline 里混着上一次被 kill 的跑留下的孤儿。带 PID 哨兵重跑：453 项 0 次命中、跑完实况 0 个进程——**正常路径不产生遗留** |
 | 23 条「死代码」 | 待裁 | 多为设计好但入口未接（如 `Budget.spend_*`），删或接需产品判断 |
 | bench 语料只覆盖部分 oracle | 设计 | 判定能力看 `tests/cases`，那里一个不缺 |
