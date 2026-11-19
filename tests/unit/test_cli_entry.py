@@ -26,7 +26,7 @@ def test_help_lists_every_command() -> None:
     assert rc == 0
     for name, _, _ in COMMANDS:
         assert name in out, f"{name} 没在帮助里"
-    assert "hos_ares <子命令>" in out
+    assert "hos-ares <子命令>" in out
 
 
 def test_every_command_has_description() -> None:

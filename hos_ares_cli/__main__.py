@@ -60,7 +60,7 @@ def _load(module_path: str) -> Callable[[Sequence[str] | None], int]:
 
 def _usage() -> str:
     width = max(len(name) for name, _, _ in COMMANDS)
-    lines = ["hos_ares —— 可验证渗透内核", "", "用法：hos_ares <子命令> [参数…]", "",
+    lines = ["hos-ares —— 可验证渗透内核", "", "用法：hos-ares <子命令> [参数…]", "",
              "子命令："]
     for name, _, desc in COMMANDS:
         lines.append(f"  {name:<{width}}  {desc}")

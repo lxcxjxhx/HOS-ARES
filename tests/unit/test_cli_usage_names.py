@@ -107,10 +107,10 @@ def test_usage_index_mentions_the_alternate_entry_points() -> None:
 
 
 def test_bare_hos_ares_still_works() -> None:
-    """B261 那行 `args[0]` 没做空判断，裸跑 `hos_ares` 直接 IndexError（B262 抓到）。"""
+    """B261 那行 `args[0]` 没做空判断，裸跑 `hos-ares` 直接 IndexError（B262 抓到）。"""
     code, out = _run([])
     assert code == 0
-    assert "用法：hos_ares" in out, out[:200]
+    assert "用法：hos-ares" in out, out[:200]
 
 
 # ── B301：退出码表要覆盖新规则（B300 先改行为，文档随后） ─────────
