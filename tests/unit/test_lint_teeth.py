@@ -198,3 +198,33 @@ def test_ui_zero_address_passes_route_refs(tmp_path: Path, monkeypatch: pytest.M
     monkeypatch.setattr(ui_zero_address, "WEB_DIR", web)
     monkeypatch.setattr(ui_zero_address, "ROOT", tmp_path)
     assert ui_zero_address.main() == 0, capsys.readouterr().out
+
+
+# ── B434：`lint-ui`（操作台零地址，34 §1）也要证明它有牙 ─────────────
+def _ui_scan(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, body: str) -> int:
+    import ui_zero_address
+
+    web = tmp_path / "web" / "static"
+    web.mkdir(parents=True, exist_ok=True)
+    (web / "page.js").write_text(body, encoding="utf-8")
+    monkeypatch.setattr(ui_zero_address, "WEB_DIR", web)
+    monkeypatch.setattr(ui_zero_address, "ROOT", tmp_path)
+    return ui_zero_address.main()
+
+
+def test_ui_zero_address_flags_a_hardcoded_url(tmp_path: Path,
+                                               monkeypatch: pytest.MonkeyPatch) -> None:
+    url = "http" + ":" + SEP + SEP + "example.invalid" + SEP + "x"
+    assert _ui_scan(tmp_path, monkeypatch, f'const u = "{url}";\n') == 1, "写死地址居然没红"
+
+
+def test_ui_zero_address_flags_clipboard_api(tmp_path: Path,
+                                             monkeypatch: pytest.MonkeyPatch) -> None:
+    assert _ui_scan(tmp_path, monkeypatch,
+                    "navigator.clipboard.writeText(x);\n") == 1, "剪贴板 API 居然没红"
+
+
+def test_ui_zero_address_passes_route_ref(tmp_path: Path,
+                                          monkeypatch: pytest.MonkeyPatch) -> None:
+    body = 'const u = "route' + ":" + SEP + SEP + 'finding-42";\n// 只允许不透明引用\n'
+    assert _ui_scan(tmp_path, monkeypatch, body) == 0, "干净样本被误伤"
