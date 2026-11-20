@@ -69,3 +69,35 @@ def test_run_rejects_neither_mode(captured: dict[str, Any], tmp_path: Path) -> N
     ok, msg = _run(Step("run", {"target": TARGET}, ""), tmp_path)
     assert not ok
     assert "discover" in msg
+
+
+# ── B521：多文件 patch（codex 的 apply_patch 位置）──────────────────
+def test_patch_edits_multiple_files_at_once(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+
+    (tmp_path / "a.py").write_text("X = 1\n", encoding="utf-8")
+    (tmp_path / "b.py").write_text("Y = 2\n", encoding="utf-8")
+    step = SimpleNamespace(tool="patch", args={"patches": [
+        {"path": "a.py", "old": "1", "new": "10"},
+        {"path": "b.py", "old": "2", "new": "20"},
+    ]})
+    ok, msg = cmd_chat._exec_step(step, wb=Workbench(tmp_path), root=tmp_path)
+    assert ok, msg
+    assert (tmp_path / "a.py").read_text(encoding="utf-8").strip() == "X = 10"
+    assert (tmp_path / "b.py").read_text(encoding="utf-8").strip() == "Y = 20"
+    assert "a.py" in msg and "b.py" in msg, "两个文件都要在回显里"
+
+
+def test_patch_partial_failure_keeps_the_rest(tmp_path: Path) -> None:
+    """第三条写错不该丢掉前两条的结果——逐条执行、失败只报那一条。"""
+    from types import SimpleNamespace
+
+    (tmp_path / "a.py").write_text("X = 1\n", encoding="utf-8")
+    step = SimpleNamespace(tool="patch", args={"patches": [
+        {"path": "a.py", "old": "1", "new": "10"},
+        {"path": "missing.py", "old": "无", "new": "有"},
+    ]})
+    ok, msg = cmd_chat._exec_step(step, wb=Workbench(tmp_path), root=tmp_path)
+    assert (tmp_path / "a.py").read_text(encoding="utf-8").strip() == "X = 10", "第一条应已落盘"
+    assert ok is False, "有条目失败时整体要报失败"
+    assert "missing.py" in msg

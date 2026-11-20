@@ -50,16 +50,18 @@ NL = chr(10)
 PROMPT = "> "
 
 #: chat 能调的工具（与 _exec_step 的分支一一对应）
-CHAT_TOOLS = frozenset("read write edit sh status run platform".split())
+CHAT_TOOLS = frozenset("read write edit patch sh status run platform".split())
 
 #: chat 自己的系统提示（B95）。**不能复用判定链路那句"只选 oracle"**：
 #: 那会把模型固定引导到 run_oracle，然后被 CHAT_TOOLS 拒掉、每轮降级 rules。
 #: 字段名必须与 ``_exec_step`` 读的键完全一致，否则参数对不上。
 CHAT_SYSTEM_PROMPT = (
-    "你是 HOS-ARES 的工作台助手：把用户的一句话翻译成**恰好一次**工具调用。"
-    "只回一个 json 对象 {\"tool\": <名字>, \"args\": {...}}，不要解释，不要多调用。"
+    "你是 HOS-ARES 的工作台助手：把用户的一句话翻译成工具调用。"
+    "回一个 json 对象 {\"tool\": <名字>, \"args\": {...}}；需要读多个文件时"
+    "可以回一个 json 数组 [{\"tool\"...}, {\"tool\"...}]，按顺序执行。不要解释。"
     "可用工具与参数（字段名必须完全一致，多一个都会被拒；无参工具给 {}）："
-    "read{path} · write{path,content} · edit{path,old,new} · sh{cmd} · "
+    "read{path} · write{path,content} · edit{path,old,new} · "
+    "patch{patches:[{path,old,new},…]} · sh{cmd} · "
     "run{target,openapi?,discover?} · platform{profile,openapi} · status{}。"
     "选择规则：要执行命令或查看系统信息用 sh（cmd 是完整命令行）；"
     "读文件用 read；整文件重写用 write；局部替换用 edit；"
@@ -130,7 +132,24 @@ def _plan_from_model(client: Any, text: str, history: list[str]) -> tuple[Plan |
     # chat 要的是 read/write/edit/sh/run/platform。用错表会把合规调用判成非法。
     why = "模型给了不合规的调用——本轮降级 rules"
     if isinstance(raw, (list, tuple)):
-        return None, why                      # 一步一调用：多调用直接拒
+        # B521：允许模型一次给多个调用（codex 式并行读取）。
+        # 判定链路仍守 `tool_calls_per_step=1`（08 §2），但 chat 不做判定；
+        # 执行层本来就是逐步执行，写操作天然串行，不存在并发写竞态。
+        steps: list[Step] = []
+        for item in raw:
+            if not isinstance(item, dict):
+                return None, why
+            nm = str(item.get("tool") or item.get("name") or "")
+            if not nm or nm == "finish" or nm not in CHAT_TOOLS:
+                return None, why
+            aa = item.get("args") or item.get("arguments") or {}
+            if not isinstance(aa, dict):
+                return None, why
+            steps.append(Step(nm, aa, "模型选择"))
+        if not steps:
+            return None, why
+        return Plan(raw=text, steps=tuple(steps),
+                    understood_as=f"模型：{len(steps)} 个调用", confident=True), ""
     if not isinstance(raw, dict):
         return None, why
     name = str(raw.get("tool") or raw.get("name") or "")
@@ -264,6 +283,41 @@ def _exec_step(step: Any, *, wb: Workbench, root: Path, allow_dangerous: bool = 
         body, added, removed = _diff_text(before, after, path)
         stat = f"✓ 替换 {edit_res.replacements} 处  {C_GREEN}+{added}{C_OFF} {C_RED}-{removed}{C_OFF}"
         return True, stat + ("\n" + body if body else "")
+
+    if tool == "patch":
+        # B521：多文件多处替换（codex 的 apply_patch 那个位置）。
+        # 逐条执行、任一条失败不影响其余，最后汇总——**不会**因为第三条写错就丢掉前两条的结果。
+        items = a.get("patches")
+        if not isinstance(items, list) or not items:
+            return False, "patch 需要 patches: [{path, old, new}, ...]"
+        out: list[str] = []
+        all_ok = True
+        for item in items:
+            if not isinstance(item, dict):
+                out.append(f"{C_RED}✗ 条目不是对象{C_OFF}")
+                all_ok = False
+                continue
+            path = item.get("path")
+            old, new = item.get("old"), item.get("new")
+            if not (isinstance(path, str) and isinstance(old, str) and isinstance(new, str)):
+                out.append(f"{C_RED}✗ 条目缺 path/old/new：{item}{C_OFF}")
+                all_ok = False
+                continue
+            fp = root / path
+            before = fp.read_text(encoding="utf-8", errors="replace") if fp.exists() else ""
+            try:
+                res = wb.edit(path, old=old, new=new)
+            except Exception as exc:  # noqa: BLE001 —— 单条失败要说清是哪条
+                out.append(f"{C_RED}✗ {path}：{exc}{C_OFF}")
+                all_ok = False
+                continue
+            after = fp.read_text(encoding="utf-8", errors="replace")
+            body, added, removed = _diff_text(before, after, path)
+            out.append(f"{C_GREEN}✓{C_OFF} {path}  替换 {res.replacements} 处  "
+                       f"{C_GREEN}+{added}{C_OFF} {C_RED}-{removed}{C_OFF}")
+            if body:
+                out.append(body)
+        return all_ok, chr(10).join(out)
 
     if tool == "sh":
         # 用户给的是**完整命令行**（"执行 python -V"），不是脚本正文。

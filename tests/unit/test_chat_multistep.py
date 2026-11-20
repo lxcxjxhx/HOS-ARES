@@ -95,3 +95,32 @@ def test_history_command_lists_steps(tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert "write" in out
     # 历史渲染里应出现步骤序号
     assert "1." in out or "1 " in out
+
+
+# ── B521：一次给多个调用（codex 式并行读取）────────────────────────
+def test_model_may_return_a_list_of_calls() -> None:
+    """一个 json 数组 → 多个 Step；执行层逐步跑，写操作天然串行。
+
+    判定链路仍守 `tool_calls_per_step=1`（08 §2）——但 chat 不做判定，
+    模型想一次读三个文件没必要逼它分三轮。
+    """
+    from hos_ares_cli.cmd_chat import _plan_from_model
+
+    calls = [{"tool": "read", "args": {"path": "a.py"}},
+             {"tool": "read", "args": {"path": "b.py"}}]
+    plan, why = _plan_from_model(lambda _t, _c: calls, "读这两个文件", [])
+    assert why == ""
+    assert plan is not None
+    assert [s.tool for s in plan.steps] == ["read", "read"]
+    assert plan.steps[1].args["path"] == "b.py"
+
+
+def test_list_with_an_unknown_tool_is_still_rejected() -> None:
+    """放开多调用不等于放开白名单：数组里混进未知工具照样整轮降级。"""
+    from hos_ares_cli.cmd_chat import _plan_from_model
+
+    calls = [{"tool": "read", "args": {"path": "a.py"}},
+             {"tool": "rm_rf", "args": {}}]
+    plan, why = _plan_from_model(lambda _t, _c: calls, "读一下再删库", [])
+    assert plan is None
+    assert why
