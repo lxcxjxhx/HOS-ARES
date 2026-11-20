@@ -162,6 +162,26 @@ def _is_chat_tool(name: str) -> bool:
     return name in CHAT_TOOLS or name in _MCP
 
 
+class _StreamEcho:
+    """流式增量显示（B525）。**写 stderr**：stdout 是会话输出，不能混进模型草稿。"""
+
+    def __init__(self) -> None:
+        self.started = False
+
+    def __call__(self, delta: str) -> None:
+        if not self.started:
+            sys.stderr.write(f"{C_DIM}… 模型输出中：{C_OFF}")
+            self.started = True
+        sys.stderr.write(delta)
+        sys.stderr.flush()
+
+    def done(self) -> None:
+        if self.started:
+            sys.stderr.write(chr(10))
+            sys.stderr.flush()
+            self.started = False
+
+
 def _render_plan(plan: Plan) -> None:
     _say(f"{C_BOLD}⏺ 计划{C_OFF}  {C_DIM}{plan.understood_as}{C_OFF}")
     for i, s in enumerate(plan.steps, start=1):
@@ -467,7 +487,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         from hos_ares_core.agent.client import from_env
 
-        client = from_env(system_prompt=CHAT_SYSTEM_PROMPT)
+        _echo = _StreamEcho()
+        client = from_env(system_prompt=CHAT_SYSTEM_PROMPT, on_delta=_echo)
         model_name = getattr(client, "model", "") if client is not None else ""
     except Exception:  # noqa: BLE001 —— 客户端构造失败不影响规则模式
         client = None

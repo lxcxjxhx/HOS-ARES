@@ -469,7 +469,8 @@ class ScriptedClient:
 
 
 def from_env(
-    *, discover: bool = False, system_prompt: str | None = None
+    *, discover: bool = False, system_prompt: str | None = None,
+    on_delta: Callable[[str], None] | None = None,
 ) -> HttpChatClient | None:
     """从环境变量构造。**没配就返回 None** —— 调用方据此降级，不假装有模型。"""
     base = os.environ.get("HOS_ARES_MODEL_BASE_URL", "").strip()
@@ -482,6 +483,9 @@ def from_env(
         api_key=os.environ.get("HOS_ARES_MODEL_API_KEY", "").strip(),
         discover=discover,
         system_prompt=system_prompt,
+        # B525：流式由环境变量决定（默认关）——一次性调用在网关不稳时更好排查
+        stream=os.environ.get("HOS_ARES_MODEL_STREAM", "") == "1",
+        on_delta=on_delta,
     )
 
 
