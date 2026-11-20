@@ -66,7 +66,7 @@ python scripts/verify.py --quick-tests    # 13 项，约 2 分钟（含单测）
 
 | 边界 | 性质 | 影响 |
 |---|---|---|
-| E1 容器隔离未验 | 环境 | parity 的 1 项未验；宿主渲染可用 |
+| E1 容器隔离未验 | 环境 | parity 的 1 项未验。**细分**：资源约束层（进程数 / 内存 / 超时整组杀）由 Windows Job Object 实现并有 6 条用例，全绿；缺的只是**容器级的文件系统与网络命名空间**。`isolation` 字段如实写 `job-object`，不冒充 docker（`win_job.py` 开头就写明了这条纪律） |
 | 真模型路径未验 | 环境（需 key） | `chat` 只验了规则模式；协议由假端点 11 条覆盖 |
 | 流式只验了分帧 | 环境（需 key） | 6 条用例覆盖 SSE 拼接/坏包/回调；**真端点下的首包延迟、断流重连、usage 分片未验** |
 | MCP 只实现最小三段 | 设计 | `initialize`/`tools/list`/`tools/call`；resources/prompts/sampling 未做 |
