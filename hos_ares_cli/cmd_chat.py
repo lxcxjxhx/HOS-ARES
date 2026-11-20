@@ -547,6 +547,7 @@ def main(argv: list[str] | None = None) -> int:
 
         if client is not None:
             model_plan, why = _plan_from_model(client, text, history)
+            _echo.done()   # B525：流式增量收尾换行，别把下一行挤在同一行
             if model_plan is None:
                 plan = parse(text, history=history)
                 _note_degrade(why)
