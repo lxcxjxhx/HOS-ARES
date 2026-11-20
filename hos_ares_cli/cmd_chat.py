@@ -26,6 +26,8 @@ from __future__ import annotations
 
 import contextlib
 import difflib
+import json
+import os
 import io
 import sys
 import time
@@ -55,6 +57,61 @@ CHAT_TOOLS = frozenset("read write edit patch sh status run platform".split())
 #: chat 自己的系统提示（B95）。**不能复用判定链路那句"只选 oracle"**：
 #: 那会把模型固定引导到 run_oracle，然后被 CHAT_TOOLS 拒掉、每轮降级 rules。
 #: 字段名必须与 ``_exec_step`` 读的键完全一致，否则参数对不上。
+#: 已接上的 MCP 工具：`mcp__<server>__<tool>` → (client, tool)（B523）。
+#: 用模块级表与 `tools/http.py` 的 `_GUARD` 同一模式：外部依赖进程级，不在每层签名里传。
+_MCP: dict[str, tuple[Any, Any]] = {}
+
+
+def _mcp_tool_names() -> frozenset[str]:
+    return frozenset(_MCP)
+
+
+def _load_mcp(cfg_path: str) -> list[tuple[Any, dict[str, Any]]]:
+    """读配置并起 MCP servers。返回 `[(client, {工具名: MCPTool})]`，由调用方负责关闭。
+
+    配置形态（够用就好）：
+        {"servers": {"<名字>": {"command": ["python", "server.py"]}}}
+    起不来的 server **只警告不中断**——外部能力缺席不该让整个会话开不了。
+    """
+    if not cfg_path:
+        return []
+    cfg_file = Path(cfg_path)
+    if not cfg_file.exists():
+        _say(f"{C_DIM}（MCP 配置不存在：{cfg_file}，跳过）{C_OFF}")
+        return []
+    try:
+        cfg = json.loads(cfg_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        _say(f"{C_DIM}（MCP 配置读不了：{exc}，跳过）{C_OFF}")
+        return []
+
+    from hos_ares_core.mcp import MCPClient, MCPError
+
+    loaded: list[tuple[Any, dict[str, Any]]] = []
+    for name, spec in (cfg.get("servers") or {}).items():
+        cmd = (spec or {}).get("command")
+        if not isinstance(cmd, list) or not cmd:
+            _say(f"{C_DIM}（MCP {name}：command 不是数组，跳过）{C_OFF}")
+            continue
+        client = MCPClient([str(x) for x in cmd])
+        try:
+            client.__enter__()
+            client.initialize()
+            tools = {t.name: t for t in client.list_tools()}
+        except MCPError as exc:
+            _say(f"{C_DIM}（MCP {name} 起不来：{exc}）{C_OFF}")
+            try:
+                client.__exit__()
+            except Exception:  # noqa: BLE001
+                pass
+            continue
+        for tname, tool in tools.items():
+            _MCP[f"mcp__{name}__{tname}"] = (client, tool)
+        loaded.append((client, tools))
+        _say(f"{C_DIM}MCP {name}：{len(tools)} 个工具{C_OFF}")
+    return loaded
+
+
 CHAT_SYSTEM_PROMPT = (
     "你是 HOS-ARES 的工作台助手：把用户的一句话翻译成工具调用。"
     "回一个 json 对象 {\"tool\": <名字>, \"args\": {...}}；需要读多个文件时"
@@ -100,6 +157,11 @@ def _danger_mark(step: Any) -> str:
     return f"{C_RED}⚠ [{hit.name}] {hit.why}{C_OFF}" if hit is not None else ""
 
 
+def _is_chat_tool(name: str) -> bool:
+    """内置工具 ∪ 已接上的 MCP 工具（B523）。"""
+    return name in CHAT_TOOLS or name in _MCP
+
+
 def _render_plan(plan: Plan) -> None:
     _say(f"{C_BOLD}⏺ 计划{C_OFF}  {C_DIM}{plan.understood_as}{C_OFF}")
     for i, s in enumerate(plan.steps, start=1):
@@ -140,7 +202,7 @@ def _plan_from_model(client: Any, text: str, history: list[str]) -> tuple[Plan |
             if not isinstance(item, dict):
                 return None, why
             nm = str(item.get("tool") or item.get("name") or "")
-            if not nm or nm == "finish" or nm not in CHAT_TOOLS:
+            if not nm or nm == "finish" or not _is_chat_tool(nm):
                 return None, why
             aa = item.get("args") or item.get("arguments") or {}
             if not isinstance(aa, dict):
@@ -153,7 +215,7 @@ def _plan_from_model(client: Any, text: str, history: list[str]) -> tuple[Plan |
     if not isinstance(raw, dict):
         return None, why
     name = str(raw.get("tool") or raw.get("name") or "")
-    if not name or name == "finish" or name not in CHAT_TOOLS:
+    if not name or name == "finish" or not _is_chat_tool(name):
         return None, why
     args = raw.get("args") or raw.get("arguments") or {}
     if not isinstance(args, dict):
@@ -187,6 +249,19 @@ def _truthy(value: Any) -> bool:
 def _exec_step(step: Any, *, wb: Workbench, root: Path, allow_dangerous: bool = False) -> tuple[bool, str]:
     tool = step.tool
     a = dict(step.args)
+
+    if tool.startswith("mcp__"):
+        entry = _MCP.get(tool)
+        if entry is None:
+            return False, f"未接上的 MCP 工具：{tool}"
+        client, spec = entry
+        try:
+            is_err, text = client.call_tool(spec.name, a)
+        except Exception as exc:  # noqa: BLE001 —— 外部进程的失败要说清
+            return False, f"MCP 调用失败：{exc}"
+        head = f"{C_DIM}[{tool}]{C_OFF} "
+        body = text if len(text) <= 4000 else text[:4000] + "…（截断）"
+        return (not is_err), head + body
 
     if tool == "status":
         return True, "见上方状态行"
@@ -365,6 +440,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--yes", action="store_true", help="跳过计划确认（脚本/录屏用）")
     ap.add_argument("--allow-dangerous", action="store_true",
                     help="放行危险命令（删根/格式化/远程脚本直跑等，默认拦）")
+    ap.add_argument("--mcp-config", default=os.environ.get("HOS_ARES_MCP_CONFIG", ""),
+                    help="MCP servers 配置（json 文件），或设 HOS_ARES_MCP_CONFIG")
     args = ap.parse_args(sys.argv[1:] if argv is None else argv)
     setup_stdio()
 
@@ -377,6 +454,13 @@ def main(argv: list[str] | None = None) -> int:
     store = Store(str(db)).init()
     sess = Session.resume(store, args.task_id) if args.resume and args.task_id else Session(store)
     wb = Workbench(root)
+    # MCP：接上外部工具（B523）。起不来的 server 只警告——外部能力缺席不该让会话开不了。
+    _loaded_mcp = _load_mcp(args.mcp_config)
+    if _loaded_mcp:
+        import atexit
+
+        for _client, _tools in _loaded_mcp:
+            atexit.register(_client.__exit__)
 
     # 决策层如实渲染：没模型就说 rules，不假装
     model_name = ""
