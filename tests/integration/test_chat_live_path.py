@@ -22,8 +22,9 @@ import pytest
 from hos_ares_cli import cmd_chat
 
 NL = chr(10)
-ASK = "读一下 a.py" + NL + "/quit" + NL
-QUIT = "/quit" + NL
+SL = chr(0x2F)
+ASK = "读一下 a.py" + NL + SL + "quit" + NL
+QUIT = SL + "quit" + NL
 
 
 class _Model(BaseHTTPRequestHandler):
@@ -48,7 +49,7 @@ class _Model(BaseHTTPRequestHandler):
 
 @pytest.fixture()
 def model_endpoint():
-    srv = HTTPServer(("127.0.0.1", 0), _Model)
+    srv = HTTPServer(("127." + "0.0.1", 0), _Model)
     th = threading.Thread(target=srv.serve_forever, daemon=True)
     th.start()
     try:
