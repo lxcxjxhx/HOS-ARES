@@ -109,3 +109,17 @@ def test_server_that_dies_raises_instead_of_hanging(tmp_path: Path) -> None:
 def test_client_without_context_manager_refuses_to_work() -> None:
     with pytest.raises(MCPError, match="没起"):
         MCPClient([sys.executable, "-c", "pass"]).initialize()
+
+
+# ── B528：超时必须是真的（readline 阻塞曾让 timeout_s 形同虚设）──
+def test_silent_server_times_out(tmp_path: Path) -> None:
+    """server 收了请求但不回话——客户端要在 timeout 内报错，而不是一直等。"""
+    import time
+
+    hang = "import sys, time\nfor _ in sys.stdin:\n    time.sleep(5)\n"
+    with MCPClient(_server(tmp_path, hang), timeout_s=0.5) as c:
+        start = time.monotonic()
+        with pytest.raises(MCPError, match="超时"):
+            c._rpc("initialize")
+        elapsed = time.monotonic() - start
+    assert elapsed < 3, f"超时没生效，等了 {elapsed:.1f}s"

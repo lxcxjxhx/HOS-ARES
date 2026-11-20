@@ -122,7 +122,17 @@ class MCPClient:
             except (OSError, ValueError) as exc:
                 raise MCPError(f"写不进 MCP server：{exc}") from exc
 
-            line = proc.stdout.readline()
+            # B528：**真超时**。`readline()` 是阻塞的——server 不回话时会一直等，
+            # 而 `timeout_s` 之前只是个没生效的数字。Windows 上 select 不支持管道，
+            # 所以用「一个短命线程 + join(timeout)」：读完即弃，不会有队列串味。
+            box: list[str] = []
+            reader = threading.Thread(target=lambda: box.append(proc.stdout.readline()),
+                                      daemon=True)
+            reader.start()
+            reader.join(self._timeout_s)
+            if not box:
+                raise MCPError(f"MCP 超时：{self._timeout_s}s 内没有响应（{method}）")
+            line = box[0]
             if not line:
                 err = ""
                 if proc.stderr is not None:
