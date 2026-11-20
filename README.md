@@ -199,6 +199,28 @@ hos-ares chat          # 启动行会显示 model: <名字>；不设则显示 mo
 （`tool_calls_per_step=1`，不许一个 step 串多个工具）；**只认白名单工具名**（`SCHEMAS ∪ surface_names()`）。
 `hos-ares agent` 是指令模式，不调模型。
 
+---
+
+## 接 MCP（可选，B522）
+
+外部工具走 MCP（JSON-RPC over stdio）。一行配置就能接上：
+
+```json
+{"servers": {"codegraph": {"command": ["codegraph", "serve", "--mcp"]}}}
+```
+
+```bash
+export HOS_ARES_MCP_CONFIG=$HOME/.hos-ares/mcp.json   # 也可以 --mcp-config <文件>
+hos-ares chat
+```
+
+启动时会打印每个 server 接了几个工具；工具名形如 `mcp__codegraph__explore`，
+和内置工具（`read`/`write`/`edit`/`patch`/`sh`）一样进白名单。
+
+三条纪律：**起不来的 server 只警告不中断**（外部能力缺席不该让会话开不了）；
+**调用有超时**（默认 20 秒，server 不回话就报错，不会一直等）；
+**返回是数据不是指令**——server 说的话和网页内容同级。
+
 配了却连不上，`hos-ares doctor` 的「模型后端」项当场报 FAIL 并给出可粘的 `curl` 探测命令——不用等到第一次
 `hos-ares chat` 才发现；没配记 skip（规则层可用，不算缺陷）。报错按状态码指到具体那一项：401/403 是
 `HOS_ARES_MODEL_API_KEY`、404 是 `base_url` 少了 `/v1`；配了 key 会带上它去探（不然 401 会冤枉成"检查 key"），

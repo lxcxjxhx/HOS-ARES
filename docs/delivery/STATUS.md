@@ -46,7 +46,7 @@
 ```
 tests/integration                 454 项   0 失败   exit=0（约 78 分钟）
 tests/routes + lab + fixtures      66 项   0 失败
-tests/unit                       2088 项   0 失败（1 skip：Windows 符号链接）
+tests/unit                       2128 项   0 失败（1 skip：Windows 符号链接）
 verify                             13 项   全绿（含 mypy / 五道 lint / 账本 / 结构）
 doctor                       21 ok / 0 fail / 4 skip
 hos-ares parity               22 项：green 21 / 未验 1 / red 0
