@@ -28,6 +28,7 @@ import json
 import os
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from typing import Any, Mapping, Sequence
 
 from ..tools.registry import SCHEMAS, TOOL_CALLS_PER_STEP, ToolCall, tool_schemas
@@ -240,6 +241,8 @@ class HttpChatClient:
         tool_names: Sequence[str] | None = None,
         discover: bool = False,
         system_prompt: str | None = None,
+        stream: bool = False,
+        on_delta: Callable[[str], None] | None = None,
     ) -> None:
         # 用 chr(0x2F) 拼斜杠：本仓库禁止以 / 开头的地址字面量（noroute R-PATH），
         # 与 tools/transport.py 处理根路径的写法一致。
@@ -257,6 +260,9 @@ class HttpChatClient:
         #: 于是模型永远答 run_oracle，被 chat 的白名单拒掉 → 每轮降级 rules。
         #: 给了就**不注入 agent 的 few-shot**：那套示例教的是 oracle 选择。
         self.system_prompt = system_prompt
+        # B524：流式只影响「怎么收」，不影响「收什么」——最后仍要拼出同一个 JSON 对象
+        self.stream = stream
+        self.on_delta = on_delta
         #: 累计用量。**只记网关自己报的数**，不自己估算——
         #: 估出来的 token 数不能拿来算成本，那是把猜测当账。
         self.usage: dict[str, int] = {
@@ -269,6 +275,53 @@ class HttpChatClient:
     #: 给太小就只拿到 `finish_reason=length` 与空 content。这个上限是**预算**，
     #: 不是"多一点更保险"——它直接决定一次决策的 token 成本。
     MAX_TOKENS = 1024
+
+    def _read_stream(self, resp: Any) -> dict[str, Any]:
+        """读 SSE：逐行 `data: {...}`，拼 content，`data: [DONE]` 结束。
+
+        为什么要流式：模型思考时用户能看到进度，而不是盯着空屏等 30 秒。
+        **收完仍返回与一次性调用同形的 body**——上层不需要知道走没走流式。
+
+        容错三条（都会碰到）：空行/注释行跳过；`[DONE]` 结束；
+        坏 JSON 只丢那一片，不中断整轮（否则一个脏包会让整次调用失败）。
+        """
+        chunks: list[str] = []
+        finish_reason = ""
+        usage: dict[str, Any] = {}
+        for raw in resp:
+            try:
+                line = raw.decode("utf-8", errors="replace").strip()
+            except (AttributeError, UnicodeDecodeError):
+                continue
+            if not line or line.startswith(":") or not line.startswith("data:"):
+                continue
+            payload_text = line[5:].strip()
+            if payload_text == "[DONE]":
+                break
+            try:
+                packet = json.loads(payload_text)
+            except json.JSONDecodeError:
+                continue
+            choice = (packet.get("choices") or [{}])[0] or {}
+            delta = (choice.get("delta") or {}).get("content")
+            if isinstance(delta, str) and delta:
+                chunks.append(delta)
+                if self.on_delta is not None:
+                    try:
+                        self.on_delta(delta)
+                    except Exception:  # noqa: BLE001 —— 回调的错不该毁掉这次调用
+                        pass
+            if choice.get("finish_reason"):
+                finish_reason = str(choice["finish_reason"])
+            if isinstance(packet.get("usage"), dict):
+                usage = packet["usage"]
+        return {
+            "choices": [{
+                "message": {"role": "assistant", "content": "".join(chunks)},
+                "finish_reason": finish_reason or "stop",
+            }],
+            "usage": usage,
+        }
 
     def __call__(self, goal: str, ctx: Mapping[str, Any]) -> Mapping[str, Any]:
         payload = {
@@ -348,6 +401,8 @@ class HttpChatClient:
                 {"role": "system", "content": self.system_prompt},
                 {"role": "user", "content": json.dumps({"goal": goal, **ctx}, default=str)},
             ]
+        if self.stream:
+            payload["stream"] = True
         data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(
             self.base_url + _SLASH + "chat" + _SLASH + "completions",
@@ -365,7 +420,10 @@ class HttpChatClient:
         )
         try:
             with urllib.request.urlopen(req, timeout=self.timeout_s) as resp:  # noqa: S310 - 仅回环网关
-                body = json.loads(resp.read().decode("utf-8"))
+                if self.stream:
+                    body = self._read_stream(resp)
+                else:
+                    body = json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             # HTTPError 是 URLError 的子类：先接住它，否则 401/404 会被说成"不可达"。
             raise ModelClientError(explain_http_status(exc.code, req.full_url)) from exc
