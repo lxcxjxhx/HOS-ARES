@@ -290,34 +290,34 @@ def _exec_step(step: Any, *, wb: Workbench, root: Path, allow_dangerous: bool = 
         items = a.get("patches")
         if not isinstance(items, list) or not items:
             return False, "patch 需要 patches: [{path, old, new}, ...]"
-        out: list[str] = []
+        patch_lines: list[str] = []
         all_ok = True
         for item in items:
             if not isinstance(item, dict):
-                out.append(f"{C_RED}✗ 条目不是对象{C_OFF}")
+                patch_lines.append(f"{C_RED}✗ 条目不是对象{C_OFF}")
                 all_ok = False
                 continue
             path = item.get("path")
             old, new = item.get("old"), item.get("new")
             if not (isinstance(path, str) and isinstance(old, str) and isinstance(new, str)):
-                out.append(f"{C_RED}✗ 条目缺 path/old/new：{item}{C_OFF}")
+                patch_lines.append(f"{C_RED}✗ 条目缺 path/old/new：{item}{C_OFF}")
                 all_ok = False
                 continue
             fp = root / path
             before = fp.read_text(encoding="utf-8", errors="replace") if fp.exists() else ""
             try:
-                res = wb.edit(path, old=old, new=new)
+                edit_res = wb.edit(path, old=old, new=new)
             except Exception as exc:  # noqa: BLE001 —— 单条失败要说清是哪条
-                out.append(f"{C_RED}✗ {path}：{exc}{C_OFF}")
+                patch_lines.append(f"{C_RED}✗ {path}：{exc}{C_OFF}")
                 all_ok = False
                 continue
             after = fp.read_text(encoding="utf-8", errors="replace")
             body, added, removed = _diff_text(before, after, path)
-            out.append(f"{C_GREEN}✓{C_OFF} {path}  替换 {res.replacements} 处  "
+            patch_lines.append(f"{C_GREEN}✓{C_OFF} {path}  替换 {edit_res.replacements} 处  "
                        f"{C_GREEN}+{added}{C_OFF} {C_RED}-{removed}{C_OFF}")
             if body:
-                out.append(body)
-        return all_ok, chr(10).join(out)
+                patch_lines.append(body)
+        return all_ok, chr(10).join(patch_lines)
 
     if tool == "sh":
         # 用户给的是**完整命令行**（"执行 python -V"），不是脚本正文。
