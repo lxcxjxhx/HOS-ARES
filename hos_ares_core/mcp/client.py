@@ -126,7 +126,8 @@ class MCPClient:
             # 而 `timeout_s` 之前只是个没生效的数字。Windows 上 select 不支持管道，
             # 所以用「一个短命线程 + join(timeout)」：读完即弃，不会有队列串味。
             box: list[str] = []
-            reader = threading.Thread(target=lambda: box.append(proc.stdout.readline()),
+            out_pipe = proc.stdout   # 上面已确认非 None；绑定局部量给闭包与 mypy 看
+            reader = threading.Thread(target=lambda: box.append(out_pipe.readline()),
                                       daemon=True)
             reader.start()
             reader.join(self._timeout_s)
