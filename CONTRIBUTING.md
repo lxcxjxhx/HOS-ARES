@@ -25,6 +25,10 @@ hos-ares doctor              # 25 项自检；缺条件的记 skip，不记 fail
 python scripts/verify.py > /tmp/v.log 2>&1; echo "exit=$?"; tail -3 /tmp/v.log
 ```
 
+**`verify --with-tests` 期间日志会整段空白**：它的 gate 用 `subprocess.run(capture_output=True)`，
+pytest 的输出要**整段跑完才落盘**。所以 `[tests-integration] 跑…` 之后可能四五十分钟没有一行新内容，
+那不是挂死（B424 的老坑换了张脸）。判活看 CPU：`Get-Process python | Select CPU`。
+
 **数进程之前先把 baseline 清零**：`Get-Process msedge` 的数里可能混着上一轮留下的孤儿，
 它们不退，`Get-Process` 一直数得到。所以我曾连续四轮（B428→B506）拿同一个数得出不同结论，
 最后一次「跑前 `Stop-Process` 清到 0」才问清：集成正常路径**不产生遗留**。
