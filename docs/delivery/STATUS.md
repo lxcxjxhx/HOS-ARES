@@ -44,7 +44,7 @@
 ## 2. 验收证据（全绿，2026-11-20 实测）
 
 ```
-tests/integration                 454 项   0 失败   exit=0（约 78 分钟）
+tests/integration                 459 项   0 失败   exit=0（约 78 分钟）
 tests/routes + lab + fixtures      66 项   0 失败
 tests/unit                       2128 项   0 失败（1 skip：Windows 符号链接）
 verify                             13 项   全绿（含 mypy / 五道 lint / 账本 / 结构）
