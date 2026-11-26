@@ -270,7 +270,8 @@ def _truthy(value: Any) -> bool:
     return str(value).strip().lower() in ("1", "true", "yes", "y", "on")
 
 
-def _exec_step(step: Any, *, wb: Workbench, root: Path, allow_dangerous: bool = False) -> tuple[bool, str]:
+def _exec_step(step: Any, *, wb: Workbench, root: Path, allow_dangerous: bool = False,
+               store: Any = None, task_id: str = "") -> tuple[bool, str]:
     tool = step.tool
     a = dict(step.args)
 
@@ -286,7 +287,8 @@ def _exec_step(step: Any, *, wb: Workbench, root: Path, allow_dangerous: bool = 
                 return False, (f"[GATE-DANGER] {hit.name}：{hit.why}"
                                "（确实要跑就加 --allow-dangerous）")
             approved = True          # 危险词已过闸或用户显式放行
-        bridged = _surface_call(tool, a, root=root, approved=approved)
+        bridged = _surface_call(tool, a, root=root, approved=approved,
+                                store=store, task_id=task_id)
         if bridged is not None:
             return bridged
 
@@ -501,7 +503,8 @@ def _chat_executor(root: Path) -> "tuple[ShellExecutor, str]":
 
 
 def _surface_call(
-    tool: str, args: Mapping[str, Any], *, root: Path, approved: bool
+    tool: str, args: Mapping[str, Any], *, root: Path, approved: bool,
+    store: Any = None, task_id: str = "",
 ) -> tuple[bool, str] | None:
     """先试工具面；**不在工具面上的工具返回 None**（调用方走自己的实现）。
 
@@ -520,7 +523,7 @@ def _surface_call(
     except surface_bridge.NotOnSurface:
         return None
 
-    surface = _chat_surface(root)
+    surface = _chat_surface(root, store=store, task_id=task_id)
     payload = surface_bridge.surface_args(tool, args)
     if tool == "sh":
         payload.setdefault("interpreter", "sh" if sys.platform != "win32" else "cmd")
@@ -585,11 +588,15 @@ def _surface_diff(tool: str, args: Mapping[str, Any], *, root: Path) -> str:
         return ""
 
 
-def _chat_surface(root: Path) -> Any:
-    """chat 用的工具面：工作台 + 容器执行器 + 浏览器渲染器（能接的都接上）。
+def _chat_surface(root: Path, *, store: Any = None, task_id: str = "") -> Any:
+    """chat 用的工具面：工作台 + 容器执行器 + 审计落库（能接的都接上）。
 
     每次调用重建是**有意的**：`root` 可能不同（`--root`），
     而工具面的 handler 闭包里握着 workbench，缓存错 root 比重建贵得多。
+
+    ``store`` / ``task_id`` 给了就挂上 **audit sink**（B548）：每条审计同时进
+    `task_events`，于是"谁在什么时候调了什么、允不允许、结果如何"**跨进程可查**。
+    没给就只留在内存里 —— 那种情况下这条信息只在会话当场能看到。
     """
     from hos_ares_core.tools.surface import build_surface
     from hos_ares_core.workbench.fs import Workbench
@@ -607,7 +614,38 @@ def _chat_surface(root: Path) -> Any:
         # 隔离档位随返回值一起上去：换了执行路径**不许让这条信息消失**（B545）
         return {"exit_code": code, "stdout": out, "stderr": err, "isolation": note}
 
-    return build_surface(workbench=Workbench(str(root)), shell_runner=_shell)
+    surface = build_surface(workbench=Workbench(str(root)), shell_runner=_shell)
+    if store is not None and task_id:
+        surface.audit_sink = _audit_to_events(store, task_id)
+    return surface
+
+
+def _audit_to_events(store: Any, task_id: str) -> Any:
+    """把工具面审计写进 `task_events`（kind=`tool`）。
+
+    复用现成的表与列（`tool` / `ok` / `detail_json`），不新建表：
+    审计事件本来就是"任务做过的一件事"，与 oracle 事件同类。
+
+    **失败不上抛**：兜在 `ToolSurface._record` 里——审计写不进去是运维问题，
+    不该让工具调用本身失败。
+    """
+    import json as _json
+    import time as _time
+
+    def _sink(row: Mapping[str, Any]) -> None:
+        tool = str(row.get("tool") or "")
+        result = str(row.get("result") or "")
+        ok = result == "ok"
+        detail = _json.dumps(dict(row), ensure_ascii=False, sort_keys=True)
+        with store.lock:
+            store.conn.execute(
+                "INSERT INTO task_events (task_id, ts, kind, tool, ok, detail_json)"
+                " VALUES (?,?,?,?,?,?)",
+                (task_id, int(_time.time()), "tool", tool, int(ok), detail),
+            )
+            store.conn.commit()
+
+    return _sink
 
 
 def _ask(prompt: str) -> str:
@@ -752,7 +790,8 @@ def main(argv: list[str] | None = None) -> int:
             _say(f"{C_BOLD}⏺ {step.tool}{C_OFF}({', '.join(f'{k}={v}' for k, v in step.args.items())})")
             try:
                 ok, out = _exec_step(step, wb=wb, root=root,
-                             allow_dangerous=args.allow_dangerous)
+                             allow_dangerous=args.allow_dangerous,
+                             store=store, task_id=sess.task_id)
             except KeyboardInterrupt:
                 _say(f"  {C_RED}中断{C_OFF}")
                 ok, out = False, "用户中断"
