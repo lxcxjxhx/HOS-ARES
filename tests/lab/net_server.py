@@ -31,6 +31,18 @@ class _WsgiHandler(BaseHTTPRequestHandler):
     app: App
     protocol_version = "HTTP/1.1"
 
+    def _port(self) -> int:
+        """本服务监听的端口。
+
+        `self.server.server_address` 的类型是 `tuple[Any, ...] | str | Buffer`
+        （`socketserver` 允许 AF_UNIX 的字符串地址），直接下标 mypy 会报不可索引，
+        而 cast 又会被判成多余。这里显式取一次并校验形状，比注释管用。
+        """
+        addr = self.server.server_address
+        if isinstance(addr, tuple) and len(addr) >= 2:
+            return int(addr[1])
+        raise RuntimeError(f"服务地址不是 (host, port)：{addr!r}")
+
     def _handle(self) -> None:
         parts = urlsplit(self.path)
         length = int(self.headers.get("Content-Length") or 0)
@@ -41,7 +53,7 @@ class _WsgiHandler(BaseHTTPRequestHandler):
             "PATH_INFO": unquote(parts.path),
             "QUERY_STRING": parts.query,
             "SERVER_NAME": LOOPBACK,
-            "SERVER_PORT": str(self.server.server_address[1]),  # type: ignore[union-attr]
+            "SERVER_PORT": str(self._port()),
             "wsgi.input": _BytesInput(body),
             "wsgi.errors": None,
         }

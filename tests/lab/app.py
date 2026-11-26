@@ -67,6 +67,9 @@ RATE_LIMIT_HITS = 5
 #: 这个部署**授权**的 scope 集合（B412）。请求里出现名单外的项，安全态在授权阶段
 #: 直接拒；脆弱态照单全收，并把它真的写进 token——这正是"scope 提升"的形状。
 ALLOWED_SCOPES = frozenset({"read", "write"})
+
+# 首页的可爬入口在 `_home()` 里从 `assets_json()` 派生（B540）：
+# 要爬的面本来就该是"靶场对外声明的那些面"，再写一份清单迟早对不上。
 #: 靶场的两个"域"符号：允许取数的文档域，与用于外带证明的 OOB 前缀
 ALLOWED_FETCH_PREFIX = "doc-SAMPLE"
 OOB_PREFIX = "oob-SAMPLE"
@@ -238,6 +241,8 @@ class App:
         token: str | None,
         environ: Mapping[str, Any],
     ) -> tuple[int, str, Any]:
+        if path == "/":
+            return 200, "text/html; charset=utf-8", self._home()
         if path == "/api/items":
             return 200, "application/json", {"items": list(ITEMS.values()), "total": len(ITEMS)}
         if m := re.fullmatch(r"/api/items/(\d+)", path):
@@ -296,6 +301,26 @@ class App:
         if path == "/api/graphql":
             return self._graphql(_headers_of(environ))
         return 404, "application/json", {"error": "not_found"}
+
+    def _home(self) -> str:
+        """靶场首页（B540）：**发现阶段的入口**。
+
+        以前 `/` 回 404，于是 `--discover` 从首页出发只拿到 3 条 404，
+        "得到响应但没有可解析的页面"，一条面都攒不到——三条端到端验收全卡在这里。
+
+        这里只放**链接**，不放 JS：发现阶段靠 HTML 里的 href 抽候选面，
+        这页的作用是"给出可爬的入口"，不是"演示前端框架"。
+        """
+        links = tuple(
+            op["template"].replace("{id}", "1").replace("{name}", "notes.txt")
+            for op in assets_json()["operations"]
+        )
+        anchors = "".join(f'<li><a href="{href}">{href}</a></li>' for href in links)
+        return (
+            "<!doctype html><html><head><meta charset=\"utf-8\">"
+            "<title>lab portal</title></head><body>"
+            "<h1>lab portal</h1><ul>" + anchors + "</ul></body></html>"
+        )
 
     def _item(self, item_id: int, token: str | None) -> tuple[int, str, Any]:
         claims = self._claims(token)

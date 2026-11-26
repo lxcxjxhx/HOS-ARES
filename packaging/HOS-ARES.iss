@@ -9,9 +9,21 @@
 ; 用法（CI 与本地一致）：
 ;   ISCC.exe /DMyAppVersion=0.1.0 packaging\HOS-ARES.iss
 ; 产物：packaging\out\HOS-ARES-Setup-<版本>.exe
+;
+; 本地验证用（无需管理员）：
+;   ISCC.exe /DMyAppVersion=0.1.0 /DMyPrivileges=lowest packaging\HOS-ARES.iss
+;   → 装到 %LocalAppData%\HOS-ARES，可以静默装/静默卸地验一遍
+;   这条**只用于验证安装机制**；交付物仍按默认（admin，装 Program Files）。
 
 #ifndef MyAppVersion
   #define MyAppVersion "0.1.0"
+#endif
+
+;: 安装权限。默认 admin（交付口径，装 Program Files，`H33 §10.2` 建议 A 维持）。
+;: 允许编译期覆盖成 lowest：否则没有管理员的机器上**验不了**安装/卸载本身，
+;: 而"装了能不能打开"这句话就没证据（B539）。
+#ifndef MyPrivileges
+  #define MyPrivileges "admin"
 #endif
 
 #define MyAppName "HOS-ARES"
@@ -29,7 +41,8 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 ; 单用户装到 Program Files 需要提权：给管理员权限，普通用户点"是"即可
-PrivilegesRequired=admin
+; （`/DMyPrivileges=lowest` 时改装用户目录，供本地验证安装机制用）
+PrivilegesRequired={#MyPrivileges}
 OutputDir={#RepoRoot}\packaging\out
 OutputBaseFilename={#MyAppName}-Setup-{#MyAppVersion}
 Compression=lzma2

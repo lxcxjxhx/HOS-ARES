@@ -559,6 +559,12 @@ installer: exe
 	$(PY) -c "import pathlib, shutil; pathlib.Path('dist').mkdir(exist_ok=True); shutil.copy2('out/dist/HOS-ARES.exe', 'dist/HOS-ARES.exe')"
 	"$(ISCC)" /DMyAppVersion=0.0.0-dev packaging/HOS-ARES.iss
 
+# 安装包**验证**（B539）：装得上 / 装了能打开 / 卸得干净。
+# 与 `installer` 的区别：这条会真的装一遍再卸掉，装到 %LocalAppData%，不需要管理员。
+# 交付物仍按默认（admin，装 Program Files）；这里编的是只用于验证的那个包。
+installer-check: exe
+	$(PY) scripts/check_setup.py
+
 # B59：平台可证 + 三对标可证
 platform-check: playbook-check blackboard-conflict context-compress report-audit
 
