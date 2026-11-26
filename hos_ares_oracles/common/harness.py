@@ -525,6 +525,24 @@ def run(
             return RunResult(
                 Verdict.BLOCKED, "face_not_applicable:baseline_semantics", None, (), base_sent
             )
+        # 剩下的是「基线 HTTP 层面就不正常」（4xx/5xx/连不上）。
+        #
+        # 这里再分一层（B553）：**基线要求这个面必填的参数，而 oracle 的
+        # `baseline_params` 没给** —— 典型是 `cookie_flags`（`baseline_params={}`）
+        # 撞上靶场的 `/portal/token`（缺 `code` 直接 400 `missing_code`）。
+        #
+        # 那不是"目标坏了"，是"这个 oracle 的基线形状与该面的必填要求对不上"。
+        # 把状态码带进 reason，读者一眼能看出是 4xx 还是 5xx、还是根本没连上。
+        status = int(getattr(baseline, "status", 0) or 0)
+        if 400 <= status < 500:
+            return RunResult(
+                Verdict.BLOCKED, f"face_not_applicable:baseline_4xx_{status}", None, (), base_sent
+            )
+        if status >= 500:
+            # 5xx 是目标自己的问题，归 `baseline_abnormal`（要查目标）
+            return RunResult(
+                Verdict.BLOCKED, f"baseline_abnormal:http_{status}", None, (), base_sent
+            )
         return RunResult(Verdict.BLOCKED, "baseline_abnormal", None, (), base_sent)
 
     # 多步序列型判据（B410）：一个变体一次请求装不下（登出→复用、取码→换码）。
