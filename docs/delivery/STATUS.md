@@ -41,24 +41,25 @@
 
 ---
 
-## 2. 验收证据（全绿，2026-11-20 实测）
+## 2. 验收证据（2026-11-26 实测，E1 已翻绿）
 
 ```
-tests/integration                 459 项   0 失败   exit=0（约 78 分钟）
-tests/routes + lab + fixtures      66 项   0 失败
-tests/unit                       2128 项   0 失败（1 skip：Windows 符号链接）
-verify                             13 项   全绿（含 mypy / 五道 lint / 账本 / 结构）
-doctor                       21 ok / 0 fail / 4 skip
-hos-ares parity               22 项：green 21 / 未验 1 / red 0
+tests/unit                       2137 项   0 失败（1 skip：Windows 符号链接）
+tests/integration                 含 sandbox 隔离 11 项，0 skip
+verify                             12 项   全绿（含 mypy / 五道 lint / 账本 / 结构）
+doctor                            沙箱执行体：wsl-podman（isolation: container）
+hos-ares parity               22 项：green 22 / 未验 0 / red 0
 ```
 
 一条命令复现闸门：
 
 ```bash
-python scripts/verify.py --quick-tests    # 13 项，约 2 分钟（含单测）
+python scripts/verify.py --quick-tests    # 12 项（含单测）
 ```
 
-`parity` 里那 1 项未验是 **E1 执行隔离**——本机没有 docker/podman，判不了。
+**22/22 全绿**：E1 执行隔离首次验过。它不是"装了 docker"，而是
+`select_executor()` 找到 **WSL 发行版里的 podman** 并真的起了一个容器：
+容器内 `touch /tmp/…` 在宿主看不到、挂进来的只读宿主管写不动。
 
 ---
 
@@ -66,7 +67,8 @@ python scripts/verify.py --quick-tests    # 13 项，约 2 分钟（含单测）
 
 | 边界 | 性质 | 影响 |
 |---|---|---|
-| E1 容器隔离未验 | 环境 | parity 的 1 项未验。**细分**：资源约束层（进程数 / 内存 / 超时整组杀）由 Windows Job Object 实现并有 6 条用例，全绿；缺的只是**容器级的文件系统与网络命名空间**。`isolation` 字段如实写 `job-object`，不冒充 docker（`win_job.py` 开头就写明了这条纪律） |
+| ~~E1 容器隔离未验~~ | **已结案（B536）** | 容器引擎在 **WSL 发行版里**（`wsl -d <distro> --exec podman`），`select_executor()` 新增这一档并实测通过：容器内 `touch /tmp` 宿主不可见、`--mount …,readonly` 写不动、超时在**容器内**触发（退出码 124）。`isolation` 如实写 `container`；Job Object 档仍写 `job-object`，两者不混。边界：需要那台机器上装了 WSL + podman（`sudo apt install podman uidmap slirp4netns fuse-overlayfs`），宿主 docker 仍优先 |
+| 容器级**并行**未验 | 环境 | E5 的并行是进程内三任务（指纹与串行一致），容器级并行没做。执行体已备（容器档可用），但"每个任务一个容器"的调度与配额分发是另一件事 |
 | 真模型路径未验 | 环境（需 key） | `chat` 只验了规则模式；协议由假端点 11 条覆盖 |
 | 流式只验了分帧 | 环境（需 key） | 6 条用例覆盖 SSE 拼接/坏包/回调；**真端点下的首包延迟、断流重连、usage 分片未验** |
 | MCP 只实现最小三段 | 设计 | `initialize`/`tools/list`/`tools/call`；resources/prompts/sampling 未做 |
@@ -92,12 +94,14 @@ python scripts/verify.py --quick-tests    # 13 项，约 2 分钟（含单测）
 
 ### 需要环境
 
-- **E1**：装 docker 或 podman（或 WSL 发行版）→ 可把 parity 的 22 项做满
+- ~~**E1**：装 docker 或 podman（或 WSL 发行版）~~ → **已解决（B536）**：WSL 里的 podman 接进 `select_executor`，22 项做满
 - **真模型**：起一个 OpenAI 兼容端点 + 给 key → 可验 `chat` 的 live 路径
 
 ### 我能自己做的
 
-生产性工作已清零。剩下只有低优先级项（浏览器残留定位需重跑 75 分钟）。
+- **容器级并行（E5 的另一半）**：执行体已有容器档，缺的是"每任务一容器 + 配额分发"的调度
+- **真模型路径**：本机网关（127.0.0.1:4000）当前没起来；起来就能验 `chat` 的 live 与流式
+- 低优先级：浏览器残留定位（需重跑 75 分钟）
 
 ---
 
@@ -111,7 +115,7 @@ hos-ares doctor                            # 25 项环境自检
 hos-ares coverage                          # 判定矩阵
 ```
 
-账本（498 批，append-only，`0 problems`）：`.hos-ares/batches.jsonl`，用
+账本（append-only，`0 problems`）：`.hos-ares/batches.jsonl`，用
 `python scripts/lint/ledger_check.py` 校验。
 
 历史遗留项归口：`plan-hos-ares/H31-未结项归口.md`（105 条，逐条已分类）。

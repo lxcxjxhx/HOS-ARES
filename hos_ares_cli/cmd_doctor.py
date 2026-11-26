@@ -537,12 +537,12 @@ def check_sandbox(root: Path) -> CheckResult:
             "装 docker 或 podman 后重跑 make exec-isolation",
         )
     name = getattr(exe, "name", type(exe).__name__)
-    # 三态如实：docker=container / job-object=受限执行（不是容器）/ 无
-    if name == "docker":
-        return CheckResult("沙箱执行体", Status.OK, "docker（isolation: container）")
+    # 三态如实：容器档（docker / WSL 里的 podman）与受限执行（job-object）不是一回事
+    if getattr(exe, "isolation", "") == "container":
+        return CheckResult("沙箱执行体", Status.OK, f"{name}（isolation: container）")
     return CheckResult(
         "沙箱执行体", Status.OK,
-        f"{name}（isolation: job-object —— 资源隔离，非容器；E1 真隔离仍未验）",
+        f"{name}（isolation: job-object —— 资源隔离，非容器；E1 真隔离未验）",
     )
 
 

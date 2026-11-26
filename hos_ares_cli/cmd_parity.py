@@ -13,8 +13,6 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import shutil
-import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
@@ -106,22 +104,70 @@ def _coverage() -> tuple[str, str]:
     )
 
 
+#: E1 的判据要真起一个容器（几十秒）。同一进程里 `run()` 会被调很多次
+#: （测试、`--json` 与人类输出各来一遍），逐次起容器没有信息增量：
+#: "这台机器上这个运行时到底隔不隔离"在一次进程生命周期里不会变。
+#: 键是 (执行体名, 隔离等级)，所以换了执行体的用例不会被缓存骗过。
+_E1_MEMO: dict[tuple[str, str], tuple[str, str]] = {}
+
+
 def _sandbox() -> tuple[str, str]:
-    """查 docker/podman 命令**并**确认守护进程真在——命令在 ≠ 服务在。"""
-    have = shutil.which("docker") or shutil.which("podman")
-    if not have:
-        return UNVERIFIED, "无 docker/podman：策略与 BLOCKED 已验，真隔离未验"
-    # 命令在 ≠ 服务在（B200）：GitHub 的 windows runner 有 docker CLI 却没有守护进程，
-    # 只看 `which` 会给出一个"真隔离已验证"的假绿。必须问一下守护进程还活着。
-    proc = subprocess.run(  # noqa: S603 - 固定命令，无外部输入
-        [have, "info", "--format", "{{.ServerVersion}}"],
-        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
-    )
-    if proc.returncode != 0 or not (proc.stdout or "").strip():
+    """E1 执行隔离：**真起一个容器**跑一次写操作，看宿主有没有副作用（B536）。
+
+    判据不是"有没有 docker 这个命令"，而是**到底有没有隔离**：
+    命令在 ≠ 服务在（B200），服务在也不代表我们的执行体选得到它。
+    所以走 `select_executor()` 拿到的执行体，按它的隔离等级分别判：
+
+    - `container`：真跑一条 `touch`，宿主上**不该**出现那个文件——出现即隔离失效（红）；
+    - `job-object`：如实记未验（它不给文件系统隔离，验不出容器语义）；
+    - `None`：未验，并说清缺什么。
+    """
+    from hos_ares_core.sandbox.runner import select_executor
+
+    executor = select_executor()
+    if executor is None:
+        return UNVERIFIED, "无 docker/podman（含 WSL）：策略与 BLOCKED 已验，真隔离未验"
+    isolation = getattr(executor, "isolation", "")
+    if isolation != "container":
         return UNVERIFIED, (
-            f"有 {Path(have).name} 命令但守护进程不可用：真隔离未验（命令在 ≠ 服务在）"
+            f"执行体 {executor.name} 的隔离等级是 {isolation or '未知'}："
+            f"资源受限已验，容器级隔离未验"
         )
-    return GREEN, f"运行时 {Path(have).name}"
+
+    import tempfile
+
+    key = (executor.name, isolation)
+    if key in _E1_MEMO:
+        return _E1_MEMO[key]
+
+    marker = "hos_ares-e1-marker"
+    with tempfile.TemporaryDirectory() as tmp:
+        # 判据两半，都对着**宿主真目录**看：
+        #   1) 容器内写 /tmp → 宿主的同名路径不该出现（命名空间隔离）；
+        #   2) 容器往挂进来的只读宿主管写 → 写不成，宿主目录必须还是空的（挂载语义）。
+        script = f"touch /tmp/{marker} && echo tmp-ok; touch /work/{marker} || echo mount-ro"
+        result = executor.run(
+            ["sh", "-c", script], image="python:3.13-slim",
+            mounts=[(tmp, "/work")], timeout_s=240,
+        )
+        leaked_to_mount = (Path(tmp) / marker).exists()
+    if result.outcome != "ok":
+        verdict_detail: tuple[str, str] = (UNVERIFIED, (
+            f"执行体 {executor.name} 起不了容器（{result.reason or result.stderr[:80]}）：真隔离未验"
+        ))
+    elif leaked_to_mount:
+        verdict_detail = (RED, f"容器写进宿主目录（{executor.name}）：隔离失效")
+    elif "tmp-ok" not in result.stdout:
+        verdict_detail = (UNVERIFIED, (
+            f"容器起来了但探针没跑（stdout={result.stdout[:60]!r}）：真隔离未验"
+        ))
+    else:
+        verdict_detail = (GREEN, (
+            f"运行时 {executor.name} · isolation=container"
+            f"（容器内写入宿主不可见 / 只读挂载不可写）"
+        ))
+    _E1_MEMO[key] = verdict_detail
+    return verdict_detail
 
 
 def _browser() -> tuple[str, str]:

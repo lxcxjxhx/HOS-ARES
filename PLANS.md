@@ -19,8 +19,8 @@
 
 | id | 路径 | 版本 | 生效日 | 状态 | 权威范围 | 自检命令 | MANIFEST sha256（前 16） |
 |---|---|---|---|---|---|---|---|
-| `kernel` | `plan-hos-ares/` | `plan-v3.9` | 2026-11-03 | **frozen** | 判定 / 证据 / 地址治理 / 批次 B1–B34 账本 | `(cd plan-hos-ares && node check-plan.cjs)` | `9b07b6dd3feb9571` |
-| `program` | `plan-hos-ares/` | `plan-hos-v1.0` | 2026-11-03 | active | 总规划：5 面 22 项、四波、B35–B59、A13–A20 | `node plan-hos-ares/check-plan.cjs` | `5a727ddc3968d920` |
+| `kernel` | `plan-hos-ares/` | `plan-v3.9` | 2026-11-03 | **frozen** | 判定 / 证据 / 地址治理 / 批次 B1–B34 账本 | `(cd plan-hos-ares && node check-plan.cjs)` | `be941421cf68111c` |
+| `program` | `plan-hos-ares/` | `plan-hos-v1.0` | 2026-11-03 | active | 总规划：5 面 22 项、四波、B35–B59、A13–A20 | `node plan-hos-ares/check-plan.cjs` | `be941421cf68111c` |
 | `governance` | `PLANS.md` | `gov-v1.0` | 2026-11-03 | active | 本制度与注册表 | `node scripts/plan/check-plans.cjs` | —（自指不记录） |
 
 **注册新包**：填一行 + 在该包放 `README.md` 与自检脚本 + 跑 `check-plans.cjs` 绿，才算注册完成。

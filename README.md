@@ -163,6 +163,7 @@ make demo-record            # → out/demo/hos-ares-tour.mp4
 | 结论哈希链 + 六态 replay | ✅ | `hos-ares replay` |
 | 地址零常量（`RouteRef` 无 url/host 字段） | ✅ | `hos-ares parity` 的 V3 |
 | 浏览器渲染执行体（真 Chromium） | ✅ | `tests/integration/test_browser_render.py` |
+| 容器真隔离（宿主不可见 / 只读挂载 / 容器内超时） | ✅ | `tests/integration/test_sandbox_isolation.py` + `hos-ares parity` 的 E1 |
 | 工具面统一（agent 与工作台同一套） | ✅ | `hos-ares doctor` 的 tool-surface |
 | 上下文压缩（降幅 ≥30%） | ✅ | `tests/unit/test_l1a_injection.py` |
 | Playbook 资产 + 成功率实测 | ✅ | `playbooks/` |
@@ -177,12 +178,18 @@ make demo-record            # → out/demo/hos-ares-tour.mp4
 
 | 项 | 卡在哪 | 翻绿条件 |
 |---|---|---|
-| 容器真隔离 | 接口/策略/BLOCKED 已验，**真隔离未验** | 一台装了 docker 或 podman 的机器，跑 `make exec-isolation` |
-| 容器级并行 | 进程内已验（三任务指纹与串行一致），**容器级未验** | 同上 |
+| 容器级并行 | 进程内已验（三任务指纹与串行一致），**容器级未验** | 执行体已有容器档，缺"每任务一容器 + 配额分发"的调度 |
 | 真模型服从性 | 链路已验（本地假服务），**模型会不会守窄 schema 未知** | 配 `HOS_ARES_MODEL_BASE_URL` + `HOS_ARES_MODEL` 后跑一次 |
 | 真实目标召回 0.33 | 结构推断已接线（靶场实测 1→3 个可跑 oracle），**外部指标未复测** | 能访问外部目标的环境 |
+| 容器运行时依赖 docker/WSL | 宿主 docker 优先；没有就得有 WSL 发行版 + podman | 两者都没有时退回 Job Object（资源隔离，非容器），`isolation` 如实降级 |
 | 资产发现/扫描 | **策略性不做**（`D-H-03`） | 不做 |
 | IDE 插件 | **不做**（离线包要零依赖） | 不做 |
+
+> 容器真隔离**已不在这一列**（B536）：宿主有 docker 就先用它；没有就在 Windows 上
+> 找 WSL 发行版里的 podman（`wsl -d <发行版> --exec podman`）并真起容器——
+> 容器内写 `/tmp` 宿主不可见、只读挂载写不动、超时在容器内触发。
+> `isolation` 如实标 `container`；Job Object 档仍标 `job-object`，两者不混。
+> 装法：`wsl -d <发行版> -- sudo apt install podman uidmap slirp4netns fuse-overlayfs`。
 
 ---
 

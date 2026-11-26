@@ -26,9 +26,15 @@ EXIT_CMD = ("python", "-c", "raise SystemExit(3)")
 #: 输出探针：stdout 必须被捕获。
 ECHO_CMD = ("python", "-c", "print('hos_ares-attest')")
 
+#: 容器档执行体必须带镜像：`docker run ... "" python -c ...` 会把空串当镜像名，
+#: 报出来的是 "invalid reference format"——那是**探针没跑起来**，不是行为坏（B200）。
+CONTAINER_IMAGE = "python:3.13-slim"
+
 
 def _run(executor: Executor, argv: tuple[str, ...], *, timeout_s: int) -> ExecResult:
-    return executor.run(list(argv), image="", timeout_s=timeout_s)
+    isolation = getattr(executor, "isolation", "")
+    image = CONTAINER_IMAGE if isolation == "container" else ""
+    return executor.run(list(argv), image=image, timeout_s=timeout_s)
 
 
 def attest(executor: Executor) -> dict[str, Any]:
