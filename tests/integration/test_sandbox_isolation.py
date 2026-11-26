@@ -44,8 +44,12 @@ _HARDENING = ("--rm --read-only --cap-drop ALL no-new-privileges --user 65534:65
 
 
 def _argv_runner() -> DockerRunner:
-    """`available()` 只看有没有二进制路径；测试里给个假路径即可验 argv 形状。"""
-    return DockerRunner(binary=_p("usr", "bin", "probe-runner"))
+    """只验 argv 形状的 runner：`available()` 只看有没有二进制路径。
+
+    `assume_alive=True` 跳过守护进程探活——**这条路径不执行任何命令**，
+    判据是"加固项齐不齐"，与"引擎在不在"无关。
+    """
+    return DockerRunner(binary=_p("usr", "bin", "probe-runner"), assume_alive=True)
 
 
 # ── 无运行时必须 BLOCKED，且绝不回退宿主 ───────────────────────

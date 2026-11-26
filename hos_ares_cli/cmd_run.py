@@ -171,6 +171,11 @@ def _findings_view(
         confidence=1.0 if verdict == "VERIFIED" else 0.0,
         route_strength=_strength_of(binding),
         route_ref=str(getattr(binding, "ref", "") or ""),
+        # 面的结构指纹（B550）：以前这里**没传**，于是 findings/report 里的
+        # `template_sha256` 永远是空串——失败的面事后无法定位到具体模板，
+        # 只能看到一个 `route://contract/1e867810` 短引用。证据要能复盘，
+        # 这一格不能空。
+        template_sha256=str(getattr(binding, "template_sha256", "") or ""),
         capsule_id=(capsule.capsule_id if capsule else None),
         self_sha256=(capsule.chain.self_sha256 if capsule else None),
         replay_status="NEVER",
@@ -419,6 +424,11 @@ def main(argv: list[str] | None = None) -> int:
         "--strict-requires", action="store_true",
         help="按 07 §321 执行 requires：缺输入即 BLOCKED，且一个请求都不发（默认关，见账本 B163/B173）",
     )
+    ap.add_argument(
+        "--max-requests", type=int, default=0,
+        help="请求预算（B549）。0 = 用默认 200；一轮多面时很容易撞满，撞满的 oracle 会报 "
+             "BudgetExhausted——那看起来像判定不了，其实是预算没给够",
+    )
     ap.add_argument("--max-oracles", type=int, default=0, help="0 = 全跑")
     ap.add_argument(
         "--frameworks", default="",
@@ -625,7 +635,8 @@ def main(argv: list[str] | None = None) -> int:
                         rate=max(0.1, float(args.qps)),
                         burst=max(2.0, float(args.qps)),
                         deny=[x.strip() for x in args.deny.split(",") if x.strip()],
-                        ceiling=args.max_impact)
+                        ceiling=args.max_impact,
+                        max_requests=int(getattr(args, "max_requests", 0) or 0))
     http_tool.install_guard(guard)
     # 事件库（B339）：给了 --db 就落库；不给就完全不变（不新增副作用）
     db_events = None

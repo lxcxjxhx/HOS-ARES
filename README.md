@@ -78,6 +78,17 @@ python -m PyInstaller packaging/HOS-ARES.spec --noconfirm      # dist/HOS-ARES.e
 ISCC.exe /DMyAppVersion=0.1.0 packaging/HOS-ARES.iss           # packaging/out/HOS-ARES-Setup-*.exe
 ```
 
+**验一遍安装包**（不需要管理员，约 80 秒）：
+
+```bash
+make installer-check
+# → 编一个装 %LocalAppData% 的包 → 静默装 → 跑装出来的 exe 取页面 →
+#   停进程 → 静默卸 → 断言无残留；输出 JSON，四条都过才是绿
+```
+
+交付物本身仍是 `PrivilegesRequired=admin`（装 Program Files，`H33 §10.2` 建议 A）：
+`installer-check` 编的是**只用于验证安装机制**的那个包，不是要发出去的那个。
+
 ---
 
 ## 一条命令验完整仓
@@ -144,6 +155,20 @@ hos-ares parity              # 三对标总验收（5 面 × 22 项）
 hos-ares replay --capsule …  # 证据重放
 ```
 
+### 契约标签怎么采纳（`run` 与 `hunt` 同一套）
+
+```bash
+hos-ares run  --target <url> --openapi <spec>                         # 只认契约显式标签
+hos-ares hunt --target <url> --openapi <spec> --confirm-structural    # 也采纳结构推断（置信 0.80）
+hos-ares hunt --target <url> --openapi <spec> --confirm-tags object_read,param_injectable
+```
+
+三档，从紧到松：**契约显式**（0.95）→ **形状即声明**（0.80，分页/URL 取参这类，
+默认就采）→ **结构推断**（0.80，要 `--confirm-structural` 或 `--confirm-tags` 点名）。
+
+采纳后来源仍是 `structural_adopted` / `operator`，**不会**被洗成 `contract`——
+报告里能一眼看出哪条面是靠猜的。
+
 一条命令出演示成片（需要 ffmpeg + playwright）：
 
 ```bash
@@ -164,6 +189,7 @@ make demo-record            # → out/demo/hos-ares-tour.mp4
 | 地址零常量（`RouteRef` 无 url/host 字段） | ✅ | `hos-ares parity` 的 V3 |
 | 浏览器渲染执行体（真 Chromium） | ✅ | `tests/integration/test_browser_render.py` |
 | 容器真隔离（宿主不可见 / 只读挂载 / 容器内超时） | ✅ | `tests/integration/test_sandbox_isolation.py` + `hos-ares parity` 的 E1 |
+| 容器级并行（每任务一容器，与串行逐条相同） | ✅ | `tests/integration/test_parallel_containers.py` + `hos-ares parity` 的 E5 |
 | 工具面统一（agent 与工作台同一套） | ✅ | `hos-ares doctor` 的 tool-surface |
 | 上下文压缩（降幅 ≥30%） | ✅ | `tests/unit/test_l1a_injection.py` |
 | Playbook 资产 + 成功率实测 | ✅ | `playbooks/` |
@@ -178,10 +204,10 @@ make demo-record            # → out/demo/hos-ares-tour.mp4
 
 | 项 | 卡在哪 | 翻绿条件 |
 |---|---|---|
-| 容器级并行 | 进程内已验（三任务指纹与串行一致），**容器级未验** | 执行体已有容器档，缺"每任务一容器 + 配额分发"的调度 |
 | 真模型服从性 | 链路已验（本地假服务），**模型会不会守窄 schema 未知** | 配 `HOS_ARES_MODEL_BASE_URL` + `HOS_ARES_MODEL` 后跑一次 |
 | 真实目标召回 0.33 | 结构推断已接线（靶场实测 1→3 个可跑 oracle），**外部指标未复测** | 能访问外部目标的环境 |
 | 容器运行时依赖 docker/WSL | 宿主 docker 优先；没有就得有 WSL 发行版 + podman | 两者都没有时退回 Job Object（资源隔离，非容器），`isolation` 如实降级 |
+| 容器池复用 | 容器级并行每任务起一个容器（约 3 秒/任务，镜像已缓存） | 任务数远大于 3 时才值得做 conmon 生命周期复用 |
 | 资产发现/扫描 | **策略性不做**（`D-H-03`） | 不做 |
 | IDE 插件 | **不做**（离线包要零依赖） | 不做 |
 

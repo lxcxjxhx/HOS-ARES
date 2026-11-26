@@ -422,11 +422,17 @@ def build_guard(
     deny: Iterable[str] = (),
     ceiling: str = "read_only",
     deny_nets: Iterable[str] = (),
+    max_requests: int = 0,
 ) -> GuardContext:
     """装配出网闸门（`hunt` 与 `run` 共用）。
 
     **没有它任何出网请求都会抛 `GuardMissing`**——闸门不是可选项，
     所以两个入口必须走同一个构造函数，否则新入口会漏装。
+
+    ``max_requests``：请求预算（B549）。以前 `Budget()` 用默认 200，
+    **没有任何入口能调**——一轮 24 个面 × 多 oracle 很容易撞满，
+    撞满的 oracle 报 `BudgetExhausted`，看起来像"判定不了"，其实是"预算没给够"。
+    0 表示用默认值。
     """
     resolved = _resolve_ips(host)
     # `deny` 里混着"资产 id"与"网段"两种写法（B311）：拆开，网段进 ④ 的对端校验。
@@ -447,7 +453,7 @@ def build_guard(
         routeset=routeset,
         plan=_plan_decision(scope, oracles, ceiling),
         bucket=TokenBucket(ThrottleConfig(rate_per_s=rate, burst=burst)),
-        budget=Budget(),
+        budget=Budget(requests=max_requests) if max_requests > 0 else Budget(),
         now=int(time.time()),
     )
 
@@ -468,6 +474,10 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--max-steps", type=int, default=20)
     #: 真实站点上的默认速率比靶场低一个量级。20 req/s 对着别人的业务就是压力测试，
     #: 而这条命令的定位是"验证"，不是"压测"。
+    ap.add_argument(
+        "--max-requests", type=int, default=0,
+        help="请求预算（B549）。0 = 用默认 200；撞满的 oracle 会报 BudgetExhausted",
+    )
     ap.add_argument("--rate", type=float, default=1.0, help="每秒请求上限（默认 1）")
     ap.add_argument("--burst", type=float, default=2.0, help="突发桶容量（默认 2）")
     ap.add_argument("--deny", default="",
@@ -492,6 +502,20 @@ def main(argv: list[str]) -> int:
         "--knowledge-dir",
         default="",
         help="knowledge/*.md 目录；提供则装配 L2 段（≤2 条/步，永不进判定）",
+    )
+    # B538：与 `hos-ares run` 同一套标签采纳开关。以前只有 run 有，
+    # 于是 hunt 路径上结构推断的标签**永远**进 proposed、永不采纳——
+    # 同一份契约在两条命令下能跑的面不一样，这不是"口径差异"，是缺一个开关。
+    ap.add_argument(
+        "--confirm-structural",
+        action="store_true",
+        help="采纳 parser 的结构推断标签（source=structural，置信 0.80）；"
+             "不带时只认契约显式标签",
+    )
+    ap.add_argument(
+        "--confirm-tags",
+        default="",
+        help="逗号分隔的标签名：只采纳这些（来自 profile 的 selectors，即 operator 确认）",
     )
     args = ap.parse_args(argv)
     setup_stdout()
@@ -538,7 +562,12 @@ def main(argv: list[str]) -> int:
         except ContractError as exc:
             print(f"契约拒绝：{exc}", file=sys.stderr)
             return 2
-        planned = plan(opset, source=RouteProvenance.CONTRACT)
+        planned = plan(
+            opset,
+            source=RouteProvenance.CONTRACT,
+            confirm={t.strip() for t in args.confirm_tags.split(",") if t.strip()},
+            accept_structural=args.confirm_structural,
+        )
         routeset = _build_routeset(args.target, list(planned.candidates), host)
     oracles = tuple(o for o in _oracles_for(routeset) if o not in excluded)
     dropped = tuple(o for o in _oracles_for(routeset) if o in excluded)
@@ -602,6 +631,7 @@ def main(argv: list[str]) -> int:
         rate=args.rate, burst=args.burst,
         deny=[x.strip() for x in args.deny.split(",") if x.strip()],
         ceiling=args.max_impact,
+        max_requests=int(getattr(args, "max_requests", 0) or 0),
     )
 
     http_tool.install_guard(ctx)

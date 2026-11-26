@@ -42,11 +42,23 @@ def test_v4_goes_red_on_an_empty_case_library(monkeypatch) -> None:  # noqa: ANN
 
 
 def test_e5_parallel_probe_compares_fingerprints() -> None:
+    """E5 探针：进程内那半**任何机器**都必须绿；容器级那半有容器才验。
+
+    不能在无容器机器上要求 green —— 那会逼着探针把"没验"写成"验过"（D3）。
+    所以判据是：状态 ∈ {green, unverified}，且 detail 必须说清验到了哪一半。
+    """
     from hos_ares_cli.cmd_parity import _parallel
 
     status, detail = _parallel()
-    assert status == GREEN, detail
-    assert "同指纹" in detail
+    assert status in (GREEN, "unverified"), detail
+    assert "同指纹" in detail, detail
+    if status == GREEN:
+        if "容器级并发" in detail:
+            assert "逐条相同" in detail, detail
+        else:
+            assert "容器级并行未验" in detail, detail
+    else:
+        assert "容器级" in detail, detail
 
 
 def test_e5_goes_red_when_concurrency_changes_the_result(monkeypatch) -> None:  # noqa: ANN001

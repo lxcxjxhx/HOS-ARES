@@ -511,6 +511,38 @@ def run(
         if getattr(baseline, "error", None):
             kind = str(baseline.error).split(":", 1)[0].strip() or "error"
             return RunResult(Verdict.BLOCKED, f"transport_error:{kind}", None, (), base_sent)
+        # **基线跑通了，但这条面不是它要的那种面**（B551）。
+        #
+        # `baseline_ok` 检查的是业务语义（"响应里有 access_token" / "响应设了 cookie"），
+        # 那是对的——它防的正是"登录面对未知参数一扔就 200，被误当成什么都收"。
+        # 但把这种失败报成 `baseline_abnormal` 会让客户以为**目标不正常**，
+        # 实际是**我们选错了面**：`token_issue` 标签覆盖了 `/portal/logout`、
+        # `/portal/admin` 这些不发码的面。
+        #
+        # 两者对客户的意义完全不同：一个要查目标，一个要查我们的面选择。
+        # 判据是"HTTP 层面正常但语义不匹配"，所以用 `face_not_applicable` 单独说。
+        if getattr(baseline, "is_normal", lambda: False)():
+            return RunResult(
+                Verdict.BLOCKED, "face_not_applicable:baseline_semantics", None, (), base_sent
+            )
+        # 剩下的是「基线 HTTP 层面就不正常」（4xx/5xx/连不上）。
+        #
+        # 这里再分一层（B553）：**基线要求这个面必填的参数，而 oracle 的
+        # `baseline_params` 没给** —— 典型是 `cookie_flags`（`baseline_params={}`）
+        # 撞上靶场的 `/portal/token`（缺 `code` 直接 400 `missing_code`）。
+        #
+        # 那不是"目标坏了"，是"这个 oracle 的基线形状与该面的必填要求对不上"。
+        # 把状态码带进 reason，读者一眼能看出是 4xx 还是 5xx、还是根本没连上。
+        status = int(getattr(baseline, "status", 0) or 0)
+        if 400 <= status < 500:
+            return RunResult(
+                Verdict.BLOCKED, f"face_not_applicable:baseline_4xx_{status}", None, (), base_sent
+            )
+        if status >= 500:
+            # 5xx 是目标自己的问题，归 `baseline_abnormal`（要查目标）
+            return RunResult(
+                Verdict.BLOCKED, f"baseline_abnormal:http_{status}", None, (), base_sent
+            )
         return RunResult(Verdict.BLOCKED, "baseline_abnormal", None, (), base_sent)
 
     # 多步序列型判据（B410）：一个变体一次请求装不下（登出→复用、取码→换码）。
@@ -555,7 +587,19 @@ def run(
     sent_headers: list[dict[str, str]] = []
     for variant in ordered:
         target_binding = pick(variant.binding_tag)
-        params = apply(variant, base_params, target_binding, symbols, nonce_obj, token)
+        try:
+            params = apply(variant, base_params, target_binding, symbols, nonce_obj, token)
+        except KeyError as exc:
+            # **这条面不适用**，不是"目标不正常"（B551）。
+            #
+            # `apply()` 以前会在没有合适参数位时兜底挑一个，于是 oracle 带着
+            # 对方不认识的参数打过去，服务端 400 → `baseline_abnormal`。
+            # 现在它明确拒绝，这里把拒绝翻成一条**能读懂的原因**：
+            # `face_not_applicable` 说的是"这个 oracle 不该测这条面"，
+            # 与"基线跑不通"是两件事，客户看到的下一步也不同。
+            return RunResult(
+                Verdict.BLOCKED, f"face_not_applicable:{exc}", None, (), base_sent
+            )
         headers = {k: _fill(v, symbols, nonce_obj, binding, token) for k, v in variant.headers.items()}
         runs: list[Trace] = []
         for _ in range(max(repeats, 1)):
@@ -627,7 +671,22 @@ def apply(
 
 
 def _pick_param(params: Mapping[str, str], binding: Any, target: str) -> str:
-    """选被变换的参数：优先模板里的 path 参数，其次第一个非身份参数。"""
+    """选被变换的参数：优先模板里的 path 参数，其次第一个非身份参数。
+
+    **没有可变换的参数时抛 `KeyError`，不兜底猜**（B551）。
+
+    以前最后一句是 ``for key in params: return key`` —— 那让"这条面没有合适的
+    参数位"变成"随便挑一个"，于是 oracle 会在**不属于它的面**上跑：
+    基线带着一个对方不认识的参数，服务端回 400，判定落 `baseline_abnormal`。
+    看起来像"目标不正常"，其实是"我们打错了面"。
+
+    实测（B550）：`token_issue` 标签覆盖了 `/portal/logout`、`/portal/admin`，
+    而 `code_format` 的基线固定带 `code=…`，这些面没有那个参数位——
+    12 条 `baseline_abnormal` 里绝大部分是这么来的。
+
+    抛出去之后由调用方（`RunResult(BLOCKED, …)`）如实记成"这条面不适用"，
+    而不是记成"基线不正常"。**两种结论对客户的意义完全不同。**
+    """
     names: tuple[str, ...] = tuple(str(n) for n in (getattr(binding, "param_names", ()) or ()))
     if target == "path_param":
         for name in names:
@@ -636,10 +695,14 @@ def _pick_param(params: Mapping[str, str], binding: Any, target: str) -> str:
     for name in names:
         if name in params:
             return name
-    for key in params:
-        if key != "__role__":
-            return str(key)
-    raise KeyError(f"{binding.ref} 没有可变换的参数（target={target}）")
+    # 身份参数不算"可变换"：换掉它等于换一个身份，那是另一类判定的活
+    candidates = [str(k) for k in params if k != "__role__"]
+    if len(candidates) == 1:
+        return candidates[0]
+    raise KeyError(
+        f"{binding.ref} 没有可变换的参数（target={target}，"
+        f"param_names={names}，实际参数={sorted(candidates)}）"
+    )
 
 
 def _expand_jwt_slots(text: str, token: str) -> str:

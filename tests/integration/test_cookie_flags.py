@@ -71,10 +71,16 @@ def test_complete_cookie_flags_are_refuted(hardened, tmp_path: Path) -> None:  #
 
 
 def test_code_replay_does_not_fire_on_a_login_face(vulnerable, tmp_path: Path) -> None:  # noqa: ANN001
-    """登录面没有换码语义：`code_replay` 必须自己退场，而不是判"可重放"。"""
+    """登录面没有换码语义：`code_replay` 必须自己退场，而不是判"可重放"。
+
+    B551 起原因码是 `face_not_applicable:baseline_semantics`：登录面 **HTTP 层面正常**
+    （200），只是响应里没有 `access_token` —— 那是"这条面不是发码面"，
+    不是"基线跑不通"。两句话对客户的意义不同：一个要查目标，一个要查面选择。
+    """
     rows = _rows(vulnerable, tmp_path / "login", f"{SEP}portal{SEP}login")
     reasons = [r for o, _o, r in rows if o == "code_replay"]
-    assert reasons and reasons[0] == "baseline_abnormal", rows
+    assert reasons, rows
+    assert reasons[0].startswith("face_not_applicable"), rows
 
 
 def test_secure_flag_is_not_required_over_http() -> None:

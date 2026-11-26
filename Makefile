@@ -196,8 +196,19 @@ b11: report-test report-demo verify-report types-check lint
 bench-test:
 	$(PY) -m pytest tests/unit/test_bench.py -q
 
+#: A8「模型不是瓶颈」的可执行形式（B552）：`make bench MODEL=none`
+#:
+#: 规划包（`plan-hos-legacy/00-总规划.md` A8、`plan-hos-ares/H01 §4`）都引用了
+#: `make bench MODEL=none` 这条命令，而 Makefile 里**没有 MODEL 变量**——
+#: 照着文档敲会得到默认的 scripted。口令与实现之间的距离，就是这么产生的。
+MODEL ?= scripted
+
 bench:
-	$(PY) scripts/b12/run_bench.py --rounds 3 --out out/b12
+	$(PY) scripts/b12/run_bench.py --rounds 3 --model $(MODEL) --out out/b12
+
+# 只跑一轮的冒烟版：验「无模型也能跑」用这个就够，3 轮是发布前的门
+bench-none:
+	$(PY) scripts/b12/run_bench.py --rounds 1 --model none --out out/bench-none
 
 # ── v3.6 / B18：A2/A4/A6/A7/A10/A11/A12 的可执行断言 ────────────────
 # 每一条都必须**能红**（见 39 §3）。红不是缺陷，是缺口可见。
@@ -558,6 +569,12 @@ ISCC ?= C:/Program Files (x86)/Inno Setup 6/ISCC.exe
 installer: exe
 	$(PY) -c "import pathlib, shutil; pathlib.Path('dist').mkdir(exist_ok=True); shutil.copy2('out/dist/HOS-ARES.exe', 'dist/HOS-ARES.exe')"
 	"$(ISCC)" /DMyAppVersion=0.0.0-dev packaging/HOS-ARES.iss
+
+# 安装包**验证**（B539）：装得上 / 装了能打开 / 卸得干净。
+# 与 `installer` 的区别：这条会真的装一遍再卸掉，装到 %LocalAppData%，不需要管理员。
+# 交付物仍按默认（admin，装 Program Files）；这里编的是只用于验证的那个包。
+installer-check: exe
+	$(PY) scripts/check_setup.py
 
 # B59：平台可证 + 三对标可证
 platform-check: playbook-check blackboard-conflict context-compress report-audit

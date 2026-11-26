@@ -129,12 +129,28 @@ class ToolSurface:
 
     _specs: dict[str, ToolSpec] = field(default_factory=dict)
     _audit: list[dict[str, Any]] = field(default_factory=list)
+    #: 审计落库出口（B548）。给了就**每一条**审计同时写进去。
+    #:
+    #: 为什么需要：`_audit` 只在实例内存里——进程一退就没了，跨进程查不到。
+    #: 企业级的审计要求是"能事后查"，而内存里的 list 只够当场看。
+    #: 签名取 ``Callable[[dict], None]`` 而不是绑死 Store：工具面不该知道存储长什么样。
+    audit_sink: Callable[[Mapping[str, Any]], None] | None = None
 
     # ── 注册 ────────────────────────────────────────────────────
     def register(self, spec: ToolSpec) -> None:
         if spec.name in self._specs:
             raise SurfaceError("duplicate_tool", f"{spec.name} 已注册（一个动作只能有一个实现）")
         self._specs[spec.name] = spec
+
+    def _record(self, row: dict[str, Any]) -> None:
+        """内存留一份 + （有 sink 时）落一份。**sink 失败不许吞掉调用结果。**"""
+        self._audit.append(row)
+        if self.audit_sink is None:
+            return
+        try:
+            self.audit_sink(dict(row))
+        except Exception:  # noqa: BLE001 —— 审计写不进去是运维问题，不该让工具调用失败
+            pass
 
     def unregister(self, name: str) -> None:
         """卸载用：只允许移除**插件注册的**工具名（`plugin.` 前缀）。
@@ -164,25 +180,25 @@ class ToolSurface:
         if spec is None:
             raise SurfaceError("unknown_tool", name)
         if spec.impact is Impact.EXEC and not approved:
-            self._audit.append({"tool": name, "impact": spec.impact.value,
-                                "allowed_by": None, "result": "approval_required"})
+            self._record({"tool": name, "impact": spec.impact.value,
+                         "allowed_by": None, "result": "approval_required"})
             raise SurfaceError("approval_required", f"{name} 属于 exec，必须显式审批")
         if spec.schema is not None:
             args = dict(spec.schema(**dict(args)).model_dump())
         if spec.handler is None:
-            self._audit.append({"tool": name, "impact": spec.impact.value,
-                                "allowed_by": "approval" if approved else "auto",
-                                "result": "not_configured"})
+            self._record({"tool": name, "impact": spec.impact.value,
+                         "allowed_by": "approval" if approved else "auto",
+                         "result": "not_configured"})
             return {"ok": False, "outcome": "blocked", "reason": "not_configured"}
         try:
             data = dict(spec.handler(args))
         except Exception as exc:  # 实现层异常归一，不向上冒成崩溃
-            self._audit.append({"tool": name, "impact": spec.impact.value,
-                                "allowed_by": "approval" if approved else "auto",
-                                "result": "error"})
+            self._record({"tool": name, "impact": spec.impact.value,
+                         "allowed_by": "approval" if approved else "auto",
+                         "result": "error"})
             return {"ok": False, "outcome": "error", "reason": str(exc)[:200]}
-        self._audit.append({"tool": name, "impact": spec.impact.value,
-                            "allowed_by": "approval" if approved else "auto", "result": "ok"})
+        self._record({"tool": name, "impact": spec.impact.value,
+                     "allowed_by": "approval" if approved else "auto", "result": "ok"})
         return {"ok": True, "outcome": "ok", **data}
 
     def audit(self) -> tuple[dict[str, Any], ...]:

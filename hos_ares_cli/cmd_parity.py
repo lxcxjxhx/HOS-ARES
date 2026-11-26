@@ -235,8 +235,18 @@ def _parallel() -> tuple[str, str]:
     """E5 执行：**真跑三个任务**，比并发与串行的结果指纹（B176）。
 
     旧探针只看 `parallel.py` 在不在文件系统里——那连"能不能跑"都没验。
+
+    B537 起两半都算：进程内并发（一直有）+ **容器级并发**（每任务一容器）。
+    后者需要容器档执行体；没有就只报进程内那半，并写明容器级未验——
+    **不许把有容器当成已经验过**，也不许把没容器当成那一半不存在。
     """
-    from hos_ares_core.parallel import TaskResult, merge_sha, run_parallel
+    from hos_ares_core.parallel import (
+        ContainerTask,
+        TaskResult,
+        merge_sha,
+        run_parallel,
+        run_parallel_containers,
+    )
 
     def runner(tid: str) -> TaskResult:
         return TaskResult(
@@ -246,14 +256,40 @@ def _parallel() -> tuple[str, str]:
         )
 
     ids = ["t3", "t1", "t2"]
-    parallel = run_parallel({t: runner for t in ids}, limit=3)
+    in_process = run_parallel({t: runner for t in ids}, limit=3)
     serial = tuple(runner(t) for t in sorted(ids))
-    if [r.task_id for r in parallel] != sorted(ids):
+    if [r.task_id for r in in_process] != sorted(ids):
         return RED, "并发结果没有按 task_id 排序（可复现性就靠这个）"
-    if merge_sha(parallel) != merge_sha(serial):
+    if merge_sha(in_process) != merge_sha(serial):
         return RED, "并发与串行的结果指纹不一致"
+
+    from hos_ares_core.sandbox.runner import select_executor
+
+    executor = select_executor()
+    if executor is None or getattr(executor, "isolation", "") != "container":
+        return GREEN, (
+            f"3 任务并行 · 与串行同指纹（{merge_sha(in_process)[:8]}…）；容器级并行未验"
+            f"（执行体 isolation={getattr(executor, 'isolation', None)!r}）"
+        )
+
+    probe = "import hashlib,sys;print(hashlib.sha256(sys.argv[1].encode()).hexdigest()[:16])"
+    tasks = tuple(ContainerTask(task_id=t, argv=("python", "-c", probe, t)) for t in ids)
+    concurrent = run_parallel_containers(executor, tasks, timeout_s=300)
+    if any(r.outcome != "ok" for r in concurrent):
+        bad = next(r for r in concurrent if r.outcome != "ok")
+        return UNVERIFIED, (
+            f"容器级并发没能跑起来（{bad.task_id}: {bad.reason or bad.outcome}）：未验"
+        )
+    by_task = {r.task_id: r.stdout for r in concurrent}
+    sequential = {
+        task.task_id: run_parallel_containers(executor, (task,), timeout_s=300)[0].stdout
+        for task in sorted(tasks, key=lambda x: x.task_id)
+    }
+    if by_task != sequential:
+        return RED, "容器级并发与串行结果不同（隔离或调度污染了结果）"
     return GREEN, (
-        f"3 任务并行 · 与串行同指纹（{merge_sha(parallel)[:8]}…）；容器级并行未验"
+        f"3 任务并行 · 进程内与串行同指纹（{merge_sha(in_process)[:8]}…）"
+        f" · 容器级并发与串行逐条相同（{executor.name}）"
     )
 
 
