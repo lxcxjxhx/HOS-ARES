@@ -56,6 +56,14 @@ class Lifecycle:
     installed: dict[str, PluginSpec] = field(default_factory=dict)
     knowledge: dict[str, tuple[str, ...]] = field(default_factory=dict)
     config: dict[str, Mapping[str, Any]] = field(default_factory=dict)
+    #: 当前每个插件挂着的 handler（B558）。
+    #:
+    #: 为什么必须记住：升级失败回滚时要**把旧版本挂回去**，而 `_mount` 需要 handler。
+    #: 以前回滚传的是 `None`，于是旧版本"名字在、实现没了"——`invoke` 返回 blocked。
+    #: 那比直接报错更糟：装的东西看起来还在，实际调不动。
+    _handlers: dict[str, Callable[[Mapping[str, Any]], Mapping[str, Any]]] = field(
+        default_factory=dict
+    )
 
     # ── 预演 ────────────────────────────────────────────────────
     def preview(self, spec: PluginSpec) -> dict[str, Any]:
@@ -76,6 +84,8 @@ class Lifecycle:
         if spec.name in self.installed:
             raise PluginError("already_installed", spec.name)
         self._mount(spec, handler)
+        if handler is not None:
+            self._handlers[spec.name] = handler
         self.installed[spec.name] = spec
         if spec.knowledge:
             self.knowledge[spec.name] = spec.knowledge
@@ -103,14 +113,29 @@ class Lifecycle:
         if check is not None:
             check(spec)                      # 失败就抛，下面一行都不会执行
         previous = dict(self.installed)
+        mounted_new = False
         try:
             self._unmount(current)
             self._mount(spec, handler)
+            mounted_new = True
         except Exception as exc:             # 装配失败 → 回到旧版本
-            self._unmount(spec)
-            self._mount(current, None)
+            # **只清掉"真的挂上去过"的那个**（B558）：`_mount(spec)` 在
+            # `surface.register` 里抛错时，新版本根本没进 `_specs`，
+            # 无条件 `_unmount(spec)` 会抛 `unknown_tool` —— 于是**回滚本身失败**，
+            # 留下一个"旧版本已卸、新版本没挂"的空洞。
+            #
+            # 这条路以前没有用例走过，所以一直没被发现：正常升级永远成功，
+            # 而"装配失败"只在名字冲突、插件写坏 surface 这类情况下发生。
+            if mounted_new:
+                self._unmount(spec)
+            # 旧版本**必须连实现一起挂回来**（B558 实测）：
+            # 早先这里传 `None`，于是回滚后 `invoke` 返回 blocked ——
+            # 名字在、实现没了，比直接报错更糟。handler 从 `_handlers` 取回来。
+            self._mount(current, self._handlers.get(current.name))
             self.installed = previous
             raise PluginError("upgrade_failed", str(exc)) from exc
+        if handler is not None:
+            self._handlers[spec.name] = handler
         self.installed[spec.name] = spec
 
     # ── 卸 ─────────────────────────────────────────────────────
@@ -122,6 +147,7 @@ class Lifecycle:
         self.installed.pop(name, None)
         self.knowledge.pop(name, None)
         self.config.pop(name, None)
+        self._handlers.pop(name, None)
 
     def _unmount(self, spec: PluginSpec) -> None:
         if spec.tool_name is None:
