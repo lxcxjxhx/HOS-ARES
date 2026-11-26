@@ -83,6 +83,31 @@ feat(delivery): 交付材料的第一步就跑不通（Windows 上没有 make）
 - [ ] 改了 `scripts/verify.py` 的检查项时，同步更新 `.github/workflows/verify.yml` 的注释
 - [ ] 不提交 `out/`、`.hos-ares/` 下的运行产物
 - [ ] 改动了判定逻辑时，在 PR 描述里说明「哪些输入的行为变了」——这是纯函数内核，行为变化要可枚举
+- [ ] **PR 的 base 是 `main`，不是另一条特性分支**
+
+## 不要堆叠 PR（B547）
+
+曾经这么干过：`#239 ← #238`、`#240 ← #239`… 一条链七八个 PR 互相套着。
+
+**合 #238 进 `main` 的那一刻，GitHub 把下游 PR 全标成了 `merged`**——
+但那些提交只进了 `#238` 的**分支**，没进 `main`。于是出现最坏的一种状态：
+
+```
+PR 状态：merged          ← 看起来做完了
+main 上：只有 #238 一条   ← 实际内容全悬空
+```
+
+这次有 9 条提交（B537–B545）这样丢了，靠事后 `git log origin/main | grep` 才发现。
+
+**规矩**：每条 PR 对 `main` 开；内容有依赖就等前一条合完再 rebase。
+多花一次 rebase，换「merged 就是 merged」。
+
+对应地，**合 PR 前先查它到底进了哪**：
+
+```bash
+gh pr view <N> --json baseRefName -q .baseRefName   # 必须是 main
+git log origin/main --oneline | grep <关键字>        # 合完确认真的在
+```
 
 ## 安全
 
