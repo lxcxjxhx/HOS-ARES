@@ -54,7 +54,10 @@ def test_run_passes_qps_into_the_guard(monkeypatch: pytest.MonkeyPatch,
 
     def record_guard(host: str, routeset: Any, oracles: Any, *, rate: float = 1.0,
                      burst: float = 2.0, deny: Any = (),
-                     ceiling: str = "read_only") -> Any:  # noqa: ANN401
+                     ceiling: str = "read_only", **extra: Any) -> Any:  # noqa: ANN401
+        # `**extra` 而不是逐个列参数（B551）：这条替身只关心 rate/burst/deny，
+        # 其余参数加一个就要改一次替身，而它根本不看那些值。
+        # 上一轮给 build_guard 加 max_requests 时，四处替身一起炸——正是这个原因。
         seen["rate"] = rate
         seen["burst"] = burst
         raise SystemExit(0)          # 到闸门就够了，后面的出网不跑
@@ -74,7 +77,10 @@ def test_run_default_qps_is_unchanged(monkeypatch: pytest.MonkeyPatch,
 
     def record_guard(host: str, routeset: Any, oracles: Any, *, rate: float = 1.0,
                      burst: float = 2.0, deny: Any = (),
-                     ceiling: str = "read_only") -> Any:  # noqa: ANN401
+                     ceiling: str = "read_only", **extra: Any) -> Any:  # noqa: ANN401
+        # `**extra` 而不是逐个列参数（B551）：这条替身只关心 rate/burst/deny，
+        # 其余参数加一个就要改一次替身，而它根本不看那些值。
+        # 上一轮给 build_guard 加 max_requests 时，四处替身一起炸——正是这个原因。
         seen["rate"] = rate
         seen["burst"] = burst
         raise SystemExit(0)
@@ -144,3 +150,42 @@ def test_report_says_which_rate_was_used(profile_yaml: Path, tmp_path: Path,
     report = (tmp_path / "out" / "platform-report.md").read_text(encoding="utf-8")
     assert "限速：13 qps（档 policy.qps）" in report, report[:400]
     assert "并发：档要求 3" in report and "未使用" in report, "并发没落实就得说清"
+
+
+# ── B551：`max_requests` 也要真的传下去 ──────────────────────
+def test_run_passes_max_requests_into_the_guard(tmp_path: object) -> None:
+    """`--max-requests` 必须落到 `build_guard(max_requests=…)`。
+
+    这条挡的是「CLI 收下了参数、`build_guard` 也收下了，但中间没传」——
+    上一轮给 `build_guard` 加这个参数时，四处替身一起炸，说明
+    **替身的签名就是这条链路的契约**：它变了，链路就得跟着验。
+    """
+    from typing import Any
+    from pathlib import Path
+
+    import pytest
+
+    from hos_ares_cli import cmd_run
+
+    seen: dict[str, Any] = {}
+
+    def record_guard(host: str, routeset: Any, oracles: Any, *, rate: float = 1.0,
+                     burst: float = 2.0, deny: Any = (),
+                     ceiling: str = "read_only", **extra: Any) -> Any:  # noqa: ANN401
+        seen.update(extra)
+        raise SystemExit(0)
+
+    # 这里不 monkeypatch 全局，直接调 run 的 main 会真起闸门；
+    # 用 `cmd_run.build_guard` 上的替换即可（与同文件其它用例同法）
+    import hos_ares_cli.cmd_run as mod
+
+    original = mod.build_guard
+    mod.build_guard = record_guard  # type: ignore[assignment]
+    try:
+        with pytest.raises(SystemExit):
+            mod.main(["--target", DEAD, "--openapi", str(_spec(Path(str(tmp_path)))),
+                      "--max-requests", "1500", "--out", str(Path(str(tmp_path)) / "o")])
+    finally:
+        mod.build_guard = original  # type: ignore[assignment]
+
+    assert seen.get("max_requests") == 1500, seen

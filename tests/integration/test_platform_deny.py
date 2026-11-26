@@ -52,7 +52,10 @@ def test_run_passes_deny_into_the_guard(monkeypatch: pytest.MonkeyPatch,
 
     def record_guard(host: str, routeset: Any, oracles: Any, *, rate: float = 1.0,
                      burst: float = 2.0, deny: Any = (),
-                     ceiling: str = "read_only") -> Any:  # noqa: ANN401
+                     ceiling: str = "read_only", **extra: Any) -> Any:  # noqa: ANN401
+        # `**extra` 而不是逐个列参数（B551）：这条替身只关心 rate/burst/deny，
+        # 其余参数加一个就要改一次替身，而它根本不看那些值。
+        # 上一轮给 build_guard 加 max_requests 时，四处替身一起炸——正是这个原因。
         seen["deny"] = list(deny)
         raise SystemExit(0)
 
@@ -71,7 +74,10 @@ def test_run_without_deny_stays_empty(monkeypatch: pytest.MonkeyPatch,
 
     def record_guard(host: str, routeset: Any, oracles: Any, *, rate: float = 1.0,
                      burst: float = 2.0, deny: Any = (),
-                     ceiling: str = "read_only") -> Any:  # noqa: ANN401
+                     ceiling: str = "read_only", **extra: Any) -> Any:  # noqa: ANN401
+        # `**extra` 而不是逐个列参数（B551）：这条替身只关心 rate/burst/deny，
+        # 其余参数加一个就要改一次替身，而它根本不看那些值。
+        # 上一轮给 build_guard 加 max_requests 时，四处替身一起炸——正是这个原因。
         seen["deny"] = list(deny)
         raise SystemExit(0)
 
