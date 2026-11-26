@@ -41,15 +41,30 @@
 
 ---
 
-## 2. 验收证据（2026-11-26 实测，E1 已翻绿）
+## 2. 验收证据（2026-11-27 实测，数字全部当场复核）
 
 ```
-tests/unit                       2137 项   0 失败（1 skip：Windows 符号链接）
-tests/integration                 含 sandbox 隔离 11 项，0 skip
+tests/unit                       2183 项（collect 实测）
+tests/integration                 499 项（collect 实测）
 verify                             12 项   全绿（含 mypy / 五道 lint / 账本 / 结构）
-doctor                            沙箱执行体：wsl-podman（isolation: container）
+doctor                       21 ok / 0 fail / 4 skip
 hos-ares parity               22 项：green 22 / 未验 0 / red 0
+成片                   out/demo/hos-ares-tour.mp4 · 918,906 B
 ```
+
+**4 项 skip 逐条点名**（都是环境限制，不是产品缺陷）：
+
+> 下面这一行记的是**本机**（有 WSL podman、无 docker、无 curses）的分配。
+> 换一台机器，ok / skip 的**分配**会变（例如 CI 上 docker 项就是 OK），
+> 但 `fail` 恒为 0、`ok + skip` 总数恒为 25 —— 那两条才是与环境无关的判据
+> （`tests/unit/test_status_numbers.py` 钉住）。
+
+| 项 | 为什么 skip | 翻绿条件 |
+|---|---|---|
+| 插件锁快照 | 没有插件（0 条），这一项没有可验的东西 | 装一个插件即有内容 |
+| 模型后端 | 未配置 | 设 `HOS_ARES_MODEL_BASE_URL` + `HOS_ARES_MODEL` |
+| docker 运行时 | 本机无 docker（但 WSL 里有 podman，沙箱项是绿的） | 装 docker，或忽略（podman 已覆盖） |
+| TUI | 无 curses（Windows 需 `windows-curses`） | `pip install windows-curses` |
 
 一条命令复现闸门：
 
