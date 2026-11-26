@@ -78,6 +78,17 @@ python -m PyInstaller packaging/HOS-ARES.spec --noconfirm      # dist/HOS-ARES.e
 ISCC.exe /DMyAppVersion=0.1.0 packaging/HOS-ARES.iss           # packaging/out/HOS-ARES-Setup-*.exe
 ```
 
+**验一遍安装包**（不需要管理员，约 80 秒）：
+
+```bash
+make installer-check
+# → 编一个装 %LocalAppData% 的包 → 静默装 → 跑装出来的 exe 取页面 →
+#   停进程 → 静默卸 → 断言无残留；输出 JSON，四条都过才是绿
+```
+
+交付物本身仍是 `PrivilegesRequired=admin`（装 Program Files，`H33 §10.2` 建议 A）：
+`installer-check` 编的是**只用于验证安装机制**的那个包，不是要发出去的那个。
+
 ---
 
 ## 一条命令验完整仓
