@@ -191,3 +191,33 @@ def test_tasks_passes_extra_args_through() -> None:
     src = (Path(__file__).resolve().parents[2] / "scripts" / "tasks.py").read_text(encoding="utf-8")
     assert "drop_overridden(argv, rest)" in src
     assert "*rest]" in src
+
+
+# ── B552：文档里写的口令必须真能跑 ────────────────────────────
+def test_bench_accepts_the_model_variable() -> None:
+    """`make bench MODEL=none` 是 A8「模型不是瓶颈」的可执行形式。
+
+    规划包引用了这条命令（`plan-hos-legacy/00-总规划.md` A8、
+    `plan-hos-ares/H01 §4`），而 Makefile 里一度**没有 MODEL 变量** ——
+    照着文档敲会静默跑默认的 scripted。口令与实现之间的距离就是这么产生的。
+    """
+    text = MAKEFILE.read_text(encoding="utf-8")
+    assert re.search(r"^MODEL \?= scripted$", text, re.M), "缺 MODEL 变量"
+    bench = re.search(r"^bench:\n\t(.+)$", text, re.M)
+    assert bench, "缺 bench 目标"
+    assert "--model $(MODEL)" in bench.group(1), bench.group(1)
+
+
+def test_bench_none_target_exists() -> None:
+    """单轮无模型冒烟：验「无模型也能跑」不需要 3 轮。"""
+    text = MAKEFILE.read_text(encoding="utf-8")
+    m = re.search(r"^bench-none:\n\t(.+)$", text, re.M)
+    assert m, "缺 bench-none"
+    assert "--model none" in m.group(1), m.group(1)
+
+
+def test_bench_script_supports_both_model_modes() -> None:
+    """Makefile 传的 `--model` 必须在脚本里真的可选，否则那条命令是空话。"""
+    src = (MAKEFILE.parent / "scripts" / "b12" / "run_bench.py").read_text(encoding="utf-8")
+    assert '"--model"' in src
+    assert '"scripted"' in src and '"none"' in src

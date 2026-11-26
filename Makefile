@@ -196,8 +196,19 @@ b11: report-test report-demo verify-report types-check lint
 bench-test:
 	$(PY) -m pytest tests/unit/test_bench.py -q
 
+#: A8「模型不是瓶颈」的可执行形式（B552）：`make bench MODEL=none`
+#:
+#: 规划包（`plan-hos-legacy/00-总规划.md` A8、`plan-hos-ares/H01 §4`）都引用了
+#: `make bench MODEL=none` 这条命令，而 Makefile 里**没有 MODEL 变量**——
+#: 照着文档敲会得到默认的 scripted。口令与实现之间的距离，就是这么产生的。
+MODEL ?= scripted
+
 bench:
-	$(PY) scripts/b12/run_bench.py --rounds 3 --out out/b12
+	$(PY) scripts/b12/run_bench.py --rounds 3 --model $(MODEL) --out out/b12
+
+# 只跑一轮的冒烟版：验「无模型也能跑」用这个就够，3 轮是发布前的门
+bench-none:
+	$(PY) scripts/b12/run_bench.py --rounds 1 --model none --out out/bench-none
 
 # ── v3.6 / B18：A2/A4/A6/A7/A10/A11/A12 的可执行断言 ────────────────
 # 每一条都必须**能红**（见 39 §3）。红不是缺陷，是缺口可见。
