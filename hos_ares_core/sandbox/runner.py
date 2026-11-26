@@ -2,12 +2,19 @@
 
 **只做两件事**：拼一条加固过的 `docker run` 命令行；把结果归一成 `ExecResult`。
 不查库、不解析地址、不判定——地址由调用方在运行期注入（`H02 §2`）。
+
+**第三种启动方式（B536）**：Windows 上没有 docker 时，容器引擎可能在 WSL 发行版里
+（`wsl -d <distro> -- podman ...`）。这条路径的隔离**仍是容器**——命名空间由 podman
+建，宿主看不到容器内写入，E1 的判据照样成立。**不许把它降级成 job-object**：
+那不是宽严问题，是说错话。
 """
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from typing import Any, Protocol, Sequence
 
@@ -34,8 +41,9 @@ class ExecResult:
     outcome: str = "ok"          # ok | blocked | error
     reason: str = ""
     argv: tuple[str, ...] = field(default=(), repr=False)
-    #: 执行档位：``container``（docker/podman）或 ``job-object``（Windows 受限执行）。
-    #: **不许把 job-object 写成 container**——那会让 E1 的"真隔离未验"变成假绿。
+    #: 执行档位：``container``（docker / podman / WSL 里的 podman）或 ``job-object``
+    #: （Windows 受限执行）。**不许把 job-object 写成 container**——那会让 E1 的判据变假绿；
+    #: 反过来把真容器写成 job-object 同样是说错话。
     isolation: str = "container"
 
 
@@ -60,12 +68,36 @@ class DockerRunner:
     """`docker run` 的最保守形态：只读根、无网、无特权、有资源上限、退出即删。"""
 
     name = "docker"
+    #: 隔离等级。`container` 是**唯一**能写这个值的一档：命名空间真建了。
+    isolation = "container"
+    #: 宿主侧比容器内超时多等这么久：让容器里的 `timeout` 先到点自己收尸，
+    #: 宿主只做兜底。等一样长 = 两边同时开枪，容器那侧永远来不及留下 124。
+    GRACE_S = 20
 
     def __init__(self, binary: str | None = None) -> None:
         self._binary = binary or _docker_bin()
 
     def available(self) -> bool:
         return self._binary is not None
+
+    @property
+    def _prefix(self) -> list[str]:
+        """引擎调用前缀。WSL 档换掉这一项即可，其余逻辑完全共用。"""
+        return [self._binary or "docker"]
+
+    def _map_mount(self, host_path: str) -> str:
+        """宿主管路径 → 引擎看得懂的路径。宿主 docker 上就是原样。"""
+        return host_path
+
+    def _with_timeout(self, argv: Sequence[str], timeout_s: int) -> list[str]:
+        """把超时**放进容器里**（`timeout N cmd`），而不是只靠宿主侧杀客户端。
+
+        只杀 `docker` / `wsl` 客户端的话，容器那一侧会接着跑（podman 由 conmon 托管，
+        客户端掉线不等于容器停）——那就是"超时了但没停"，还留残留容器。
+        `build_argv` 保持**不加**这一层（那条路径的判据是"加固项形状"），
+        超时在 `run()` 里插到镜像之后、用户命令之前。
+        """
+        return ["timeout", str(max(1, int(timeout_s))), *argv]
 
     def build_argv(
         self,
@@ -88,14 +120,15 @@ class DockerRunner:
         if network == "bridge" and not allow_unscoped_network:
             raise ValueError("bridge 等于无限制出网：必须显式 allow_unscoped_network=True")
 
-        cmd = [self._binary or "docker", "run", "--rm",
+        cmd = [*self._prefix, "run", "--rm",
                "--read-only", "--cap-drop", "ALL",
                "--security-opt", "no-new-privileges",
                "--user", "65534:65534",
                "--network", network,
                "--cpus", cpus, "--memory", memory, "--pids-limit", str(pids)]
         for host_path, container_path in mounts:
-            cmd += ["--mount", f"type=bind,src={host_path},dst={container_path},readonly"]
+            src = self._map_mount(host_path)
+            cmd += ["--mount", f"type=bind,src={src},dst={container_path},readonly"]
         for key, value in env:
             cmd += ["-e", f"{key}={value}"]
         cmd.append(image)
@@ -113,8 +146,12 @@ class DockerRunner:
         **kwargs: object,
     ) -> ExecResult:
         cmd = self.build_argv(argv, image=image, mounts=mounts, env=env, **kwargs)  # type: ignore[arg-type]
+        # 超时插在镜像之后（镜像 = 用户命令之前的那个元素）
+        cmd = [*cmd[:len(cmd) - len(argv)], *self._with_timeout(argv, timeout_s)]
         try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s,
+            # 宿主侧多等 GRACE_S：容器内的 `timeout` 才是主判，宿主只兜底。
+            proc = subprocess.run(cmd, capture_output=True, text=True,
+                          timeout=timeout_s + self.GRACE_S,
                           encoding="utf-8", errors="replace",
                                   check=False)
         except FileNotFoundError as exc:          # 二进制在、但执行失败
@@ -122,9 +159,114 @@ class DockerRunner:
         except subprocess.TimeoutExpired as exc:
             return ExecResult(None, stdout=_text(exc.stdout), stderr=_text(exc.stderr),
                               outcome="error", reason=f"timeout>{timeout_s}s")
+        if proc.returncode == 124:                 # coreutils timeout 的固定退出码
+            return ExecResult(124, proc.stdout, proc.stderr, outcome="error",
+                              reason=f"timeout>{timeout_s}s（容器内 timeout 触发）",
+                              isolation=self.isolation)
         return ExecResult(proc.returncode, proc.stdout, proc.stderr,
                           outcome="ok" if proc.returncode == 0 else "error",
-                          reason="" if proc.returncode == 0 else f"exit={proc.returncode}")
+                          reason="" if proc.returncode == 0 else f"exit={proc.returncode}",
+                          isolation=self.isolation)
+
+
+# ── WSL 里的容器引擎（B536）─────────────────────────────────────
+#: 发行版名可覆盖；默认按 `wsl -l -q` 顺序找第一个 `podman info` 真能回话的。
+WSL_ENV_DISTRO = "HOS_ARES_WSL_DISTRO"
+
+
+def _wsl_exe() -> str | None:
+    if sys.platform != "win32":
+        return None
+    return shutil.which("wsl")
+
+
+def _wsl_distros(exe: str) -> list[str]:
+    """列发行版。**输出是 UTF-16LE 带零字节**（Windows 侧实测）——不去零会得到
+    `U\\x00b\\x00...` 这种串，拿去 `wsl -d` 必然"发行版不存在"。"""
+    try:
+        proc = subprocess.run([exe, "-l", "-q"], capture_output=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if proc.returncode != 0:
+        return []
+    raw = proc.stdout or b""
+    if b"\x00" in raw:                       # UTF-16
+        text = raw.decode("utf-16-le", errors="replace")
+    else:
+        text = raw.decode("utf-8", errors="replace")
+    return [line.strip() for line in text.replace("\r", "\n").split("\n") if line.strip()]
+
+
+def _wsl_podman_probe(exe: str, distro: str) -> bool:
+    """**命令在 ≠ 服务在**（B200 的口径在 WSL 里同样适用）：要问一次 `podman info`。"""
+    try:
+        proc = subprocess.run(
+            [exe, "-d", distro, "--", "podman", "info", "--format", "{{.Host.OCIRuntime.Name}}"],
+            capture_output=True, timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return proc.returncode == 0 and bool((proc.stdout or b"").strip())
+
+
+class WslPodmanRunner(DockerRunner):
+    """`wsl -d <distro> -- podman run ...`（B536）。
+
+    与 `DockerRunner` **共用同一套加固 argv**：只多两个前缀元素，加固项一项不少——
+    换一条命令行路径不许变成另一种宽严。
+
+    `isolation` 仍是 `container`：命名空间由发行版里的 podman 建，容器内写 `/tmp`
+    宿主看不到（E1 判据实测成立）。
+    """
+
+    name = "wsl-podman"
+
+    def __init__(self, *, wsl_exe: str | None = None, distro: str = "") -> None:
+        self._wsl = wsl_exe or _wsl_exe()
+        self._distro = distro
+        super().__init__(binary="podman")     # 引擎在发行版里，宿主没有这个二进制
+
+    def available(self) -> bool:
+        return bool(self._wsl and self._distro)
+
+    @property
+    def _prefix(self) -> list[str]:
+        """`[wsl, -d, 发行版, --exec, podman]`。
+
+        **必须是 `--exec` 而不是 `--`**（B536 实测）：`--` 之后的参数会被 WSL 拼成
+        一条字符串交给登录 shell，于是 `python -c print(1)` 在 bash 里先被解析成
+        语法错误——报出来像"容器起不来"，实际是引号在半路丢了。
+        `--exec` 直接把 argv 原样传给发行版里的进程，不经过 shell。
+        加固项仍由父类统一拼，这里只换调用前缀。
+        """
+        return [self._wsl or "wsl", "-d", self._distro, "--exec", self._binary or "podman"]
+
+    def wsl_path(self, path: str) -> str:
+        """把 Windows 路径翻成发行版里的挂载路径（`C:\\a` → `/mnt/c/a`）。
+
+        `--mount src=` 用的是**引擎那一侧**的路径：不翻，podman 会去找一个叫
+        `C:\\a` 的发行版内路径，报"no such file"，而错误看起来像"隔离失败"。
+        先问 `wslpath`（符号链接、自定义挂载点它都认），问不到再按盘符兜底。
+        """
+        sl = chr(0x2F)
+        if not path or path.startswith(sl):
+            return path
+        try:
+            proc = subprocess.run(
+                [self._wsl or "wsl", "-d", self._distro, "--", "wslpath", "-a", path],
+                capture_output=True, timeout=30,
+            )
+            if proc.returncode == 0 and (proc.stdout or b"").strip():
+                return (proc.stdout or b"").decode("utf-8", "replace").strip()
+        except (OSError, subprocess.SubprocessError):
+            pass
+        drive, _, rest = path.partition(":")
+        if len(drive) == 1 and rest:
+            return f"{sl}mnt{sl}{drive.lower()}{rest.replace(chr(0x5C), sl)}"
+        return path
+
+    def _map_mount(self, host_path: str) -> str:
+        return self.wsl_path(host_path)
 
 
 class JobObjectExecutor:
@@ -169,13 +311,22 @@ class JobObjectExecutor:
 
 
 def select_executor() -> Executor | None:
-    """三级：docker/podman → Windows Job Object → None（调用方翻 BLOCKED）。
+    """四级：宿主 docker/podman → **WSL 里的 podman** → Windows Job Object → None。
+
+    WSL 排在 Job Object 之前，因为它是**真容器隔离**；Job Object 只做资源上限。
+    优先级按隔离强度排，不按"哪个更容易起来"排。
 
     **不许降级到裸跑**：没有隔离时宁可不执行，也不假装执行过。
     """
     runner = DockerRunner()
     if runner.available():
         return runner
+    wsl = _wsl_exe()
+    if wsl:
+        wanted = os.environ.get(WSL_ENV_DISTRO, "").strip()
+        for distro in ([wanted] if wanted else _wsl_distros(wsl)):
+            if distro and _wsl_podman_probe(wsl, distro):
+                return WslPodmanRunner(wsl_exe=wsl, distro=distro)
     try:
         job = JobObjectExecutor()
         if job.available():

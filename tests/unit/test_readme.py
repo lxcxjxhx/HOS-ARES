@@ -66,9 +66,22 @@ def test_readme_states_limits_honestly() -> None:
 
 
 def test_no_unverified_claims() -> None:
-    """README 不许把未验项写成已完成。"""
-    # 容器隔离那条必须带"未验"
-    idx = TEXT.find("容器真隔离")
-    assert idx > 0, "缺容器隔离的说明"
-    window = TEXT[idx:idx + 120]
-    assert "未验" in window, f"容器隔离被写成已完成：{window}"
+    """README 里的每条能力**要么标未验，要么给出能当场复核的命令**（B536）。
+
+    这条原来写死"容器真隔离后面必须跟未验"。E1 验过之后那句话变成假的了，
+    但**判据不该跟着变成"随便写绿"**——所以换成不变量：
+    凡声明 ✅ 的能力，同一行必须点名证据（测试文件 / 命令）。
+    未验的能力照旧必须写清卡点。
+    """
+    lines = [ln for ln in TEXT.splitlines() if "容器真隔离" in ln and ln.lstrip().startswith(("|", "-", "*"))]
+    assert lines, "缺容器隔离的说明"
+    checked = 0
+    for line in lines:
+        if "✅" in line:
+            checked += 1
+            assert "test_sandbox_isolation" in line or "parity" in line, (
+                f"声明容器隔离已验却没给复核入口：{line}"
+            )
+        elif "未验" in line:
+            checked += 1
+    assert checked, "容器隔离既没标已验也没标未验"

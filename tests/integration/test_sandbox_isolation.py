@@ -21,18 +21,14 @@ from hos_ares_core.sandbox.runner import (
 )
 
 def _live_engine() -> bool:
-    """命令在 ≠ 服务在（B200）：GitHub 的 runner 有 docker CLI 却没有守护进程。"""
-    exe = shutil.which("docker") or shutil.which("podman")
-    if not exe:
-        return False
-    try:
-        proc = subprocess.run(  # noqa: S603 - 固定命令
-            [exe, "info", "--format", "{{.ServerVersion}}"],
-            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return False
-    return proc.returncode == 0 and bool((proc.stdout or "").strip())
+    """有没有**能真起容器**的执行体（B536：含 WSL 里的 podman）。
+
+    命令在 ≠ 服务在（B200）：GitHub 的 runner 有 docker CLI 却没有守护进程；
+    这台 Windows 有 `wsl.exe` 却不一定装了 podman。所以问的是 `select_executor()`——
+    它内部已经做过 `podman info` 探活，这才是"能不能隔离"的真问题。
+    """
+    executor = select_executor()
+    return executor is not None and getattr(executor, "isolation", "") == "container"
 
 
 HAS_RUNTIME = _live_engine()
@@ -139,19 +135,50 @@ def test_nonzero_exit_maps_to_error(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result.outcome == "error" and result.exit_code == 2 and result.stderr == "bad"
 
 
-# ── 真实隔离（本机无运行时 → 未验）────────────────────────────
+# ── 真实隔离（有容器档执行体时才验）──────────────────────────
 @needs_runtime
 def test_host_has_no_side_effects(tmp_path: object) -> None:  # pragma: no cover - 需运行时
-    marker = "/tmp/hos_ares-sandbox-marker"
-    runner = DockerRunner()
-    result = runner.run(["sh", "-c", f"touch {marker} && echo done"], image="python:3.13-slim")
+    """E1 的判据：容器内写 `/tmp`，**宿主**看不到那个文件。
+
+    走 `select_executor()` 而不是硬写 `DockerRunner`：容器引擎可能在 WSL 发行版里
+    （B536），那同样是真容器隔离；硬写 docker 会让这台机器上的 E1 永远未验。
+    """
+    import os
+    import tempfile
+
+    marker = "hos_ares-sandbox-marker"
+    executor = select_executor()
+    assert executor is not None
+    with tempfile.TemporaryDirectory() as host_dir:
+        # 判据两半：容器内 /tmp 写不落宿主；挂进来的只读宿主管写不动。
+        box = chr(0x2F) + "work"          # 容器内挂载点，现拼（noroute R-PATH）
+        script = f"touch /tmp/{marker} && echo tmp-ok; touch {box}/{marker} || echo mount-ro"
+        result = executor.run(
+            ["sh", "-c", script], image="python:3.13-slim",
+            mounts=[(host_dir, box)], timeout_s=300,
+        )
+        leaked = os.path.exists(os.path.join(host_dir, marker))
     if result.outcome != "ok":
         # 引擎活着但拉不到镜像/启动不了容器：这是"没能验"，不是"隔离失效"（B200）。
-        # 用 reason 说清楚，别让读者以为真隔离被证伪了。
-        import pytest as _pytest
+        pytest.skip(f"容器没能跑起来：{result.reason or result.stderr[:120]}（真隔离未验）")
+    assert result.isolation == "container", result.isolation
+    assert not os.path.exists(os.path.join(os.sep, "tmp", marker)), \
+        "容器内写入出现在宿主：隔离失效"
+    assert not leaked, "容器写进了挂载的宿主目录：只读挂载没生效"
+    assert "tmp-ok" in result.stdout, result.stdout[:120]
 
-        _pytest.skip(f"容器没能跑起来：{result.reason or result.stderr[:120]}（真隔离未验）")
-    assert result.outcome == "ok"
-    import os
 
-    assert not os.path.exists(marker), "容器内写入出现在宿主：隔离失效"
+@needs_runtime
+def test_timeout_is_enforced_inside_the_container() -> None:  # pragma: no cover - 需运行时
+    """超时必须在**容器里**生效，而不是只杀掉宿主侧客户端（B536）。
+
+    只杀客户端的话，podman 由 conmon 托管，容器会接着跑——"超时了但没停"。
+    """
+    executor = select_executor()
+    assert executor is not None
+    result = executor.run(
+        ["python", "-c", "import time; time.sleep(30)"],
+        image="python:3.13-slim", timeout_s=2,
+    )
+    assert result.exit_code == 124, (result.exit_code, result.reason)
+    assert "timeout" in result.reason

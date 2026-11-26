@@ -32,8 +32,8 @@ def test_isolation_is_labelled() -> None:
 
 def test_select_executor_reports_its_name() -> None:
     ex = select_executor()
-    assert ex is not None, "本机无 docker 但有 Job Object，不该是 None"
-    assert ex.name in ("docker", "job-object")
+    assert ex is not None, "本机无 docker 但有 Job Object（或 WSL 里的 podman），不该是 None"
+    assert ex.name in ("docker", "wsl-podman", "job-object")
 
 
 # ── D：超时整组杀 ────────────────────────────────────────────
