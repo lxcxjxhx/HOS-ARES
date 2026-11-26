@@ -493,6 +493,20 @@ def main(argv: list[str]) -> int:
         default="",
         help="knowledge/*.md 目录；提供则装配 L2 段（≤2 条/步，永不进判定）",
     )
+    # B538：与 `hos-ares run` 同一套标签采纳开关。以前只有 run 有，
+    # 于是 hunt 路径上结构推断的标签**永远**进 proposed、永不采纳——
+    # 同一份契约在两条命令下能跑的面不一样，这不是"口径差异"，是缺一个开关。
+    ap.add_argument(
+        "--confirm-structural",
+        action="store_true",
+        help="采纳 parser 的结构推断标签（source=structural，置信 0.80）；"
+             "不带时只认契约显式标签",
+    )
+    ap.add_argument(
+        "--confirm-tags",
+        default="",
+        help="逗号分隔的标签名：只采纳这些（来自 profile 的 selectors，即 operator 确认）",
+    )
     args = ap.parse_args(argv)
     setup_stdout()
 
@@ -538,7 +552,12 @@ def main(argv: list[str]) -> int:
         except ContractError as exc:
             print(f"契约拒绝：{exc}", file=sys.stderr)
             return 2
-        planned = plan(opset, source=RouteProvenance.CONTRACT)
+        planned = plan(
+            opset,
+            source=RouteProvenance.CONTRACT,
+            confirm={t.strip() for t in args.confirm_tags.split(",") if t.strip()},
+            accept_structural=args.confirm_structural,
+        )
         routeset = _build_routeset(args.target, list(planned.candidates), host)
     oracles = tuple(o for o in _oracles_for(routeset) if o not in excluded)
     dropped = tuple(o for o in _oracles_for(routeset) if o in excluded)

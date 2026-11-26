@@ -144,6 +144,20 @@ hos-ares parity              # 三对标总验收（5 面 × 22 项）
 hos-ares replay --capsule …  # 证据重放
 ```
 
+### 契约标签怎么采纳（`run` 与 `hunt` 同一套）
+
+```bash
+hos-ares run  --target <url> --openapi <spec>                         # 只认契约显式标签
+hos-ares hunt --target <url> --openapi <spec> --confirm-structural    # 也采纳结构推断（置信 0.80）
+hos-ares hunt --target <url> --openapi <spec> --confirm-tags object_read,param_injectable
+```
+
+三档，从紧到松：**契约显式**（0.95）→ **形状即声明**（0.80，分页/URL 取参这类，
+默认就采）→ **结构推断**（0.80，要 `--confirm-structural` 或 `--confirm-tags` 点名）。
+
+采纳后来源仍是 `structural_adopted` / `operator`，**不会**被洗成 `contract`——
+报告里能一眼看出哪条面是靠猜的。
+
 一条命令出演示成片（需要 ffmpeg + playwright）：
 
 ```bash
