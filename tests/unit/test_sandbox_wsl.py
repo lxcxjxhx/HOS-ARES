@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -90,7 +91,7 @@ def test_job_object_never_claims_container() -> None:
         def available(self) -> bool:
             return True
 
-        def run(self, argv, **kwargs):  # noqa: ANN001, ANN003, ANN202
+        def run(self, argv: object, **kwargs: object) -> JobExecResult:
             return JobExecResult(0, b"1\n", b"", "ok")
 
     executor = JobObjectExecutor(_FakeJob())
@@ -100,7 +101,7 @@ def test_job_object_never_claims_container() -> None:
 
 # ── 4：选择顺序按隔离强度，不按"哪个更容易起来" ────────────────
 def test_wsl_container_wins_over_job_object(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(runner_mod.shutil, "which", lambda name: None if name in ("docker", "podman") else "wsl")
+    monkeypatch.setattr(runner_mod, "_docker_bin", lambda: None)
     monkeypatch.setattr(runner_mod, "_wsl_distros", lambda _exe: ["Ubuntu2204"])
     monkeypatch.setattr(runner_mod, "_wsl_podman_probe", lambda _exe, _d: True)
     monkeypatch.setattr(runner_mod.JobObjectExecutor, "available", lambda _self: True)
@@ -129,6 +130,53 @@ def test_dead_engine_is_skipped_for_the_next_tier(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(runner_mod.JobObjectExecutor, "available", lambda _self: True)
     executor = select_executor()
     assert isinstance(executor, JobObjectExecutor), type(executor).__name__
+
+
+# ── 6：引擎活着但**跑不了加固参数**（B542）──────────────────────
+def _info_proc(rc: int, out: bytes) -> object:
+    class _Done:
+        returncode = rc
+        stdout = out
+
+    return _Done()
+
+
+def test_linux_engine_is_alive(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        subprocess, "run",
+        lambda *a, **kw: _info_proc(0, b"27.3.1|linux"),
+    )
+    assert runner_mod._engine_alive("docker") is True
+
+
+def test_windows_container_mode_is_not_alive(monkeypatch: pytest.MonkeyPatch) -> None:
+    """GitHub 的 windows runner 上 docker **起来了**，却是 Windows 容器模式：
+
+    `docker: Error response from daemon: invalid option: read-only mode is not supported`。
+    引擎"活着"但跑不了加固参数，对我们等于不可用——必须让调用方继续往下选。
+    """
+    monkeypatch.setattr(
+        subprocess, "run",
+        lambda *a, **kw: _info_proc(0, b"27.3.1|windows"),
+    )
+    assert runner_mod._engine_alive("docker") is False
+
+
+def test_missing_ostype_falls_back_to_linux(monkeypatch: pytest.MonkeyPatch) -> None:
+    """老版本 docker 不给 `OSType`：那时只有 linux 一种模式，按可用处理。"""
+    monkeypatch.setattr(
+        subprocess, "run",
+        lambda *a, **kw: _info_proc(0, b"19.03.8|"),
+    )
+    assert runner_mod._engine_alive("docker") is True
+
+
+def test_error_exit_means_not_alive(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        subprocess, "run",
+        lambda *a, **kw: _info_proc(1, b""),
+    )
+    assert runner_mod._engine_alive("docker") is False
 
 
 def test_distro_env_var_short_circuits_the_listing(monkeypatch: pytest.MonkeyPatch) -> None:

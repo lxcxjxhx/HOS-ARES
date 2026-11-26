@@ -65,19 +65,34 @@ def _docker_bin() -> str | None:
 
 
 def _engine_alive(binary: str) -> bool:
-    """问一次 `info`：**守护进程真的在**才算可用。
+    """问一次 `info`：守护进程在**并且**是 Linux 容器模式，才算可用。
 
-    只 `which` 得到路径，挡不住"装了 CLI 没起 daemon"这种最常见的 CI 形态。
-    超时也给短（20s）：这条路在"选执行体"的关键路径上，不能因为引擎卡住而挂住整个命令。
+    两道判据缺一不可，各自来自一次真实误判：
+
+    1. **守护进程在**（B200/B541）：只 `which` 得到路径，挡不住"装了 CLI 没起 daemon"
+       这种最常见的 CI 形态——GitHub 的 windows runner 就是这样。
+    2. **OSType 必须是 linux**（B542）：runner 上 docker 起来了，却是 **Windows 容器模式**，
+       `--read-only` / `--cap-drop` 一律报 `invalid option: read-only mode is not supported`
+       （exit 125）。引擎"活着"但跑不了加固参数，对我们等于不可用。
+
+    超时给短（20s）：这条路在"选执行体"的关键路径上，不能因为引擎卡住而挂住整个命令。
     """
     try:
         proc = subprocess.run(  # noqa: S603 - 固定命令，无外部输入
-            [binary, "info", "--format", "{{.ServerVersion}}"],
+            [binary, "info", "--format", "{{.ServerVersion}}|{{.OSType}}"],
             capture_output=True, timeout=20,
         )
     except (OSError, subprocess.SubprocessError):
         return False
-    return proc.returncode == 0 and bool((proc.stdout or b"").strip())
+    if proc.returncode != 0:
+        return False
+    text = (proc.stdout or b"").decode("utf-8", "replace").strip()
+    version, _, os_type = text.partition("|")
+    if not version.strip():
+        return False
+    # 老版本 docker 不给 OSType 时按 linux 处理（那时只有 linux 一种模式）；
+    # 明确说了 windows 的一律不可用——加固项在那种模式下不被接受。
+    return os_type.strip().lower() != "windows"
 
 
 class DockerRunner:
