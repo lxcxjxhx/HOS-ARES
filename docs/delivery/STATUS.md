@@ -68,7 +68,7 @@ python scripts/verify.py --quick-tests    # 12 项（含单测）
 | 边界 | 性质 | 影响 |
 |---|---|---|
 | ~~E1 容器隔离未验~~ | **已结案（B536）** | 容器引擎在 **WSL 发行版里**（`wsl -d <distro> --exec podman`），`select_executor()` 新增这一档并实测通过：容器内 `touch /tmp` 宿主不可见、`--mount …,readonly` 写不动、超时在**容器内**触发（退出码 124）。`isolation` 如实写 `container`；Job Object 档仍写 `job-object`，两者不混。边界：需要那台机器上装了 WSL + podman（`sudo apt install podman uidmap slirp4netns fuse-overlayfs`），宿主 docker 仍优先 |
-| 容器级**并行**未验 | 环境 | E5 的并行是进程内三任务（指纹与串行一致），容器级并行没做。执行体已备（容器档可用），但"每个任务一个容器"的调度与配额分发是另一件事 |
+| ~~容器级**并行**未验~~ | **已结案（B537）** | `parallel.run_parallel_containers`：每任务一个容器，并发结果与串行**逐条相同**；容器之间不共享文件系统（A 写 `/tmp/handoff`，B `cat` 得到 `gone`）。`isolation` 只在真起容器时是 `container`；非容器档返回 `blocked`，不降级 |
 | 真模型路径未验 | 环境（需 key） | `chat` 只验了规则模式；协议由假端点 11 条覆盖 |
 | 流式只验了分帧 | 环境（需 key） | 6 条用例覆盖 SSE 拼接/坏包/回调；**真端点下的首包延迟、断流重连、usage 分片未验** |
 | MCP 只实现最小三段 | 设计 | `initialize`/`tools/list`/`tools/call`；resources/prompts/sampling 未做 |
