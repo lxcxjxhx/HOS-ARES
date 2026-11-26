@@ -18,12 +18,21 @@ def test_e4_discovery_is_green_not_skipped() -> None:
     assert "不做" not in e4["detail"], e4["detail"]
 
 
-def test_only_e1_remains_unverified() -> None:
-    """除 E1（缺容器运行时）之外，不该有未验项。"""
+def test_unverified_items_are_only_the_environment_gaps() -> None:
+    """未验项只能是**依赖本机环境**的那几个，不能是产品缺口。
+
+    E1（容器隔离）、E5（容器级并行）都要真起容器。没有容器档执行体的机器上
+    它们会记 `unverified`——那是 D3 要的形状（**没能验 ≠ 行为坏**），
+    所以这里不能硬写"必须只有一个"。
+
+    挡的是另一件事：某个**纯本机可验**的能力项（V1/V2/V3/P1…）掉进 unverified，
+    说明它退化成了"需要有环境才知道对不对"，那才是真的缺口。
+    """
     from hos_ares_cli.cmd_parity import run
 
+    env_gaps = {"E1", "E5"}
     unverified = {r["key"] for r in run() if r["status"] == "unverified"}
-    assert unverified <= {"E1"}, unverified
+    assert unverified <= env_gaps, f"这几项不是环境缺口，是产品缺口：{unverified - env_gaps}"
 
 
 def test_no_item_is_marked_as_not_done() -> None:
