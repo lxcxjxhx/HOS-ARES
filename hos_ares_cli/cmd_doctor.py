@@ -456,16 +456,29 @@ def check_model_backend(root: Path) -> CheckResult:
 
 
 def check_docker(root: Path) -> CheckResult:
-    """docker 存在性。**没有就是 skip，不是 fail**——本机开发不需要它。"""
+    """docker 存在性。**没有就是 skip，不是 fail**——本机开发不需要它。
+
+    B544：两条返回路径都必须给 fix。以前只有"命令都不在"那条给了，
+    "命令在但 version 回非零"那条直接 SKIP 且 fix 为空——那正是 CI 的形态
+    （有 CLI 没守护进程），客户看到的是一条"跳过但没告诉我怎么办"。
+    """
+    #: 两条 SKIP 路径共用同一句下一步：它们对用户的含义完全一样
+    fix = "装 Docker Desktop 或 podman 后可验真隔离；只跑离线包之外的验证则不需要"
     try:
         code, out = _run(["docker", "version", "--format", "{{.Server.Version}}"], cwd=root, timeout=20)
     except (FileNotFoundError, subprocess.SubprocessError, OSError):
         return CheckResult(
-            "docker 运行时", Status.SKIP, "本机无 docker（离线包校验跳过）",
-            "装 Docker Desktop 或 podman 后可验真隔离；只跑离线包之外的验证则不需要",
+            "docker 运行时", Status.SKIP, "本机无 docker（离线包校验跳过）", fix,
+        )
+    if code != 0:
+        # 命令在、但不干活：如实说成"引擎不可用"，别让它看起来像"验过了"
+        return CheckResult(
+            "docker 运行时", Status.SKIP,
+            f"docker 命令在但不可用（{out.splitlines()[0][:40] if out else '无响应'}）",
+            fix,
         )
     return CheckResult(
-        "docker 运行时", Status.OK if code == 0 else Status.SKIP,
+        "docker 运行时", Status.OK,
         out.splitlines()[0][:60] if out else "无响应",
     )
 

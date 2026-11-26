@@ -1,8 +1,8 @@
 # HOS-ARES 状态总账
 
-> **最后更新**：2026-11-20（账本 502 批）。这份文件不带日期后缀——它随仓库一起演进，历史快照看 git log 或 `docs/delivery/final-acceptance-*.md`。
+> **最后更新**：2026-11-26（账本 543 批）。这份文件不带日期后缀——它随仓库一起演进，历史快照看 git log 或 `docs/delivery/final-acceptance-*.md`。
 
-一句话：**判定内核、三支柱、交付形态、界面与成片都已闭合且有证据；剩下的每一件都需要一个口径或一台装了东西的机器。**
+一句话：**判定内核、三支柱、交付形态、界面与成片都已闭合且有证据；22 项对标 ✅20 / ◐1 / ❌0，剩下的一项要能访问外部目标。**
 
 这份文件只写**能当场复核的数字**。每条都给了命令，跑一遍就能对上。
 
@@ -67,7 +67,8 @@ python scripts/verify.py --quick-tests    # 12 项（含单测）
 
 | 边界 | 性质 | 影响 |
 |---|---|---|
-| ~~E1 容器隔离未验~~ | **已结案（B536）** | 容器引擎在 **WSL 发行版里**（`wsl -d <distro> --exec podman`），`select_executor()` 新增这一档并实测通过：容器内 `touch /tmp` 宿主不可见、`--mount …,readonly` 写不动、超时在**容器内**触发（退出码 124）。`isolation` 如实写 `container`；Job Object 档仍写 `job-object`，两者不混。边界：需要那台机器上装了 WSL + podman（`sudo apt install podman uidmap slirp4netns fuse-overlayfs`），宿主 docker 仍优先 |
+| 执行体探活有两道判据 | 工程 | 选执行体时要问 `docker info` **并**看 `OSType`（B541/B543）。只问「进程在」会选出 Windows 容器模式的引擎，加固参数一条不被接受（`invalid option: read-only mode`）。两者任一不满足就继续往下选：WSL podman → Job Object → BLOCKED |
+| ~~E1 容器隔离未验~~ | **已结案（B536/B541）** | 容器引擎在 **WSL 发行版里**（`wsl -d <distro> --exec podman`），`select_executor()` 新增这一档并实测通过：容器内 `touch /tmp` 宿主不可见、`--mount …,readonly` 写不动、超时在**容器内**触发（退出码 124）。`isolation` 如实写 `container`；Job Object 档仍写 `job-object`，两者不混。**B541**：`available()` 改为真探活（`docker info`）——CI 有 docker CLI 没守护进程，以前会被选中然后每条命令回 125 |
 | ~~容器级**并行**未验~~ | **已结案（B537）** | `parallel.run_parallel_containers`：每任务一个容器，并发结果与串行**逐条相同**；容器之间不共享文件系统（A 写 `/tmp/handoff`，B `cat` 得到 `gone`）。`isolation` 只在真起容器时是 `container`；非容器档返回 `blocked`，不降级 |
 | 真模型路径未验 | 环境（需 key） | `chat` 只验了规则模式；协议由假端点 11 条覆盖 |
 | 流式只验了分帧 | 环境（需 key） | 6 条用例覆盖 SSE 拼接/坏包/回调；**真端点下的首包延迟、断流重连、usage 分片未验** |

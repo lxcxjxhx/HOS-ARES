@@ -46,14 +46,18 @@ def test_runtime_gaps_are_unverified_and_discovery_is_done() -> None:
     assert by_key["E4"]["status"] == GREEN, "资产发现已实现（B86 起），不该再标不做"
     assert by_key["E2"]["status"] == GREEN and "容器内未验" in by_key["E2"]["detail"]
     # E5 从 B537 起两半都可能：有容器档执行体就验到容器级，没有就只有进程内那半。
-    # 判据是**说出来的是哪一半**，而不是写死某一个状态。
+    # 两种**状态**都对（green / unverified），判据是**说出来的是哪一半**——
+    # 写死"必须 green"会在无容器机器上逼探针报假绿（D3）。
     e5 = by_key["E5"]
-    assert e5["status"] == GREEN, e5
-    assert "同指纹" in e5["detail"], e5["detail"]
-    if "容器级并发" in e5["detail"]:
-        assert "逐条相同" in e5["detail"], e5["detail"]
+    assert e5["status"] in (GREEN, UNVERIFIED), e5
+    if e5["status"] == GREEN:
+        assert "同指纹" in e5["detail"], e5["detail"]
+        if "容器级并发" in e5["detail"]:
+            assert "逐条相同" in e5["detail"], e5["detail"]
+        else:
+            assert "容器级并行未验" in e5["detail"], e5["detail"]
     else:
-        assert "容器级并行未验" in e5["detail"], e5["detail"]
+        assert "容器级" in e5["detail"], e5["detail"]
 
 
 def test_no_red_on_this_machine() -> None:

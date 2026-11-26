@@ -64,6 +64,37 @@ def _docker_bin() -> str | None:
     return None
 
 
+def _engine_alive(binary: str) -> bool:
+    """问一次 `info`：守护进程在**并且**是 Linux 容器模式，才算可用。
+
+    两道判据缺一不可，各自来自一次真实误判：
+
+    1. **守护进程在**（B200/B541）：只 `which` 得到路径，挡不住"装了 CLI 没起 daemon"
+       这种最常见的 CI 形态——GitHub 的 windows runner 就是这样。
+    2. **OSType 必须是 linux**（B542）：runner 上 docker 起来了，却是 **Windows 容器模式**，
+       `--read-only` / `--cap-drop` 一律报 `invalid option: read-only mode is not supported`
+       （exit 125）。引擎"活着"但跑不了加固参数，对我们等于不可用。
+
+    超时给短（20s）：这条路在"选执行体"的关键路径上，不能因为引擎卡住而挂住整个命令。
+    """
+    try:
+        proc = subprocess.run(  # noqa: S603 - 固定命令，无外部输入
+            [binary, "info", "--format", "{{.ServerVersion}}|{{.OSType}}"],
+            capture_output=True, timeout=20,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if proc.returncode != 0:
+        return False
+    text = (proc.stdout or b"").decode("utf-8", "replace").strip()
+    version, _, os_type = text.partition("|")
+    if not version.strip():
+        return False
+    # 老版本 docker 不给 OSType 时按 linux 处理（那时只有 linux 一种模式）；
+    # 明确说了 windows 的一律不可用——加固项在那种模式下不被接受。
+    return os_type.strip().lower() != "windows"
+
+
 class DockerRunner:
     """`docker run` 的最保守形态：只读根、无网、无特权、有资源上限、退出即删。"""
 
@@ -74,11 +105,32 @@ class DockerRunner:
     #: 宿主只做兜底。等一样长 = 两边同时开枪，容器那侧永远来不及留下 124。
     GRACE_S = 20
 
-    def __init__(self, binary: str | None = None) -> None:
+    def __init__(self, binary: str | None = None, *, assume_alive: bool = False) -> None:
+        """``assume_alive=True`` 只用于**验 argv 形状**：跳过守护进程探活。
+
+        谁该用：只调 `build_argv()` 的用例（判据是"加固项齐不齐"），它们不该因为
+        这台机器上没起引擎而失败。谁不该用：任何真执行路径——那里必须走探活，
+        否则就是"命令在当成服务在"（B541 的原始缺陷）。
+        """
         self._binary = binary or _docker_bin()
+        #: 探活结果缓存：`available()` 在选执行体时会被调用，不能每次都起进程。
+        self._alive: bool | None = True if assume_alive else None
 
     def available(self) -> bool:
-        return self._binary is not None
+        """**命令在 ≠ 服务在**（B200，B541 在 CI 上栽了第二次）。
+
+        以前这里只看二进制在不在。GitHub 的 windows runner **有 docker CLI 但没有
+        守护进程**，于是 `select_executor()` 返回 `DockerRunner`，接下来每条命令都
+        回 `docker: Error response from daemon`（exit 125）——三组用例连锁失败。
+
+        现在问一次 `docker info`：问不到就当不可用，让调用方继续往下选
+        （WSL podman → Job Object → BLOCKED）。探活结果缓存，选一次只起一个进程。
+        """
+        if self._binary is None:
+            return False
+        if self._alive is None:
+            self._alive = _engine_alive(self._binary)
+        return self._alive
 
     @property
     def _prefix(self) -> list[str]:
