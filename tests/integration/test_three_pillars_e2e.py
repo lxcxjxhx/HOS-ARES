@@ -48,6 +48,42 @@ def _contract_for(base: str, tmp: Path) -> Path:
     return path
 
 
+def test_contract_path_runs_end_to_end_on_a_matching_spec(
+    lab_base: str, tmp_path: Path
+) -> None:
+    """**契约路径真的能跑通**（B544）——这是 B540 留下的那个洞。
+
+    B540 只钉住了「契约与目标不匹配时体面收场」。这一条补另一半：
+    用靶场自己声明的面清单转出配套 OpenAPI（`tests/lab/contract.py`），
+    契约 → oracle → capsule → 报告整条链路在真 socket 上跑一遍。
+
+    与 `--discover` 那条的区别：这条**走契约**，所以标签来自 `x-hos-ares-tags`
+    （置信 0.95），而不是从观测形状推的（0.80）。两条路径都得能跑，才算三支柱真的能用。
+    """
+    from lab.app import assets_json
+    from lab.contract import to_openapi
+
+    spec = tmp_path / "lab-openapi.json"
+    spec.write_text(
+        json.dumps(to_openapi(assets_json(), base_url=lab_base), ensure_ascii=False),
+        encoding="utf-8",
+    )
+    out = tmp_path / "run"
+    code, text = _run_cli([
+        "run", "--target", lab_base, "--openapi", str(spec), "--out", str(out),
+    ])
+    assert code == 0, f"run 退出码 {code}\n{text[-1500:]}"
+    findings = json.loads((out / "findings.json").read_text(encoding="utf-8"))
+    assert findings["counts"]["by_outcome"].get("reported", 0) > 0, (
+        f"配套契约下仍然一条都没报：{findings['counts']}\n{text[-900:]}"
+    )
+    caps = list((out / "capsules").glob("*.json"))
+    assert caps, "有 reported 却没有 capsule：证据没落盘"
+    # 契约来源必须如实标出来，不能与观测推断混为一谈
+    strengths = {f["route"]["strength"] for f in findings["findings"]}
+    assert "contract" in strengths, strengths
+
+
 def test_contract_path_degrades_honestly_when_paths_do_not_match(
     lab_base: str, tmp_path: Path
 ) -> None:

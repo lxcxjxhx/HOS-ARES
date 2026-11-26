@@ -26,7 +26,12 @@ SLASH = chr(0x2F)
 TAG_VOCAB: frozenset[str] = frozenset(
     "object_read object_list param_injectable url_fetch file_read redirect_entry echo_param "
     "token_issue protected_read profile_write profile_read admin_function normal_function "
-    "rate_sensitive content_write content_read api_read graphql_endpoint".split()
+    "rate_sensitive content_write content_read api_read graphql_endpoint "
+    # B544：`html_document` 早就存在于**发现路径**（`routes/tagging.infer_tags` 对
+    # `text/html` 响应打这个标签，响应头类判定只需要它），但契约词表漏了它——
+    # 于是同一类面「靠发现能测、写进契约反而被拒（未知标签 → 退出码 2）」。
+    # 词表是"允许被采纳的标签名"，不是"某个来源专有"的清单，补齐才是对的。
+    "html_document".split()
 )
 
 #: 契约里**故意丢弃**的标签（B395）：它们描述"这是个 API"，不描述"能测什么"。
