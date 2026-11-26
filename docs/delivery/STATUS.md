@@ -67,7 +67,7 @@ python scripts/verify.py --quick-tests    # 12 项（含单测）
 
 | 边界 | 性质 | 影响 |
 |---|---|---|
-| ~~E1 容器隔离未验~~ | **已结案（B536）** | 容器引擎在 **WSL 发行版里**（`wsl -d <distro> --exec podman`），`select_executor()` 新增这一档并实测通过：容器内 `touch /tmp` 宿主不可见、`--mount …,readonly` 写不动、超时在**容器内**触发（退出码 124）。`isolation` 如实写 `container`；Job Object 档仍写 `job-object`，两者不混。边界：需要那台机器上装了 WSL + podman（`sudo apt install podman uidmap slirp4netns fuse-overlayfs`），宿主 docker 仍优先 |
+| ~~E1 容器隔离未验~~ | **已结案（B536/B541）** | 容器引擎在 **WSL 发行版里**（`wsl -d <distro> --exec podman`），`select_executor()` 新增这一档并实测通过：容器内 `touch /tmp` 宿主不可见、`--mount …,readonly` 写不动、超时在**容器内**触发（退出码 124）。`isolation` 如实写 `container`；Job Object 档仍写 `job-object`，两者不混。**B541**：`available()` 改为真探活（`docker info`）——CI 有 docker CLI 没守护进程，以前会被选中然后每条命令回 125 |
 | ~~容器级**并行**未验~~ | **已结案（B537）** | `parallel.run_parallel_containers`：每任务一个容器，并发结果与串行**逐条相同**；容器之间不共享文件系统（A 写 `/tmp/handoff`，B `cat` 得到 `gone`）。`isolation` 只在真起容器时是 `container`；非容器档返回 `blocked`，不降级 |
 | 真模型路径未验 | 环境（需 key） | `chat` 只验了规则模式；协议由假端点 11 条覆盖 |
 | 流式只验了分帧 | 环境（需 key） | 6 条用例覆盖 SSE 拼接/坏包/回调；**真端点下的首包延迟、断流重连、usage 分片未验** |

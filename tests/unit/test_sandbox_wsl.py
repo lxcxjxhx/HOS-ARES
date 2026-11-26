@@ -109,10 +109,26 @@ def test_wsl_container_wins_over_job_object(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 def test_host_docker_still_wins_first(monkeypatch: pytest.MonkeyPatch) -> None:
+    """宿主引擎活着时优先它——探活也要为真，否则会跳过它（B541）。"""
     monkeypatch.setattr(runner_mod, "_docker_bin", lambda: SL + "usr" + SL + "bin" + SL + "docker")
+    monkeypatch.setattr(runner_mod, "_engine_alive", lambda _b: True)
     monkeypatch.setattr(runner_mod, "_wsl_podman_probe", lambda _e, _d: True)
     assert isinstance(select_executor(), DockerRunner)
     assert not isinstance(select_executor(), WslPodmanRunner)
+
+
+def test_dead_engine_is_skipped_for_the_next_tier(monkeypatch: pytest.MonkeyPatch) -> None:
+    """**命令在 ≠ 服务在**（B541）：CI 上有 docker CLI 没守护进程。
+
+    这条挡的是"which 得到路径就当能用"——那会让每条容器命令回 exit 125，
+    然后三组用例连锁失败（真实发生过，PR #238 的 CI）。
+    """
+    monkeypatch.setattr(runner_mod, "_docker_bin", lambda: SL + "usr" + SL + "bin" + SL + "docker")
+    monkeypatch.setattr(runner_mod, "_engine_alive", lambda _b: False)
+    monkeypatch.setattr(runner_mod, "_wsl_exe", lambda: None)
+    monkeypatch.setattr(runner_mod.JobObjectExecutor, "available", lambda _self: True)
+    executor = select_executor()
+    assert isinstance(executor, JobObjectExecutor), type(executor).__name__
 
 
 def test_distro_env_var_short_circuits_the_listing(monkeypatch: pytest.MonkeyPatch) -> None:
