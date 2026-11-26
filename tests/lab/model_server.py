@@ -123,6 +123,20 @@ class _Handler(BaseHTTPRequestHandler):
 
         if self.mode == "bad_schema":
             content = json.dumps({"tool": "no_such_tool", "args": {}})
+        elif self.mode == "extra_field":
+            # 多一个字段：窄 schema 是 `extra="forbid"`，执行时必须拒（B566）
+            content = json.dumps({"tool": "read", "args": {"path": "a", "bogus": 1}})
+        elif self.mode == "missing_field":
+            # 缺必需字段：`read` 要 path（B566）
+            content = json.dumps({"tool": "read", "args": {}})
+        elif self.mode == "prose":
+            # 真模型最常见的坏行为：说人话，不给 JSON（B566）
+            content = "我建议你先看一下 README.md，然后告诉我你想做什么。"
+        elif self.mode == "empty":
+            # 空响应（B566）
+            content = ""
+        elif self.mode == "null":
+            content = "null"
         elif self.mode == "fenced":
             # 真网关最常见的形状：围栏 + 一句人话（B230）
             content = ("好的，这是调用：\n```json\n"
