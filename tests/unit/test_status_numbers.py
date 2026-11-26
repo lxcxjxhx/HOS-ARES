@@ -74,21 +74,24 @@ def test_parity_numbers_match() -> None:
 
     # **不能要求与实测精确相等**（B564）：parity 的 E1/E5 依赖容器执行体，
     # 本机有 podman 时 green 22 / 未验 0，CI 上没有时 green 21 / 未验 1。
-    # 判据改成环境无关的不变式：
-    #   ① 文档里的 green 必须是**满编或本机能达到的值**（不许写比实测还高）；
-    #   ② red 必须两边都是 0（红就是缺陷，不该随环境变）；
-    #   ③ 文档的「未验」必须覆盖实测的「未验」的超集说明（写了就要写全）。
+    #
+    # 环境无关的三条：
+    #   ① red 必须为 0（红就是缺陷，不该随环境变）；
+    #   ② 实测的 green+未验 必须正好 22（能力项总数固定）；
+    #   ③ 文档的 green+未验 也必须 ≥22（漏写能力项才算错）。
+    #
+    # **不写 `doc_green >= green`**（B565 的教训）：文档记的是某一台机器上的
+    # 分配，它不可能同时等于所有机器。这条在本机恰好成立、在别的环境下会翻车。
     doc = re.search(r"green (\d+) / 未验 (\d+) / red (\d+)", _text())
     assert doc, "STATUS 里没有 parity 的三元组"
     doc_green, doc_unverified, doc_red = (int(g) for g in doc.groups())
 
     assert doc_red == red == 0, f"red 必须为 0：文档 {doc_red} 实测 {red}"
+    assert green + unverified == 22, (
+        f"实测 green+未验 = {green + unverified} ≠ 22：能力项少了或多了"
+    )
     assert doc_green + doc_unverified >= 22, (
         f"文档的 green+未验 = {doc_green + doc_unverified} < 22：漏了能力项"
-    )
-    # 本机能跑满时，文档也该写满；跑不满时允许文档写"理论满编"（那是产品的样子）
-    assert doc_green >= green, (
-        f"文档写 green {doc_green}，本机实测 {green} —— 文档不能比实测还低"
     )
     assert skipped == 0 or "不做" in _text()
 
@@ -109,17 +112,22 @@ def test_doctor_triple_matches() -> None:
     assert doc, "STATUS 里没有 doctor 的三元组"
     doc_ok, doc_fail, doc_skip = (int(g) for g in doc.groups())
 
-    # **同样不能要求精确相等**（B564）：ok/skip 的分配随环境变
-    # （本机有 podman → docker 那项 skip；CI 没有 → 别处又不同），
-    # 但 **fail 必须是 0** —— 这是唯一与环境无关的判据。
+    # **同样不能要求精确相等**（B564/B565）：ok/skip 的**分配**随环境变
+    # （本机有 podman → 沙箱项 OK、docker 项 skip；CI 没有 → 分配不同）。
+    #
+    # 所以只留两条真正与环境无关的：
+    #   ① fail 必须为 0 —— 红就是缺陷，不该随环境变；
+    #   ② ok+skip 的**总数**一致 —— 同一套检查项，只是有的事项落在哪一档不同。
+    #
+    # **不要再加 `doc_ok >= ok`**（B565 实测踩了）：文档记的是"某台机器上的分配"，
+    # 它不可能同时等于所有机器的分配。CI 上 docker 项从 skip 变 OK，
+    # `doc_ok(21) >= ok(22)` 立刻红——那是我把"分配"当成了"能力"。
     assert doc_fail == 0 and fail == 0, (
         f"doctor 出现 fail：文档 {doc_fail} 实测 {fail}"
     )
-    # ok+skip 的**总数**应当一致（同一套检查项）
     assert doc_ok + doc_skip == ok + skip, (
         f"检查项总数变了：文档 {doc_ok + doc_skip} vs 实测 {ok + skip}"
     )
-    assert doc_ok >= ok, f"文档写 ok {doc_ok}，实测 {ok} —— 文档不能比实测还低"
 
 
 # ── 4：不许含糊 ─────────────────────────────────────────────
