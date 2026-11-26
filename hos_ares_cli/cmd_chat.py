@@ -30,6 +30,7 @@ import json
 import os
 import io
 import sys
+from typing import TYPE_CHECKING
 import time
 from pathlib import Path
 from typing import Any
@@ -44,6 +45,9 @@ from hos_ares_core.agent.session import Session  # noqa: E402
 from hos_ares_core.store import Store  # noqa: E402
 from hos_ares_core.workbench.danger import check_command  # noqa: E402
 from hos_ares_core.workbench.executor import make_subprocess_executor  # noqa: E402
+
+if TYPE_CHECKING:
+    from hos_ares_core.workbench.sandbox_exec import ShellExecutor
 from hos_ares_core.workbench.fs import Workbench  # noqa: E402
 
 from ._io import setup_stdio  # noqa: E402
@@ -423,16 +427,61 @@ def _exec_step(step: Any, *, wb: Workbench, root: Path, allow_dangerous: bool = 
         if hit is not None and not allow_dangerous:
             return False, (f"[GATE-DANGER] {hit.name}：{hit.why}"
                            "（确实要跑就加 --allow-dangerous）")
-        runner = make_subprocess_executor()
+        runner, sandbox_note = _chat_executor(root)
         code, out, err = runner(a["cmd"], interp, str(root), 60, {})
         text = (out or err or "").strip()
         head = "\n".join(text.splitlines()[:20])
         mark = "✓" if code == 0 else "✗"
         # 放行也要留痕（B215）：拒绝有记录，override 不能是静默的
         tag = f"[DANGER-OVERRIDE {hit.name}] " if hit is not None else ""
-        return code == 0, f"{tag}{mark} exit={code}\n{head}"
+        # 隔离档位必须出现在输出里（B546）：客户看到 exit 码的同时，
+        # 也要知道那条命令到底在哪跑过 —— 宿主副作用是真的，容器副作用是零。
+        return code == 0, f"{tag}{mark} exit={code}  [{sandbox_note}]\n{head}"
 
     return False, f"未知工具：{tool}"
+
+
+def _chat_executor(root: Path) -> "tuple[ShellExecutor, str]":
+    """给 `sh` 工具挑一个执行器（B546）。返回 ``(可调用, 说明)``。
+
+    三档，**每档都如实写在输出里**：
+
+    | 档 | 条件 | 落在哪 |
+    |---|---|---|
+    | 容器 | 有容器档执行体（docker / WSL podman） | 容器里跑，`root` 只读挂进 `/work` |
+    | 宿主（显式降级） | 没有容器，但用户没关 | 宿主跑，**输出里标明 `isolation: host`** |
+    | 无 | 容器不可用且 `HOS_ARES_REQUIRE_SANDBOX=1` | 每次返回 125 + 原因，不执行 |
+
+    为什么默认降级而不是直接拒绝：`chat` 的 `sh` 是**本地工作台**能力
+    （跑 `python -V`、`git status` 这类），把它一刀切掉会让 codex 那半边不可用。
+    但**降级必须可见**——所以说明里写 `isolation: host`，报告与终端都看得到。
+    要强制隔离就设 `HOS_ARES_REQUIRE_SANDBOX=1`。
+    """
+    from hos_ares_core.sandbox.runner import select_executor
+    from hos_ares_core.workbench.executor import make_subprocess_executor
+    from hos_ares_core.workbench.sandbox_exec import (
+        WORK_DIR,
+        make_sandbox_executor,
+        unavailable_executor,
+    )
+
+    require = os.environ.get("HOS_ARES_REQUIRE_SANDBOX", "").strip() == "1"
+    executor = select_executor()
+    if executor is not None and getattr(executor, "isolation", "") == "container":
+        image = os.environ.get("HOS_ARES_SANDBOX_IMAGE", "").strip() or "python:3.13-slim"
+        return (
+            make_sandbox_executor(executor, image=image, mounts=[(str(root), WORK_DIR)]),
+            f"isolation: container（{executor.name}·{image}·/work 只读）",
+        )
+    if require:
+        return (
+            unavailable_executor("没有容器档执行体，且 HOS_ARES_REQUIRE_SANDBOX=1：拒绝在宿主执行"),
+            "isolation: none（要求隔离但不可用，命令不会执行）",
+        )
+    return (
+        make_subprocess_executor(),
+        "isolation: host（没有容器运行时——这一步在宿主上跑，副作用是真的）",
+    )
 
 
 def _ask(prompt: str) -> str:
