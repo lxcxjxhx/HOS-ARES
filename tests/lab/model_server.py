@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Mapping
 
@@ -22,7 +23,16 @@ class _Handler(BaseHTTPRequestHandler):
     tool = "read"
     args: Mapping[str, Any] = {"path": "x.txt"}
     mode = "ok"
+    delay_s = 0.0
     seen: list[dict[str, Any]] = []
+
+    def _chunk(self, payload: str) -> None:
+        """按 HTTP/1.1 chunked 编码写一片（长度用十六进制 + CRLF 包围）。"""
+        CRLF = chr(13) + chr(10)
+        raw = payload.encode("utf-8")
+        self.wfile.write(f"{len(raw):X}".encode("ascii") + CRLF.encode("ascii"))
+        self.wfile.write(raw)
+        self.wfile.write(CRLF.encode("ascii"))
 
     def do_POST(self) -> None:  # noqa: N802 —— BaseHTTPRequestHandler 的约定名
         length = int(self.headers.get("content-length") or 0)
@@ -44,6 +54,71 @@ class _Handler(BaseHTTPRequestHandler):
             self.send_response(500)
             self.end_headers()
             self.wfile.write(b'{"error":"boom"}')
+            return
+
+        if self.mode == "gateway_timeout":
+            # 504：真网关在模型超时后的典型返回（B554）。客户端必须**降级而不是空转**。
+            self.send_response(504)
+            self.end_headers()
+            self.wfile.write(b'{"error":"upstream timeout"}')
+            return
+
+        if self.mode == "unauthorized":
+            self.send_response(401)
+            self.end_headers()
+            self.wfile.write(b'{"error":"invalid api key"}')
+            return
+
+        if self.mode == "slow_headers":
+            # 首包延迟（B554）：先睡再发 header。验"调用方有没有超时/放弃"。
+            time.sleep(float(self.delay_s))
+            self.send_response(200)
+            data = json.dumps({"choices": [{"message": {"content": "late"}}]}).encode()
+            self.send_header("content-type", "application/json")
+            self.send_header("content-length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
+
+        if self.mode == "stream_cut":
+            # 断流（B554）：发两片就关连接，**没有 [DONE]**。
+            # 真模型/网关在网络抖动时就是这样，客户端不许把它当成"一轮说完了"。
+            self.send_response(200)
+            self.send_header("content-type", "text/event-stream")
+            self.send_header("transfer-encoding", "chunked")
+            self.end_headers()
+            chunk = json.dumps({
+                "choices": [{"delta": {"content": "partial "}}],
+            })
+            self._chunk(f"data: {chunk}\n\n")
+            self.wfile.flush()
+            # 直接关：不发 [DONE]，也不发终止 chunk
+            self.close_connection = True
+            return
+
+        if self.mode == "stream_usage":
+            # usage 分片（B554）：OpenAI 流式的最后一帧常带 usage（stream_options）。
+            # 客户端要能从**分片里**读出来，而不是只能读非流式响应体的 usage。
+            self.send_response(200)
+            self.send_header("content-type", "text/event-stream")
+            self.send_header("transfer-encoding", "chunked")
+            self.end_headers()
+            # 正文必须是**合法工具调用 JSON**：产品要求 content 能解析成 {"tool","args"}。
+            # 按字符切成分片，拼起来仍是完整 JSON —— 这正是真流式的形状。
+            payload_text = json.dumps({"tool": self.tool, "args": dict(self.args)})
+            step = max(1, len(payload_text) // 3)
+            pieces = [payload_text[i:i + step] for i in range(0, len(payload_text), step)]
+            for piece in pieces:
+                frame = json.dumps({"choices": [{"delta": {"content": piece}}]})
+                self._chunk("data: " + frame + chr(10) + chr(10))
+                self.wfile.flush()
+            usage = json.dumps({
+                "choices": [],
+                "usage": {"prompt_tokens": 11, "completion_tokens": 2, "total_tokens": 13},
+            })
+            self._chunk("data: " + usage + chr(10) + chr(10))
+            self._chunk("data: [DONE]\n\n")
+            self.wfile.flush()
             return
 
         if self.mode == "bad_schema":
@@ -87,8 +162,9 @@ class ModelServer:
     """起一个只绑环回的假模型服务。``requests`` 留作断言用。"""
 
     def __init__(self, *, tool: str = "read", args: Mapping[str, Any] | None = None,
-                 mode: str = "ok") -> None:
+                 mode: str = "ok", delay_s: float = 0.0) -> None:
         self.mode = mode
+        self.delay_s = delay_s
         self.tool_name = tool
         self.args = dict(args or {"path": "x.txt"})
         self._srv: ThreadingHTTPServer | None = None
@@ -96,7 +172,8 @@ class ModelServer:
 
     def start(self) -> "ModelServer":
         handler = type("_H", (_Handler,), {
-            "tool": self.tool_name, "args": self.args, "mode": self.mode, "seen": [],
+            "tool": self.tool_name, "args": self.args, "mode": self.mode,
+            "delay_s": self.delay_s, "seen": [],
         })
         self._srv = ThreadingHTTPServer((LOOPBACK, 0), handler)
         self._thread = threading.Thread(target=self._srv.serve_forever, daemon=True)
