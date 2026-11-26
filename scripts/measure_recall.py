@@ -74,9 +74,18 @@ def measure(base_url: str, *, out_dir: Path, with_credentials: bool = True,
         symbols = {
             "SAFE_TARGET": base_url,
             "STRANGER": "stranger",
-            "SAFE_FILE": "notes.txt",
+            # 靶场确实有这个文件（B550 实测：早先填 `notes.txt` 打过去是 404，
+            # 基线直接 abnormal —— 那是**符号给错了**，不是判不出来）
+            "SAFE_FILE": "manual.txt",
             # 死地址：靶场不会去连它，任何解析结果都说明"这一步真的执行了"
             "DEAD_HOST": "dead.invalid",
+            # 靶场的账号只有这几个（`App._route` 的 `/api/login` 对未知账号回 400）
+            "ACCOUNT": "primary",
+            # 靶场的 SYSTEM_FILES 认这两个后缀（`app.SYSTEM_FILES`）
+            "SYSTEM_FILE": "etc/passwd",
+            # OOB 需要一个**公网可达**的回连地址；本机给一个不可达的占位，
+            # 让相关 oracle 走"发起过但没收到回调"这条真实路径（而不是 symbol_missing）
+            "OOB_URL": "http://oob.invalid",
         }
         symbols_path = out_dir / "symbols.json"
         symbols_path.write_text(json.dumps(symbols), encoding="utf-8")

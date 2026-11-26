@@ -171,6 +171,11 @@ def _findings_view(
         confidence=1.0 if verdict == "VERIFIED" else 0.0,
         route_strength=_strength_of(binding),
         route_ref=str(getattr(binding, "ref", "") or ""),
+        # 面的结构指纹（B550）：以前这里**没传**，于是 findings/report 里的
+        # `template_sha256` 永远是空串——失败的面事后无法定位到具体模板，
+        # 只能看到一个 `route://contract/1e867810` 短引用。证据要能复盘，
+        # 这一格不能空。
+        template_sha256=str(getattr(binding, "template_sha256", "") or ""),
         capsule_id=(capsule.capsule_id if capsule else None),
         self_sha256=(capsule.chain.self_sha256 if capsule else None),
         replay_status="NEVER",
