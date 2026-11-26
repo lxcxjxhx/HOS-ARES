@@ -109,6 +109,33 @@ gh pr view <N> --json baseRefName -q .baseRefName   # 必须是 main
 git log origin/main --oneline | grep <关键字>        # 合完确认真的在
 ```
 
+## squash 合并会让基于旧分支的新 PR 变成「冲突」（B561）
+
+`squash` 把整条链压成一个**新提交**。于是：
+
+```
+main:                 25150c1  ← squash 出来的新对象
+你没推的那条分支:      b2c064e  ← 建立在旧的 70ea276 基础上
+```
+
+两者**内容相同、历史不同**，GitHub 判 `DIRTY / CONFLICTING`，连 CI 都不跑。
+
+**症状**：`gh pr checks` 返回 `no checks reported`，`mergeStateStatus` 是 `DIRTY`。
+
+**修法**（不要 rebase，那会重演整条链的冲突）：
+
+```bash
+git checkout -B <clean> origin/main
+git cherry-pick <按顺序的 6 个提交>
+git push --force origin <clean>:<原分支名>    # 用干净历史覆盖原分支
+```
+
+cherry-pick 的冲突通常只落在 `batches.jsonl`（append-only，两边都在末尾加行），
+解法是「两份都要，按批次号排」。
+
+**预防**：合并用 `--squash` 之后，**任何基于旧分支的后续工作都要重建**，
+不要指望 `--force-with-lease` 能推上去还能自动解冲突。
+
 ## 安全
 
 这是安全工具。漏洞报告走 [SECURITY.md](SECURITY.md)，**不要开公开 issue**。
