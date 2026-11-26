@@ -30,7 +30,7 @@ import json
 import os
 import io
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Mapping
 import time
 from pathlib import Path
 from typing import Any
@@ -274,6 +274,22 @@ def _exec_step(step: Any, *, wb: Workbench, root: Path, allow_dangerous: bool = 
     tool = step.tool
     a = dict(step.args)
 
+    # 先走工具面（B545）：`read/write/edit/sh` 与工具面的 `fs.*` / `shell.run` 一一对应，
+    # 而**审批门与审计只在工具面里**。放在最前面是关键——后面那些 if 分支都是
+    # "工具面不认这个工具"时才该落到的实现。
+    if tool in ("read", "write", "edit", "sh"):
+        # `read` 不需要审批；写与执行需要（与工具面的 impact 分级一致）
+        approved = allow_dangerous if tool == "sh" else True
+        if tool == "sh":
+            hit = check_command(str(a.get("cmd", "")))
+            if hit is not None and not allow_dangerous:
+                return False, (f"[GATE-DANGER] {hit.name}：{hit.why}"
+                               "（确实要跑就加 --allow-dangerous）")
+            approved = True          # 危险词已过闸或用户显式放行
+        bridged = _surface_call(tool, a, root=root, approved=approved)
+        if bridged is not None:
+            return bridged
+
     if tool.startswith("mcp__"):
         entry = _MCP.get(tool)
         if entry is None:
@@ -482,6 +498,116 @@ def _chat_executor(root: Path) -> "tuple[ShellExecutor, str]":
         make_subprocess_executor(),
         "isolation: host（没有容器运行时——这一步在宿主上跑，副作用是真的）",
     )
+
+
+def _surface_call(
+    tool: str, args: Mapping[str, Any], *, root: Path, approved: bool
+) -> tuple[bool, str] | None:
+    """先试工具面；**不在工具面上的工具返回 None**（调用方走自己的实现）。
+
+    为什么要有这一层（B545）：B47 声称"工具面统一"，实际 chat 自己另写了一套
+    `read/write/edit/sh`，名字与工具面（`fs.read` / `shell.run`…）没有交集。
+    后果不只是"两套实现"——**审批门与审计只在工具面里**，走 chat 自己那条路
+    等于绕过了它们。
+
+    返回 `(ok, 文本)`：工具面调到了（成功、失败、blocked 都算）；
+    `None` 表示"这个名字工具面不认"，调用方按原路走。
+    """
+    from hos_ares_core.workbench import surface_bridge
+
+    try:
+        name = surface_bridge.surface_name(tool)
+    except surface_bridge.NotOnSurface:
+        return None
+
+    surface = _chat_surface(root)
+    payload = surface_bridge.surface_args(tool, args)
+    if tool == "sh":
+        payload.setdefault("interpreter", "sh" if sys.platform != "win32" else "cmd")
+        payload.setdefault("cwd", str(root))
+        payload.setdefault("timeout_s", 60)
+    before = _surface_diff(tool, args, root=root)
+    try:
+        result = surface.invoke(name, payload, approved=approved)
+    except Exception as exc:  # noqa: BLE001 —— 工具面的异常归一成一句话
+        return False, f"✗ {name}：{type(exc).__name__}: {exc}"
+    if not result.get("ok"):
+        reason = str(result.get("reason") or result.get("outcome") or "失败")
+        return False, f"✗ {name}：{reason}"
+    text = _format_surface_result(name, result)
+    if before or tool in ("write", "edit"):
+        after = (root / str(args.get("path", "")))
+        new_text = after.read_text(encoding="utf-8", errors="replace") if after.exists() else ""
+        body, added, removed = _diff_text(before, new_text, str(args.get("path", "")))
+        stat = f"  {C_GREEN}+{added}{C_OFF} {C_RED}-{removed}{C_OFF}"
+        text = text + stat + ("\n" + body if body else "")
+    return True, text
+
+
+def _format_surface_result(name: str, result: Mapping[str, Any]) -> str:
+    """工具面的返回 → 终端那几行。**只格式化，不加工事实。**"""
+    if name == "fs.read":
+        text = str(result.get("text") or "")
+        lines = text.splitlines()
+        head = "\n".join(lines[:12])
+        extra = "（已截断）" if result.get("truncated") else ""
+        return f"✓ {len(lines)} 行{extra}\n{head}"
+    if name == "fs.write":
+        return f"✓ 写入 {result.get('written', 0)}B  {result.get('path', '')}"
+    if name == "fs.edit":
+        return f"✓ {result.get('path', '')}  替换 {result.get('replacements', 0)} 处"
+    if name == "shell.run":
+        code = result.get("exit_code", 0)
+        out = str(result.get("stdout") or result.get("stderr") or "").strip()
+        head = "\n".join(out.splitlines()[:20])
+        note = str(result.get("isolation") or "")
+        mark = "✓" if code == 0 else "✗"
+        tail = f"  [{note}]" if note else ""
+        return f"{mark} exit={code}{tail}\n{head}"
+    return f"✓ {name}"
+
+
+def _surface_diff(tool: str, args: Mapping[str, Any], *, root: Path) -> str:
+    """写/改类工具执行**前**的旧内容，用来算 diff。
+
+    为什么必须在执行前取：`fs.write` 走的是工具面，返回里只有"写了多少字节"，
+    而 chat 的终端一直显示 `+N -M` 与具体行 —— 那是**用户读写改动的唯一视觉反馈**。
+    接上工具面不许把它弄丢（这条是实测踩出来的：`test_write_shows_diff` 红）。
+    """
+    if tool not in ("write", "edit"):
+        return ""
+    path = root / str(args.get("path", ""))
+    if not path.exists() or not path.is_file():
+        return ""
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
+def _chat_surface(root: Path) -> Any:
+    """chat 用的工具面：工作台 + 容器执行器 + 浏览器渲染器（能接的都接上）。
+
+    每次调用重建是**有意的**：`root` 可能不同（`--root`），
+    而工具面的 handler 闭包里握着 workbench，缓存错 root 比重建贵得多。
+    """
+    from hos_ares_core.tools.surface import build_surface
+    from hos_ares_core.workbench.fs import Workbench
+
+    runner, note = _chat_executor(root)
+
+    def _shell(args: Mapping[str, Any]) -> Mapping[str, Any]:
+        code, out, err = runner(
+            str(args.get("script") or ""),
+            str(args.get("interpreter") or "sh"),
+            str(args.get("cwd") or root),
+            int(args.get("timeout_s") or 60),
+            {},
+        )
+        # 隔离档位随返回值一起上去：换了执行路径**不许让这条信息消失**（B545）
+        return {"exit_code": code, "stdout": out, "stderr": err, "isolation": note}
+
+    return build_surface(workbench=Workbench(str(root)), shell_runner=_shell)
 
 
 def _ask(prompt: str) -> str:
