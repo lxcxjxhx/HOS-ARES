@@ -81,8 +81,10 @@ def test_the_old_rejection_test_is_replaced() -> None:
     一边断言"必须被拒"。谁都没错，只是有一边永远走不到。
     """
     src = _src("tests/integration/test_chat_model.py")
-    assert "test_two_calls_rejected" not in src, "旧用例又回来了"
-    assert "test_two_calls_are_accepted_and_both_run" in src
+    # 只查**函数定义**，不查全文：新用例的 docstring 里会提到旧名字（历史说明），
+    # 那是好事——写成 `not in src` 会把说明也判成违规（本批自己踩过）。
+    assert "def test_two_calls_rejected" not in src, "旧用例又回来了"
+    assert "def test_two_calls_are_accepted_and_both_run" in src
 
 
 def test_worktree_matches_head_for_the_key_files() -> None:
