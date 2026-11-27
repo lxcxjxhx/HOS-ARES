@@ -8,6 +8,9 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any
+
 import json
 
 import pytest
@@ -38,8 +41,10 @@ RENDERED = SLASH + "api" + SLASH + "items" + SLASH + "1"
 ELSEWHERE = SLASH + "somewhere" + SLASH + "else"
 
 
-def _ok(case_id: str, label: str, verdict: str, **kw) -> CaseResult:  # noqa: ANN003
-    base = dict(
+def _ok(case_id: str, label: str, verdict: str, **kw: Any) -> CaseResult:
+    # `dict[str, Any]`：`**base` 展开到 `CaseResult` 时，
+    # `dict[str, float | int | str | None]` 的推断让每个参数都报 arg-type（B585）。
+    base: dict[str, Any] = dict(
         case_id=case_id,
         label=label,
         outcome=Outcome.REPORTED,
@@ -54,7 +59,7 @@ def _ok(case_id: str, label: str, verdict: str, **kw) -> CaseResult:  # noqa: AN
     return CaseResult(**base)
 
 
-def _round(results, *, sha="a" * 64, no=1) -> RoundResult:  # noqa: ANN001
+def _round(results: Any, *, sha: str = "a" * 64, no: int = 1) -> RoundResult:
     return RoundResult(round_no=no, results=list(results), routeset_sha256=sha,
                        model="m", image_digest="d" * 64, resolver_version="1.0.0")
 
@@ -354,7 +359,7 @@ def test_bench_md_separates_partial_from_mismatch() -> None:
     assert "重放对不上的用例" not in md
 
 
-def test_save_round_chain_writes_one_verifiable_chain(tmp_path) -> None:  # noqa: ANN001
+def test_save_round_chain_writes_one_verifiable_chain(tmp_path: Path) -> None:
     """一轮 N 份 → 盘上 N 个文件、一条链、一串能验的 prev。
 
     两个坑各钉一下：
@@ -396,7 +401,9 @@ def test_bench_names_the_oracles_its_corpus_never_measures() -> None:
     root = _Path(__file__).resolve().parents[2]
     if str(root / "scripts" / "b12") not in _sys.path:
         _sys.path.insert(0, str(root / "scripts" / "b12"))
-    import run_bench  # noqa: PLC0415
+    # `run_bench` 在 `scripts/b12/` 下（上面的 sys.path 已加），
+    # mypy 的目标里不含 scripts/b12 —— 运行时能导入，静态上显式忽略（B585）。
+    import run_bench  # type: ignore[import-not-found]  # noqa: PLC0415
 
     from hos_ares.bench.core import load_cases  # noqa: PLC0415
 
