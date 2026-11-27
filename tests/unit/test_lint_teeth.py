@@ -25,7 +25,7 @@ SEP = chr(0x2F)
 
 
 def test_noroute_flags_a_hardcoded_address(tmp_path: Path) -> None:
-    import noroute
+    import noroute  # type: ignore[import-not-found]
 
     # 闸门只扫产品目录（含 web）：样本要放在里面
     bad = tmp_path / "hos_ares_core" / "bad.py"
@@ -48,7 +48,7 @@ def test_noroute_passes_a_clean_file(tmp_path: Path) -> None:
 def test_nodata_flags_a_compound_name_in_product_code(tmp_path: Path,
                                                      monkeypatch: pytest.MonkeyPatch) -> None:
     """`FakeTransport` / `fake_runner` 是真实命名形态，必须抓住（B194）。"""
-    import nodata_stub
+    import nodata_stub  # type: ignore[import-not-found]
 
     root = tmp_path
     (root / "hos_ares_core").mkdir(parents=True)
@@ -98,7 +98,7 @@ def test_nodata_passes_clean_names(tmp_path: Path, monkeypatch: pytest.MonkeyPat
 
 
 def test_netimports_flags_a_network_library(tmp_path: Path) -> None:
-    import netimports
+    import netimports  # type: ignore[import-not-found]
 
     bad = tmp_path / "bad.py"
     bad.write_text("import requests\n", encoding="utf-8")
@@ -116,7 +116,7 @@ def test_netimports_passes_stdlib_only(tmp_path: Path) -> None:
 # ── B195：spec_drift 的证据指针必须指向真东西 ──────────────────
 def test_spec_drift_evidence_points_at_a_real_test() -> None:
     """I1/I12 原来指向不存在的用例名，而闸门只查"有没有写"。（已修）"""
-    import spec_drift
+    import spec_drift  # type: ignore[import-not-found]
 
     problems = {inv: spec_drift.evidence_problem(ptr)
                 for inv, ptr in spec_drift.INVARIANT_EVIDENCE.items()}
@@ -144,7 +144,7 @@ def _ui_root(tmp_path: Path) -> Path:
 
 def test_ui_zero_address_flags_an_address(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
                                           capsys: pytest.CaptureFixture[str]) -> None:
-    import ui_zero_address
+    import ui_zero_address  # type: ignore[import-not-found]
 
     web = _ui_root(tmp_path)
     (web / "static" / "index.html").write_text(
@@ -209,7 +209,9 @@ def _ui_scan(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, body: str) -> int:
     (web / "page.js").write_text(body, encoding="utf-8")
     monkeypatch.setattr(ui_zero_address, "WEB_DIR", web)
     monkeypatch.setattr(ui_zero_address, "ROOT", tmp_path)
-    return ui_zero_address.main()
+    # main() 来自 scripts/lint/（无类型存根）→ 显式收口成 int（B589）
+    code: int = ui_zero_address.main()
+    return code
 
 
 def test_ui_zero_address_flags_a_hardcoded_url(tmp_path: Path,
@@ -235,7 +237,7 @@ def test_policy_check_flags_a_leaked_default_off(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """若有 default_off 的 oracle 没被挡住，这道闸门必须红——否则它就是一句口号。"""
-    import policy_check
+    import policy_check  # type: ignore[import-not-found]
 
     class _Leaked:
         blocked: dict[str, str] = {}          # 一个都没挡
@@ -279,7 +281,7 @@ def test_dead_exports_counts_same_file_usage(tmp_path: Path,
     规则原来只扫「别的文件」，于是同文件里的注册与类型注解全被排除——
     89 个「死代码」里大半是活的，**按它删会删掉有用代码**。
     """
-    import dead_exports
+    import dead_exports  # type: ignore[import-not-found]
 
     core = tmp_path / "hos_ares_core"
     core.mkdir(parents=True)
