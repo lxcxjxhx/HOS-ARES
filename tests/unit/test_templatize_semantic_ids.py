@@ -65,13 +65,23 @@ def test_two_values_are_left_alone() -> None:
 
 
 # ── 3：只归"全不同"的那一段 ─────────────────────────────────
-def test_only_the_all_distinct_slot_is_promoted() -> None:
-    """`a/b/c` 有三个值 → 归；`x/x/y` 只有两个 → 不归。
+def test_slot_that_is_not_the_only_difference_is_not_promoted() -> None:
+    """**B609 收紧后的判据**：`/api/a/x` `/api/b/x` `/api/c/y` **不该归**。
 
-    结果是 `{p1}/x` 与 `{p1}/y` **仍是两条面** —— 对：它们真是两条。
+    修前（B607/B608）它会归成 `/api/{p1}/x` 与 `/api/{p1}/y` 两条。
+    但这两条是**不同端点**：第二段与第三段同时在变，不是"一个 id 位"。
+    归了等于把 `a`/`b`/`c` 三个不同资源的路径混成一条。
     """
-    got = _templates([SEP + "api a x".replace(" ", SEP), SEP + "api b x".replace(" ", SEP), SEP + "api c y".replace(" ", SEP)])
-    assert set(got.values()) == {SEP + "api {p1} x".replace(" ", SEP), SEP + "api {p1} y".replace(" ", SEP)}, got
+    got = _templates([
+        SEP + "api a x".replace(" ", SEP),
+        SEP + "api b x".replace(" ", SEP),
+        SEP + "api c y".replace(" ", SEP),
+    ])
+    assert set(got.values()) == {
+        SEP + "api a x".replace(" ", SEP),
+        SEP + "api b x".replace(" ", SEP),
+        SEP + "api c y".replace(" ", SEP),
+    }, got
 
 
 # ── 4：段数不同不归 ─────────────────────────────────────────
@@ -90,17 +100,21 @@ def test_structural_ids_still_use_the_original_rule() -> None:
 
 # ── 6：参数名续号，不重排 ───────────────────────────────────
 def test_param_names_continue_without_reordering() -> None:
-    """`templatize` 已给出 `p1..pn`；补充归一的段**续号**。
+    """`templatize` 已给出 `p1..pn`；补充归一的段**续号**，不重排。
 
     重排会让已有模板的 ref 变化，胶囊与报告会对不上。
+
+    形态：`/api/1/user-{A,B,C}/x` —— 只有 slot1 在变，slot0 的 `1` 是
+    结构性 id（`templatize` 管），slot2 的 `x` 固定。
     """
     got = templatize_many([
-        SEP + "api 1 alice x".replace(" ", SEP),
-        SEP + "api 2 bob x".replace(" ", SEP),
-        SEP + "api 3 carol x".replace(" ", SEP),
+        SEP + "api 1 user-A x".replace(" ", SEP),
+        SEP + "api 1 user-B x".replace(" ", SEP),
+        SEP + "api 1 user-C x".replace(" ", SEP),
     ])
-    template, names = got[SEP + "api 1 alice x".replace(" ", SEP)]
-    assert template == SEP + "api {p1} {p2} x".replace(" ", SEP), template
+    template, names = got[SEP + "api 1 user-A x".replace(" ", SEP)]
+    expected = SEP + "api {p1} {p2} x".replace(" ", SEP)
+    assert template == expected, template
     assert names == ("p1", "p2"), names
 
 
@@ -125,3 +139,29 @@ def test_single_path_matches_templatize(path: str) -> None:
     from hos_ares_core.discovery.templatize import templatize
 
     assert templatize_many([path])[path] == templatize(path)
+
+
+# ── 9：**不同端点不许归**（B609 的真误伤）──────────────────────
+def test_distinct_endpoints_sharing_a_prefix_are_never_merged() -> None:
+    """`/api/echo` `/api/fetch` `/api/login` 是**不同端点**。
+
+    修前它们被归成一条 `/api/{p1}` —— 靶场上 24 条面被压塌成 3 条，
+    **真实的面被合掉，报告里会少检测项**。比"分母虚增"更糟。
+    """
+    names = "echo fetch login me ping search".split()
+    got = _templates([SEP + "api " + n for n in names])
+    assert len(set(got.values())) == len(names), got
+
+
+def test_last_segment_variation_is_never_merged() -> None:
+    """末段异值 = 不同资源，不是 id。
+
+    `/api/items/a` 与 `/api/items/b` 是两个不同的对象端点，
+    归了就把两条面合成一条。
+    """
+    got = _templates([
+        SEP + "api items a".replace(" ", SEP),
+        SEP + "api items b".replace(" ", SEP),
+        SEP + "api items c".replace(" ", SEP),
+    ])
+    assert len(set(got.values())) == 3, got

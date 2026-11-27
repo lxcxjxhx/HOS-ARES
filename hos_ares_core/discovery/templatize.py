@@ -80,6 +80,39 @@ __all__ = ["templatize", "templatize_many"]
 _SAME_SLOT_MIN = 3
 
 
+def _is_slot_only_difference(group: list[list[tuple[str, str]]], slot: int) -> bool:
+    """这个 slot 是不是**唯一**的区别位置。
+
+    **这条判据是 B609 补的，起因是一个真误伤**：
+
+    ```
+    /api/echo   /api/fetch   /api/login   /api/me   /api/ping  ...
+    ```
+
+    这些是**不同的端点**，但它们在 slot 1 上值全不同 —— 只按"同位置异值≥3"
+    判，会把 24 条不同的面归成 3 条，**分母被压塌**（比虚增更糟：
+    真实的面被合掉了，报告里会少检测项）。
+
+    真正的语义 id 有更强的结构：**共用固定前缀、只在某一中间段不同、
+    后续段固定**（`/api/user-A/profile` vs `/api/user-B/profile`）。
+    所以这里要求：
+
+    1. 该 slot 之后**至少还有一段**（末段是资源名时，异值就是不同端点）；
+    2. 该 slot 之后的所有段**组内完全一致**；
+    3. 该 slot 之前的所有段也组内一致。
+    """
+    n = len(group[0])
+    if slot == n - 1:
+        return False        # 末段异值 = 不同端点，不是 id
+    for other in range(n):
+        if other == slot:
+            continue
+        values = {segs[other] for segs in group}
+        if len(values) != 1:
+            return False    # 别处也在变 —— 这不是"一个 id 位"，是不同面
+    return True
+
+
 def templatize_many(paths: list[str]) -> dict[str, tuple[str, tuple[str, ...]]]:
     """批量归一：**同位置异值 ≥3 种的段，按参数归一**。
 
@@ -128,14 +161,20 @@ def templatize_many(paths: list[str]) -> dict[str, tuple[str, tuple[str, ...]]]:
     for _length, members in by_len.items():
         if len(members) < _SAME_SLOT_MIN:
             continue
-        slots = len(split[members[0]])
+        group = [split[i] for i in members]
+        slots = len(group[0])
         for slot in range(slots):
-            values = {split[i][slot][0] for i in members}
+            values = {segs[slot][0] for segs in group}
             # 结构化动态段已经是参数了（`templatize` 会认），这里只管剩下的
             literal = {v for v in values if not _is_dynamic(v)}
-            if len(values) >= _SAME_SLOT_MIN and len(literal) == len(values):
-                for i in members:
-                    promote[(i, slot)] = True
+            if len(values) < _SAME_SLOT_MIN or len(literal) != len(values):
+                continue
+            # **必须是"唯一区别位"**（B609）：否则 `/api/echo` `/api/fetch`
+            # `/api/login` 这些不同端点会被归成同一条面，分母被压塌。
+            if not _is_slot_only_difference(group, slot):
+                continue
+            for i in members:
+                promote[(i, slot)] = True
 
     out: dict[str, tuple[str, tuple[str, ...]]] = {}
     for idx, p in enumerate(paths):
