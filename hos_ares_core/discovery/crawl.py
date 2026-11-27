@@ -25,7 +25,7 @@ from ..routes.sources.base import ObservedRecord
 from ..routes.types import RouteBinding, RouteCandidate, RouteProvenance
 from .links import SEP, Sighting, extract, normalize_href, query_names
 from .wellknown import WELL_KNOWN, paths_for
-from .templatize import templatize
+from .templatize import templatize, templatize_many
 
 #: 单轮最多抓几页：一轮就是一份请求预算，不因为"还没爬完"就继续。
 MAX_PAGES_PER_ROUND = 20
@@ -349,6 +349,36 @@ class Crawler:
                             query=probe,
                         )
                     )
+
+        # **本轮收尾：把 pending 里的"语义 id 面"合并掉**（B608）。
+        #
+        # 逐条 `templatize` 只认结构性动态段（数字 / hex / 邮箱）。语义 id
+        #（`/api/user-A/profile` 与 `/api/user-B/profile`）会各占一条面，
+        # 而它们是**同一条端点**——分母当场虚增。
+        #
+        # 为什么放到这里而不是收集中途：单条路径看不出"同类多值"，
+        # 必须等本轮收齐才能判。三处 `templatize` 调用点各自加一遍会重复计算，
+        # 还容易在某一处漏掉。
+        #
+        # `records` 不动：它按**种子**的模板去重，种子是上一轮已经归一过的，
+        # 与本轮新发现无关。
+        if pending:
+            canon = templatize_many([s.path for s in pending])
+            merged: list[Sighting] = []
+            # **合并键必须含 query**（B608 踩过）：同一个 path 会有两条 sighting ——
+            # 一条原样、一条带 `?name=1` 的表单探针。只按 path 去重会把探针那条吃掉，
+            # 于是 `test_get_form_is_submitted_once_with_probe` 当场红。
+            # 这也符合语义：`/search` 与 `/search?q=1` 返回的内容不同。
+            seen_canon: set[tuple[str, str]] = set()
+            for sighting in pending:
+                entry = canon.get(sighting.path)
+                template = entry[0] if entry else sighting.path
+                canon_key = (template, sighting.query)
+                if canon_key in seen_canon:
+                    continue
+                seen_canon.add(canon_key)
+                merged.append(sighting)
+            pending = merged
 
         return CrawlRound(
             fetched=fetched,
