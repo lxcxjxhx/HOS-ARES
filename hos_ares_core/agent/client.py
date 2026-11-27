@@ -166,19 +166,19 @@ def _balanced_object(text: str, start: int) -> tuple[str, int] | None:
     return None
 
 
-def _extract_payload(content: Any, finish_reason: str = "") -> Mapping[str, Any]:
-    """从模型回复里取出**恰好一个** json 对象（B230）。
+def _extract_payload(content: Any, finish_reason: str = "") -> Any:
+    """从模型回复里取出 json 载荷（B230 / B566 修正）。
 
-    真模型的三层包装都不改变"一步一调用"，但会让先前那版 ``json.loads(content)``
-    在每个真实端点上降级成 rules：
+    **单体对象与顶层数组都接受**：判定链路要"一步一调用"，但工作台（chat）
+    允许一次给多个调用（codex 式并行），`cmd_chat._plan_from_model` 里本来
+    就有 `isinstance(raw, (list, tuple))` 分支。
 
-    1. markdown 围栏 ```` ```json … ``` ````——网关不认 ``response_format`` 时必现；
-    2. 前后带一句人话（"好的，这是调用："）；
-    3. ``content`` 是分块数组（Anthropic / 多模态形状）。
+    早先这里把**顶层数组**也当成"多个对象"拒掉（`json.loads` 得到 list，
+    `isinstance(obj, Mapping)` 为假，于是落到 ③ 的"不许有第二个"分支），
+    结果那条分支**永远走不到**——两层各自都"对"，加起来是不可达代码。
 
-    **仍然只接受恰好一个对象**：识别到两个就拒——那正是"一步串两个工具"的形状。
-    取不到就把原文前 80 字带进错误里：人要能看见模型到底说了什么，而不是只看到
-    "schema 不合规"。
+    返回类型因此是 ``Any``：调用方自己判 shapes（``Mapping`` 或 ``list``）。
+    仍然拒"两个**对象**串在一起"那种形状（③ 分支保留）。
     """
     text = _text_of(content).strip()
     if not text:
@@ -201,6 +201,10 @@ def _extract_payload(content: Any, finish_reason: str = "") -> Mapping[str, Any]
             continue
         if isinstance(obj, Mapping):
             return dict(obj)
+        if isinstance(obj, list):
+            # 顶层数组交给调用方判"允许多少个"（B566）：**不在这里替它拒**。
+            # 判定链路那边自己会按 `tool_calls_per_step=1` 挡；chat 那边允许多个。
+            return list(obj)
 
     # ③ 前后带人话：只取第一个配平对象，且**不许有第二个**
     start = text.find("{")
@@ -323,7 +327,8 @@ class HttpChatClient:
             "usage": usage,
         }
 
-    def __call__(self, goal: str, ctx: Mapping[str, Any]) -> Mapping[str, Any]:
+    def __call__(self, goal: str, ctx: Mapping[str, Any]) -> Any:
+        """返回**单体对象或顶层数组**（B566）：多调用的形状由调用方判。"""
         payload = {
             "model": self.model,
             "temperature": 0,
@@ -443,7 +448,9 @@ class HttpChatClient:
                 pass
         content = ((choice.get("message") or {}).get("content") or "")
         parsed = _extract_payload(content, self.last_finish_reason)
-        return dict(parsed)
+        # **不许 `dict(parsed)` 一把梭**（B566）：顶层数组（多调用）会被转坏。
+        # 这里原样把 shape 交出去，由调用方判。
+        return parsed
 
 
 class ScriptedClient:

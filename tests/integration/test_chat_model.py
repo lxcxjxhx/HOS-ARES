@@ -95,15 +95,30 @@ def test_bad_schema_falls_back(monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
         srv.stop()
 
 
-def test_two_calls_rejected(monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
-                            ctx: Any, capsys: pytest.CaptureFixture[str]) -> None:
+def test_two_calls_are_accepted_and_both_run(monkeypatch: pytest.MonkeyPatch,
+                                             tmp_path: Path, ctx: Any,
+                                             capsys: pytest.CaptureFixture[str]) -> None:
+    """一条回复里给两个调用 → **两个都执行**（B521 的 codex 式并行）。
+
+    这条以前叫 `test_two_calls_rejected`，断言「多调用必须被拒（一步一调用）」。
+    但 B521 的实现方向正好相反：`_plan_from_model` 里明确有
+    `isinstance(raw, (list, tuple))` 分支，注释写着「允许模型一次给多个调用」。
+
+    **两层矛盾**：上层支持、下层（`_extract_payload`）把数组当"多个对象"拒掉，
+    于是那个分支从来没走到过，旧用例也就一直绿着（它守的是**不可达**的行为）。
+
+    B566 修好之后两处一致：数组被接受，两个 Step 依次执行。
+    """
     from lab.model_server import ModelServer
 
     srv = ModelServer(mode="two_calls").start()
     try:
         ctx("看下 notes.txt\n" + SEP + "quit\n", base_url=srv.base_url)
         out = _out(capsys)
-        assert "降级 rules" in out, "多调用必须被拒（一步一调用）"
+        # 不该降级：多调用是合法形状
+        assert "降级 rules" not in out, f"多调用被判成非法：{out[:400]}"
+        # 两个调用都出现过（read a / write b）
+        assert "read" in out and "write" in out, out[:400]
     finally:
         srv.stop()
 
