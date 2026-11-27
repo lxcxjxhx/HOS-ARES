@@ -142,14 +142,30 @@ class ContainerTask:
 
 @dataclass(frozen=True)
 class ContainerRun:
-    """容器级并行的结果。`isolation` 只在真起了容器时才是 `container`。"""
+    """容器级并行的结果。`isolation` 只在真起了容器时才是 `container`。
+
+    ## 默认值为什么是空串（B613）
+
+    早先是 `isolation: str = "container"` —— 那样**忘了填就等于声称"容器隔离"**。
+    实测有个分支（`except` 里抓单任务异常）确实没填：
+
+    ```python
+    out.append(ContainerRun(task_id, outcome="error", reason=...))   # isolation 漏了
+    ```
+
+    而那条路径上容器**可能根本没起来**（`pool.submit` 抛异常时连 `one()` 都没跑）。
+    于是报告里会写 `isolation="container"`，实际什么隔离都没有。
+
+    **默认值不能替调用方撒谎。** 改成空串后，漏填就是空 —— 读起来是"不知道"，
+    而不是"是容器"。空串在报告侧按"未标注"处理。
+    """
 
     task_id: str
     exit_code: int | None = None
     stdout: str = ""
     outcome: str = "ok"
     reason: str = ""
-    isolation: str = "container"
+    isolation: str = ""
 
 
 def run_parallel_containers(
@@ -199,8 +215,13 @@ def run_parallel_containers(
             try:
                 out.append(futures[task_id].result())
             except Exception as exc:  # noqa: BLE001 - 单任务失败不拖垮整体
-                out.append(ContainerRun(task_id, outcome="error",
-                                        reason=f"{type(exc).__name__}: {exc}"))
+                # `isolation` 显式填**执行体**的档位，不是"容器起没起来"：
+                # 走到这里时容器可能压根没启动，但"用的是容器档执行体"这个事实
+                # 仍然成立，报告侧需要它来区分"隔离了但任务失败"与"没隔离"。
+                out.append(ContainerRun(
+                    task_id, outcome="error",
+                    reason=f"{type(exc).__name__}: {exc}",
+                    isolation=str(getattr(executor, "isolation", ""))))
     return tuple(out)
 
 
