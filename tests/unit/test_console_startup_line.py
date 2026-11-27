@@ -14,22 +14,26 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
 from hos_ares_cli.cmd_console import artifact_note
 
 
-def test_missing_artifact_says_run_something_first(tmp_path) -> None:  # noqa: ANN001
+def test_missing_artifact_says_run_something_first(tmp_path: Path) -> None:
     note = artifact_note(str(tmp_path / "nope" / "hunt.json"))
     assert "不存在" in note, note
     assert "hos-ares run" in note and "hos-ares hunt" in note, note
 
 
-def test_existing_artifact_adds_no_noise(tmp_path) -> None:  # noqa: ANN001
+def test_existing_artifact_adds_no_noise(tmp_path: Path) -> None:
     art = tmp_path / "hunt.json"
     art.write_text("{}", encoding="utf-8")
     assert artifact_note(str(art)) == "", "文件在就别加话"
 
 
-def test_directory_is_not_an_artifact(tmp_path) -> None:  # noqa: ANN001
+def test_directory_is_not_an_artifact(tmp_path: Path) -> None:
     """指向目录时也要说清：否则读者会以为产物里一条发现都没有。"""
     assert "目录" in artifact_note(str(tmp_path))
 
@@ -77,13 +81,13 @@ def test_a_free_port_reports_no_problem() -> None:
     assert port_problem(_LOOPBACK, free) == ""
 
 
-def test_a_bind_failure_after_the_banner_denies_the_url(monkeypatch, tmp_path) -> None:  # noqa: ANN001
+def test_a_bind_failure_after_the_banner_denies_the_url(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """探针与绑定之间仍有窗口：这时必须当场否认上面那行 URL，别留假消息。"""
     import uvicorn
 
     from hos_ares_cli import cmd_console
 
-    def boom(*_a, **_k):  # noqa: ANN002, ANN003, ANN202
+    def boom(*_a: object, **_k: object) -> None:
         raise OSError(10048, "address in use")
 
     monkeypatch.setattr(uvicorn, "run", boom)
@@ -94,7 +98,7 @@ def test_a_bind_failure_after_the_banner_denies_the_url(monkeypatch, tmp_path) -
 
 
 # ── B285：desktop（双击那条路）也不许"说起来了其实没起来" ─────────
-def test_desktop_refuses_a_busy_fixed_port(monkeypatch) -> None:  # noqa: ANN001
+def test_desktop_refuses_a_busy_fixed_port(monkeypatch: pytest.MonkeyPatch) -> None:
     """实测：端口被别人占着时，wait_ready 只做 TCP 连接 → 返回 True，
     于是打印「控制台已启动」并打开浏览器，而那个端口上跑的不是我们。"""
     from hos_ares_cli import desktop
@@ -115,7 +119,7 @@ def test_desktop_confirms_its_own_endpoint() -> None:
 
 
 # ── B287：产物要能在**当前目录**被找到 ──────────────────────────
-def test_pick_record_finds_artifacts_in_the_working_directory(tmp_path, monkeypatch) -> None:  # noqa: ANN001
+def test_pick_record_finds_artifacts_in_the_working_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """双击装好的 exe 时 cwd 是安装目录（Program Files），只找"程序旁边"等于永远找不到。"""
     from hos_ares_cli import desktop
 
@@ -128,7 +132,7 @@ def test_pick_record_finds_artifacts_in_the_working_directory(tmp_path, monkeypa
     assert desktop.pick_record("") == target
 
 
-def test_pick_record_still_prefers_an_explicit_path(tmp_path) -> None:  # noqa: ANN001
+def test_pick_record_still_prefers_an_explicit_path(tmp_path: Path) -> None:
     from hos_ares_cli import desktop
 
     explicit = tmp_path / "x.json"
@@ -136,7 +140,7 @@ def test_pick_record_still_prefers_an_explicit_path(tmp_path) -> None:  # noqa: 
     assert desktop.pick_record(str(explicit)) == explicit
 
 
-def test_pick_record_returns_none_when_nothing_is_there(tmp_path, monkeypatch) -> None:  # noqa: ANN001
+def test_pick_record_returns_none_when_nothing_is_there(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from hos_ares_cli import desktop
 
     # 这个用例不能受**仓库当前状态**影响：别的用例可能刚在 out/run 下产出过产物（B322 实测红过）。
@@ -181,7 +185,8 @@ def test_console_source_line_uses_a_non_clashing_name() -> None:
 
 
 # ── B310：console 也支持 --port 0（向系统要空闲端口）────────────────
-def test_console_port_zero_asks_the_system(tmp_path, monkeypatch, capsys) -> None:  # noqa: ANN001
+def test_console_port_zero_asks_the_system(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+     capsys: pytest.CaptureFixture[str]) -> None:
     import sys as _sys
     import types
 
