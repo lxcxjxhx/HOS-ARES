@@ -6,6 +6,8 @@ A 落库 / B 事件 / C 自批留痕 / D 过期留痕 / E 只增不改。
 
 from __future__ import annotations
 
+import sqlite3
+
 import pytest
 
 from hos_ares_core.blackboard import EventLog
@@ -30,11 +32,12 @@ def _gate(*, ttl_s: int = 3600) -> tuple[ApprovalGate, Store]:
     return gate, store
 
 
-def _rows(store: Store, sql: str, *args: object) -> list[object]:
+def _rows(store: Store, sql: str, *args: object) -> list[sqlite3.Row]:
+    """查一批行。返回 `list[sqlite3.Row]`——`fetchall()` 的 `object` 让每处索引都报错（B578）。"""
     return store.conn.execute(sql, args).fetchall()
 
 
-def _events(store: Store) -> list[object]:
+def _events(store: Store) -> list[sqlite3.Row]:
     return _rows(store, "SELECT * FROM task_events WHERE kind='approval' ORDER BY seq")
 
 

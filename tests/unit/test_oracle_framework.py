@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import ast
 import inspect
+from collections.abc import Iterator
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 from conftest import Lab
@@ -24,7 +26,7 @@ SEPARATORS = {":" + SLASH * 2, SLASH * 2}
 ORACLES_DIR = ROOT / "hos_ares_oracles"
 
 
-def _oracles():  # noqa: ANN202
+def _oracles() -> Iterator[Any]:
     for cls in TIER_A:
         yield cls()
 
@@ -43,7 +45,7 @@ def test_three_way_rejects_missing_role() -> None:
 
 # ── 2 judge 纯净性（无 IO / 时钟 / 随机）───────────────────────────
 @pytest.mark.parametrize("oracle", list(_oracles()), ids=lambda o: o.id)
-def test_judge_reads_no_environment(oracle) -> None:  # noqa: ANN001
+def test_judge_reads_no_environment(oracle: Any) -> None:
     banned = "time. datetime random. os.environ requests socket. open(".split()
     source = inspect.getsource(type(oracle).judge)
     hits = [token for token in banned if token in source]
@@ -51,7 +53,7 @@ def test_judge_reads_no_environment(oracle) -> None:  # noqa: ANN001
 
 
 @pytest.mark.parametrize("oracle", list(_oracles()), ids=lambda o: o.id)
-def test_plan_reads_no_environment(oracle) -> None:  # noqa: ANN001
+def test_plan_reads_no_environment(oracle: Any) -> None:
     banned = ("os.environ", "requests", "socket.", "open(")
     source = inspect.getsource(type(oracle).plan)
     hits = [token for token in banned if token in source]
@@ -83,7 +85,7 @@ def test_selector_tags_are_semantic() -> None:
 
 # ── 4 变体必须含 control；缺了框架就拒 ─────────────────────────────
 @pytest.mark.parametrize("oracle", list(_oracles()), ids=lambda o: o.id)
-def test_plan_always_has_control(oracle, vulnerable: Lab) -> None:  # noqa: ANN001
+def test_plan_always_has_control(oracle: Any, vulnerable: Lab) -> None:
     binding = vulnerable.binding(oracle.selector_tags[0])
     roles = [v.role for v in oracle.plan(binding)]
     assert "control" in roles, f"{oracle.id} 的计划里没有对照"
@@ -91,7 +93,7 @@ def test_plan_always_has_control(oracle, vulnerable: Lab) -> None:  # noqa: ANN0
 
 
 @pytest.mark.parametrize("oracle", list(_oracles()), ids=lambda o: o.id)
-def test_no_unknown_transform_kinds(oracle, vulnerable: Lab) -> None:  # noqa: ANN001
+def test_no_unknown_transform_kinds(oracle: Any, vulnerable: Lab) -> None:
     binding = vulnerable.binding(oracle.selector_tags[0])
     for variant in oracle.plan(binding):
         if variant.transform is not None:
@@ -136,7 +138,12 @@ def test_denied_baseline_only_counts_when_declared() -> None:
     """
     from types import SimpleNamespace
 
-    from hos_ares_oracles.common.harness import Pair, three_way_holds
+    from hos_ares_oracles.common.harness import (
+        Pair,
+        Trace,
+        Variant,
+        three_way_holds,
+    )
 
     def _pair(status: int, role: str = "probe", expect: str = "any_response") -> Pair:
         trace = SimpleNamespace(status=status, headers={}, error=None, body=b"{}",
@@ -145,7 +152,11 @@ def test_denied_baseline_only_counts_when_declared() -> None:
                                 fingerprint=lambda: (status, 0, ""))
         variant = SimpleNamespace(role=role, expect=expect,
                                   matches_expectation=lambda: True, stable=True)
-        return Pair(variant=variant, baseline=trace, trace=trace, repeats=(trace, trace))
+        # `SimpleNamespace` 当 `Variant` 用：这是**测试替身**，类型契约上不成立，
+        # 用 cast 明说意图，而不是让 mypy 报 4 个 arg-type（B578）。
+        fake_trace = cast(Trace, trace)
+        return Pair(variant=cast(Variant, variant), baseline=fake_trace, trace=fake_trace,
+                    repeats=(fake_trace, fake_trace))
 
     class _Auth:
         baseline_accepts_denied = True
@@ -216,29 +227,30 @@ def test_harness_runs_burst_oracles_instead_of_no_control() -> None:
         baseline_accepts_denied = False
         observes_failures = False
 
-        def baseline_params(self, binding):  # noqa: ANN001, ANN201, D401
+        def baseline_params(self, binding: Any) -> dict[str, str]:
             return {}
 
-        def plan(self, binding):  # noqa: ANN001, ANN201
+        def plan(self, binding: Any) -> list[Any]:
             return []
 
         def burst_sample_count(self) -> int:
             return 3
 
-        def judge_burst(self, samples):  # noqa: ANN001, ANN201
+        def judge_burst(self, samples: Any) -> Any:
             assert len(samples.traces) == 6, samples.traces  # 3 串行 + 3 并发
             from hos_ares_core.models import Judgement, Verdict
 
             return Judgement(verdict=Verdict.VERIFIED, reason="no_rate_limiting",
                              confidence=0.7, assertion={}, route_strength="contract")
 
-        def judge(self, pairs):  # noqa: ANN001, ANN201
+        def judge(self, pairs: Any) -> Any:
             raise AssertionError("burst 型判据不该走三条件判")
 
     calls = []
 
     class _T:
-        def send(self, binding, params, role, headers=None, **kw):  # noqa: ANN001, ANN201
+        def send(self, binding: Any, params: Any, role: str,
+             headers: Any = None, **kw: Any) -> Any:
             calls.append(role)
             return H.Trace(status=200, route_ref="route://contract/deadbeef")
 
