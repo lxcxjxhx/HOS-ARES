@@ -244,6 +244,9 @@ def check_lock_sync(root: Path) -> CheckResult:
 #: doctor 有意**不跑**的闸门：每一条都要写清理由，否则 `gate_parity` 判红（B210）。
 DOCTOR_EXCLUDED: dict[str, str] = {
     "mypy": "太慢（30s+），交给 verify.py / CI",
+    # B600：测试目录的类型检查与 mypy 同类——冷缓存 13 秒，现场自检里不合适。
+    # 它与 `mypy` 拆成两道闸门是因为同轮扫会撞模块名歧义（见 verify.py 的注释）。
+    "mypy-tests": "太慢（13s+），交给 verify.py / CI",
     "plan": "要 node 环境，doctor 不假定有",
     # B232：冻结包自带的内容寻址校验器，同样要 node
     "plan-old-manifest": "要 node 环境（旧包自带 `_verify-manifest.cjs`），理由同 plan",
