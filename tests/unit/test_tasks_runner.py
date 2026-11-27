@@ -5,16 +5,17 @@ from __future__ import annotations
 import importlib.util
 import re
 from pathlib import Path
+from script_module import load_script_module  # noqa: E402
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
 def _tasks() -> dict[str, tuple[str, ...]]:
-    spec = importlib.util.spec_from_file_location("_tasks", ROOT / "scripts" / "tasks.py")
-    assert spec and spec.loader
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return dict(mod.TASKS)
+    # 用共用函数（B588）
+    mod: Any = load_script_module("_tasks", ROOT / "scripts" / "tasks.py")
+    result: dict[str, tuple[str, ...]] = dict(mod.TASKS)
+    return result
 
 
 def _documented_make_targets() -> set[str]:
@@ -47,8 +48,6 @@ def test_tasks_cover_the_essentials() -> None:
 
 
 def test_unknown_task_exits_2() -> None:
-    spec = importlib.util.spec_from_file_location("_tasks2", ROOT / "scripts" / "tasks.py")
-    assert spec and spec.loader
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    # 用共用函数（B588）
+    mod: Any = load_script_module("_tasks2", ROOT / "scripts" / "tasks.py")
     assert mod.main(["no-such-task"]) == 2

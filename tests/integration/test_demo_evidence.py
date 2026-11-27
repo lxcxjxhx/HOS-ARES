@@ -17,6 +17,9 @@ import sys
 from pathlib import Path
 
 import pytest
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "unit"))
+from script_module import load_script_module  # noqa: E402
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 for extra in (ROOT, ROOT / "tests"):
@@ -24,16 +27,18 @@ for extra in (ROOT, ROOT / "tests"):
         sys.path.insert(0, str(extra))
 
 
-def _demo():  # noqa: ANN202
-    spec = importlib.util.spec_from_file_location("_demo_under_test", ROOT / "scripts" / "demo.py")
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
+def _demo() -> Any:
+    """加载演示脚本。用共用函数（B588）。
+
+    这处原本要往 `sys.modules` 里注册——共用函数不注册，
+    所以注册那步留在外面（调用方需要时才做）。
+    """
+    mod: Any = load_script_module("_demo_under_test", ROOT / "scripts" / "demo.py")
     sys.modules["_demo_under_test"] = mod
-    spec.loader.exec_module(mod)
     return mod
 
 
-def _runtime(secure: bool = False):  # noqa: ANN202
+def _runtime(secure: bool = False) -> Any:
     from lab.app import App
     from lab.transport_oob import LabTransport
 
@@ -82,7 +87,8 @@ def test_demo_replay_actually_sends(tmp_path: Path) -> None:
         def __init__(self) -> None:
             self.inner = m.NetTransport(token_for=m.make_token) if hasattr(m, "NetTransport") else None
 
-        def send(self, binding, params, role, headers=None):  # noqa: ANN001, ANN201
+        def send(self, binding: Any, params: Any, role: str,
+                 headers: Any = None) -> Any:
             calls["n"] += 1
             raise AssertionError("本测试只数调用次数，不真发")
 

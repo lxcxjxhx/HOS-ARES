@@ -11,6 +11,8 @@ import importlib.util
 from pathlib import Path
 
 import pytest
+from script_module import load_script_module  # noqa: E402
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "ui" / "a11y_check.py"
@@ -19,11 +21,9 @@ CHECKLIST = ROOT / "docs" / "delivery" / "ui-a11y-checklist.md"
 SRC = PAGE.read_text(encoding="utf-8")
 
 
-def _load():
-    spec = importlib.util.spec_from_file_location("a11y_check", SCRIPT)
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+def _load() -> Any:
+    # 用共用函数（B588）
+    module: Any = load_script_module("a11y_check", SCRIPT)
     return module
 
 
@@ -57,7 +57,7 @@ def test_skip_link_and_focusable_main() -> None:
         (lambda s: s.replace("@media print", "@media screen"), "print"),
     ],
 )
-def test_mutations_are_caught(mutate, needle: str) -> None:  # noqa: ANN001
+def test_mutations_are_caught(mutate: Any, needle: str) -> None:
     problems = a11y.checks(mutate(SRC))
     assert any(needle in p for p in problems), f"{needle} 未被抓到：{problems}"
 

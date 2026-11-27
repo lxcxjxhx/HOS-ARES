@@ -12,6 +12,8 @@ import re
 from pathlib import Path
 
 import pytest
+from script_module import load_script_module  # noqa: E402
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 PAGE = ROOT / "web" / "static" / "index.html"
@@ -20,11 +22,9 @@ SRC = PAGE.read_text(encoding="utf-8")
 _TOKEN_USES = "var(--bg) var(--fg) var(--line) var(--surface) var(--muted)".split()
 
 
-def _load():
-    spec = importlib.util.spec_from_file_location("contrast_check", SCRIPT)
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+def _load() -> Any:
+    # 用共用函数（B588）
+    module: Any = load_script_module("contrast_check", SCRIPT)
     return module
 
 

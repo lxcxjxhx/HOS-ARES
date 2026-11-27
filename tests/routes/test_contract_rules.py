@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import sys
 import ast
 import importlib.util
 import json
@@ -21,6 +22,9 @@ from hos_ares_core.routes import (
     StaticSource,
 )
 from hos_ares_core.routes.types import RouteCandidate
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "unit"))
+from script_module import load_script_module  # noqa: E402
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 CORE = ROOT / "hos_ares_core"
@@ -58,10 +62,8 @@ def test_routes_contract_n2_resolver_only_builder() -> None:
 
 
 def test_routes_contract_n4_no_retry_symbol() -> None:
-    spec = importlib.util.spec_from_file_location("nr_contract", ROOT / "scripts/lint/noroute.py")
-    mod = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(mod)
+    # 用共用函数（B588）。这处原来把 `assert` 写在 `module_from_spec` **之后**。
+    mod: Any = load_script_module("nr_contract", ROOT / "scripts/lint/noroute.py")
 
     names: set[str] = set()
     for p in _py_files(CORE, ORACLES):
