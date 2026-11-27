@@ -9,6 +9,7 @@ from __future__ import annotations
 import importlib.util
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -17,9 +18,15 @@ SCRIPT = REPO / "scripts" / "demo" / "record_console.py"
 MANIFEST = REPO / "out" / "demo" / "manifest.json"
 
 
-def _module():
+def _module() -> Any:
+    """把演示脚本当模块加载，供断言它的私有函数。
+
+    返回 `Any`：脚本模块没有类型存根，`.read_text()` / `._counts()` 之类
+    只能靠运行时（B582）。
+    """
     spec = importlib.util.spec_from_file_location("record_console", SCRIPT)
-    assert spec and spec.loader
+    # `spec_from_file_location` 返回 `ModuleSpec | None`：断言必须在**解引用之前**
+    assert spec is not None and spec.loader is not None, f"加载不了 {SCRIPT}"
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod

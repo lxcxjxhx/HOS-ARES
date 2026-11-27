@@ -10,6 +10,7 @@ from __future__ import annotations
 import time
 
 import pytest
+import httpx
 from fastapi.testclient import TestClient
 
 from hos_ares.report.audit import AuditInput, render_audit_section
@@ -38,7 +39,9 @@ def _client(*approvals: Approval) -> TestClient:
     return TestClient(build_app(ConsoleState(approvals=list(approvals))))
 
 
-def _post(client: TestClient, **body: object) -> object:
+def _post(client: TestClient, **body: object) -> httpx.Response:
+    """发一次 POST。返回 `httpx.Response`——
+    `TestClient.request` 的返回被推断成 `object` 时，每处 `.status_code` 都报错（B582）。"""
     return client.post(UI + "approvals", json=body)
 
 

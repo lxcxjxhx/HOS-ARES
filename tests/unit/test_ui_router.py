@@ -10,6 +10,7 @@ import json
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -25,7 +26,7 @@ NODE = shutil.which("node")
 pytestmark = pytest.mark.skipif(NODE is None, reason="node 不可用：前端纯函数无法验证")
 
 
-def _run(expr: str, payload: dict | None = None) -> object:
+def _run(expr: str, payload: dict[str, Any] | None = None) -> Any:
     """在 node 里 import router.js，执行一段表达式，把结果以 JSON 打回。"""
     script = (
         f"import('file:///{ROUTER.as_posix()}').then((m) => {{\n"
@@ -34,6 +35,7 @@ def _run(expr: str, payload: dict | None = None) -> object:
         f"  process.stdout.write(JSON.stringify(out));\n"
         f"}}).catch((e) => {{ console.error(e); process.exit(1); }});"
     )
+    assert NODE is not None, "pytestmark 已 skip；这里给 mypy 一个窄化"
     proc = subprocess.run([NODE, "--input-type=module", "-e", script],
                           capture_output=True, text=True, encoding="utf-8", timeout=30)
     assert proc.returncode == 0, proc.stderr
@@ -81,7 +83,7 @@ def test_hash_illegal_op_falls_back_to_overview() -> None:
 
 
 # ── 判据 B：筛选/排序是纯函数，顺序稳定 ────────────────────────
-def _rows() -> list[dict]:
+def _rows() -> list[dict[str, Any]]:
     return [
         {"id": "F-3", "title": "ssrf 未确认", "oracle": "ssrf_oob", "asset": "a.example",
          "severity": "high", "priority": 11.0, "queue": "unverified"},
@@ -117,8 +119,9 @@ def test_sort_is_stable_for_equal_scores() -> None:
 
 
 # ── 判据 C：后端 low 参数（前端唯一的额外请求参数）──────────────
-def _row(**kw) -> Row:
-    base = dict(finding_id="f-1", title="t", severity="high", oracle_id="o", asset_id="a",
+def _row(**kw: Any) -> Row:
+    # `dict[str, Any]`：`**base` 展开到 `Row` 时 `object` 让每个参数报 arg-type（B582）。
+    base: dict[str, Any] = dict(finding_id="f-1", title="t", severity="high", oracle_id="o", asset_id="a",
                 confidence=1.0, route_strength="contract", route_ref=None,
                 replay_status="OK", template_sha256="b" * 64, capsule_id="c" * 64, hits=1)
     base.update(kw)
