@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 
 from web.console import Queue, build_app
 from web.loader import SEVERITY, load_file, load_record, summarize
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 ARTIFACT = ROOT / "out" / "b30" / "hunt.json"
@@ -39,8 +40,8 @@ def _record() -> dict[str, object]:
     }
 
 
-def _digest(state: object) -> str:
-    client = TestClient(build_app(state))  # type: ignore[arg-type]
+def _digest(state: Any) -> str:
+    client = TestClient(build_app(state))
     blob = "".join(client.get(UI + op).text for op in ("findings", "unverified", "coverage", "overview"))
     return hashlib.sha256(blob.encode()).hexdigest()
 
@@ -134,7 +135,7 @@ def test_loader_real_artifact_shape() -> None:
 
 
 # ── B100：run 的 findings.json 也要能打开 ───────────────────────
-def _report_doc(outcome: str = "reported") -> dict:
+def _report_doc(outcome: str = "reported") -> dict[str, Any]:
     return {
         "schema": "hos-ares.report/v1",
         "engagement": "web-01",
@@ -177,44 +178,45 @@ def test_report_shape_unreported_row_has_no_severity() -> None:
     assert load_record(_report_doc(outcome="undetermined")).findings[0].severity is None
 
 # ── B115：控制台吃目录，资产名取自账本 ───────────────────────────
-def _write(tmp_path: "object", name: str, payload: dict) -> None:
+def _write(tmp_path: Path, name: str, payload: dict[str, Any]) -> None:
     import json
     from pathlib import Path
 
     (Path(tmp_path) / name).write_text(json.dumps(payload), encoding="utf-8")
 
 
-def test_loader_accepts_a_directory(tmp_path: object) -> None:
+def test_loader_accepts_a_directory(tmp_path: Path) -> None:
     """用户敲 --hunt out/run-xxx 时给的是目录。"""
     _write(tmp_path, "hunt.json", {"target_host": "a.invalid", "findings": {"sqli_bool_diff": "VERIFIED"}})
-    state = load_file(tmp_path)  # type: ignore[arg-type]
+    state = load_file(tmp_path)
     assert summarize(state)["total"] == 1
     assert summarize(state)["asset"] == "a.invalid"
 
 
-def test_loader_prefers_hunt_over_coverage(tmp_path: object) -> None:
+def test_loader_prefers_hunt_over_coverage(tmp_path: Path) -> None:
     _write(tmp_path, "hunt.json", {"target_host": "a.invalid", "findings": {}})
     _write(tmp_path, "coverage.json", {"asset_id": "b.invalid", "summary": {}, "gaps": []})
-    assert summarize(load_file(tmp_path))["asset"] == "a.invalid"  # type: ignore[arg-type]
+    assert summarize(load_file(tmp_path))["asset"] == "a.invalid"
 
 
-def test_coverage_only_artifact_takes_asset_from_ledger(tmp_path: object) -> None:
+def test_coverage_only_artifact_takes_asset_from_ledger(tmp_path: Path) -> None:
     _write(tmp_path, "coverage.json", {
         "asset_id": "c.invalid",
         "summary": {"faces": 1, "faces_covered": 0, "gaps": 1},
         "gaps": [{"kind": "face_without_oracle", "severity": "critical", "why": "x"}],
     })
-    state = load_file(tmp_path)  # type: ignore[arg-type]
+    state = load_file(tmp_path)
     assert summarize(state)["asset"] == "c.invalid", "只有账本时资产名别显示 unknown"
     assert state.coverage.get("ledger", {}).get("summary", {}).get("faces") == 1
 
 
-def test_empty_directory_is_empty_state_not_a_crash(tmp_path: object) -> None:
-    state = load_file(tmp_path)  # type: ignore[arg-type]
+def test_empty_directory_is_empty_state_not_a_crash(tmp_path: Path) -> None:
+    state = load_file(tmp_path)
     assert state.findings == ()
 
 # ── B145：hunt 的逐面记录才是权威，不许编 id / 证据 ─────────────
-def _hunt(faces: list | None = None, findings: dict | None = None) -> dict:
+def _hunt(faces: list[Any] | None = None,
+          findings: dict[str, Any] | None = None) -> dict[str, Any]:
     return {
         "target_host": "host",
         "findings": findings if findings is not None else {"csp_absent": "VERIFIED"},
@@ -223,7 +225,8 @@ def _hunt(faces: list | None = None, findings: dict | None = None) -> dict:
     }
 
 
-def _face(oracle: str, verdict: str, tail: str, *, reason: str = "") -> dict:
+def _face(oracle: str, verdict: str, tail: str, *,
+          reason: str = "") -> dict[str, Any]:
     return {
         "oracle_id": oracle,
         "route_ref": "route://crawl/" + tail,
@@ -266,7 +269,7 @@ def test_no_fabricated_capsule_id() -> None:
 
 
 # ── B155：hunt 真的封了 capsule 之后，控制台要显示**那一面**的那份 ──
-def _evidence(oracle: str, tail: str, cid: str) -> dict:
+def _evidence(oracle: str, tail: str, cid: str) -> dict[str, Any]:
     return {"oracle": oracle, "route_ref": "route://crawl/" + tail, "capsule_id": cid}
 
 
