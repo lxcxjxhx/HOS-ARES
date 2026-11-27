@@ -29,6 +29,20 @@ _FILEISH = re.compile(r"[A-Za-z0-9_.\-]+\.[A-Za-z0-9]{1,8}\b")
 _WRITE_PATTERNS = (
     re.compile(r"(?:往|向|给)\s*(?P<path>[^\s，,]+)\s*写(?:入)?\s*(?P<content>.*)$"),
     re.compile(r"写(?:入)?\s*(?P<content>.+?)\s*(?:到|进)\s*(?P<path>[^\s，,]+)\s*$"),
+    # **"写一个 X" / "建一份 X"：只说创建、不带内容**（B603）。
+    # 这类句式此前落到"只有路径 → 默认读"，于是「写一个 rules.txt」被当成了读，
+    # 会话在 `fs.read：文件不存在` 处停住——**用户说"写"，系统去做"读"**。
+    #
+    # 两条纪律（都是实测踩出来的）：
+    # 1. **必须排在"创建 X 内容 Y"之前**：那个模式会把 `一份` 当路径、
+    #    `notes.md` 当内容（"建一份 notes.md" → path='一份'）。顺序错了就解析反；
+    # 2. **path 必须是"像文件"的样子**（含 `.` 或 `/`）：
+    #    否则「看下 out/x.txt 里写了什么」会被这条抓走——它含"写"字，
+    #    `什么` 被当成路径。原代码的注释早就警告过这一点。
+    re.compile(
+        r"(?:写|创建|新建|建)\s*(?:一个|一份|个|份)?\s*"
+        r"(?P<path>[^\s，,]*[./][^\s，,]*)\s*$"
+    ),
     re.compile(r"(?:创建|新建|建)\s*(?P<path>[^\s，,]+)\s*(?:内容|写上)?\s*(?P<content>.+)$"),
 )
 
@@ -64,7 +78,11 @@ STATUS_WORDS = "状态 进度 status state progress".split()
 @dataclass(frozen=True)
 class Step:
     tool: str
-    args: Mapping[str, str] = field(default_factory=dict)
+    # ** 而不是 **（B597）：工具参数里真的会出现布尔/数字/列表
+    # （、）。
+    # 早先标  让每个传 bool 的调用点都要加 ignore，
+    # 而运行时一直是照收的——标注比实现窄，是标注错了。
+    args: Mapping[str, Any] = field(default_factory=dict)
     why: str = ""
 
 
@@ -196,6 +214,19 @@ def parse(text: str, *, history: Sequence[str] = (), _depth: int = 0) -> Plan:
         raw,
     )
     if m:
+        # **一句话里不许塞多个目标**（B605）：`new` 里再出现「里的/改成」这类结构词，
+        # 说明用户想改第二处。以前它被整个吞进 `new` —— 于是 `old=x` 在 a.txt 里
+        # 找不到就会失败，而用户以为两处都改了。**静默做错比说不懂更糟。**
+        new_val = m["new"]
+        if re.search(r"里的|中的|里面|内|改成|换成|替换成|替换为|改为|改作", new_val):
+            return Plan(
+                raw=raw,
+                understood_as=(
+                    "一句话里只处理一处替换。要改多处请分条说，"
+                    "例如先「把 a.txt 里的 x 改成 y」，再「把 b.txt 里的 p 改成 q」"
+                ),
+            )
+    if m:
         return Plan(
             raw=raw,
             steps=(Step("edit", {"path": m["path"], "old": m["old"], "new": m["new"]},
@@ -211,7 +242,9 @@ def parse(text: str, *, history: Sequence[str] = (), _depth: int = 0) -> Plan:
         wm = pat.search(raw)
         if wm:
             wp = wm.group("path")
-            wc = (wm.group("content") or "").strip("  ：:，,、'\"「」")
+            # 有的句式（"写一个 X"）只说创建、不带内容 → 空内容，不报 KeyError
+            raw_content = wm.groupdict().get("content") or ""
+            wc = raw_content.strip("  ：:，,、'\"「」")
             return Plan(
                 raw=raw,
                 steps=(Step("write", {"path": wp, "content": wc}, "写文件（新建/覆盖）"),),
@@ -225,6 +258,20 @@ def parse(text: str, *, history: Sequence[str] = (), _depth: int = 0) -> Plan:
                     understood_as=f"读 {path}", confident=True)
 
     # ── 只有路径：默认读（最常见）────────────────────────────────
+    # **但要先排除"说了编辑动词、却没给出改什么"的句子**（B604）：
+    # 「批量改 a.txt 和 b.txt」含"改"，却缺「把 X 里的 A 改成 B」的结构。
+    # 以前它落到下面这条"只有路径 → 默认读"上，于是**用户说要改，系统去读** ——
+    # 读还能成功（文件在），用户会以为改完了。**静默做错事比说不懂更糟。**
+    if _verb_of(low, EDIT_WORDS) and path:
+        return Plan(
+            raw=raw,
+            understood_as=(
+                "没听懂「改什么」。要这样说："
+                "「把 a.txt 里的 foo 改成 bar」（一次一处）；"
+                "多文件用 patch 工具，或分多条说"
+            ),
+        )
+
     if path:
         return Plan(raw=raw, steps=(Step("read", {"path": path}, "只给了路径，按读处理"),),
                     understood_as=f"读 {path}（没给动词，按读处理）", confident=True)

@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from script_module import load_script_module  # noqa: E402
+from typing import Any
 
 MAKEFILE = Path(__file__).resolve().parents[2] / "Makefile"
 
@@ -173,10 +175,8 @@ def test_drop_overridden_removes_the_default_pair() -> None:
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[2]
-    spec = importlib.util.spec_from_file_location("tasks_mod", root / "scripts" / "tasks.py")
-    assert spec and spec.loader
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    # 用共用函数（B588）
+    mod: Any = load_script_module("tasks_mod", root / "scripts" / "tasks.py")
 
     argv = "-m hos_ares_cli replay --manifest out/run".split()
     assert mod.drop_overridden(argv, ["--manifest", "out/vr/run"]) == [

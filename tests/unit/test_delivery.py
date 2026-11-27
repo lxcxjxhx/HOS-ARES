@@ -15,6 +15,7 @@ from hos_ares.doctor import CHECKS, Check, DoctorReport, Level, run_all
 from hos_ares_core.lease import Lease, LeaseConfig, StoreClock
 from hos_ares_core.models import TaskState
 from hos_ares_core.store import Store
+from typing import Any
 
 
 # ── 1 doctor 结构 ─────────────────────────────────────────────────
@@ -59,7 +60,7 @@ def test_critical_checks_present() -> None:
 
 
 # ── 2 死信（dead letter）──────────────────────────────────────────
-def test_dead_letter_after_max_attempts(tmp_path) -> None:
+def test_dead_letter_after_max_attempts(tmp_path: Any) -> None:
     """attempt 用尽 → DEAD_LETTER，且不再被领取（04 §5 重排规则）。"""
     store = Store(tmp_path / "d.db").init()
     try:
@@ -92,7 +93,7 @@ def _attempts(store: Store, task_id: str) -> int:
 
 
 # ── 3 三 worker 并行不重不漏 ──────────────────────────────────────
-def test_three_workers_do_not_double_claim(tmp_path) -> None:
+def test_three_workers_do_not_double_claim(tmp_path: Any) -> None:
     """三 worker 抢同一批任务：不重不漏（租约互斥，不需要协调者）。"""
     store = Store(tmp_path / "w.db").init()
     try:

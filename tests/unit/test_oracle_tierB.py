@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 import pytest
 from conftest import Lab
 
@@ -26,14 +27,15 @@ CASES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
 )
 
 
-def _by_id(oracle_id: str):  # noqa: ANN202
+def _by_id(oracle_id: str) -> Any:
     for cls in ALL_ORACLES:
         if cls.meta.id == oracle_id:
             return cls()
     raise KeyError(oracle_id)
 
 
-def _run(lab: Lab, oracle_id: str, tag: str, extras: tuple[str, ...]):  # noqa: ANN202
+def _run(lab: Lab, oracle_id: str, tag: str,
+         extras: tuple[str, ...]) -> Any:
     bmap = {t: lab.binding(t) for t in (tag, *extras)}
     return run(
         _by_id(oracle_id),
@@ -153,10 +155,14 @@ def test_xss_contexts_are_reported_separately(vulnerable: Lab) -> None:
     assert result.judgement.assertion["observed"]["offsets"], "证据要带命中偏移（18 §2.3）"
 
 
-def test_bola_reports_account_unusable(tierB_lab=None) -> None:  # noqa: ANN001
+def test_bola_reports_account_unusable(tierB_lab: Any = None) -> None:
     """低权账号本身不能用 → INCONCLUSIVE，不判成漏洞也不判成安全。"""
     lab = Lab(secure=False)
-    lab.transport.send = lambda b, p, r, h=None: _unauth_trace(b, p, r)  # type: ignore[assignment]
+    # 签名要对齐 transport.send：4 个位置参数 + 1 个可选
+    def _send(b: Any, p: Any, r: Any, h: Any = None) -> Any:
+        return _unauth_trace(b, p, r)
+
+    lab.transport.send = _send  # type: ignore[assignment]
     result = run(
         tierB.BolaFunctional(),
         lab.binding("admin_function"),
@@ -168,7 +174,7 @@ def test_bola_reports_account_unusable(tierB_lab=None) -> None:  # noqa: ANN001
     assert result.verdict is Verdict.INCONCLUSIVE
 
 
-def _unauth_trace(binding, params, role):  # noqa: ANN001, ANN202
+def _unauth_trace(binding: Any, params: Any, role: str) -> Any:
     from hos_ares_oracles.common.harness import Trace
 
     if role == "baseline":

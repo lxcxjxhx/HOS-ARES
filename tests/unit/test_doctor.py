@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -161,7 +162,7 @@ def test_repo_doctor_json_is_serialisable() -> None:
     assert "python" in blob
 
 # ── B105：浏览器实测是显式开关，默认不做 ─────────────────────────
-def test_browser_check_defaults_to_no_launch(monkeypatch) -> None:
+def test_browser_check_defaults_to_no_launch(monkeypatch: pytest.MonkeyPatch) -> None:
     from pathlib import Path
 
     from hos_ares_cli.cmd_doctor import check_browser
@@ -174,15 +175,15 @@ def test_browser_check_defaults_to_no_launch(monkeypatch) -> None:
 
 
 # ── B200：探针没跑起来 ≠ 行为坏 ──────────────────────────────
-def test_executor_check_splits_unproven_env_from_broken_behaviour(monkeypatch, tmp_path) -> None:  # noqa: ANN001
+def test_executor_check_splits_unproven_env_from_broken_behaviour(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:  # noqa: ANN001
     """干净 runner 上子进程既读不到 stdout 也拿不到退出码：记 skip，不记 fail。"""
     from hos_ares_cli import cmd_doctor
 
-    def forged(**facts):  # noqa: ANN003, ANN202
-        def fake_attest(executor):  # noqa: ANN001, ANN202
+    def forged(**facts: object) -> Any:  # noqa: ANN003, ANN202
+        def fake_attest(executor: object) -> object:  # noqa: ANN001, ANN202
             return {"executor": "local", "available": True, **facts}
 
-        def fake_verdict(_facts):  # noqa: ANN001, ANN202
+        def fake_verdict(_facts: object) -> object:  # noqa: ANN001, ANN202
             return False, "行为不完整"
 
         monkeypatch.setattr("hos_ares_core.sandbox.attest.attest", fake_attest)
@@ -200,7 +201,7 @@ def test_executor_check_splits_unproven_env_from_broken_behaviour(monkeypatch, t
 
 
 # ── B209：doctor 的 lint 覆盖必须跟上 verify 的清单 ──────────────
-def test_doctor_covers_every_gate_in_the_list(tmp_path) -> None:  # noqa: ANN001
+def test_doctor_covers_every_gate_in_the_list(tmp_path: Path) -> None:  # noqa: ANN001
     """`scripts/verify.py` 里每一道闸门，doctor 要么跑、要么写明为什么不跑。"""
     root = Path(__file__).resolve().parents[2]
     result = cmd_doctor.check_gate_parity(root)
@@ -215,7 +216,7 @@ def test_every_exclusion_carries_a_reason() -> None:
         assert reason.strip(), f"{name} 没写理由"
 
 
-def test_doctor_flags_a_missing_lint(tmp_path, monkeypatch) -> None:  # noqa: ANN001
+def test_doctor_flags_a_missing_lint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: ANN001
     """把 noleak 从 doctor 源码里抹掉，这条检查必须红——否则它只是墙上的标语。"""
     import shutil
 
@@ -243,11 +244,13 @@ def test_agent_guard_check_passes_on_the_repo() -> None:
     assert "两个入口已接" in result.detail, result.detail
 
 
-def test_agent_guard_check_catches_an_unwired_executor(tmp_path, monkeypatch) -> None:  # noqa: ANN001
+def test_agent_guard_check_catches_an_unwired_executor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: ANN001
     """闸门从**执行路径**上摘掉，这项必须红——grep 到 import 就绿是最容易犯的假绿。"""
     import hos_ares_cli.cmd_chat as chat
 
-    def _unwired(step, *, wb, root, allow_dangerous=False):  # noqa: ANN001, ANN202
+    def _unwired(step: object, *, wb: object, root: Path,
+
+                 allow_dangerous: bool = False) -> object:  # noqa: ANN001, ANN202
         return True, "exit=0（闸门被摘掉）"
 
     monkeypatch.setattr(chat, "_exec_step", _unwired)
@@ -258,7 +261,7 @@ def test_agent_guard_check_catches_an_unwired_executor(tmp_path, monkeypatch) ->
 
 
 # ── B227：模型后端配了连不上，要当场说清 ────────────────────────
-def test_model_backend_skips_when_unconfigured(monkeypatch) -> None:  # noqa: ANN001
+def test_model_backend_skips_when_unconfigured(monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: ANN001
     """没配模型不是缺陷：规则层能跑（与 docker 同一口径）。"""
     monkeypatch.delenv("HOS_ARES_MODEL_BASE_URL", raising=False)
     monkeypatch.delenv("HOS_ARES_MODEL", raising=False)
@@ -268,7 +271,7 @@ def test_model_backend_skips_when_unconfigured(monkeypatch) -> None:  # noqa: AN
     assert "规则层可用" in result.detail
 
 
-def test_model_backend_fails_on_a_dead_endpoint(monkeypatch) -> None:  # noqa: ANN001
+def test_model_backend_fails_on_a_dead_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: ANN001
     """配了却连不上 → FAIL 并给出可粘的探测命令（不然人到演示时才发现）。"""
     from hos_ares_cli.desktop import free_port
 
@@ -283,7 +286,7 @@ def test_model_backend_fails_on_a_dead_endpoint(monkeypatch) -> None:  # noqa: A
     assert "curl" in result.fix
 
 
-def test_model_backend_ok_against_a_live_endpoint(monkeypatch) -> None:  # noqa: ANN001
+def test_model_backend_ok_against_a_live_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: ANN001
     """真起一个最小 OpenAI 兼容端点：200 + data[] → OK 并列出模型名。"""
     import json as _json
     import threading
@@ -298,7 +301,7 @@ def test_model_backend_ok_against_a_live_endpoint(monkeypatch) -> None:  # noqa:
             self.end_headers()
             self.wfile.write(body)
 
-        def log_message(self, *args) -> None:  # noqa: ANN002
+        def log_message(self, *args: object) -> None:
             return
 
     server = HTTPServer(("127." + "0.0.1", 0), _H)
@@ -317,7 +320,7 @@ def test_model_backend_ok_against_a_live_endpoint(monkeypatch) -> None:  # noqa:
         server.server_close()
 
 
-def _models_status(monkeypatch, code: int) -> "cmd_doctor.CheckResult":  # noqa: ANN001
+def _models_status(monkeypatch: pytest.MonkeyPatch, code: int) -> "cmd_doctor.CheckResult":  # noqa: ANN001
     """起一个固定回 status 的 /models 端点，跑一次检查。"""
     import threading
     from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -329,7 +332,7 @@ def _models_status(monkeypatch, code: int) -> "cmd_doctor.CheckResult":  # noqa:
             self.end_headers()
             self.wfile.write(b"{}")
 
-        def log_message(self, *args) -> None:  # noqa: ANN002
+        def log_message(self, *args: object) -> None:
             return
 
     server = HTTPServer(("127." + "0.0.1", 0), _H)
@@ -344,14 +347,14 @@ def _models_status(monkeypatch, code: int) -> "cmd_doctor.CheckResult":  # noqa:
         server.server_close()
 
 
-def test_model_backend_404_is_skip_not_unreachable(monkeypatch) -> None:  # noqa: ANN001
+def test_model_backend_404_is_skip_not_unreachable(monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: ANN001
     """没有 /models ≠ 连不上：能连是事实，核对不到模型名也是事实，记 skip。"""
     result = _models_status(monkeypatch, 404)
     assert result.status is cmd_doctor.Status.SKIP, result.detail
     assert "可达" in result.detail and "连不上" not in result.detail, result.detail
 
 
-def test_model_backend_401_is_fail_and_names_the_key(monkeypatch) -> None:  # noqa: ANN001
+def test_model_backend_401_is_fail_and_names_the_key(monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: ANN001
     """401 是 key，不是网络：报错必须说出该改哪个变量。"""
     result = _models_status(monkeypatch, 401)
     assert result.status is cmd_doctor.Status.FAIL, result.detail
@@ -368,7 +371,7 @@ def test_unknown_only_name_is_a_failure_not_a_green() -> None:
     assert "model_backend" in report.failed[0].fix, "得把可用项名给出来"
 
 
-def test_unknown_only_name_does_not_swallow_a_valid_one(monkeypatch) -> None:  # noqa: ANN001
+def test_unknown_only_name_does_not_swallow_a_valid_one(monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: ANN001
     """打错一个名字，同一次里对的那个仍要跑（别拿错名当整体拒绝）。"""
     monkeypatch.delenv("HOS_ARES_MODEL_BASE_URL", raising=False)
     monkeypatch.delenv("HOS_ARES_MODEL", raising=False)
@@ -379,7 +382,7 @@ def test_unknown_only_name_does_not_swallow_a_valid_one(monkeypatch) -> None:  #
     assert "模型后端" in names, names
 
 
-def test_main_exits_nonzero_on_a_mistyped_only(capsys) -> None:  # noqa: ANN001
+def test_main_exits_nonzero_on_a_mistyped_only(capsys: pytest.CaptureFixture[str]) -> None:  # noqa: ANN001
     """CI 里 `hos-ares doctor --only <打错>` 必须红，否则这条闸门永远绿。"""
     code = cmd_doctor.main(["--only", "model_backnd"])
     out = capsys.readouterr().out
@@ -388,7 +391,7 @@ def test_main_exits_nonzero_on_a_mistyped_only(capsys) -> None:  # noqa: ANN001
 
 
 # ── B233：配了 key 就得带着 key 探（否则 401 会冤枉"检查 key"）──
-def _auth_models(monkeypatch, key_env: str) -> "cmd_doctor.CheckResult":  # noqa: ANN001
+def _auth_models(monkeypatch: pytest.MonkeyPatch, key_env: str) -> "cmd_doctor.CheckResult":  # noqa: ANN001
     """起一个**要求 Bearer** 的 /models：没带 key 回 401，带了回 200。"""
     import threading
     from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -412,7 +415,7 @@ def _auth_models(monkeypatch, key_env: str) -> "cmd_doctor.CheckResult":  # noqa
             self.end_headers()
             self.wfile.write(body)
 
-        def log_message(self, *args) -> None:  # noqa: ANN002
+        def log_message(self, *args: object) -> None:
             return
 
     server = HTTPServer(("127." + "0.0.1", 0), _H)
@@ -434,14 +437,14 @@ def _auth_models(monkeypatch, key_env: str) -> "cmd_doctor.CheckResult":  # noqa
         server.server_close()
 
 
-def test_model_backend_sends_the_configured_key(monkeypatch) -> None:  # noqa: ANN001
+def test_model_backend_sends_the_configured_key(monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: ANN001
     """配了 key 就必须带上：不带的探针会把"要鉴权的网关"误报成"key 错了"。"""
     result = _auth_models(monkeypatch, "good-key")
     assert result.status is cmd_doctor.Status.OK, result.detail
     assert "带 key" in result.detail and "good-key" not in result.detail, result.detail
 
 
-def test_model_backend_without_a_key_says_so(monkeypatch) -> None:  # noqa: ANN001
+def test_model_backend_without_a_key_says_so(monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: ANN001
     """没配 key 时如实说 401 是缺 key，而不是"端点坏了"。"""
     result = _auth_models(monkeypatch, "")
     assert result.status is cmd_doctor.Status.FAIL, result.detail
@@ -449,7 +452,7 @@ def test_model_backend_without_a_key_says_so(monkeypatch) -> None:  # noqa: ANN0
 
 
 # ── B273：浏览器检查不许把"包能导入"说成"可用" ─────────────────
-def test_browser_check_does_not_claim_more_than_it_checked(monkeypatch, tmp_path) -> None:  # noqa: ANN001
+def test_browser_check_does_not_claim_more_than_it_checked(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:  # noqa: ANN001
     """B267 实测：playwright 包在，但自带 chromium 起不来（TargetClosedError）。
 
     所以默认那句只能说"导入通过 + 未验证启动"，并给出实测开关。

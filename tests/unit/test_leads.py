@@ -25,6 +25,7 @@ from hos_ares_core.leads import (
     settle,
 )
 from hos_ares_core.store import Store
+from typing import Any
 
 TASK = "t-1"
 
@@ -35,8 +36,9 @@ def ledger() -> LeadLedger:
     return LeadLedger(store)
 
 
-def _add(ledger: LeadLedger, *, vb: tuple[str, ...] = ("sqli_bool_diff",), conf: float = 0.5,
-         action: str = "http_fuzz", task: str = TASK):  # noqa: ANN202
+def _add(ledger: LeadLedger, *, vb: tuple[str, ...] = ("sqli_bool_diff",),
+         conf: float = 0.5,
+         action: str = "http_fuzz", task: str = TASK) -> Any:
     return ledger.record(
         task_id=task, asset_id="a-1", source_action=action, raw_ref="out/act/x.json",
         summary="差分 1 处", verifiable_by=vb, selector_hint="param_injectable",

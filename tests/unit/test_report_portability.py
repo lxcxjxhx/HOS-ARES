@@ -9,14 +9,19 @@
 
 from __future__ import annotations
 
+from typing import Any
+import pytest
+
 from pathlib import Path
 
 from hos_ares.report import FindingView, ReportInput, render_markdown
 from hos_ares_cli.cmd_platform import _portable_path
 
 
-def _rep(**kw) -> ReportInput:  # noqa: ANN003
-    base = dict(
+def _rep(**kw: Any) -> ReportInput:
+    # `dict[str, Any]`：`**base` 展开到 `ReportInput` 时，
+    # `dict[str, Collection[object]]` 的推断会让每个参数都报 arg-type（B583）。
+    base: dict[str, Any] = dict(
         engagement="ENG-1", profile_hash="", image_digest="",
         root_sha256="a" * 64, routeset_sha256=["b" * 64], resolver_version="1.0.0",
         findings=(FindingView(
@@ -44,7 +49,7 @@ def test_present_profile_and_image_stay_short_hashes() -> None:
     assert "image: `" + "d" * 16 + "`" in text
 
 
-def test_portable_path_relativizes_inside_cwd(tmp_path, monkeypatch) -> None:  # noqa: ANN001
+def test_portable_path_relativizes_inside_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     spec = tmp_path / "out" / "spec.json"
     spec.parent.mkdir(parents=True, exist_ok=True)
@@ -52,7 +57,7 @@ def test_portable_path_relativizes_inside_cwd(tmp_path, monkeypatch) -> None:  #
     assert _portable_path(str(spec)) == "out/spec.json", "在当前目录下要给相对路径"
 
 
-def test_portable_path_falls_back_to_the_filename(tmp_path) -> None:  # noqa: ANN001
+def test_portable_path_falls_back_to_the_filename(tmp_path: Path) -> None:
     outside = tmp_path / "elsewhere" / "spec.json"
     outside.parent.mkdir(parents=True, exist_ok=True)
     outside.write_text("{}", encoding="utf-8")

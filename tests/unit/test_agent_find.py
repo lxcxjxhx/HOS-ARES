@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 for extra in (ROOT, ROOT / "tests", ROOT / "tests" / "unit"):
@@ -30,7 +31,7 @@ def _root(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def _wb(tmp_path: Path):  # noqa: ANN202
+def _wb(tmp_path: Path) -> Any:
     from hos_ares_core.workbench.fs import Workbench
 
     return Workbench(tmp_path)
@@ -76,7 +77,7 @@ def test_grep_without_pattern_is_a_usage_error(tmp_path: Path) -> None:
     assert not ok and "用法" in summary
 
 
-def test_repl_records_glob_and_grep(tmp_path: Path, monkeypatch, capsys) -> None:  # noqa: ANN001
+def test_repl_records_glob_and_grep(tmp_path: Path, monkeypatch: Any, capsys: Any) -> None:
     """两个新指令要真的进白名单、进账本。"""
     from hos_ares_cli.cmd_agent import main
 

@@ -31,6 +31,7 @@ from hos_ares_core.agent.loop import (
     build_decider,
 )
 from hos_ares_core.tools.registry import ToolCall
+from typing import Any
 
 
 # ── 1. 窄 schema ────────────────────────────────────────────────
@@ -85,7 +86,7 @@ class _RaisingClient:
 
     name = "raising"
 
-    def __call__(self, goal, ctx):  # noqa: ANN001, ANN202
+    def __call__(self, goal: str, ctx: Any) -> Any:
         raise Exception("model returned prose")
 
 
@@ -168,7 +169,7 @@ def test_http_client_refuses_unreachable_without_retry() -> None:
 
 
 # ── 5. 可达但报错，要说清改哪一项（B228）─────────────────────────
-def _server(status: int):
+def _server(status: int) -> Any:
     """起一个只会回固定状态码的端点，返回 (client_kwargs, server)。"""
     import threading
     from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -184,7 +185,7 @@ def _server(status: int):
             self.end_headers()
             self.wfile.write(b"{}")
 
-        def log_message(self, *args) -> None:  # noqa: ANN002
+        def log_message(self, *args: object) -> None:
             return
 
     server = HTTPServer(("127." + "0.0.1", 0), _H)
@@ -220,7 +221,7 @@ def test_404_points_at_the_missing_path_segment() -> None:
 
 
 # ── 6. 真模型的三层包装（B230）──────────────────────────────────
-def _completion_server(content, finish_reason: str = "stop"):
+def _completion_server(content: Any, finish_reason: str = "stop") -> Any:
     """回一条 OpenAI 形状的 completion，content 原样给（str 或分块数组）。"""
     import json as _json
     import threading
@@ -239,7 +240,7 @@ def _completion_server(content, finish_reason: str = "stop"):
             self.end_headers()
             self.wfile.write(body)
 
-        def log_message(self, *args) -> None:  # noqa: ANN002
+        def log_message(self, *args: object) -> None:
             return
 
     server = HTTPServer(("127." + "0.0.1", 0), _H)
@@ -248,7 +249,7 @@ def _completion_server(content, finish_reason: str = "stop"):
     return base + chr(0x2F) + "v1", server
 
 
-def _call_once(content, finish_reason: str = "stop"):  # noqa: ANN001, ANN202
+def _call_once(content: Any, finish_reason: str = "stop") -> Any:
     base, server = _completion_server(content, finish_reason)
     try:
         return HttpChatClient(base_url=base, model="x", timeout_s=5)("goal", {})

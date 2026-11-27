@@ -29,11 +29,12 @@ from hos_ares_core.deadletter import to_dead_letter
 from hos_ares_core.leads import LeadLedger, LeadState, render_leads_section
 from hos_ares_core.models import TaskState
 from hos_ares_core.store import Store
+from typing import Any
 
 REF = "route://observed/" + "a" * 16
 
 
-def _view(fid: str = "f1", **kw) -> FindingView:  # noqa: ANN003
+def _view(fid: str = "f1", **kw: Any) -> FindingView:
     base = dict(
         finding_id=fid, title="反射型 XSS", asset_id="a-1", oracle_id="xss_reflected_ctx",
         cwe="CWE-79", severity="medium", confidence=0.9, route_strength="observed",
@@ -44,7 +45,7 @@ def _view(fid: str = "f1", **kw) -> FindingView:  # noqa: ANN003
     return FindingView(**base)  # type: ignore[arg-type]
 
 
-def _report(**kw) -> ReportInput:  # noqa: ANN003
+def _report(**kw: Any) -> ReportInput:
     base = dict(engagement="e", profile_hash="p" * 64, image_digest="i" * 64,
                 root_sha256="r" * 64, findings=[_view()])
     base.update(kw)

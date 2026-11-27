@@ -265,7 +265,7 @@ def test_workbench_cannot_import_verdict() -> None:
                 node, (ast.Import, ast.ImportFrom)) else []
             for n in names:
                 if n.split(".")[-1] in banned:
-                    offenders.append(f"{p.name}:{node.lineno}:{n}")
+                    offenders.append(f"{p.name}:{getattr(node, 'lineno', 0)}:{n}")
     assert offenders == []
 
 

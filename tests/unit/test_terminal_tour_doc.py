@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from script_module import load_script_module  # noqa: E402
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "demo" / "record_terminal.py"
@@ -43,13 +45,11 @@ def test_doc_numbers_match_the_last_real_run() -> None:
 
 
 # ── B268：判据 D 要能自动比对，且录屏必须可重跑 ──────────────────
-def _compare():
+def _compare() -> Any:
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location("record_terminal", SCRIPT)
-    mod = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(mod)
+    # 用共用函数（B587）。这处同样把 `assert` 写在了 `module_from_spec` 之后。
+    mod: Any = load_script_module("record_terminal", SCRIPT)
     return mod._compare_runs
 
 

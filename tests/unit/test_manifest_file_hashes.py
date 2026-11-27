@@ -12,9 +12,10 @@ import json
 from pathlib import Path
 
 from hos_ares.report.lint import build_manifest, dumps_artifact, verify_manifest
+from typing import Any
 
 
-def _payload() -> tuple[str, dict, dict]:
+def _payload() -> tuple[str, dict[str, Any], dict[str, Any]]:
     return "# 报告\n\n- 一行\n", {"version": "2.1.0", "runs": []}, {"findings": []}
 
 

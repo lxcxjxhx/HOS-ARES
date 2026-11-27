@@ -31,7 +31,7 @@ for extra in (ROOT, ROOT / "tests"):
         sys.path.insert(0, str(extra))
 
 
-def _approval(now: float | None = None):  # noqa: ANN202
+def _approval(now: float | None = None) -> Any:
     from web.console import Approval
 
     return Approval(

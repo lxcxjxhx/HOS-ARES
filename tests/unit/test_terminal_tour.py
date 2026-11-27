@@ -10,17 +10,17 @@ import json
 from pathlib import Path
 
 import pytest
+from script_module import load_script_module  # noqa: E402
+from typing import Any
 
 REPO = Path(__file__).resolve().parents[2]
 SCRIPT = REPO / "scripts" / "demo" / "record_terminal.py"
 MANIFEST = REPO / "out" / "demo" / "terminal" / "manifest.json"
 
 
-def _module():
-    spec = importlib.util.spec_from_file_location("record_terminal", SCRIPT)
-    assert spec and spec.loader
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+def _module() -> Any:
+    # 用共用函数（B587）
+    mod: Any = load_script_module("record_terminal", SCRIPT)
     return mod
 
 

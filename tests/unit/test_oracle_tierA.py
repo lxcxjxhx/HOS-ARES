@@ -13,6 +13,7 @@ from conftest import Lab
 from hos_ares_oracles import TIER_A, tierA
 from hos_ares_oracles.common.harness import run, three_way_holds
 from hos_ares_core.models import Verdict
+from typing import Any
 
 #: (oracle_id, selector_tag)
 CASES: tuple[tuple[str, str], ...] = (
@@ -24,14 +25,14 @@ CASES: tuple[tuple[str, str], ...] = (
 )
 
 
-def _by_id(oracle_id: str):
+def _by_id(oracle_id: str) -> Any:
     for cls in TIER_A:
         if cls.meta.id == oracle_id:
             return cls()
     raise KeyError(oracle_id)
 
 
-def _run(lab: Lab, oracle_id: str, tag: str):
+def _run(lab: Lab, oracle_id: str, tag: str) -> Any:
     binding = lab.binding(tag)
     return run(
         _by_id(oracle_id),
@@ -94,7 +95,7 @@ def test_missing_control_is_inconclusive(vulnerable: Lab, monkeypatch: pytest.Mo
     oracle = tierA.by_id("sqli_bool_diff")
     real_plan = oracle.plan
 
-    def plan_without_control(binding):  # noqa: ANN001, ANN202
+    def plan_without_control(binding: Any) -> Any:
         return [v for v in real_plan(binding) if v.role != "control"]
 
     monkeypatch.setattr(oracle, "plan", plan_without_control)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import threading
 import time
 from pathlib import Path
@@ -38,6 +40,7 @@ from hos_ares_core.routes import (
 )
 from hos_ares_core.routes.types import RouteCandidate
 from hos_ares_core.tools import http
+from hos_ares_core.tools.transport import TransportError as _TransportError
 from hos_ares_core.tools.transport import TransportError
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -48,7 +51,7 @@ TEMPLATES = __import__("json").loads(
 NOW = 1_000
 
 
-def _routeset(confidence_source: RouteProvenance = RouteProvenance.CONTRACT):
+def _routeset(confidence_source: RouteProvenance = RouteProvenance.CONTRACT) -> Any:
     cand = RouteCandidate(
         method="GET",
         template=TEMPLATES["user_by_id"],
@@ -59,7 +62,8 @@ def _routeset(confidence_source: RouteProvenance = RouteProvenance.CONTRACT):
     return Resolver(sources=[StaticSource(confidence_source.value, confidence_source, [cand])]).resolve(q, now=NOW)
 
 
-def _guard(scope_in=frozenset({"web-01"}), deny=frozenset(), asset_id="web-01") -> ScopeGuard:
+def _guard(scope_in: frozenset[str] = frozenset({"web-01"}),
+           deny: frozenset[str] = frozenset(), asset_id: str = "web-01") -> ScopeGuard:
     return ScopeGuard(
         asset=AssetScope(id=asset_id, resolved_ips=frozenset({"203.0.113.10"})),
         scope_in=scope_in,
@@ -85,8 +89,20 @@ def test_plan_denies_asset_outside_scope() -> None:
     assert decision.blocked == {"idor_cross_account": "asset_not_in_scope"}
 
 
+def _detail_of(event: dict[str, object]) -> dict[str, object]:
+    """把 `event["detail"]` 窄化成 dict。
+
+    产品侧的 `events` 声明是 `list[dict[str, object]]`（`detail` 是运行时插入的），
+    所以测试里取 `detail` 之后要自己窄化——直接 `.get()` 会被 mypy 拒（B580）。
+    """
+    raw = event.get("detail")
+    return raw if isinstance(raw, dict) else {}
+
+
 def test_plan_denies_deny_list_and_window() -> None:
-    common = dict(
+    # `dict[str, Any]`：`**common` 展开到 `check_plan` 时，
+    # 推断成 `dict[str, Collection[str]]` 会让每个参数都报 arg-type（B580）。
+    common: dict[str, Any] = dict(
         scope_in={"web-01"},
         oracle_ids=["idor_cross_account"],
         enabled_oracles={"idor_cross_account"},
@@ -130,7 +146,8 @@ def test_unbound_ref_is_violation() -> None:
         guard.binding("route://contract/0000000000000000", rs)
     # 来源越界要留痕（03 §7 第 11 条查它）
     assert any(
-        e["kind"] == "binding" and e["ok"] is False and e["detail"].get("VIOLATION") == "UNBOUND"
+        e["kind"] == "binding" and e["ok"] is False
+        and _detail_of(e).get("VIOLATION") == "UNBOUND"
         for e in guard.events
     )
 
@@ -189,7 +206,7 @@ def test_post_connect_violation_is_recorded() -> None:
     guard = _guard()
     with pytest.raises(ScopeViolation):
         guard.post_connect("10.0.0.5", deny_nets=["10.0.0.0/8"])
-    assert guard.violations()[0]["detail"]["VIOLATION"] == "peer_in_deny"
+    assert _detail_of(guard.violations()[0]).get("VIOLATION") == "peer_in_deny"
 
 
 # ── 令牌桶 ──────────────────────────────────────────────────────────
@@ -299,7 +316,7 @@ def test_approval_ttl_expires() -> None:
 
 # ── 出网闸（05 §1.0 硬约束 1）────────────────────────────────────────
 @pytest.fixture()
-def installed():
+def installed() -> Any:
     rs = _routeset()
     guard = _guard()
     plan = guard.plan(
@@ -329,7 +346,7 @@ def test_send_without_guard_is_refused() -> None:
     assert type(info.value).__name__ == "GuardNotInstalled"
 
 
-def test_send_runs_binding_gate_then_transport(installed) -> None:
+def test_send_runs_binding_gate_then_transport(installed: Any) -> None:
     """闸门顺序：② binding → ③ preflight → 传输。
 
     B10 之前这里断言 ``TransportUnavailable``（传输没接线）；现在传输已接线，
@@ -338,20 +355,20 @@ def test_send_runs_binding_gate_then_transport(installed) -> None:
     """
     ctx, rs = installed
     before = len(ctx.scope.events)
-    with pytest.raises(http.TransportError, match="仍有未替换参数"):
+    with pytest.raises(_TransportError, match="仍有未替换参数"):
         http.send(rs.bindings[0], {})
     assert len(ctx.scope.events) >= before
     assert ctx.budget.requests.used == 1  # preflight 真的跑了
 
 
-def test_send_denies_out_of_plan_oracle(installed) -> None:
+def test_send_denies_out_of_plan_oracle(installed: Any) -> None:
     ctx, rs = installed
     ctx.oracle_id = "not_in_plan"
     with pytest.raises(ScopeDenied):
         http.send(rs.bindings[0], {})
 
 
-def test_send_denies_unbound_ref_and_records(installed) -> None:
+def test_send_denies_unbound_ref_and_records(installed: Any) -> None:
     ctx, rs = installed
     alien = rs.bindings[0].__class__(
         **{**rs.bindings[0].__dict__, "ref": "route://contract/ffffffffffffffff"}

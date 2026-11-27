@@ -22,6 +22,7 @@ from hos_ares_core.agent.loop import AgentState, pick_next
 from hos_ares_core.leads import LeadLedger, LeadState
 from hos_ares_core.store import Store
 from hos_ares_core.workbench.plan import TodoItem, TodoList, TodoState
+from typing import Any
 
 TASK = "t-1"
 
@@ -31,14 +32,15 @@ def ledger() -> LeadLedger:
     return LeadLedger(Store(":memory:").init())
 
 
-def _lead(ledger: LeadLedger, *, vb=("idor_cross_account",), conf=0.5):  # noqa: ANN001, ANN202
+def _lead(ledger: LeadLedger, *, vb: tuple[str, ...] = ("idor_cross_account",),
+          conf: float = 0.5) -> Any:
     return ledger.record(
         task_id=TASK, asset_id="a-1", source_action="http_fuzz", raw_ref="out/act/x.json",
         summary="可疑差分", verifiable_by=vb, confidence_hint=conf,
     )
 
 
-def _state(**kw) -> AgentState:  # noqa: ANN003
+def _state(**kw: Any) -> AgentState:
     base = {"pending": (), "strong": (), "only_weak": False, "budget_ratio": 0.1,
             "wave_order": ("s", "t")}
     base.update(kw)

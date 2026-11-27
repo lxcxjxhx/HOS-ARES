@@ -25,6 +25,7 @@ from hos_ares_core.routes.types import (
     RouteProvenance,
     RouteQuery,
 )
+from typing import Any
 
 S = chr(0x2F)
 
@@ -57,7 +58,7 @@ def _bindings(
 ORACLE_TAGS = {"idor_cross_account": ("object_read",)}
 
 
-def _doc(bindings: list[object], observations: list[Observation], **kw: object) -> dict:
+def _doc(bindings: list[object], observations: list[Observation], **kw: object) -> dict[str, Any]:
     return build_coverage(
         asset_id="asset",
         bindings=bindings,  # type: ignore[arg-type]
@@ -68,7 +69,7 @@ def _doc(bindings: list[object], observations: list[Observation], **kw: object) 
     )
 
 
-def _kinds(doc: dict) -> list[str]:
+def _kinds(doc: dict[str, Any]) -> list[str]:
     return [g["kind"] for g in doc["gaps"]]
 
 
@@ -231,7 +232,7 @@ def test_budget_exhaustion_makes_the_ledger_incomplete() -> None:
     assert any("budget" in c for c in doc["completeness"]["caveats"])
 
 # ── B143：缺口数要对得上（summary.gaps vs caveat）──────────────��──
-def _run(kind_counts: dict[str, int]) -> dict:
+def _run(kind_counts: dict[str, int]) -> dict[str, Any]:
     """造一个 gaps 分档分布确定的账本。"""
     from hos_ares_core.coverage import (
         Observation,

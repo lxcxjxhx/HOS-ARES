@@ -50,14 +50,29 @@ PY = sys.executable
 #: 它以前不在这里，于是 `scripts/` 里躺了 74 个类型错误而 verify 一直绿
 #: （B570 量化 → B571–B574 逐个修到 0 → B576 并入）。
 #:
-#: 为什么不含 `tests/`：`pyproject.toml` 的 `mypy_path = ["tests", "tests/unit"]`
-#: 让同一个文件能被解析成两个模块名（`test_x` 与 `tests.unit.test_x`），
-#: 全量扫 `tests/` 会报 `Source file found twice under different module names`。
-#: 那是配置层面的歧义，单独处理。
+#: **`tests/unit` 不在这个列表里**，它单独一道闸门（`mypy-tests`）：
+#: 与 `scripts/` 同轮扫描会撞「`scripts/verify.py` 被解析成 `verify` 与
+#: `scripts.verify` 两个模块名」——测试里 `import verify`，两条路径同时可达。
+#: 拆成两道闸门后两边各自全绿（B599 实测）。
 MYPP_TARGETS = (
     "hos_ares_core/", "worker/", "hos_ares_oracles/", "hos_ares/", "hos_ares_cli/",
     "web/", "scripts/",
 )
+
+#: mypy 的排除规则（正则）。**两个文件，同一类配置歧义**：
+#:
+#: 1. `test_hint_commands_exist` → 被解析成 `test_x` 与 `tests.unit.test_x`；
+#: 2. `tests/unit/conftest` → 被解析成 `conftest` 与 `unit.conftest`。
+#:
+#: 起因都是 `mypy_path` 同时含 `tests` 与 `tests/unit`（两条路径都到达同一个文件）。
+#: 它们会让 mypy **中止整轮检查**（不是报一个错），后面 180+ 文件一个都不扫。
+#:
+#: 试过四种方式都不解：`--explicit-package-bases`、换工作目录、
+#: 改 `mypy_path`（会把 `scripts/` 里的 `capsule_fixture` import 弄坏）、
+#: 加 `tests/unit/__init__.py`（把问题转移到 `capsule_fixture.py`）。
+#:
+#: **代价可接受**：两个文件单独扫都零错误。排除它们不影响覆盖，只是不参与闸门。
+MYPY_EXCLUDE = ("test_hint_commands_exist", "tests/unit/conftest")
 
 
 @dataclass(frozen=True)
@@ -76,13 +91,33 @@ def _py(*args: str) -> tuple[str, ...]:
 
 
 def _mypy_argv() -> tuple[str, ...]:
-    """mypy 命令。**不按平台裁剪**：CI 就是为了看两边是否一致（B200）。"""
+    """mypy 命令（产品 + 脚本）。**不按平台裁剪**：CI 就是为了看两边是否一致（B200）。
+
+    这里**不含** `tests/unit`：把它和 `scripts/` 放同一轮扫描会撞
+    「`scripts/verify.py` 被解析成 `verify` 与 `scripts.verify` 两个模块名」——
+    因为测试里 `import verify`，两条路径同时可达（B599 实测）。
+    测试单独一道闸门（见 `_mypy_tests_argv`）。
+    """
     return (PY, "-m", "mypy", "--strict", *MYPP_TARGETS)
+
+
+def _mypy_tests_argv() -> tuple[str, ...]:
+    """测试目录的类型检查。**单独一道闸门**，理由见上。
+
+    `--exclude` 排掉 `test_hint_commands_exist`：它在 `mypy_path` 含 `tests` 时
+    会被解析成两个模块名，mypy 会**中止整轮**（不是报一个错）。排掉后 184 个文件照扫。
+    """
+    exclude: list[str] = []
+    for pattern in MYPY_EXCLUDE:
+        exclude += ["--exclude", pattern]
+    return (PY, "-m", "mypy", "--strict", *exclude, "tests/unit")
 
 
 #: 闸门清单。**加一道闸门就加一行**——CI 与本地都从这里读。
 GATES: tuple[Gate, ...] = (
     Gate("mypy", _mypy_argv()),
+    # 测试目录单独一道：与产品/脚本同轮扫会撞模块名歧义（见函数 docstring）
+    Gate("mypy-tests", _mypy_tests_argv()),
     Gate("lint-noroute", _py("scripts/lint/noroute.py")),
     Gate("lint-nodata", _py("scripts/lint/nodata_stub.py")),
     Gate("lint-ui", _py("scripts/lint/ui_zero_address.py")),

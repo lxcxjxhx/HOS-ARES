@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from typing import Any, cast
 
 ROOT = Path(__file__).resolve().parents[2]
 for extra in (ROOT, ROOT / "tests"):
@@ -45,7 +46,7 @@ def test_unknown_oracle_is_not_gated() -> None:
     assert _required("no_such_oracle") is None
 
 
-def _ctx(oracle_id: str, approval: object | None = None):  # noqa: ANN202
+def _ctx(oracle_id: str, approval: Any = None) -> Any:
     from hos_ares_core.guard.context import GuardContext
     from hos_ares_core.guard.scope import PlanDecision, ScopeGuard
 
@@ -63,13 +64,13 @@ def _ctx(oracle_id: str, approval: object | None = None):  # noqa: ANN202
 
     return GuardContext(
         scope=scope,
-        routeset=None,
+        routeset=cast(Any, None),  # 这个用例不需要路由
         plan=PlanDecision(allowed_oracles=(oracle_id,)),
         bucket=TokenBucket(ThrottleConfig(rate_per_s=1000.0, burst=1000.0)),
         budget=Budget(),
         now=1_000,
         oracle_id=oracle_id,
-        approval=approval,
+        approval=cast(Any, approval),
         approval_action=("reversible_write"
                          if _required(oracle_id) == "reversible_write" else None),
     )

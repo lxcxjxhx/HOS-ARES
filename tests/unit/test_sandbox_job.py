@@ -14,12 +14,13 @@ import pytest
 
 from hos_ares_core.sandbox import win_job
 from hos_ares_core.sandbox.runner import JobObjectExecutor, select_executor
+from typing import Any
 
 SL = chr(0x2F)
 pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="Job Object 仅 Windows")
 
 
-def _runner(active: int = 32):
+def _runner(active: int = 32) -> Any:
     return JobObjectExecutor(win_job.WinJobRunner(win_job.JobLimits(active_processes=active)))
 
 

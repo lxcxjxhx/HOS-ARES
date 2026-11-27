@@ -12,9 +12,13 @@
 from __future__ import annotations
 
 import re
+from typing import Any
+
+import pytest
 
 import json
 from pathlib import Path
+from script_module import load_script_module  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "demo" / "build_tour.py"
@@ -58,10 +62,9 @@ def test_card_counts_are_derived_from_the_material_manifests() -> None:
     """素材长到 11 页/五幕后，片上还烧着 10 页/三幕——文档改了也改不了画面里的字。"""
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location("build_tour", SCRIPT)
-    mod = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(mod)
+    # 用共用函数（B586）：断言顺序的问题在它里面已经处理过，
+    # 调用方不必重复那四行，也就不会再重复写错。
+    mod: Any = load_script_module("build_tour", SCRIPT)
     pages, scenes = mod._counts()
     assert pages is None or pages >= 1
     assert scenes is None or scenes >= 1
@@ -73,23 +76,19 @@ def test_card_counts_are_derived_from_the_material_manifests() -> None:
 def test_chinese_numeral_falls_back_past_ten() -> None:
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location("build_tour", SCRIPT)
-    mod = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(mod)
+    # 用共用函数（B587）：断言顺序已在它内部处理
+    mod: Any = load_script_module("build_tour", SCRIPT)
     assert mod._cn(5) == "五" and mod._cn(11) == "11"
 
 
 # ── B272：成片比素材旧时必须能查出来 ────────────────────────────
-def test_check_mode_reports_fresh_when_video_is_newer(tmp_path, monkeypatch) -> None:  # noqa: ANN001
+def test_check_mode_reports_fresh_when_video_is_newer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import importlib.util
     import os
     import time
 
-    spec = importlib.util.spec_from_file_location("build_tour", SCRIPT)
-    mod = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(mod)
+    # 用共用函数（B587）：断言顺序已在它内部处理
+    mod: Any = load_script_module("build_tour", SCRIPT)
 
     out = tmp_path / "demo"
     (out / "terminal").mkdir(parents=True)
@@ -108,15 +107,13 @@ def test_check_mode_reports_fresh_when_video_is_newer(tmp_path, monkeypatch) -> 
     assert mod.staleness() == []
 
 
-def test_check_mode_flags_a_newer_material(tmp_path, monkeypatch) -> None:  # noqa: ANN001
+def test_check_mode_flags_a_newer_material(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import importlib.util
     import os
     import time
 
-    spec = importlib.util.spec_from_file_location("build_tour", SCRIPT)
-    mod = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(mod)
+    # 用共用函数（B587）：断言顺序已在它内部处理
+    mod: Any = load_script_module("build_tour", SCRIPT)
 
     out = tmp_path / "demo"
     out.mkdir()

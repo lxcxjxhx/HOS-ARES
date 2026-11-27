@@ -21,6 +21,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from web import ConsoleState, build_app
+from typing import Any
 
 SLASH = chr(0x2F)
 UI = SLASH + "ui" + SLASH
@@ -78,7 +79,7 @@ def test_findings_lists_nothing_without_crashing(client: TestClient) -> None:
 
 
 # ── B276：指到 run 的输出目录时，要说出下一步 ────────────────────
-def test_directory_artifact_points_at_the_file_inside(tmp_path) -> None:  # noqa: ANN001
+def test_directory_artifact_points_at_the_file_inside(tmp_path: Any) -> None:
     """`--hunt out/demo/run` 是最常见的用法错误：那里面 findings.json 才是产物。"""
     from hos_ares_cli.cmd_console import artifact_note
 
@@ -89,7 +90,7 @@ def test_directory_artifact_points_at_the_file_inside(tmp_path) -> None:  # noqa
     assert "findings.json" in note, note
 
 
-def test_directory_without_artifacts_stays_short(tmp_path) -> None:  # noqa: ANN001
+def test_directory_without_artifacts_stays_short(tmp_path: Any) -> None:
     from hos_ares_cli.cmd_console import artifact_note
 
     empty = tmp_path / "empty"
@@ -97,7 +98,7 @@ def test_directory_without_artifacts_stays_short(tmp_path) -> None:  # noqa: ANN
     assert artifact_note(str(empty)) == "（是目录，不是产物文件）"
 
 
-def test_a_real_file_needs_no_note(tmp_path) -> None:  # noqa: ANN001
+def test_a_real_file_needs_no_note(tmp_path: Any) -> None:
     from hos_ares_cli.cmd_console import artifact_note
 
     f = tmp_path / "findings.json"

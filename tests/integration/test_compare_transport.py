@@ -19,19 +19,20 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "unit"))
+from script_module import load_script_module  # noqa: E402
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "b12" / "compare_transport.py"
 
 
-def _load() -> ModuleType:
+def _load() -> Any:
     for extra in (ROOT, ROOT / "tests", ROOT / "tests" / "integration"):
         if str(extra) not in sys.path:
             sys.path.insert(0, str(extra))
-    spec = importlib.util.spec_from_file_location("_cmp_under_test", SCRIPT)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    # 用共用函数（B587）
+    mod: Any = load_script_module("_cmp_under_test", SCRIPT)
     return mod
 
 

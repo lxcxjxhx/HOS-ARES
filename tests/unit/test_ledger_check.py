@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 LINT = ROOT / "scripts" / "lint"
@@ -25,13 +26,13 @@ for extra in (ROOT, LINT):
         sys.path.insert(0, str(extra))
 
 
-def _check(rows: list[dict], root: Path = ROOT):  # noqa: ANN202
-    import ledger_check
+def _check(rows: list[dict[str, Any]], root: Path = ROOT) -> Any:
+    import ledger_check  # type: ignore[import-not-found]
 
     return ledger_check.check(rows, root)
 
 
-def _row(batch: str, **extra) -> dict:  # noqa: ANN003
+def _row(batch: str, **extra: Any) -> dict[str, Any]:
     base = {"batch": batch, "state": "done", "dod": "A OK", "files": []}
     base.update(extra)
     return base

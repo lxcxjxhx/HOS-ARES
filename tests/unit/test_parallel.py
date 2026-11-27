@@ -11,6 +11,8 @@ from __future__ import annotations
 import threading
 import time
 
+
+from collections.abc import Iterator
 import pytest
 
 from hos_ares_core.blackboard import Blackboard
@@ -25,6 +27,7 @@ from hos_ares_core.parallel import (
     run_stages,
 )
 from hos_ares_core.store import Store
+from typing import Any
 
 
 def _runner(task_id: str) -> TaskResult:
@@ -36,14 +39,14 @@ def _runner(task_id: str) -> TaskResult:
     ), steps=2)
 
 
-def _runners(*ids: str) -> dict[str, object]:
+def _runners(*ids: str) -> dict[str, Any]:
     return {tid: _runner for tid in ids}
 
 
 # ── A 并发 == 串行 ─────────────────────────────────────────────
 def test_parallel_matches_sequential_findings_sha() -> None:
     ids = ("t-1", "t-2", "t-3")
-    parallel = run_parallel(_runners(*ids))  # type: ignore[arg-type]
+    parallel = run_parallel(_runners(*ids))
     sequential = [ _runner(tid) for tid in ids ]
     assert [r.task_id for r in parallel] == list(ids), "结果按 task_id 排序"
     assert merge_sha(parallel) == merge_sha(sequential)
@@ -52,13 +55,13 @@ def test_parallel_matches_sequential_findings_sha() -> None:
 def test_limit_is_three_and_hard() -> None:
     assert MAX_PARALLEL == 3
     with pytest.raises(ParallelError) as err:
-        run_parallel(_runners("t-1", "t-2", "t-3", "t-4"))  # type: ignore[arg-type]
+        run_parallel(_runners("t-1", "t-2", "t-3", "t-4"))
     assert err.value.code == "too_many_tasks"
 
 
 def test_input_order_does_not_change_result() -> None:
-    a = run_parallel({"t-1": _runner, "t-2": _runner})  # type: ignore[dict-item]
-    b = run_parallel({"t-2": _runner, "t-1": _runner})  # type: ignore[dict-item]
+    a = run_parallel({"t-1": _runner, "t-2": _runner})
+    b = run_parallel({"t-2": _runner, "t-1": _runner})
     assert merge_sha(a) == merge_sha(b)
 
 
@@ -66,7 +69,7 @@ def test_single_task_failure_does_not_sink_the_batch() -> None:
     def boom(_tid: str) -> TaskResult:
         raise RuntimeError("db locked")
 
-    results = run_parallel({"t-1": _runner, "t-2": boom})  # type: ignore[dict-item]
+    results = run_parallel({"t-1": _runner, "t-2": boom})
     by_id = {r.task_id: r for r in results}
     assert by_id["t-1"].findings and "db locked" in by_id["t-2"].error
 
@@ -78,7 +81,7 @@ def test_results_declare_process_isolation() -> None:
 
 # ── B 跨任务读 = 事故 ─────────────────────────────────────────
 @pytest.fixture()
-def store() -> Store:
+def store() -> Iterator[Store]:
     s = Store(":memory:").init()
     yield s
     s.close()
@@ -143,5 +146,5 @@ def test_tasks_really_run_concurrently() -> None:
             active["now"] -= 1
         return TaskResult(task_id=task_id)
 
-    run_parallel({"t-1": runner, "t-2": runner, "t-3": runner})  # type: ignore[dict-item]
+    run_parallel({"t-1": runner, "t-2": runner, "t-3": runner})
     assert active["peak"] >= 2, "峰值并发小于 2 说明根本没并行"

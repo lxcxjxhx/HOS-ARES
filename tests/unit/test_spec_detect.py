@@ -26,6 +26,7 @@ from hos_ares_contract.spec_detect import (
     spec_base_urls,
     swagger_to_openapi,
 )
+from typing import Any
 
 S = chr(0x2F)
 #: scheme 与分隔符都拼出来：测试目录也在零地址闸门的扫描范围内。
@@ -37,7 +38,7 @@ def p(*segments: str) -> str:
     return S + S.join(segments)
 
 
-def swagger_doc() -> dict:
+def swagger_doc() -> dict[str, Any]:
     return {
         "swagger": "2.0",
         "info": {"title": "legacy", "version": "1.0"},

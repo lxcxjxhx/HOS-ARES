@@ -4,16 +4,16 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+from script_module import load_script_module  # noqa: E402
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def _load():  # noqa: ANN202
+def _load() -> Any:
     path = ROOT / "scripts" / "demo" / "deny_compare.py"
-    spec = importlib.util.spec_from_file_location("deny_compare", path)
-    assert spec and spec.loader
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    # 用共用函数（B587）
+    mod: Any = load_script_module("deny_compare", path)
     return mod
 
 

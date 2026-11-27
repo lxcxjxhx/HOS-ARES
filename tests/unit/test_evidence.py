@@ -9,6 +9,10 @@ DoD 对应：
 
 from __future__ import annotations
 
+from typing import Any, cast
+from pathlib import Path
+
+
 import json
 
 import pytest
@@ -16,6 +20,7 @@ import pytest
 import capsule_fixture as F
 from hos_ares_core.evidence import (
     AssertionBlock,
+    CapsuleDoc,
     CapsuleIncomplete,
     CapsuleTampered,
     ChainBroken,
@@ -187,7 +192,7 @@ def test_chain_reports_length_and_tip() -> None:
 
 
 # ── 5b 重算不了 ≠ 被推翻（B151）────────────────────────────────────
-def _offline(cap):  # noqa: ANN001, ANN202
+def _offline(cap: Any) -> Any:
     return replay(cap, ReplayEnv(now=0, mode=ReplayMode.OFFLINE))
 
 
@@ -251,7 +256,7 @@ def test_external_export_has_no_address() -> None:
         assert step.request.path_rendered_sha256, "哈希锚点必须留着"
 
 
-def load_capsule_bytes(raw: bytes):  # 小工具：避免在测试里重复 import
+def load_capsule_bytes(raw: bytes) -> Any:  # 小工具：避免在测试里重复 import
     return loads_capsule(raw)
 
 
@@ -264,7 +269,7 @@ def test_strip_keeps_hash_anchor() -> None:
 
 
 # ── 7 落盘：同哈希同字节（WORM 语义的本地模拟）──────────────────────
-def test_save_and_load_roundtrip(tmp_path) -> None:
+def test_save_and_load_roundtrip(tmp_path: Path) -> None:
     cap = F.sealed()
     path = save_capsule(cap, tmp_path)
     assert path.name == f"{cap.chain.self_sha256}.json"
@@ -273,7 +278,7 @@ def test_save_and_load_roundtrip(tmp_path) -> None:
     assert dumps_capsule(again) == dumps_capsule(cap)
 
 
-def test_save_refuses_same_hash_different_bytes(tmp_path) -> None:
+def test_save_refuses_same_hash_different_bytes(tmp_path: Path) -> None:
     cap = F.sealed()
     path = save_capsule(cap, tmp_path)
     path.write_bytes(b'{"forged":true}')
@@ -282,7 +287,7 @@ def test_save_refuses_same_hash_different_bytes(tmp_path) -> None:
 
 
 # ── 8 CLI：verify-chain 与 --external（断网，纯本地）────────────────
-def test_cli_verify_chain_and_replay(tmp_path, capsys) -> None:
+def test_cli_verify_chain_and_replay(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     caps = chain_capsules([F.capsule(probe_body="a"), F.capsule(probe_body="b")])
     paths = [str(save_capsule(c, tmp_path)) for c in caps]
 
@@ -295,7 +300,7 @@ def test_cli_verify_chain_and_replay(tmp_path, capsys) -> None:
     assert out.count("OK") >= 2
 
 
-def test_cli_reports_tampered(tmp_path, capsys) -> None:
+def test_cli_reports_tampered(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     cap = F.sealed()
     path = save_capsule(cap, tmp_path)
     raw = json.loads(path.read_text(encoding="utf-8"))
@@ -307,7 +312,7 @@ def test_cli_reports_tampered(tmp_path, capsys) -> None:
 
 
 # ── B275：把目录当 capsule 传进来，要说清是目录 ──────────────────
-def test_directory_capsule_path_says_it_is_a_directory(tmp_path) -> None:  # noqa: ANN001
+def test_directory_capsule_path_says_it_is_a_directory(tmp_path: Path) -> None:  # noqa: ANN001
     """Windows 上对目录 read_bytes 抛 PermissionError，旧文案会让客户去查权限。"""
     from hos_ares_core.evidence import CapsuleIncomplete, load_capsule
 
@@ -352,7 +357,8 @@ def test_has_protection_is_recomputable_from_stored_headers() -> None:
     traces = [TraceResult(status=200, body_sha256="a"),
               TraceResult(status=200, body_sha256="b")]
     # 两次都没有这个头 → 0，期望 [0] 成立（"头缺失"这条结论可以被复现）
-    assert _live_fingerprint(cap, traces)["has_protection"] is True
+    # `cap` 是 SimpleNamespace 替身：类型契约上不成立，用 cast 明说（B581）。
+    assert _live_fingerprint(cast(CapsuleDoc, cap), traces)["has_protection"] is True
     # 只要有一次带了，就不再是"缺失"
     traces[1].headers["Content-Security-Policy"] = "default-src 'self'"
-    assert _live_fingerprint(cap, traces)["has_protection"] is False
+    assert _live_fingerprint(cast(CapsuleDoc, cap), traces)["has_protection"] is False

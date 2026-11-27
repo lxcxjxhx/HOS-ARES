@@ -21,6 +21,7 @@ from hos_ares_core.models import (
     seal_capsule,
 )
 from hos_ares_core.store import Store
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 CORE_DIR = ROOT / "hos_ares_core"
@@ -93,7 +94,7 @@ class _PureOracle:
     def applicable(self, ctx: object) -> bool:
         return True
 
-    def plan(self, ctx: object, base: object) -> list:
+    def plan(self, ctx: object, base: object) -> list[Any]:
         return []
 
     def judge(self, pairs: list[RequestPair]) -> Judgement:

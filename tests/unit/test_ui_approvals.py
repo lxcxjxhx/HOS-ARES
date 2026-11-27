@@ -10,6 +10,8 @@ from __future__ import annotations
 import time
 
 import pytest
+from typing import Any
+
 from fastapi.testclient import TestClient
 
 from hos_ares.report.audit import AuditInput, render_audit_section
@@ -38,7 +40,13 @@ def _client(*approvals: Approval) -> TestClient:
     return TestClient(build_app(ConsoleState(approvals=list(approvals))))
 
 
-def _post(client: TestClient, **body: object) -> object:
+def _post(client: TestClient, **body: object) -> Any:
+    """发一次 POST，返回响应对象。
+
+    **不标 `httpx.Response`**：`httpx` 不是本项目声明的依赖（`pyproject.toml` 里只有
+    `httpx2`），本机装了是因为 fastapi 顺带装的——CI 上没有，`import httpx` 会
+    在收集阶段就 `ModuleNotFoundError`（B584 实测）。
+    标 `Any` 一样能让 `.status_code` 通过类型检查，且不引入隐式依赖。"""
     return client.post(UI + "approvals", json=body)
 
 

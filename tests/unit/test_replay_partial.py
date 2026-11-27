@@ -12,6 +12,7 @@ import pytest
 
 from hos_ares_core.evidence import ReplayEnv, ReplayMode, TraceResult, replay
 from hos_ares_core.models import ReplayStatus
+from typing import Any
 
 
 def _sha(text: str) -> str:
@@ -34,7 +35,7 @@ def _traces() -> dict[str, TraceResult]:
     }
 
 
-def _run(by_role: dict[str, TraceResult]):
+def _run(by_role: dict[str, TraceResult]) -> Any:
     env = ReplayEnv(now=F.NOW, mode=ReplayMode.LIVE, routeset=F.routeset())
     return replay(F.sealed(), env, Scripted(by_role))
 

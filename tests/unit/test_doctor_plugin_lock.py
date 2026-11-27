@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 for extra in (ROOT, ROOT / "tests"):
@@ -24,18 +26,18 @@ PINS = {"p-one": {"resolved": "1.0.0", "sha256": "a" * 64}}
 
 
 class _FakeRegistry:
-    def __init__(self, snap: dict) -> None:
+    def __init__(self, snap: dict[str, Any]) -> None:
         self._snap = snap
 
-    def snapshot_lock(self) -> dict:
+    def snapshot_lock(self) -> dict[str, Any]:
         return self._snap
 
 
-def _snap(sha: str) -> dict:
+def _snap(sha: str) -> dict[str, Any]:
     return {"version": 1, "lock": PINS, "snapshot_sha256": sha}
 
 
-def _run(monkeypatch, snap: dict):  # noqa: ANN001, ANN202
+def _run(monkeypatch: Any, snap: dict[str, Any]) -> Any:
     import hos_ares_core.plugins as plugins
     from hos_ares_cli.cmd_doctor import check_lock_snapshot
 
@@ -43,7 +45,7 @@ def _run(monkeypatch, snap: dict):  # noqa: ANN001, ANN202
     return check_lock_snapshot(ROOT)
 
 
-def test_empty_registry_is_a_skip_not_a_green(monkeypatch) -> None:  # noqa: ANN001
+def test_empty_registry_is_a_skip_not_a_green(monkeypatch: pytest.MonkeyPatch) -> None:
     from hos_ares_cli.cmd_doctor import Status
 
     result = _run(monkeypatch, {"version": 1, "lock": {}, "snapshot_sha256": "0" * 64})
@@ -51,7 +53,7 @@ def test_empty_registry_is_a_skip_not_a_green(monkeypatch) -> None:  # noqa: ANN
     assert "0 条" in result.detail
 
 
-def test_consistent_snapshot_is_ok(monkeypatch) -> None:  # noqa: ANN001
+def test_consistent_snapshot_is_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     from hos_ares_core.plugins.registry import lock_sha
     from hos_ares_cli.cmd_doctor import Status
 
@@ -60,7 +62,7 @@ def test_consistent_snapshot_is_ok(monkeypatch) -> None:  # noqa: ANN001
     assert "1 条" in result.detail
 
 
-def test_tampered_snapshot_fails(monkeypatch) -> None:  # noqa: ANN001
+def test_tampered_snapshot_fails(monkeypatch: pytest.MonkeyPatch) -> None:
     """锁文件被手改 → 必须红，并说清该改哪里。"""
     from hos_ares_cli.cmd_doctor import Status
 

@@ -36,6 +36,7 @@ from hos_ares_core.plugins.registry import (
     Source,
     Trust,
 )
+from typing import Any
 
 NOW = datetime(2026, 11, 1, 12, 0, 0, tzinfo=timezone.utc)
 SHA = "a" * 64
@@ -50,7 +51,7 @@ def _rec(mount: Mount, *, trust: Trust = Trust.REVIEWED, version: str = "1.0.0")
     )
 
 
-def _good(mount: Mount, **kw) -> Candidate:  # noqa: ANN003
+def _good(mount: Mount, **kw: Any) -> Candidate:
     base = dict(
         record=_rec(mount), content_sha256=SHA, signature="sig:abc",
         invariants_ok=frozenset(), bench={"cases": BENCH_CASES, "fp": 0},
@@ -149,7 +150,7 @@ def test_source_requires_human_review() -> None:
 # ══════════════════════════════════════════════════════════════════
 # 5 oracle：签名 + review + 44 例 FP=0
 # ══════════════════════════════════════════════════════════════════
-def _oracle(**kw) -> Candidate:  # noqa: ANN003
+def _oracle(**kw: Any) -> Candidate:
     kw.setdefault("invariants_ok", ORACLE_INVARIANTS)
     return _good(Mount.ORACLE, **kw)
 

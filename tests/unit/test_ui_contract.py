@@ -35,7 +35,7 @@ EXPECTED: dict[str, set[str]] = {
 
 
 def _row(**kw: Any) -> Row:
-    base = dict(
+    base: dict[str, Any] = dict(
         finding_id="f-1", title="对象级授权缺失", severity="high",
         oracle_id="idor_cross_account", asset_id="web-01", confidence=0.95,
         route_strength="contract", route_ref="route://contract/7f3a2c11d9e04b58",

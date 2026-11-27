@@ -15,13 +15,15 @@ import pytest
 from fastapi.testclient import TestClient
 
 from web import ConsoleState, Row, build_app
+from typing import Any
 
 SLASH = chr(0x2F)
 UI = SLASH + "ui" + SLASH
 
 
-def _row(**kw) -> Row:
-    base = dict(
+def _row(**kw: Any) -> Row:
+    # dict[str, Any]：**base 展开到 Row 时 object 让每个参数报 arg-type（B589）
+    base: dict[str, Any] = dict(
         finding_id="F-001", title="xss 在 target 上成立", severity="medium",
         oracle_id="xss_reflected_ctx", asset_id="asset-a", confidence=1.0,
         route_strength="contract", route_ref="route://contract/7f3a2c11d9e04b58",
@@ -35,8 +37,10 @@ def _client(state: ConsoleState | None = None) -> TestClient:
     return TestClient(build_app(state or ConsoleState(findings=[_row()])))
 
 
-def _data(resp) -> dict:  # noqa: ANN001
-    return resp.json()["data"]
+def _data(resp: Any) -> dict[str, Any]:
+    # resp.json() 返回 Any —— 显式收口（B589）
+    got: dict[str, Any] = resp.json()["data"]
+    return got
 
 
 # ── A 任意 id 可取 ─────────────────────────────────────────────

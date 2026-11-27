@@ -89,7 +89,9 @@ def test_moves_from_failed(store: Store) -> None:
     d = to_dead_letter(store, tid, error_class="retryable", error_code="VP-7001")
     assert d.task_id == tid
     assert d.exhausted is True
-    assert store.get_task(tid)["state"] == TaskState.DEAD_LETTER.value
+    row0 = store.get_task(tid)
+    assert row0 is not None, "任务应该存在"
+    assert row0["state"] == TaskState.DEAD_LETTER.value
 
 
 def test_rejects_non_failed_state(store: Store) -> None:
@@ -182,6 +184,7 @@ def test_redeliver_resets_attempt(store: Store) -> None:
     to_dead_letter(store, tid, error_class="retryable", error_code="X")
     redeliver(store, tid, by="secops_lead")
     row = store.get_task(tid)
+    assert row is not None, "任务应该存在"
     assert row["state"] == TaskState.QUEUED.value
     assert int(row["attempt"]) == 0
     assert row["error_class"] is None

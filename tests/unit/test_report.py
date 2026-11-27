@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import json
 
 import pytest
@@ -39,8 +41,9 @@ from hos_ares.report import (
 )
 
 
-def _f(**kw) -> FindingView:  # noqa: ANN003
-    base = dict(
+def _f(**kw: Any) -> FindingView:
+    # `dict[str, Any]`：`**base` 展开到强类型构造器时，`object` 会让每个参数都报 arg-type（B577）。
+    base: dict[str, Any] = dict(
         finding_id="f-1",
         title="对象级授权缺失",
         asset_id="web-01",
@@ -64,8 +67,9 @@ def _f(**kw) -> FindingView:  # noqa: ANN003
     return FindingView(**base)
 
 
-def _report(**kw) -> ReportInput:  # noqa: ANN003
-    base = dict(
+def _report(**kw: Any) -> ReportInput:
+    # `dict[str, Any]`：`**base` 展开到强类型构造器时，`object` 会让每个参数都报 arg-type（B577）。
+    base: dict[str, Any] = dict(
         engagement="ENG-1",
         profile_hash="h" * 64,
         image_digest="d" * 64,
@@ -305,7 +309,7 @@ def test_sarif_shape() -> None:
     assert "security" in rule["properties"]["tags"]
 
 # ── B109：报告要写明"面是怎么来的" ───────────────────────────────
-def _report_with(discovery: dict) -> object:
+def _report_with(discovery: dict[str, Any]) -> ReportInput:
     from hos_ares.report.render import ReportInput
 
     return ReportInput(
@@ -337,7 +341,7 @@ def test_json_env_carries_discovery() -> None:
     assert env["discovery"]["pages"] == 4
 
 # ── B144：`not_run` 行要区分"没跑"与"跑过判否"───────────��─────────
-def _report_with_outcomes(outcomes: list) -> object:  # noqa: ANN001
+def _report_with_outcomes(outcomes: list[Any]) -> ReportInput:
     from hos_ares.report.render import FindingView, ReportInput
 
     views = [

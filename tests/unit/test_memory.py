@@ -11,10 +11,12 @@ import pytest
 from hos_ares_core.blackboard import Blackboard
 from hos_ares_core.memory import DEFAULT_TTL_S, Memory, MemoryError
 from hos_ares_core.store import Store
+from collections.abc import Iterator
+from typing import Any
 
 
 @pytest.fixture()
-def store() -> Store:
+def store() -> Iterator[Store]:
     s = Store(":memory:").init()
     yield s
     s.close()

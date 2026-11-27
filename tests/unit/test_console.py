@@ -9,6 +9,9 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -32,8 +35,9 @@ from web import (
 )
 
 
-def _row(**kw) -> Row:  # noqa: ANN003
-    base = dict(
+def _row(**kw: Any) -> Row:
+    # `dict[str, Any]`：`**base` 展开到 `Row` 时 `object` 会让每个参数报 arg-type（B581）。
+    base: dict[str, Any] = dict(
         finding_id="f-1",
         title="对象级授权缺失",
         severity="high",
@@ -244,7 +248,7 @@ def test_coverage_page_without_ledger_still_returns_matrix() -> None:
     assert "matrix" in data
 
 
-def test_loader_reads_sibling_coverage_json(tmp_path) -> None:
+def test_loader_reads_sibling_coverage_json(tmp_path: Path) -> None:
     from web.loader import load_file
 
     hunt = tmp_path / "hunt.json"
@@ -257,7 +261,7 @@ def test_loader_reads_sibling_coverage_json(tmp_path) -> None:
     assert state.coverage["ledger"]["summary"]["faces"] == 2
 
 
-def test_loader_without_ledger_leaves_coverage_empty(tmp_path) -> None:
+def test_loader_without_ledger_leaves_coverage_empty(tmp_path: Path) -> None:
     from web.loader import load_file
 
     hunt = tmp_path / "hunt.json"
@@ -274,7 +278,7 @@ def test_loader_without_ledger_leaves_coverage_empty(tmp_path) -> None:
 from web.console import _expand_matrix_with_gaps
 
 
-def _view() -> dict:
+def _view() -> dict[str, Any]:
     return {
         "assets": ["host"],
         "oracles": ["csp_absent"],
@@ -283,7 +287,7 @@ def _view() -> dict:
     }
 
 
-def _ledger(kinds: dict[str, str]) -> dict:
+def _ledger(kinds: dict[str, str]) -> dict[str, Any]:
     return {"gaps": [{"kind": k, "oracle_id": o} for o, k in kinds.items()]}
 
 
@@ -402,7 +406,7 @@ def test_bounds_view_stays_empty_without_blocks() -> None:
 
 
 # ── B332：越界事件要落盘并被控制台读到 ──────────────────────────
-def test_loader_reads_bounds_json(tmp_path) -> None:  # noqa: ANN001
+def test_loader_reads_bounds_json(tmp_path: Path) -> None:  # noqa: ANN001
     """`ScopeGuard.events` 以前只活在内存里，进程一退就没了，边界页永远读到 0。"""
     import json as _json
 
@@ -419,7 +423,7 @@ def test_loader_reads_bounds_json(tmp_path) -> None:  # noqa: ANN001
     assert len(state.bounds) == 1, state.bounds
 
 
-def test_loader_without_bounds_file_stays_empty(tmp_path) -> None:  # noqa: ANN001
+def test_loader_without_bounds_file_stays_empty(tmp_path: Path) -> None:  # noqa: ANN001
     import json as _json
 
     from web.loader import load_file

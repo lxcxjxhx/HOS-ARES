@@ -17,12 +17,14 @@
 from __future__ import annotations
 
 import re
+from typing import Any
 
 from hos_ares.report import FindingView, Outcome, ReportInput, render_markdown
 
 
-def _fv(**kw) -> FindingView:  # noqa: ANN003
-    base = dict(
+def _fv(**kw: Any) -> FindingView:
+    # `dict[str, Any]`：`**base` 展开到强类型构造器时 `object` 会让每个参数报 arg-type（B579）。
+    base: dict[str, Any] = dict(
         finding_id="f-1", title="对象级授权缺失", asset_id="web-01",
         oracle_id="idor_cross_account", cwe="CWE-639", severity="high",
         confidence=0.95, route_strength="contract",
@@ -35,8 +37,9 @@ def _fv(**kw) -> FindingView:  # noqa: ANN003
     return FindingView(**base)
 
 
-def _rep(**kw) -> ReportInput:  # noqa: ANN003
-    base = dict(
+def _rep(**kw: Any) -> ReportInput:
+    # `dict[str, Any]`：`**base` 展开到强类型构造器时 `object` 会让每个参数报 arg-type（B579）。
+    base: dict[str, Any] = dict(
         engagement="ENG-1", profile_hash="h" * 64, image_digest="d" * 64,
         root_sha256="0" * 64, routeset_sha256=["e" * 64], resolver_version="1.0.0",
         findings=(_fv(),), coverage={"zero_hit_tags": []}, frameworks=[],

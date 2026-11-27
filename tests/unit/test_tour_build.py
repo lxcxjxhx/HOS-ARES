@@ -8,19 +8,23 @@ from __future__ import annotations
 import importlib.util
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
+from script_module import load_script_module  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
 SCRIPT = REPO / "scripts" / "demo" / "build_tour.py"
 MANIFEST = REPO / "out" / "demo" / "tour-manifest.json"
 
 
-def _module():
-    spec = importlib.util.spec_from_file_location("build_tour", SCRIPT)
-    assert spec and spec.loader
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+def _module() -> Any:
+    """把演示脚本当模块加载。返回 `Any`：脚本模块没有类型存根。
+
+    `assert` 必须在**解引用之前**——写在 `module_from_spec(spec)` 之后，
+    下面每一行都在裸解引用 `ModuleSpec | None`（B585，第三次遇到同一形态）。
+    """
+    mod: Any = load_script_module("build_tour", SCRIPT)
     return mod
 
 
@@ -35,7 +39,8 @@ def _segments() -> list[dict[str, object]]:
     ]
 
 
-def _good() -> dict[str, object]:
+# `dict[str, Any]`：`m["segments"]` 展开成 `object` 之后无法迭代（B585）。
+def _good() -> dict[str, Any]:
     return {
         "segments": _segments(),
         "expected_duration_s": 50.5,

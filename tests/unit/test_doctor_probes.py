@@ -15,6 +15,7 @@ import pytest
 
 from hos_ares_cli import cmd_doctor
 from hos_ares_cli.cmd_doctor import Status, run_doctor
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -44,7 +45,7 @@ def test_sandbox_ok_with_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_tui_skip_without_curses(monkeypatch: pytest.MonkeyPatch) -> None:
     real_import = builtins.__import__
 
-    def fake_import(name: str, *a: object, **kw: object):
+    def fake_import(name: str, *a: Any, **kw: Any) -> Any:
         if name == "curses":
             raise ImportError("no curses")
         return real_import(name, *a, **kw)

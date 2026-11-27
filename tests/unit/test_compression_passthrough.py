@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 for extra in (ROOT, ROOT / "tests"):
@@ -17,7 +18,7 @@ for extra in (ROOT, ROOT / "tests"):
         sys.path.insert(0, str(extra))
 
 
-def _fact(i: int, subject: str = "s") -> object:
+def _fact(i: int, subject: str = "s") -> Any:
     from hos_ares_core.blackboard import Fact
 
     return Fact(id=f"f-{i}", task_id="t", subject=f"{subject}{i}", predicate="p",
@@ -25,14 +26,14 @@ def _fact(i: int, subject: str = "s") -> object:
                 evidence_id=f"ev-{i}", supersedes=None, ttl_s=None, created_at=i)
 
 
-def _tiny():  # noqa: ANN202
+def _tiny() -> Any:
     from hos_ares_core.compression import compress
 
     return compress(facts=[_fact(0)], events=[{"kind": "http", "ok": True}],
                     capsule_ids=["c-1"], verdicts={"o": "VERIFIED"})
 
 
-def _big():  # noqa: ANN202
+def _big() -> Any:
     from hos_ares_core.compression import compress
 
     return compress(facts=[_fact(i) for i in range(25)],

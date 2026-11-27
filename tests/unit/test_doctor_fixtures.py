@@ -12,12 +12,13 @@ from __future__ import annotations
 import builtins
 
 import pytest
+from typing import Any
 
 
 def _block(monkeypatch: pytest.MonkeyPatch, name: str) -> None:
     real = builtins.__import__
 
-    def _guard(mod: str, *a: object, **kw: object):  # noqa: ANN202
+    def _guard(mod: str, *a: Any, **kw: Any) -> Any:
         if mod == name or mod.startswith(name + "."):
             raise ModuleNotFoundError(f"No module named {name!r}")
         return real(mod, *a, **kw)

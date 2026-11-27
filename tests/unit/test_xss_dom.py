@@ -13,6 +13,7 @@ import pytest
 from hos_ares_core.models import Verdict
 from hos_ares_oracles.common.harness import Pair, Trace, Variant
 from hos_ares_oracles.tier_dom import MARKER, PAYLOAD, XssDom
+from typing import Any
 
 
 def _trace(
@@ -22,7 +23,7 @@ def _trace(
     error: str | None = None,
     echoed: dict[str, bool] | None = None,
 ) -> Trace:
-    payload = {"marker": marker}
+    payload: dict[str, Any] = {"marker": marker}
     if echoed is not None:
         payload["echoed"] = echoed
     return Trace(
@@ -55,7 +56,7 @@ def _judge(
     *,
     error: str | None = None,
     echoed: dict[str, bool] | None = None,
-):  # noqa: ANN202
+) -> Any:
     return XssDom().judge([
         _pair("baseline", baseline),
         _pair("probe", probe, error=error, echoed=echoed),

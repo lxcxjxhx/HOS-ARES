@@ -9,19 +9,23 @@ from __future__ import annotations
 import importlib.util
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
+from script_module import load_script_module  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
 SCRIPT = REPO / "scripts" / "demo" / "record_console.py"
 MANIFEST = REPO / "out" / "demo" / "manifest.json"
 
 
-def _module():
-    spec = importlib.util.spec_from_file_location("record_console", SCRIPT)
-    assert spec and spec.loader
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+def _module() -> Any:
+    """把演示脚本当模块加载，供断言它的私有函数。
+
+    返回 `Any`：脚本模块没有类型存根，`.read_text()` / `._counts()` 之类
+    只能靠运行时（B582）。
+    """
+    mod: Any = load_script_module("record_console", SCRIPT)
     return mod
 
 

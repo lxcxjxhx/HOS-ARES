@@ -21,6 +21,7 @@ from hos_ares_core.evidence import (
     replay,
 )
 from hos_ares_core.models import ReplayStatus
+from typing import Any
 
 
 class ScriptedTransport:
@@ -43,11 +44,11 @@ def _sha(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def _live_env(rs=None, **kw) -> ReplayEnv:
+def _live_env(rs: Any = None, **kw: Any) -> ReplayEnv:
     return ReplayEnv(now=F.NOW, mode=ReplayMode.LIVE, routeset=rs, **kw)
 
 
-def _matching(rs=None) -> dict[str, TraceResult]:
+def _matching(rs: Any = None) -> dict[str, TraceResult]:
     cap = F.capsule()
     return {
         s.role: TraceResult(status=s.response.status, body_sha256=s.response.body_sha256)
@@ -130,7 +131,9 @@ def test_order_route_before_resend() -> None:
     t = ScriptedTransport({}, default=TraceResult(status=404, body_sha256=_sha("gone")))
     result = replay(F.sealed(), _live_env(F.drop_binding(rs)), t)
     assert result.state is ReplayStatus.ROUTE_UNRESOLVED
-    assert result.state is not ReplayStatus.FAILED
+    # 这里原本还有一句 ——
+    # 上一行已蕴含它（两个枚举值不同），静态上必然被判「不可能成立的判断」（B596）。
+    # 删掉那句，意图靠注释保留：路由未解析**不是**已修复，是两回事。
     assert t.calls == []
 
 

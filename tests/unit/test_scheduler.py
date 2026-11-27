@@ -17,6 +17,8 @@ from hos_ares_core.scheduler import Scheduler
 from hos_ares_core.store import Store
 from worker.heartbeat import Heartbeat
 from worker.worker import Worker
+from collections.abc import Iterator
+from typing import Any
 
 
 class ManualClock:
@@ -33,7 +35,7 @@ class ManualClock:
 
 
 @pytest.fixture()
-def store(tmp_path: Path) -> Store:
+def store(tmp_path: Path) -> Iterator[Store]:
     s = Store(tmp_path / "sched.db").init()
     yield s
     s.close()

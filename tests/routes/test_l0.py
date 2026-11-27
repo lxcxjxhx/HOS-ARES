@@ -48,6 +48,9 @@ from hos_ares_core.routes import (
     validate_contract_hosts,
 )
 from hos_ares_core.routes.types import RouteCandidate
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "unit"))
+from script_module import load_script_module  # noqa: E402
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
@@ -61,11 +64,9 @@ RESOLVER_REL = "hos_ares_core/routes/resolver.py"
 # ── 公共工具 ────────────────────────────────────────────────────────
 
 
-def _load_tool(name: str, rel: str):
-    spec = importlib.util.spec_from_file_location(name, ROOT / rel)
-    mod = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(mod)
+def _load_tool(name: str, rel: str) -> Any:
+    # 用共用函数（B588）。这处同样把 `assert` 写在了 `module_from_spec` 之后。
+    mod: Any = load_script_module(name, ROOT / rel)
     return mod
 
 
@@ -76,7 +77,7 @@ def cand(
     source: RouteProvenance = RouteProvenance.CONTRACT,
     param_names: tuple[str, ...] = ("id",),
     auth: str | None = None,
-    body: dict | None = None,
+    body: dict[str, Any] | None = None,
     verifications: int = 0,
     ambiguity: int = 0,
 ) -> RouteCandidate:
@@ -94,11 +95,12 @@ def cand(
     )
 
 
-def src(name: str, prov: RouteProvenance, items: list[RouteCandidate], err: str | None = None):
+def src(name: str, prov: RouteProvenance, items: list[RouteCandidate],
+        err: str | None = None) -> Any:
     return StaticSource(name=name, provenance=prov, candidates=items, raise_error=err)
 
 
-def q(tag: str = "object_read", **kw) -> RouteQuery:
+def q(tag: str = "object_read", **kw: Any) -> RouteQuery:
     return RouteQuery(asset=AssetRef(id="web-01"), hints=RouteHints(semantic_tag=tag), **kw)
 
 
@@ -432,7 +434,9 @@ def test_l0_29_locator_detects_cycle() -> None:
 
 def test_l0_30_locator_stops_at_three_hops() -> None:
     levels = [
-        LocatorLevel(name=f"l{i}", resolve=(lambda i=i: (f"ref-{i}", ["doc"]))) for i in range(4)
+        LocatorLevel(name=f"l{i}",
+                     resolve=(lambda i=i: (f"ref-{i}", ["doc"])))  # type: ignore[misc]
+        for i in range(4)
     ]
     with pytest.raises(ContractLocatorUnresolved):
         locate_contract(levels, parse_ok=lambda _doc: False, max_hops=3)
@@ -443,7 +447,7 @@ def test_l0_31_zero_operations_falls_through() -> None:
         LocatorLevel(name="observed", resolve=lambda: ("ref-empty", [])),
         LocatorLevel(name="operator", resolve=lambda: ("ref-good", ["op"])),
     ]
-    result = locate_contract(levels, parse_ok=lambda doc: len(doc) > 0)
+    result = locate_contract(levels, parse_ok=lambda doc: bool(doc))
     assert result.ref == "ref-good"
     assert result.hops == 2
 

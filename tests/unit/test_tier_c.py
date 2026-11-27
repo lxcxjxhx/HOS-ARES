@@ -8,6 +8,8 @@ C 档与前两档的差别不是"更难"，而是"证据形状"不同：
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from conftest import Lab
 
@@ -19,7 +21,7 @@ from hos_ares_oracles.common.harness import run
 from hos_ares_core.models import ImpactClass, Verdict
 
 
-def _run(lab: Lab, cls, tag: str, extra: tuple[str, ...] = ()):  # noqa: ANN001
+def _run(lab: Lab, cls: Any, tag: str, extra: tuple[str, ...] = ()) -> Any:
     bmap = {t: lab.binding(t) for t in (tag, *extra)}
     return run(cls(), bmap[tag], lab.transport, symbols=lab.symbols,
                nonce="n-tierc", bindings=bmap)
@@ -81,7 +83,8 @@ def test_cors_wildcard_without_credentials_is_low() -> None:
     """`*` 且无 credentials → 只算 low（18 §3.2）。"""
     from hos_ares_oracles.common.harness import Pair, Trace, Variant
 
-    def _pair(name: str, status: int, headers: dict[str, str], role: str, origin: str):
+    def _pair(name: str, status: int, headers: dict[str, str], role: str,
+              origin: str) -> Any:
         variant = Variant(name=name, role=role, expect="normal",
                           headers={"Origin": origin})
         return Pair(variant=variant, baseline=Trace(route_ref="r", status=200, body=b"{}"),
@@ -155,14 +158,15 @@ def test_tier_c_tags_are_semantic() -> None:
 EVIL_ORIGIN = "https" + ":" + chr(0x2F) * 2 + "evil.test"
 
 
-def _pf_trace(headers: dict[str, str]) -> object:
+def _pf_trace(headers: dict[str, str]) -> Any:
     from hos_ares_oracles.common.harness import Trace
 
     return Trace(route_ref="r", status=204, body=b"", headers=headers)
 
 
 def _pf_pair(name: str, role: str, headers: dict[str, str], *,
-             method: str = "", variant_headers: dict[str, str] | None = None):  # noqa: ANN202
+             method: str = "",
+             variant_headers: dict[str, str] | None = None) -> Any:
     from hos_ares_oracles.common.harness import Pair, Variant
 
     return Pair(
@@ -173,7 +177,7 @@ def _pf_pair(name: str, role: str, headers: dict[str, str], *,
     )
 
 
-def _judge_cors(pairs: list) -> object:  # noqa: ANN001
+def _judge_cors(pairs: list[Any]) -> Any:
     from hos_ares_oracles.tierC import CorsMisconfig
 
     return CorsMisconfig().judge(pairs)

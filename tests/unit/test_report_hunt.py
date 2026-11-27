@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 for extra in (ROOT, ROOT / "tests", ROOT / "tests" / "unit"):
@@ -23,7 +24,7 @@ SHA = "a" * 64
 CID = "sha256:" + SHA
 
 
-def _record(**kw):  # noqa: ANN202
+def _record(**kw: Any) -> dict[str, Any]:
     base = {
         "target_host": "lab",
         "source": "contract",
@@ -51,7 +52,7 @@ def _record(**kw):  # noqa: ANN202
     return base
 
 
-def _render(record, **kw):  # noqa: ANN001, ANN003
+def _render(record: dict[str, Any], **kw: Any) -> str:
     from hos_ares.report.hunt import render_hunt_markdown
 
     kw.setdefault("capsules_dir", "out/x/capsules")

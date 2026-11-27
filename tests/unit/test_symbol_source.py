@@ -20,6 +20,7 @@ from hos_ares_core.routes import (
 from hos_ares_core.routes.sources.base import StaticSource
 from hos_ares_core.routes.sources.symbols import SymbolSource, SymbolTable
 from hos_ares_core.routes.types import RouteCandidate
+from typing import Any
 
 SEP = chr(0x2F)
 BASE_SYM = "LAB_BASE"
@@ -32,7 +33,7 @@ def _cand(template: str, params: tuple[str, ...] = ("id",)) -> RouteCandidate:
     )
 
 
-def _resolve(sources, tags: tuple[str, ...] = ("object_read",)):  # noqa: ANN001
+def _resolve(sources: Any, tags: tuple[str, ...] = ("object_read",)) -> Any:
     q = RouteQuery(asset=AssetRef(id="web-01"), hints=RouteHints(), min_confidence=0.0)
     rs = Resolver(sources=sources).resolve(q, now=1000)
     return [b for b in rs.bindings if tags[0] in getattr(b, "semantic_tags", ())]
@@ -106,7 +107,7 @@ def test_symbol_values_do_not_change_structural_identity() -> None:
     现在的分工：``identity_template`` 参与身份（相对模板 / 契约原样），
     ``template`` 只负责"打哪儿"。两者都在绑定上，可分别核对。
     """
-    def run(port: int):  # noqa: ANN202
+    def run(port: int) -> Any:
         syms = SymbolTable({BASE_SYM: "http" + ":" + SEP * 2 + "lab.invalid:" + str(port)})
         src = SymbolSource("contract", RouteProvenance.CONTRACT,
                            [_cand("{" + BASE_SYM + "}" + SEP + "api" + SEP + "{id}")], syms)
@@ -125,7 +126,7 @@ def test_symbol_values_do_not_change_structural_identity() -> None:
 
 
 def test_same_symbol_value_is_reproducible() -> None:
-    def run():  # noqa: ANN202
+    def run() -> Any:
         syms = SymbolTable({BASE_SYM: "http" + ":" + SEP * 2 + "lab.invalid:9000"})
         src = SymbolSource("contract", RouteProvenance.CONTRACT,
                            [_cand("{" + BASE_SYM + "}" + SEP + "api" + SEP + "{id}")], syms)
@@ -147,7 +148,7 @@ def test_three_template_forms_share_one_identity() -> None:
     若三者身份不同，同一个面在 A 环境录的 capsule 到 B 环境就
     ``route_ref_not_resolvable``——迁移能力直接失效，而且不会有人立刻发现。
     """
-    def ref_of(template: str, base: str, base_sym: str = ""):  # noqa: ANN202
+    def ref_of(template: str, base: str, base_sym: str = "") -> Any:
         cand = RouteCandidate(
             method="GET", template=template, param_names=("id",),
             source=RouteProvenance.CONTRACT,
@@ -183,7 +184,7 @@ def test_contract_absolute_url_keeps_its_host_in_identity() -> None:
     这与上面的边界必须同时成立，否则"排除部署地址"会滑成"排除所有 host"，
     把虚拟主机合并成一个面——那是制造 FP。
     """
-    def ref_of(host: str):  # noqa: ANN202
+    def ref_of(host: str) -> Any:
         cand = RouteCandidate(
             method="GET",
             template="https" + ":" + SEP * 2 + host + SEP + "api" + SEP + "x",
@@ -210,7 +211,7 @@ def test_contract_absolute_url_keeps_its_host_in_identity() -> None:
     这里比较三个完全不同的基址：端口不同、主机不同、scheme 不同。
     三者必须给出同一个 sha，同时**执行地址必须各不相同**（否则说明根本没替换）。
     """
-    def whole(base: str):  # noqa: ANN202
+    def whole(base: str) -> Any:
         syms = SymbolTable({BASE_SYM: base})
         src = SymbolSource("contract", RouteProvenance.CONTRACT,
                            [_cand("{" + BASE_SYM + "}" + SEP + "api" + SEP + "{id}")], syms)

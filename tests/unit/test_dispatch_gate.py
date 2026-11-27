@@ -49,14 +49,14 @@ def ledger() -> LeadLedger:
     return LeadLedger(Store(":memory:").init())
 
 
-def _state(**kw) -> AgentState:  # noqa: ANN003
-    base = {"pending": (), "strong": (), "only_weak": False, "budget_ratio": 0.1,
+def _state(**kw: Any) -> AgentState:
+    base: dict[str, Any] = {"pending": (), "strong": (), "only_weak": False, "budget_ratio": 0.1,
             "wave_order": ("s",)}
     base.update(kw)
-    return AgentState(**base)  # type: ignore[arg-type]
+    return AgentState(**base)
 
 
-def _lead(ledger: LeadLedger):  # noqa: ANN202
+def _lead(ledger: LeadLedger) -> Any:
     return ledger.record(
         task_id=TASK, asset_id="a-1", source_action="http_fuzz", raw_ref="out/act/x.json",
         summary="可疑差分", verifiable_by=("idor_cross_account",),
@@ -70,7 +70,7 @@ def test_dispatch_rejects_when_planning() -> None:
     """计划模式下，连 run_oracle 都在 dispatch 层被拒——不是"decider 自觉不调"。"""
     gate = PlanGate()
     gate.enter(reason="先看清楚")
-    rt = _Runtime()
+    rt: Any = _Runtime()
     res = dispatch(ToolCall("run_oracle", {"oracle_id": "sqli_bool_diff", "route_ref": "r"}),
                    rt, plan_gate=gate)
     assert res.ok is False
@@ -82,7 +82,7 @@ def test_dispatch_rejects_when_planning() -> None:
 def test_dispatch_allows_reads_when_planning() -> None:
     gate = PlanGate()
     gate.enter(reason="先看清楚")
-    rt = _Runtime()
+    rt: Any = _Runtime()
     res = dispatch(ToolCall("list_routes", {"selector": None}), rt, plan_gate=gate)
     assert res.ok is True
     assert rt.calls == ["list_routes"]
@@ -93,7 +93,7 @@ def test_dispatch_allows_everything_after_approval() -> None:
     gate.enter(reason="先看清楚")
     gate.exit(plan_text="打 sqli", actions=("run_oracle",), risks=("超预算",))
     gate.approve(by="secops_lead")
-    rt = _Runtime()
+    rt: Any = _Runtime()
     res = dispatch(ToolCall("run_oracle", {"oracle_id": "sqli_bool_diff", "route_ref": "r"}),
                    rt, plan_gate=gate)
     assert res.ok is True
@@ -102,7 +102,7 @@ def test_dispatch_allows_everything_after_approval() -> None:
 
 def test_dispatch_without_gate_is_unchanged() -> None:
     """不注入闸门时行为与接线前一致：**这是叠加，不是放宽也不收紧**。"""
-    rt = _Runtime()
+    rt: Any = _Runtime()
     res = dispatch(ToolCall("run_oracle", {"oracle_id": "x", "route_ref": "r"}), rt)
     assert res.ok is True
 
@@ -111,7 +111,8 @@ def test_schema_errors_still_come_first() -> None:
     """闸门在 schema 校验之后：**参数都不合法时，告诉它参数错了比告诉它模式不对更有用**。"""
     gate = PlanGate()
     gate.enter(reason="x")
-    res = dispatch(ToolCall("run_oracle", {"oracle_id": 1}), _Runtime(), plan_gate=gate)
+    rt2: Any = _Runtime()
+    res = dispatch(ToolCall("run_oracle", {"oracle_id": 1}), rt2, plan_gate=gate)
     assert res.error_class in {"schema", "approval"}
 
 

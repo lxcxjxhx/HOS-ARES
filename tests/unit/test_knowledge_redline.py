@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pathlib import Path
 
 import pytest
@@ -35,14 +37,14 @@ BASE_JUDGEMENTS = {
 
 
 @pytest.fixture(scope="module")
-def docs():  # noqa: ANN201
+def docs() -> Any:
     return load_dir(KNOWLEDGE_DIR)
 
 
 # ══════════════════════════════════════════════════════════════════
 # 1 红线：knowledge 不进判定
 # ══════════════════════════════════════════════════════════════════
-def test_knowledge_not_in_judge_path(docs) -> None:  # noqa: ANN001
+def test_knowledge_not_in_judge_path(docs: Any) -> None:
     """DoD 点名的那条：**改 knowledge 全文后 verdict 逐字不变**。"""
     judge = "pairs:a>b>c"
     before = {k: knowledge_free(judge, None, ()) for k in BASE_JUDGEMENTS}
@@ -54,20 +56,20 @@ def test_knowledge_not_in_judge_path(docs) -> None:  # noqa: ANN001
     assert verdict_fingerprint(before) == verdict_fingerprint(after)
 
 
-def test_judge_input_has_no_knowledge_after_injection(docs) -> None:  # noqa: ANN001
+def test_judge_input_has_no_knowledge_after_injection(docs: Any) -> None:
     ctx = Context(segments={"L1": "x"}, judge="pairs:1").with_knowledge(docs)
     for d in docs:
         assert d.body.strip()[:64] not in ctx.judge_input()
 
 
-def test_leak_into_judge_raises(docs) -> None:  # noqa: ANN001
+def test_leak_into_judge_raises(docs: Any) -> None:
     needle = docs[0].body.strip()[:64]
     bad = Context(segments={}, judge=f"pairs + {needle}")
     with pytest.raises(KnowledgeError, match="判定输入"):
         assert_no_leak(bad, docs)
 
 
-def test_leak_into_facts_segment_raises(docs) -> None:  # noqa: ANN001
+def test_leak_into_facts_segment_raises(docs: Any) -> None:
     """知识正文一旦进了 L1，就变成了"我们已确认的事实"——这是最隐蔽的一种腐化。"""
     needle = docs[0].body.strip()[:64]
     bad = Context(segments={"L1": needle}, judge="pairs")
@@ -75,7 +77,7 @@ def test_leak_into_facts_segment_raises(docs) -> None:  # noqa: ANN001
         assert_no_leak(bad, docs)
 
 
-def test_wrong_gate_signature_would_be_needed_to_leak(docs) -> None:  # noqa: ANN001
+def test_wrong_gate_signature_would_be_needed_to_leak(docs: Any) -> None:
     """knowledge_free 的签名里 judge 是唯一入参——想放知识进去必须改签名，review 一眼可见。"""
     ctx = Context(segments={}, judge="pairs").with_knowledge(docs)
     assert knowledge_free(ctx.judge_input(), ctx, docs) == "pairs"
@@ -84,7 +86,7 @@ def test_wrong_gate_signature_would_be_needed_to_leak(docs) -> None:  # noqa: AN
 # ══════════════════════════════════════════════════════════════════
 # 2 加载与上限
 # ══════════════════════════════════════════════════════════════════
-def test_loads_docs_sorted_and_digested(docs) -> None:  # noqa: ANN001
+def test_loads_docs_sorted_and_digested(docs: Any) -> None:
     assert docs, "knowledge/ 下应至少有一篇"
     assert [d.id for d in docs] == sorted(d.id for d in docs)
     for d in docs:
@@ -106,26 +108,26 @@ def test_oversized_doc_is_truncated_and_marked(tmp_path: Path) -> None:
     assert got[0].body.encode("utf-8").decode("utf-8") == got[0].body
 
 
-def test_select_is_capped_at_two(docs) -> None:  # noqa: ANN001
+def test_select_is_capped_at_two(docs: Any) -> None:
     picked = select(docs)
     assert len(picked) <= MAX_PER_STEP
     assert MAX_PER_STEP == 2
 
 
-def test_select_prefers_tagged_docs(docs) -> None:  # noqa: ANN001
+def test_select_prefers_tagged_docs(docs: Any) -> None:
     picked = select(docs, tags=[docs[-1].id])
     assert picked[0].id == docs[-1].id
     assert len(picked) <= MAX_PER_STEP
 
 
-def test_select_with_unknown_tag_still_capped(docs) -> None:  # noqa: ANN001
+def test_select_with_unknown_tag_still_capped(docs: Any) -> None:
     assert len(select(docs, tags=["does-not-exist"])) <= MAX_PER_STEP
 
 
 # ══════════════════════════════════════════════════════════════════
 # 3 注入形态
 # ══════════════════════════════════════════════════════════════════
-def test_render_carries_warning_prefix_and_ids(docs) -> None:  # noqa: ANN001
+def test_render_carries_warning_prefix_and_ids(docs: Any) -> None:
     body = render(docs[:2])
     assert body.startswith("[知识参考，非事实，不参与判定]")
     for d in docs[:2]:
@@ -138,13 +140,13 @@ def test_empty_render_is_empty_and_no_segment_created() -> None:
     assert KNOWLEDGE_SEGMENT not in ctx.with_knowledge(()).segments
 
 
-def test_injection_lands_in_l2_knowledge_only(docs) -> None:  # noqa: ANN001
+def test_injection_lands_in_l2_knowledge_only(docs: Any) -> None:
     ctx = Context(segments={"L1": "php"}, judge="p").with_knowledge(docs[:1])
     assert KNOWLEDGE_SEGMENT in ctx.segments
     assert ctx.segments["L1"] == "php"  # 原有段一个字节都没动
 
 
-def test_label_does_not_leak_into_facts(docs) -> None:  # noqa: ANN001
+def test_label_does_not_leak_into_facts(docs: Any) -> None:
     """id 出现在 L1 只是"用过某篇知识"，不算泄漏；正文出现才算。"""
     ctx = Context(segments={"L1": f"参考过 {docs[0].id}"}, judge="p").with_knowledge(docs[:1])
     assert_no_leak(ctx, docs[:1])  # 不抛

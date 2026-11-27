@@ -73,7 +73,7 @@ def test_rollback_returns_to_locked_version() -> None:
     # 模拟升级到 1.2.9（只改清单，不动锁）
     reg.install(_rec("gh:o/r", version="1.2.3"), content_sha256=SHA, now=NOW)
     reg._plugins["gh:o/r"] = PluginRecord(
-        **{**reg.get("gh:o/r").__dict__, "installed_version": "1.2.9"}  # type: ignore[union-attr]
+        **{**reg.get("gh:o/r").__dict__, "installed_version": "1.2.9"}
     )
     assert reg.rollback("gh:o/r") == "1.2.3"
     assert reg.get("gh:o/r").installed_version == "1.2.3"  # type: ignore[union-attr]

@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -18,6 +20,8 @@ from hos_ares_core.workbench.fs import Workbench
 
 _SERVER = r'''
 import json, sys
+from collections.abc import Iterator
+from typing import Any
 
 def reply(obj):
     print(json.dumps(obj, ensure_ascii=False), flush=True)
@@ -50,7 +54,7 @@ for line in sys.stdin:
 
 
 @pytest.fixture()
-def mcp_env(tmp_path: Path):
+def mcp_env(tmp_path: Path) -> Iterator[Any]:
     server = tmp_path / "server.py"
     server.write_text(_SERVER, encoding="utf-8")
     cfg = tmp_path / "mcp.json"

@@ -12,7 +12,7 @@ import pytest
 
 from hos_ares_core.blackboard import AssetFacts
 from hos_ares_core.briefing import L1A_MAX, L1A_PREFIX, build_l1a
-from hos_ares_core.compression import verdict_fingerprint
+from hos_ares_core.compression import verdict_fingerprint  # type: ignore[attr-defined]
 from hos_ares_core.store import Store
 
 REPO = Path(__file__).resolve().parents[2]

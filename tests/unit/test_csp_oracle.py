@@ -1,4 +1,6 @@
 
+from typing import Any, cast
+
 
 # ── B381：expected 必须随结论方向变 ─────────────────────────────
 def test_expected_flips_with_the_verdict_direction() -> None:
@@ -15,7 +17,9 @@ def test_expected_flips_with_the_verdict_direction() -> None:
     def _pair(role: str, headers: dict[str, str]) -> Pair:
         trace = SimpleNamespace(status=200, headers=headers, error=None, body=b"{}",
                                 is_normal=lambda: True)
-        return Pair(variant=SimpleNamespace(role=role), baseline=trace, trace=trace)
+        # SimpleNamespace 是测试替身：类型契约上不成立，用 cast 明说（B596）
+        return Pair(variant=cast(Any, SimpleNamespace(role=role)),
+                    baseline=cast(Any, trace), trace=cast(Any, trace))
 
     absent = CspAbsent().judge([_pair("probe", {}), _pair("control", {})])
     assert absent.verdict.value == "VERIFIED"

@@ -13,11 +13,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from hos_ares_cli.cmd_discover import main as discover_main
+from typing import Any
 
 TARGET = "http" + ":" + chr(0x2F) * 2 + "127." + "0.0.1:1"
 
 
-def test_a_directory_out_gets_discover_json_inside_it(tmp_path: Path, capsys) -> None:  # noqa: ANN001
+def test_a_directory_out_gets_discover_json_inside_it(tmp_path: Path, capsys: Any) -> None:
     rc = discover_main(["--target", TARGET, "--out", str(tmp_path)])
     err = capsys.readouterr().err
     assert "Traceback" not in err

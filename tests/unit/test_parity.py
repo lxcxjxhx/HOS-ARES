@@ -12,6 +12,8 @@ import pytest
 
 from hos_ares_cli import cmd_parity
 from hos_ares_cli.cmd_parity import GREEN, RED, SKIPPED, UNVERIFIED, ITEMS, main, run
+from typing import Any
+from pathlib import Path
 
 EXPECTED_KEYS = (
     "V1 V2 V3 V4 E1 E2 E3 E4 E5 P1 P2 P3 P4 P5 P6 P7 " "W1 W2 W3 G1 G2 G3"
@@ -102,8 +104,8 @@ def test_json_rows_carry_the_judgement_locator(tmp_path: object) -> None:
         assert row.get("how", "").startswith("cmd_parity."), row
 
 
-def test_human_output_prints_the_locator(capsys, tmp_path: object) -> None:  # noqa: ANN001
-    assert main(["--out", str(tmp_path / "p.json")]) == 0  # type: ignore[operator]
+def test_human_output_prints_the_locator(capsys: Any, tmp_path: Path) -> None:
+    assert main(["--out", str(tmp_path / "p.json")]) == 0
     out = capsys.readouterr().out
     assert "└ cmd_parity._pure_judge" in out, out[:400]
 
