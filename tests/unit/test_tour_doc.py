@@ -12,10 +12,13 @@
 from __future__ import annotations
 
 import re
+from typing import Any
+
 import pytest
 
 import json
 from pathlib import Path
+from script_module import load_script_module  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "demo" / "build_tour.py"
@@ -59,12 +62,9 @@ def test_card_counts_are_derived_from_the_material_manifests() -> None:
     """素材长到 11 页/五幕后，片上还烧着 10 页/三幕——文档改了也改不了画面里的字。"""
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location("build_tour", SCRIPT)
-    # `spec_from_file_location` 的返回是 `ModuleSpec | None`：
-    # 先断言再解引用，否则下面每一行都报 union-attr（B580）。
-    assert spec is not None and spec.loader is not None, f"加载不了 {SCRIPT}"
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    # 用共用函数（B586）：断言顺序的问题在它里面已经处理过，
+    # 调用方不必重复那四行，也就不会再重复写错。
+    mod: Any = load_script_module("build_tour", SCRIPT)
     pages, scenes = mod._counts()
     assert pages is None or pages >= 1
     assert scenes is None or scenes >= 1

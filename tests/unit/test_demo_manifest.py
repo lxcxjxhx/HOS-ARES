@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from script_module import load_script_module  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
 SCRIPT = REPO / "scripts" / "demo" / "record_console.py"
@@ -24,11 +25,7 @@ def _module() -> Any:
     返回 `Any`：脚本模块没有类型存根，`.read_text()` / `._counts()` 之类
     只能靠运行时（B582）。
     """
-    spec = importlib.util.spec_from_file_location("record_console", SCRIPT)
-    # `spec_from_file_location` 返回 `ModuleSpec | None`：断言必须在**解引用之前**
-    assert spec is not None and spec.loader is not None, f"加载不了 {SCRIPT}"
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod: Any = load_script_module("record_console", SCRIPT)
     return mod
 
 

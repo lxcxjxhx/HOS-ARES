@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from script_module import load_script_module  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
 SCRIPT = REPO / "scripts" / "demo" / "build_tour.py"
@@ -23,10 +24,7 @@ def _module() -> Any:
     `assert` 必须在**解引用之前**——写在 `module_from_spec(spec)` 之后，
     下面每一行都在裸解引用 `ModuleSpec | None`（B585，第三次遇到同一形态）。
     """
-    spec = importlib.util.spec_from_file_location("build_tour", SCRIPT)
-    assert spec is not None and spec.loader is not None, f"加载不了 {SCRIPT}"
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod: Any = load_script_module("build_tour", SCRIPT)
     return mod
 
 
