@@ -29,6 +29,20 @@ _FILEISH = re.compile(r"[A-Za-z0-9_.\-]+\.[A-Za-z0-9]{1,8}\b")
 _WRITE_PATTERNS = (
     re.compile(r"(?:往|向|给)\s*(?P<path>[^\s，,]+)\s*写(?:入)?\s*(?P<content>.*)$"),
     re.compile(r"写(?:入)?\s*(?P<content>.+?)\s*(?:到|进)\s*(?P<path>[^\s，,]+)\s*$"),
+    # **"写一个 X" / "建一份 X"：只说创建、不带内容**（B603）。
+    # 这类句式此前落到"只有路径 → 默认读"，于是「写一个 rules.txt」被当成了读，
+    # 会话在 `fs.read：文件不存在` 处停住——**用户说"写"，系统去做"读"**。
+    #
+    # 两条纪律（都是实测踩出来的）：
+    # 1. **必须排在"创建 X 内容 Y"之前**：那个模式会把 `一份` 当路径、
+    #    `notes.md` 当内容（"建一份 notes.md" → path='一份'）。顺序错了就解析反；
+    # 2. **path 必须是"像文件"的样子**（含 `.` 或 `/`）：
+    #    否则「看下 out/x.txt 里写了什么」会被这条抓走——它含"写"字，
+    #    `什么` 被当成路径。原代码的注释早就警告过这一点。
+    re.compile(
+        r"(?:写|创建|新建|建)\s*(?:一个|一份|个|份)?\s*"
+        r"(?P<path>[^\s，,]*[./][^\s，,]*)\s*$"
+    ),
     re.compile(r"(?:创建|新建|建)\s*(?P<path>[^\s，,]+)\s*(?:内容|写上)?\s*(?P<content>.+)$"),
 )
 
@@ -215,7 +229,9 @@ def parse(text: str, *, history: Sequence[str] = (), _depth: int = 0) -> Plan:
         wm = pat.search(raw)
         if wm:
             wp = wm.group("path")
-            wc = (wm.group("content") or "").strip("  ：:，,、'\"「」")
+            # 有的句式（"写一个 X"）只说创建、不带内容 → 空内容，不报 KeyError
+            raw_content = wm.groupdict().get("content") or ""
+            wc = raw_content.strip("  ：:，,、'\"「」")
             return Plan(
                 raw=raw,
                 steps=(Step("write", {"path": wp, "content": wc}, "写文件（新建/覆盖）"),),
