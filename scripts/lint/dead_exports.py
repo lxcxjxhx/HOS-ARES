@@ -25,6 +25,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import argparse
 import ast
 import json
@@ -122,7 +124,28 @@ def scan() -> list[dict[str, object]]:
                 "kind": "dead" if pattern.search(test_blob) else "unused",
             }
         )
-    return sorted(rows, key=lambda r: (r["kind"] != "dead", -int(r["test_refs"]), r["symbol"]))
+    # `r["test_refs"]` 的值类型是 `object`（rows 是 `list[dict[str, object]]`）。
+    # 显式转 int 之前先窄化，别让 `int(object)` 在运行时炸（B573）。
+    def _sort_key(r: dict[str, Any]) -> tuple[bool, int, str]:
+        refs = r["test_refs"]
+        return (
+            r["kind"] != "dead",
+            -(refs if isinstance(refs, int) else 0),
+            str(r["symbol"]),
+        )
+
+    return sorted(rows, key=_sort_key)
+
+
+def _joined(value: object) -> str:
+    """把 `rows[*]["defined_in"]` 折成逗号串。
+
+    那一列的类型是 `object`（rows 是 `list[dict[str, object]]`），
+    直接 `",".join(...)` 会被 mypy 拒，运行时也会在拿到非可迭代值时炸（B573）。
+    """
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return ",".join(str(v) for v in value)
+    return str(value)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -154,12 +177,12 @@ def main(argv: list[str] | None = None) -> int:
     if dead:
         print("只在 tests/ 里被调用（模块对，但生产路径没接）：")
         for r in dead:
-            print(f"  {r['symbol']:<34} tests={r['test_refs']:<3} {','.join(r['defined_in'])}")
+            print(f"  {r['symbol']:<34} tests={r['test_refs']:<3} {_joined(r['defined_in'])}")
         print()
     if unused:
         print("两侧都没出现（可能死代码，也可能是动态引用）：")
         for r in unused:
-            print(f"  {r['symbol']:<34} {','.join(r['defined_in'])}")
+            print(f"  {r['symbol']:<34} {_joined(r['defined_in'])}")
     return 0
 
 

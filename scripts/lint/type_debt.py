@@ -41,9 +41,9 @@ ROOT = Path(__file__).resolve().parents[2]
 #:
 #: **它只许往下改**：修掉一批就把这个数字调小；加新脚本引入错误则必须当场修掉，
 #: 否则 `--check` 会红。这样欠账不会无声增长。
-SCRIPT_ERROR_BUDGET = 33
+SCRIPT_ERROR_BUDGET = 19
 
-#: 为什么不接进 `verify.py`：那 33 个错误全在开发脚本里（demo / bench / 一次性工具），
+#: 为什么不接进 `verify.py`：那 19 个错误全在开发脚本里（demo / bench / 一次性工具），
 #: 与产品路径无关。把一道"注定红"的闸门塞进 `verify.py` 只会让人开始忽略 verify 的输出——
 #: 那比没有闸门更糟。等修到 0 再并入主闸门。
 
