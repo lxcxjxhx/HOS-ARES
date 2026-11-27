@@ -102,3 +102,51 @@ def test_edit_words_list_is_not_empty() -> None:
     assert EDIT_WORDS, "编辑动词表空了"
     for word in ("改", "修改", "替换"):
         assert word in EDIT_WORDS, f"{word} 不在 EDIT_WORDS 里"
+
+
+# ── 6：一句话多目标 → 拒绝，不许把第二个目标当 `new` ──────────
+@pytest.mark.parametrize("text", [
+    "把 a.txt 里的 x 改成 y，b.txt 里的 p 改成 q",
+    "将 notes.md 中的 v1 替换成 v2，out.json 中的 a 替换成 b",
+])
+def test_two_targets_in_one_sentence_are_refused(text: str) -> None:
+    """**一句话只处理一处替换。**
+
+    修前：`new` 变成 `y，b.txt 里的 p 改成 q` —— 于是 `old=x` 在 `a.txt` 里
+    找不到就失败，而**用户以为两处都改了**。
+
+    这与 B604 那组是同一类：**宁可说不懂，不要静默做错**。
+    """
+    plan = parse(text)
+    assert not plan.ok, f"「{text}」被当成单条 edit 执行了：{plan.steps}"
+    assert not plan.steps, plan.steps
+    assert "分条" in plan.understood_as or "一句" in plan.understood_as, plan.understood_as
+
+
+@pytest.mark.parametrize("text,new", [
+    ("把 a.txt 里的 x 改成 y", "y"),
+    ("把 a.txt 里的 x 改成 y 和 q", "y 和 q"),
+    ("把 out/x.json 里的 1 改为 2", "2"),
+])
+def test_single_target_still_parses(text: str, new: str) -> None:
+    """**不能因为拒绝多目标就连单目标一起拒了。**"""
+    plan = parse(text)
+    assert plan.ok, plan.understood_as
+    assert plan.steps[0].tool == "edit"
+    assert plan.steps[0].args["new"] == new, plan.steps[0].args
+
+
+def test_two_edits_joined_by_a_connector_are_split_not_refused() -> None:
+    """**「再把 …」是合法的多步连接词** —— 要被拆成两步，不是拒绝。
+
+    这与上面那组（逗号连写）的区别很重要：
+
+    - 「把 A 里的 x 改成 y **再把** B 里的 p 换成 q」—— 有明确的步骤边界
+    - 「把 A 里的 x 改成 y**，**B 里的 p 改成 q」—— 没有边界，`new` 会吞掉后半句
+
+    **拒绝的是「不知道边界在哪」，不是「目标多于一个」。**
+    """
+    plan = parse("把 a.txt 里的 x 换成 y 再把 b.txt 里的 p 换成 q")
+    assert plan.ok, plan.understood_as
+    assert len(plan.steps) == 2, plan.steps
+    assert [s.args["path"] for s in plan.steps] == ["a.txt", "b.txt"]

@@ -214,6 +214,19 @@ def parse(text: str, *, history: Sequence[str] = (), _depth: int = 0) -> Plan:
         raw,
     )
     if m:
+        # **一句话里不许塞多个目标**（B605）：`new` 里再出现「里的/改成」这类结构词，
+        # 说明用户想改第二处。以前它被整个吞进 `new` —— 于是 `old=x` 在 a.txt 里
+        # 找不到就会失败，而用户以为两处都改了。**静默做错比说不懂更糟。**
+        new_val = m["new"]
+        if re.search(r"里的|中的|里面|内|改成|换成|替换成|替换为|改为|改作", new_val):
+            return Plan(
+                raw=raw,
+                understood_as=(
+                    "一句话里只处理一处替换。要改多处请分条说，"
+                    "例如先「把 a.txt 里的 x 改成 y」，再「把 b.txt 里的 p 改成 q」"
+                ),
+            )
+    if m:
         return Plan(
             raw=raw,
             steps=(Step("edit", {"path": m["path"], "old": m["old"], "new": m["new"]},
