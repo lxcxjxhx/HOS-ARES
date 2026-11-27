@@ -66,9 +66,13 @@ def test_platform_dir_merges_assets_without_id_collisions(tmp_path: Path) -> Non
     assert by_asset["asset-1"].capsule_id == c1
     assert by_asset["asset-2"].capsule_id == c2
     # 证据路径各自解析：不许跨资产借
-    assert by_asset["asset-1"].capsule_path.endswith(c1.split(":")[-1] + ".json")
-    assert "asset-1" in by_asset["asset-1"].capsule_path
-    assert "asset-2" in by_asset["asset-2"].capsule_path
+    # capsule_path 声明是 str | None（没证据时就是 None）——先窄化再断言（B596）
+    path1 = by_asset["asset-1"].capsule_path
+    path2 = by_asset["asset-2"].capsule_path
+    assert path1 is not None and path2 is not None, "两份证据都该有路径"
+    assert path1.endswith(c1.split(":")[-1] + ".json")
+    assert "asset-1" in path1
+    assert "asset-2" in path2
 
     stats = summarize(state)
     assert stats["total"] == 2 and stats["verified"] == 2

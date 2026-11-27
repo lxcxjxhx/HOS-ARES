@@ -13,6 +13,7 @@ from __future__ import annotations
 import io
 import sys
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 for extra in (ROOT, ROOT / "tests", ROOT / "tests" / "unit"):
@@ -20,7 +21,7 @@ for extra in (ROOT, ROOT / "tests", ROOT / "tests" / "unit"):
         sys.path.insert(0, str(extra))
 
 
-def _wb(tmp_path: Path):  # noqa: ANN202
+def _wb(tmp_path: Path) -> Any:
     from hos_ares_core.workbench.fs import Workbench
 
     return Workbench(tmp_path)
@@ -44,7 +45,7 @@ def test_bytes_before_is_recorded_by_the_workbench(tmp_path: Path) -> None:
     assert wb.write("c.txt", "x").bytes_before is None
 
 
-def test_session_history_keeps_the_distinction(tmp_path: Path, monkeypatch, capsys) -> None:  # noqa: ANN001
+def test_session_history_keeps_the_distinction(tmp_path: Path, monkeypatch: Any, capsys: Any) -> None:
     """回放历史时也要分得清：这是审计用的那一层。
 
     REPL 打印的是 `turn.summary`——即**记进会话**的那句话，所以断言 stdout

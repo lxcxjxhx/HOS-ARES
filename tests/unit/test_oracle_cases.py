@@ -16,6 +16,7 @@ from hos_ares_oracles import ALL_ORACLES
 from hos_ares_oracles.common.harness import run
 from hos_ares_core.models import Verdict
 from hos_ares.bench.faces import extra_tags, primary_tag
+from typing import Any
 
 def _by_id(oracle_id: str, **params: object) -> object:
     """按 id 构造（覆盖已注册的全部档位，不只 TierA 前 4 类）。"""
@@ -27,7 +28,7 @@ def _by_id(oracle_id: str, **params: object) -> object:
 
 
 CASES_PATH = Path(__file__).resolve().parents[2] / "hos_ares_oracles" / "cases" / "tierA.json"
-CASES: dict = json.loads(CASES_PATH.read_text(encoding="utf-8"))
+CASES: dict[str, Any] = json.loads(CASES_PATH.read_text(encoding="utf-8"))
 
 def _lab(kind: str) -> Lab:
     """每次现造：写操作类（mass_assignment）会改 app.state，靶场实例不能跨用例共享。"""
@@ -127,7 +128,7 @@ def test_every_multi_face_oracle_is_covered_somewhere() -> None:
     ENTRIES,
     ids=[f"{o}-{k}-{c['case']}" for o, k, c in ENTRIES],
 )
-def test_case_matrix(oracle_id: str, kind: str, case: dict) -> None:
+def test_case_matrix(oracle_id: str, kind: str, case: dict[str, Any]) -> None:
     lab = _lab(case.get("lab", "vulnerable" if kind == "positive" else "hardened"))
     params = dict(case.get("params", {}))
     nonce = params.pop("nonce", "")

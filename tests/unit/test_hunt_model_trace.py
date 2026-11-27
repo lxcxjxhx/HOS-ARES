@@ -18,6 +18,7 @@ import contextlib
 import io
 
 from hos_ares_cli.cmd_hunt import main as hunt_main
+from typing import Any
 
 #: 夹具契约的 host（走契约路才不触发发现），以及一个必然拒连的端点
 _CONTRACT = "tests/fixtures/contract/sample.json"
@@ -25,7 +26,7 @@ _TARGET = "http" + ":" + chr(0x2F) * 2 + "contract-sample.invalid"
 _DEAD_MODEL = "http" + ":" + chr(0x2F) * 2 + "127." + "0.0.1:1" + chr(0x2F) + "v1"
 
 
-def _run_live_model(monkeypatch, tmp_path) -> str:  # noqa: ANN001
+def _run_live_model(monkeypatch: Any, tmp_path: Any) -> str:
     monkeypatch.setenv("HOS_ARES_MODEL_BASE_URL", _DEAD_MODEL)
     monkeypatch.setenv("HOS_ARES_MODEL", "demo")
     out = io.StringIO()
@@ -35,12 +36,12 @@ def _run_live_model(monkeypatch, tmp_path) -> str:  # noqa: ANN001
     return out.getvalue()
 
 
-def test_model_error_is_not_shown_as_the_internal_sentinel(monkeypatch, tmp_path) -> None:  # noqa: ANN001
+def test_model_error_is_not_shown_as_the_internal_sentinel(monkeypatch: Any, tmp_path: Any) -> None:
     text = _run_live_model(monkeypatch, tmp_path)
     assert "__model_error__" not in text, f"内部哨兵名漏到客户眼前：{text[:600]}"
 
 
-def test_model_error_is_explained_and_says_it_degraded(monkeypatch, tmp_path) -> None:  # noqa: ANN001
+def test_model_error_is_explained_and_says_it_degraded(monkeypatch: Any, tmp_path: Any) -> None:
     text = _run_live_model(monkeypatch, tmp_path)
     assert "模型调用失败" in text, text[:600]
     assert "已降级到 scripted 继续" in text, text[:600]

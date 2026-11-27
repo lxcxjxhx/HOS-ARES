@@ -26,9 +26,10 @@ from hos_ares_oracles.auth.jwt_suite import (
 )
 from hos_ares_oracles.common.harness import Pair, Trace, pair_up, run
 from hos_ares_core.models import Verdict
+from typing import Any
 
 
-def _run(lab: Lab):  # noqa: ANN202
+def _run(lab: Lab) -> Any:
     return run(
         JwtSuite(),
         lab.binding("protected_read"),
@@ -102,7 +103,7 @@ def test_control_not_denied_blocks_verdict(vulnerable: Lab) -> None:
     assert judgement.reason == "control_not_denied"
 
 
-def _as_variant(name: str, role: str = "probe"):  # noqa: ANN202
+def _as_variant(name: str, role: str = "probe") -> Any:
     from hos_ares_oracles.common.harness import Variant
 
     return Variant(name=name, role=role, expect="accepted_or_rejected")
