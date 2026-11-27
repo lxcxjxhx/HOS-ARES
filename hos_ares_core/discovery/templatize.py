@@ -70,4 +70,102 @@ def templatize(path: str) -> tuple[str, tuple[str, ...]]:
     return template, tuple(names)
 
 
-__all__ = ["templatize"]
+__all__ = ["templatize", "templatize_many"]
+
+
+#: 同类多值归一的阈值：同一位置出现这么多种不同值，就认为它是 id。
+#:
+#: **3 而不是 2**：`/api/v1/x` 与 `/api/v2/x` 只有两个值，它们是**真不同的面**
+#: （版本端点）。三条以上同位置异值，才更像"同一个面被 id 撑开"。
+_SAME_SLOT_MIN = 3
+
+
+def templatize_many(paths: list[str]) -> dict[str, tuple[str, tuple[str, ...]]]:
+    """批量归一：**同位置异值 ≥3 种的段，按参数归一**。
+
+    这是 ``templatize`` 的天花板补齐（见模块 docstring 的 ``ponytail:`` 注）。
+    单条路径看不出"同类多值"，必须成组看：
+
+    ```
+    /api/user-A/profile      ┐
+    /api/user-B/profile        ├─ 位置 2 三个异值 → 归成 /api/{p1}/profile
+    /api/user-C/profile      ┘
+    ```
+
+    而 ``templatize`` 对这三条会给三个不同的模板，于是 crawl 把同一条语义端点
+    当成三条面各抓一遍——**覆盖率分母被虚增**。
+
+    ## 与 ``templatize`` 的关系
+
+    - ``templatize`` 只认**结构性**动态段（数字 / hex / 邮箱），**不动**语义 id；
+    - 本函数在成组上下文里补上语义 id；
+    - 两条规则都守着同一件事：**宁可少归一**。所以阈值是 3，
+      且只归一"每一条路径在该位置都有值、且值全不相同"的段。
+
+    ## 参数名
+
+    先跑 ``templatize``（结构性动态段已经是 ``p1..pn``），再给补充归一的段
+    续号，**不重排**——重排会让已有模板的 ref 变化，胶囊与报告会对不上。
+
+    返回：``{原始路径: (模板, 参数名tuple)}``。没被归一的位置保持字面量。
+    """
+    if not paths:
+        return {}
+
+    # 每条的段列（拆扩展名，与 templatize 一致）
+    split: list[list[tuple[str, str]]] = []
+    for p in paths:
+        split.append([_split_ext(seg) for seg in p.split(SEP)])
+
+    # 只看长度相同的组：段数不同的路径不可能同构
+    # （`/api/x/a` 与 `/api/y/b/c` 是两条不同的面，别硬归）。
+    by_len: dict[int, list[int]] = {}
+    for idx, segs in enumerate(split):
+        by_len.setdefault(len(segs), []).append(idx)
+
+    # 位置 → 是否该归一
+    promote: dict[tuple[int, int], bool] = {}
+    for _length, members in by_len.items():
+        if len(members) < _SAME_SLOT_MIN:
+            continue
+        slots = len(split[members[0]])
+        for slot in range(slots):
+            values = {split[i][slot][0] for i in members}
+            # 结构化动态段已经是参数了（`templatize` 会认），这里只管剩下的
+            literal = {v for v in values if not _is_dynamic(v)}
+            if len(values) >= _SAME_SLOT_MIN and len(literal) == len(values):
+                for i in members:
+                    promote[(i, slot)] = True
+
+    out: dict[str, tuple[str, tuple[str, ...]]] = {}
+    for idx, p in enumerate(paths):
+        base_template, base_names = templatize(p)
+        if not promote:
+            out[p] = (base_template, base_names)
+            continue
+        # 已由 templatize 认掉的段数（用于给补充归一续号）
+        used = len(base_names)
+        rebuilt: list[str] = []
+        extra: list[str] = []
+        for slot, (stem, ext) in enumerate(split[idx]):
+            if promote.get((idx, slot)):
+                used += 1
+                name = f"p{used}"
+                extra.append(name)
+                rebuilt.append("{" + name + "}" + ext)
+            elif _is_dynamic(stem):
+                # **必须保留 templatize 已经给出的参数名**（B607 踩过）：
+                # `/api/1/A/x` 里 `1` 是结构 id、`A` 是语义 id，
+                # 两边都归一后若这里直接输出字面量 `1`，
+                # 模板会变成 `/api/1/{p2}/x` —— 结构 id 丢了参数化，
+                # 而 `p1` 还挂在 `base_names` 里，编号对不上。
+                # 参数名按出现顺序重新数：这是本条路径里的第几个动态段。
+                nth = sum(1 for s2 in range(slot) if _is_dynamic(split[idx][s2][0]))
+                rebuilt.append("{" + f"p{nth + 1}" + "}" + ext)
+            else:
+                rebuilt.append(stem + ext)
+        template = SEP.join(rebuilt)
+        if len(template) > 1 and template.endswith(SEP):
+            template = template.rstrip(SEP) or SEP
+        out[p] = (template, base_names + tuple(extra))
+    return out
