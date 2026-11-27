@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import shutil
 import sys
+from typing import Any
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -23,6 +24,7 @@ from hos_ares_core.evidence import (  # noqa: E402
     ReplayEnv,
     ReplayMode,
     TraceResult,
+    chain_capsules,
     dumps_capsule,
     replay,
     save_capsule,
@@ -30,19 +32,28 @@ from hos_ares_core.evidence import (  # noqa: E402
 )
 from hos_ares_core.models import ReplayStatus  # noqa: E402
 
-def _transport(traces: dict[str, TraceResult]):
+def _transport(traces: dict[str, TraceResult]) -> Any:
+    """把「按 role 查 trace」包成 transport。
+
+    返回 `Any`：`Transport` 是 Protocol，这里只需要 `send` 一个方法，
+    标 Protocol 会多一层耦合，而这是演示脚本。
+    """
+
     class _T:
-        def send(self, step, binding):  # noqa: ANN001, ANN201
+        def send(self, step: Any, binding: Any) -> TraceResult:
+            del binding
             return traces[step.role]
 
     return _T()
 
 
-def _matching(cap):
-    return {
+def _matching(cap: Any) -> dict[str, TraceResult]:
+    """把 capsule 的 steps 折成 {role: TraceResult}，给 `_transport` 用。"""
+    out: dict[str, TraceResult] = {
         s.role: TraceResult(status=s.response.status, body_sha256=s.response.body_sha256)
         for s in cap.steps
     }
+    return out
 
 
 def main(argv: list[str]) -> int:
@@ -56,7 +67,9 @@ def main(argv: list[str]) -> int:
         shutil.rmtree(out)
     out.mkdir(parents=True, exist_ok=True)
 
-    caps = F.chain_capsules([F.capsule(probe_body=f"demo-{i}") for i in range(3)])
+    # `chain_capsules` 原本经 `capsule_fixture` 转手导出，mypy 判「未显式导出」。
+    # 直接从 `hos_ares_core` 取——那是它真正的来源（B572）。
+    caps = chain_capsules([F.capsule(probe_body=f"demo-{i}") for i in range(3)])
     paths = [save_capsule(c, out) for c in caps]
 
     for path, cap in zip(paths, caps):

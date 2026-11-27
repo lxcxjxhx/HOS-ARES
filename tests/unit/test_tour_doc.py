@@ -11,6 +11,8 @@
 
 from __future__ import annotations
 
+import re
+
 import json
 from pathlib import Path
 
@@ -22,7 +24,9 @@ MANIFEST = ROOT / "out" / "demo" / "tour-manifest.json"
 
 def test_tour_script_falls_back_to_a_system_browser() -> None:
     src = SCRIPT.read_text(encoding="utf-8")
-    assert "def _launch(pw)" in src
+    # 只验"有这个函数"，不钉签名文本：B574 给它补类型标注（`pw: Any`）之后
+    # `"def _launch(pw)"` 这个字面量就不存在了（B575 修）。
+    assert re.search(r"def _launch\(", src), "起浏览器的兜底函数不见了"
     assert "channel=channel" in src
     assert 'pw.chromium.launch()' in src, "自带 chromium 仍是首选，只是不再写死"
 

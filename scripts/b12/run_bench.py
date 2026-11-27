@@ -32,6 +32,7 @@ import time
 from datetime import datetime, timezone
 from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 for extra in (ROOT, ROOT / "tests", ROOT / "tests" / "unit"):
@@ -104,15 +105,20 @@ SYMBOLS = SymbolTable(
 LAB_BASE = "LAB_BASE"
 
 
-def _oracle(oracle_id: str):  # noqa: ANN202
+def _oracle(oracle_id: str) -> Any:
+    """按 id 找一个 oracle 实例。返回 `Any`：14 类 oracle 没有共同的可调用基类，
+    标成 Protocol 只为这一处不值得。"""
     for cls in ALL_ORACLES:
         if cls.meta.id == oracle_id:
             return cls()
     raise KeyError(oracle_id)
 
 
-def _pick_lab(case):  # noqa: ANN001, ANN202
-    """正样本→脆弱态；负样本按 seed 选 hardened / degenerate。"""
+def _pick_lab(case: Any) -> Any:
+    """正样本→脆弱态；负样本按 seed 选 hardened / degenerate。
+
+    `case` 来自 bench 的用例集、返回值是靶场 App——两者都在 tests/ 下，
+    不在 mypy 目标里，所以这里用 `Any`。"""
     if case.label == "positive":
         return App(secure=False)
     if "degenerate" in case.seeds:
@@ -122,7 +128,7 @@ def _pick_lab(case):  # noqa: ANN001, ANN202
     return App(secure=True)
 
 
-def _routeset(base: str, tags: tuple[str, ...]):  # noqa: ANN001, ANN202
+def _routeset(base: str, tags: tuple[str, ...]) -> Any:
     """按标签产出一个 RouteSet。**基址是符号值，模板仍由 resolver 给。**"""
     src = SymSource(
         "contract", RouteProvenance.CONTRACT, R.candidates(tags),
@@ -132,11 +138,11 @@ def _routeset(base: str, tags: tuple[str, ...]):  # noqa: ANN001, ANN202
     rs = Resolver(sources=[src]).resolve(q, now=R.NOW)
     # 同一标签可能有多条面（B384）：解析器按置信度排序，插入一条新面就会改变
     # `bindings[0]`——bench 的被测对象会悄悄换人。这里按模板字典序固定下来。
-    rs.bindings = tuple(sorted(rs.bindings, key=lambda b: str(b.template)))
+    rs.bindings = sorted(rs.bindings, key=lambda b: str(b.template))
     return rs
 
 
-def _last_params(transport) -> dict[str, str]:  # noqa: ANN001
+def _last_params(transport: Any) -> dict[str, str]:
     """取最后一次发包的参数（不含身份标记）。"""
     if not transport.sent:
         return {}
@@ -168,10 +174,10 @@ ROUND_DOCS: list[CapsuleDoc] = []
 
 def _replay_state(
     *,
-    cap,  # noqa: ANN001
-    app_factory,  # noqa: ANN001
-    baseline_params,  # noqa: ANN001
-    pairs,  # noqa: ANN001
+    cap: Any,
+    app_factory: Any,
+    baseline_params: Any,
+    pairs: Any,
 ) -> str:
     """在**干净实例**上重放一份刚 seal 的 capsule，返回真实的 ReplayStatus。
 
@@ -208,7 +214,7 @@ def _replay_state(
 
 
 
-def run_case(case) -> CaseResult:  # noqa: ANN001
+def run_case(case: Any) -> CaseResult:
     app = _pick_lab(case)
     t0 = time.perf_counter()
     srv = LabServer(app, tls=TLS).start()
@@ -335,7 +341,9 @@ def run_case(case) -> CaseResult:  # noqa: ANN001
     # 真网络下 binding.template 含基址（解析期符号替换过），而 main() 的
     # template_hashes 来自 R.routeset()（相对形态）。两边口径必须一致，
     # 所以这里用**同一个来源的相对模板**来算，基址不进哈希。
-    local_binding = R.binding_for(case.selector)
+    # `R` 是 tests/lab/routes，不在 mypy 目标里 → 它的返回值被推断成 object。
+    # 这里显式窄化，代价只是多一行；换来的是下面三处属性访问有类型（B571）。
+    local_binding: Any = R.binding_for(case.selector)
     rendered = local_binding.template
     params = _last_params(transport)
     for name, value in params.items():
@@ -518,8 +526,12 @@ def main(argv: list[str]) -> int:
         encoding="utf-8",
     )
 
-    # Windows 控制台是 GBK：统一按 UTF-8 写出，避免 ✅/❌ 触发 UnicodeEncodeError
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    # Windows 控制台是 GBK：统一按 UTF-8 写出，避免 ✅/❌ 触发 UnicodeEncodeError。
+    # `sys.stdout` 在类型上是 `TextIO`，但**运行时**可能是被重定向的 `TextIOWrapper`
+    # （有 `reconfigure`）。用 getattr 取方法，比给整行加 ignore 更诚实地表达"它可能没有"。
+    _reconf = getattr(sys.stdout, "reconfigure", None)
+    if _reconf is not None:
+        _reconf(encoding="utf-8", errors="replace")
     print(md)
     for failure in derivable.failures:
         print(f"ROUTE-DERIVABLE FAIL {failure}")

@@ -75,7 +75,9 @@ def _run(cmd: Sequence[str], *, stdin: str | None = None,
     return [ln for ln in text.splitlines() if ln.strip()]
 
 
-def _lab():  # noqa: ANN202
+def _lab() -> Any:
+    """起一个只绑环回的靶场。返回类型用 Any：`LabServer` 来自 tests/lab，
+    那个包不在 mypy 的目标里，标具体类型会把测试依赖拖进产品类型检查。"""
     from lab.app import App
     from lab.net_server import LabServer
 
@@ -140,8 +142,11 @@ body {{ margin:0; background:{BG}; font-family: "JetBrains Mono", Consolas, mono
 </body></html>"""
 
 
-def _launch(pw):  # noqa: ANN001, ANN201
+def _launch(pw: Any) -> Any:
     """起浏览器：先 playwright 自带 chromium，再退到系统 Edge / Chrome（B267）。
+
+    参数与返回都用 `Any`：playwright 的类型只在它自己的包里，
+    为它加一个开发期依赖不划算（这是演示脚本，不进产品路径）。
 
     自带 chromium 在部分 Windows 上直接起不来（ICU / 沙箱），而产品的 BrowserRenderer
     早就按这条链兜底了——演示脚本不该因为这一点整条链跑不了。
@@ -372,7 +377,7 @@ def main(argv: list[str] | None = None) -> int:
     all_lines: list[str] = []
     for s in scenes:
         all_lines.extend(s["lines"])
-    manifest = {
+    manifest: dict[str, Any] = {
         "scenes": [{"id": s["id"], "lines": len(s["lines"]), "prompt": s["prompt"]}
                    for s in scenes],
         "frames": len(shots),
@@ -400,7 +405,9 @@ def main(argv: list[str] | None = None) -> int:
         for p in problems:
             print(f"  判据未过：{p}")
         return 1
-    repeat = manifest["repeatable"]
+    # `manifest` 声明成 `dict[str, Any]` 之后这里才拿得到键（B571）。
+    # 早先是 `dict[str, object]` 推断，`repeat["checked"]` 一律报 `not indexable`。
+    repeat: dict[str, Any] = manifest["repeatable"]
     if repeat["checked"]:
         verdict = "一致" if repeat["same_lines"] else (
             "场景一致但行数变了" if repeat["same_scenes"] else "场景序列变了")

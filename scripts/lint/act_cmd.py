@@ -70,9 +70,13 @@ def _check_no_verdict() -> list[str]:
                 names = [a.name for a in node.names]
             elif isinstance(node, ast.Import):
                 names = [a.name.split(".")[-1] for a in node.names]
+            if not names:
+                continue
+            # `lineno` 只在 stmt/expr 上有（同 netimports，B574）
+            line = getattr(node, "lineno", 0)
             for n in names:
                 if n in BANNED_NAMES:
-                    problems.append(f"{rel}:{node.lineno}: 动作层 import 判定类型 {n}")
+                    problems.append(f"{rel}:{line}: 动作层 import 判定类型 {n}")
     return problems
 
 

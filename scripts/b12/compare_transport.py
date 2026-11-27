@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import sys
+from typing import Any
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -44,7 +45,7 @@ SYMBOLS = {
 }
 
 
-def _in_process(case) -> tuple[str, str]:
+def _in_process(case: Any) -> tuple[str, str]:
     """进程内 WSGI 一侧。**不复用 run_bench.run_case**——那是真网络实现。"""
     import hashlib
 
@@ -91,11 +92,18 @@ def _in_process(case) -> tuple[str, str]:
     return outcome, verdict
 
 
-def _on_network(case) -> tuple[str, str]:
-    """真网络一侧。"""
-    from test_bench_on_network import _run_on_network
+def _on_network(case: Any) -> tuple[str, str]:
+    """真网络一侧。
 
-    return _run_on_network(case)
+    `test_bench_on_network` 在 `tests/integration/` 下（sys.path 已加），
+    但 mypy 的目标里不含 tests/，所以这里显式忽略 import 找不到（B573）。
+    """
+    from test_bench_on_network import _run_on_network  # type: ignore[import-not-found]
+
+    # `_run_on_network` 来自 tests/（不在 mypy 目标里）→ 返回 Any。
+    # 显式接住并断言形状，而不是让它直接漏出去（B573）。
+    got: tuple[str, str] = _run_on_network(case)
+    return got
 
 
 def main() -> int:

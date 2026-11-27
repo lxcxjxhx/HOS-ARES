@@ -62,7 +62,13 @@ def main(argv: list[str]) -> int:
         batch = str(row.get("batch") or "?")
         if _order(batch) < floor:
             continue
-        text = raw if isinstance(raw, str) else " | ".join(str(x) for x in raw)
+        # `raw` 是 `object`：可能是 str，也可能是历史遗留的 list（B574）
+        if isinstance(raw, str):
+            text = raw
+        elif isinstance(raw, (list, tuple)):
+            text = " | ".join(str(x) for x in raw)
+        else:
+            text = str(raw)
         items.append({"batch": batch, "open": text.strip()})
 
     if args.json:

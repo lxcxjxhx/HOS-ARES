@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+import re
+
 import importlib.util
 from pathlib import Path
 
@@ -28,7 +30,8 @@ def _mod():  # noqa: ANN202
 
 def test_browser_launch_falls_back_to_a_system_browser() -> None:
     src = SCRIPT.read_text(encoding="utf-8")
-    assert "def _launch(pw)" in src
+    # 不钉签名文本：B574 补类型标注后 `"def _launch(pw)"` 不存在了（B575 修）。
+    assert re.search(r"def _launch\(", src, re.M), "起浏览器的兜底函数不见了"
     assert 'channel=channel' in src, "没有退到系统浏览器，本机自带 chromium 起不来就整条链不可用"
     for channel in ("msedge", "chrome"):
         assert f'"{channel}"' in src, channel

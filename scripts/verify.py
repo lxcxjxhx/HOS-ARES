@@ -32,7 +32,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Callable, Sequence
 
 #: 控制台不一定是 UTF-8（GitHub 的 Windows runner 是 cp1252）：先钉死编码，
 #: 否则打印中文本身就是一次崩溃（CI 实跑抓到）。
@@ -45,7 +45,19 @@ for _stream in (sys.stdout, sys.stderr):
 ROOT = Path(__file__).resolve().parents[1]
 PY = sys.executable
 
-MYPP_TARGETS = ("hos_ares_core/", "worker/", "hos_ares_oracles/", "hos_ares/", "hos_ares_cli/", "web/")
+#: mypy 的扫描目标。**`scripts/` 是 B576 加进来的**：
+#:
+#: 它以前不在这里，于是 `scripts/` 里躺了 74 个类型错误而 verify 一直绿
+#: （B570 量化 → B571–B574 逐个修到 0 → B576 并入）。
+#:
+#: 为什么不含 `tests/`：`pyproject.toml` 的 `mypy_path = ["tests", "tests/unit"]`
+#: 让同一个文件能被解析成两个模块名（`test_x` 与 `tests.unit.test_x`），
+#: 全量扫 `tests/` 会报 `Source file found twice under different module names`。
+#: 那是配置层面的歧义，单独处理。
+MYPP_TARGETS = (
+    "hos_ares_core/", "worker/", "hos_ares_oracles/", "hos_ares/", "hos_ares_cli/",
+    "web/", "scripts/",
+)
 
 
 @dataclass(frozen=True)
@@ -110,7 +122,8 @@ def available(gate: Gate) -> bool:
     return not gate.needs or shutil.which(gate.needs) is not None
 
 
-def run_gate(gate: Gate, *, runner=None, name: str = "") -> tuple[str, str]:
+def run_gate(gate: Gate, *, runner: Callable[..., Any] | None = None,
+             name: str = "") -> tuple[str, str]:
     """跑一道闸门，返回 (状态, 摘要)。runner 可注入，便于自测。"""
     if not available(gate):
         return SKIP, f"缺 {gate.needs}（本机没装，记 skip）"
@@ -186,7 +199,8 @@ def interpreter_notes(exe: str, root: Path) -> list[str]:
     return notes
 
 
-def main(argv: list[str] | None = None, *, runner=None) -> int:
+def main(argv: list[str] | None = None, *,
+         runner: Callable[..., Any] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="verify", description="一条命令跑完所有闸门")
     ap.add_argument("--list", action="store_true", help="只打印清单")
     ap.add_argument("--with-tests", action="store_true", help="追加分段 pytest")

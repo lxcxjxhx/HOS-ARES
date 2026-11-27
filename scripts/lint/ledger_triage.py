@@ -17,6 +17,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import argparse
 import json
 import re
@@ -86,7 +88,7 @@ def main(argv: list[str]) -> int:
     hi = _order(args.until) if args.until else 1e9
     corpus = "\n".join(p.read_text(encoding="utf-8", errors="replace") for p in _sources())
 
-    results = []
+    results: list[dict[str, Any]] = []
     for row in _rows():
         batch = str(row.get("batch") or "?")
         raw = row.get("open")
@@ -96,7 +98,14 @@ def main(argv: list[str]) -> int:
             continue
         if not (_order(batch) >= lo and _order(batch) <= hi):
             continue
-        text = raw if isinstance(raw, str) else " | ".join(str(x) for x in raw)
+        # `row.get("open")` 的类型是 `object`：账本字段可能是字符串，
+        # 也可能是历史遗留的列表。窄化之后两种都处理（B573）。
+        if isinstance(raw, str):
+            text = raw
+        elif isinstance(raw, (list, tuple)):
+            text = " | ".join(str(x) for x in raw)
+        else:
+            text = str(raw)
         symbols = _symbols(text)
         present = [s for s in symbols if s in corpus]
         if not symbols:

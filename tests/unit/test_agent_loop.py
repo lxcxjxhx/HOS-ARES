@@ -10,6 +10,9 @@ DoD 逐条：
 
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any
+
 import json
 
 import pytest
@@ -48,7 +51,7 @@ class LabRuntime:
         self.calls: list[str] = []
         self.rediscovery = 0
 
-    def list_assets(self):
+    def list_assets(self) -> list[dict[str, Any]]:
         """资产表（08 §2.1）。lab 只有一个资产，但**字段形状要是真的**：
         id / kind / criticality 三项，模型据此决定先打谁。"""
         from lab.app import assets_json
@@ -56,7 +59,7 @@ class LabRuntime:
         a = assets_json()
         return [{"id": a["asset_id"], "kind": "web", "criticality": "high"}]
 
-    def list_routes(self, selector: str | None):
+    def list_routes(self, selector: str | None) -> list[Any]:
         from lab.routes import routeset
 
         rs = routeset()
@@ -67,7 +70,7 @@ class LabRuntime:
             if selector is None or selector in b.semantic_tags
         ]
 
-    def run_oracle(self, oracle_id: str, route_ref: str, params):
+    def run_oracle(self, oracle_id: str, route_ref: str, params: Any) -> Any:
         self.calls.append(oracle_id)
         tag = self.oracle_map.get(oracle_id)
         if tag is None:
@@ -94,11 +97,11 @@ class LabRuntime:
             "evidence": "not_sealed",
         }
 
-    def rediscover(self, reason: str):
+    def rediscover(self, reason: str) -> Any:
         self.rediscovery += 1
         return {"routeset_sha256": "0" * 64, "added": 0, "removed": 0, "changed": 0, "unresolved": []}
 
-    def request_approval(self, action_class: str, reason: str):
+    def request_approval(self, action_class: str, reason: str) -> dict[str, str]:
         return {"approval_id": "ap-1", "state": "pending"}
 
 
@@ -116,7 +119,7 @@ ORACLE_MAP = {
 }
 
 
-def _state(oracles=None) -> AgentState:
+def _state(oracles: Any = None) -> AgentState:
     ids = tuple(oracles or ORACLE_MAP)
     return AgentState(pending=ids, strong=(), wave_order=ids)
 
@@ -192,7 +195,7 @@ def test_converges_after_three_idle_steps(vulnerable: Lab) -> None:
     class Idle:
         name = "idle"
 
-        def decide(self, goal, state, tools):  # noqa: ANN001, ANN201
+        def decide(self, goal: str, state: Any, tools: Any) -> ToolCall:
             return ToolCall("record_note", {"text": "noop"})
 
     runtime = LabRuntime(vulnerable, ORACLE_MAP)
@@ -204,7 +207,7 @@ def test_converges_after_three_idle_steps(vulnerable: Lab) -> None:
 
 # ── 4 降级链：模型挂了流程仍走完 ───────────────────────────────────
 def test_bad_model_output_falls_back_to_scripted(vulnerable: Lab) -> None:
-    def broken_client(goal, ctx):  # noqa: ANN001, ANN202
+    def broken_client(goal: str, ctx: Any) -> Any:
         return {"tool": "run_oracle", "args": {"bogus_field": True}}  # 稳定触发 schema 错误
 
     decider = FailoverDecider([ModelDecider(broken_client), ScriptedDecider()])
@@ -219,7 +222,7 @@ def test_bad_model_output_falls_back_to_scripted(vulnerable: Lab) -> None:
 def test_schema_errors_capped_at_three(vulnerable: Lab) -> None:
     calls = {"n": 0}
 
-    def bad(goal, ctx):  # noqa: ANN001, ANN202
+    def bad(goal: str, ctx: Any) -> Any:
         calls["n"] += 1
         return {"tool": "run_oracle", "args": {"skip_guard": True}}
 
@@ -230,7 +233,7 @@ def test_schema_errors_capped_at_three(vulnerable: Lab) -> None:
 
 
 # ── 4b. 端点不可达 ≠ 模型答错（B228）────────────────────────────
-def _dead(goal, ctx):  # noqa: ANN001, ANN202
+def _dead(goal: str, ctx: Any) -> Any:
     from hos_ares_core.agent.client import ModelClientError
 
     raise ModelClientError("模型不可达：<urlopen error timed out>")
@@ -240,7 +243,7 @@ def test_unreachable_endpoint_escalates_on_the_first_step(vulnerable: Lab) -> No
     """端点不可达要**当场降级**：回喂 3 次只是多等三次 30s 超时。"""
     calls = {"n": 0}
 
-    def counted(goal, ctx):  # noqa: ANN001, ANN202
+    def counted(goal: str, ctx: Any) -> Any:
         calls["n"] += 1
         return _dead(goal, ctx)
 
@@ -320,7 +323,7 @@ def test_rediscovery_quota_zero_still_completes(vulnerable: Lab) -> None:
     assert result.verdicts.get("sqli_bool_diff") == "VERIFIED", "配额 0 也能完成（不重发现而已）"
 
 
-def test_output_truncation_keeps_tail(tmp_path) -> None:
+def test_output_truncation_keeps_tail(tmp_path: Path) -> None:
     """尾部优先：失败原因在最后几行，头部截断会把'为什么失败'整段切掉。"""
     body = "\n".join(f"line-{i}" for i in range(2000)) + "\nEXIT_CODE=7\nERROR: connection refused\n"
     out = bound_and_store(body, limit=4096, store_dir=tmp_path)
@@ -368,7 +371,9 @@ class _VerdictRuntime:
 def _run_two_faces(verdicts: list[str]) -> dict[str, str]:
     from hos_ares_core.tools.registry import ToolCall
 
-    loop = Loop(runtime=_VerdictRuntime(verdicts), decider=object(), goal="g", max_steps=5)
+    # `decider=object()` 不满足 `Decider` 协议；用本文件里的 `_FinishDecider`（B576）。
+    loop = Loop(runtime=_VerdictRuntime(verdicts),
+                decider=_FinishDecider("s", []), goal="g", max_steps=5)
     call = ToolCall("run_oracle", {"oracle_id": "sqli_bool_diff", "route_ref": ""})
     loop._dispatch(call)  # noqa: SLF001 —— 合并逻辑就在这里，直接测它
     loop._dispatch(call)  # noqa: SLF001
@@ -409,11 +414,14 @@ class _FinishDecider:
         return ToolCall("finish", {"summary": self.summary, "unresolved": self.unresolved})
 
 
-def _finish_once(summary: str, unresolved: list[str]) -> object:
-    state = AgentState(pending=["sqli_bool_diff"], strong=(), wave_order=["sqli_bool_diff"])
+def _finish_once(summary: str, unresolved: list[str]) -> Any:
+    # `AgentState` 声明是 `tuple[str, ...]`（frozen dataclass 的不可变语义），
+    # 这里原来传 list —— 是测试没按契约构造（B576）。
+    state = AgentState(pending=("sqli_bool_diff",), strong=(),
+                       wave_order=("sqli_bool_diff",))
     loop = Loop(
         runtime=_VerdictRuntime([]),
-        decider=_FinishDecider(summary, unresolved),  # type: ignore[arg-type]
+        decider=_FinishDecider(summary, unresolved),
         goal="g",
         max_steps=3,
     )

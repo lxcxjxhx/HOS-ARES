@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+from typing import Any, Iterable
+
 import json
 import sys
 from pathlib import Path
@@ -27,7 +29,10 @@ from hos_ares_core.routes import (  # noqa: E402
 HOST = "contract-sample.invalid"
 
 
-def resolve(opset, confirm):  # noqa: ANN001
+def resolve(opset: Any, confirm: Iterable[str]) -> Any:
+    """按契约解析出一份 RouteSet。
+
+    `opset` 来自 tests/lab 的 contract，不在 mypy 目标里 → `Any`（B573）。"""
     cands = list(plan(opset, confirm=confirm).candidates)
     q = RouteQuery(asset=AssetRef(id="web-01"), hints=RouteHints())
     rs = Resolver(sources=[StaticSource("contract", RouteProvenance.CONTRACT, cands)]).resolve(q, now=1000)

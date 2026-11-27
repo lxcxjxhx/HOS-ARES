@@ -82,7 +82,10 @@ def _check_hardcoded(files: list[Path]) -> list[str]:
             elif isinstance(node, ast.AnnAssign) and node.value is not None:
                 targets = [node.target]
             if any(isinstance(t, ast.Name) and t.id == "__all__" for t in targets):
-                skip.add(id(node.value))
+                # `value` 只在 Assign/AnnAssign 上；这里已在前两个分支保证了（B574）
+                value_node = getattr(node, "value", None)
+                if value_node is not None:
+                    skip.add(id(value_node))
         for node in ast.walk(tree):
             if isinstance(node, (ast.List, ast.Tuple)) and id(node) not in skip:
                 consts = [e for e in node.elts if isinstance(e, ast.Constant)]
