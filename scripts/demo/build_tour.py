@@ -74,9 +74,11 @@ def _counts() -> tuple[int | None, int | None]:
 
     def _load(path: Path) -> dict[str, Any]:
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
+            got: Any = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return {}
+        # `json.loads` 声明返回 Any：这里显式收口成 dict，别让 Any 漏进调用方（B574）。
+        return got if isinstance(got, dict) else {}
 
     pages = _load(OUT / "manifest.json").get("page_order") or []
     scenes = _load(OUT / "terminal" / "manifest.json").get("scenes") or []
@@ -113,8 +115,10 @@ li::before {{ content:"›"; position:absolute; left:0; color:{ACCENT}; }}
 </div></body></html>"""
 
 
-def _launch(pw):  # noqa: ANN001, ANN201
+def _launch(pw: Any) -> Any:
     """起浏览器：先 playwright 自带 chromium，再退到系统 Edge / Chrome（B270）。
+
+    参数与返回都用 `Any`：playwright 的类型只在它自己的包里（B574）。
 
     第三个录屏脚本，第三个写死点（B267 终端、B269 控制台、这里）——同一行代码
     在三处各写了一遍，就三处一起坏。

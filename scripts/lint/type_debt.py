@@ -41,11 +41,13 @@ ROOT = Path(__file__).resolve().parents[2]
 #:
 #: **它只许往下改**：修掉一批就把这个数字调小；加新脚本引入错误则必须当场修掉，
 #: 否则 `--check` 会红。这样欠账不会无声增长。
-SCRIPT_ERROR_BUDGET = 19
+SCRIPT_ERROR_BUDGET = 0
 
-#: 为什么不接进 `verify.py`：那 19 个错误全在开发脚本里（demo / bench / 一次性工具），
-#: 与产品路径无关。把一道"注定红"的闸门塞进 `verify.py` 只会让人开始忽略 verify 的输出——
-#: 那比没有闸门更糟。等修到 0 再并入主闸门。
+#: **已修到 0（B574）**。原先不接进 `verify.py` 的理由是"那 74 个错误全在开发脚本里，
+#: 把一道注定红的闸门塞进去只会让人开始忽略 verify 的输出——那比没有闸门更糟"。
+#: 现在欠账清零，这条限制不再成立：可以把 `scripts/` 加进 `MYPP_TARGETS` 了。
+#: 本批**没有**改 `verify.py` 的目标（那会让 CI 的 mypy 段变慢约 40 秒），
+#: 记在 open 里。
 
 
 def count_errors(target: str = "scripts/") -> tuple[int, list[str]]:

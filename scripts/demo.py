@@ -459,7 +459,14 @@ def step2b_leads(sealed, store) -> object:  # noqa: ANN001
 
 
 def main(argv: list[str]) -> int:
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    # 控制台编码收口。**必须包住**：重定向到管道 / StringIO 时 `sys.stdout`
+    # 没有 `reconfigure`，裸调用会抛 AttributeError（B574 实测抓到的裸调用）。
+    _reconf = getattr(sys.stdout, "reconfigure", None)
+    if _reconf is not None:
+        try:
+            _reconf(encoding="utf-8", errors="replace")
+        except ValueError:
+            pass
     ap = argparse.ArgumentParser()
     ap.add_argument("--profile", default="demo-a")
     ap.add_argument("--alt-profile", default="demo-b")

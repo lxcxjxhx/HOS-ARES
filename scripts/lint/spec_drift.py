@@ -214,8 +214,9 @@ def collect() -> list[Drift]:
     for inv in planned_invariants():
         evidence = INVARIANT_EVIDENCE.get(inv)
         problem = evidence_problem(evidence) if evidence else "无机械保证"
+        # `problem` 与 `evidence` 都可能是 None → 显式兜底成空串（`detail` 声明是 str）
         drifts.append(Drift("invariant", inv, "missing" if problem else "ok",
-                            problem or evidence))
+                            problem or evidence or ""))
 
     want_oracles, have_oracles = set(planned_oracles()), actual_oracles()
     for name in want_oracles:
@@ -263,7 +264,10 @@ def main(argv: list[str]) -> int:
         print(json.dumps({"summary": summary, "drifts": [d.__dict__ for d in rows]},
                          ensure_ascii=False, indent=2))
     else:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        # `sys.stdout` 类型上是 TextIO，运行时可能是被重定向的 TextIOWrapper（B574）。
+        _reconf = getattr(sys.stdout, "reconfigure", None)
+        if _reconf is not None:
+            _reconf(encoding="utf-8", errors="replace")
         for d in rows:
             print(d.line())
         print()

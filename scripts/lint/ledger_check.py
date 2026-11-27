@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from typing import Any
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -31,7 +32,7 @@ MISSING_MARKERS = ("不存在", "not implemented", "未实现", "尚未实现", 
 STATES = {"todo", "doing", "done", "done(legacy-scope)", "scaffolded", "blocked", "planned"}
 
 
-def check(rows: list[dict], root: Path) -> tuple[list[str], list[str]]:
+def check(rows: list[dict[str, Any]], root: Path) -> tuple[list[str], list[str]]:
     """返回 (problems, stale)。**problems 是硬错，stale 只是提醒**（B178）。
 
     stale = 历史条目引用的文件现在不存在。它**不**说明那条记录写错了：
@@ -97,7 +98,11 @@ def main(argv: list[str]) -> int:
             ensure_ascii=False, indent=2,
         ))
     else:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        # `sys.stdout` 类型上是 TextIO，运行时可能是被重定向的 TextIOWrapper。
+        # 用 getattr 取方法比给整行加 ignore 更诚实——它明说「可能没有」（B574）。
+        _reconf = getattr(sys.stdout, "reconfigure", None)
+        if _reconf is not None:
+            _reconf(encoding="utf-8", errors="replace")
         for p in problems:
             print(f"LEDGER {p}")
         if stale:

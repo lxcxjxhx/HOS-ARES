@@ -28,6 +28,10 @@ from hos_ares_core.agents import (  # noqa: E402
     orchestrate,
 )
 from hos_ares_core.outcome import Outcome  # noqa: E402
+# `console.py` 在 scripts/lint/ 下：把它加进 sys.path 再导入（B574）。
+# 直接 `from console import ...` 在 b12/ / b16/ 这两个位置找不到。
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lint"))
+from console import utf8_stdout  # noqa: E402
 
 
 def _run(s: TaskSuggestion) -> FindingRecord:
@@ -77,7 +81,11 @@ def main(argv: list[str]) -> int:
         encoding="utf-8",
     )
 
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    # 控制台编码收口（GBK 控制台会因 ✅/✗ 抛 UnicodeEncodeError）；
+
+    # 共用实现见 `scripts/lint/console.py`（B574）。
+
+    utf8_stdout()
     print(f"cases: {len(pairs)}  single_sha: {single.fingerprint[:12]}"
           f"  multi_sha: {multi.fingerprint[:12]}")
     print(f"requests: single={single.stats.requests} multi={multi.stats.requests}")

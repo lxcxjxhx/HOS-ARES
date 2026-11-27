@@ -15,6 +15,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import argparse
 import json
 import sys
@@ -94,7 +96,11 @@ def main(argv: list[str]) -> int:
     seen: set[tuple[str, str]] = set()
     pages = 0
 
-    def _resolve(cands: list) -> object:
+    def _resolve(cands: list[Any]) -> Any:
+        """解析出 RouteSet。
+
+        返回 `Any`：`Resolver.resolve` 返回的是 `RouteSet`，但它的类型在
+        `hos_ares_core.routes` 里随实现变。这里只要 `.bindings`（B574）。"""
         src = SymSource("crawl", RouteProvenance.CRAWL, cands, symbols, base_symbol=BASE)
         query = RouteQuery(asset=AssetRef(id=host), hints=RouteHints(), min_confidence=0.0)
         return Resolver(sources=[src]).resolve(query, now=int(time.time()))

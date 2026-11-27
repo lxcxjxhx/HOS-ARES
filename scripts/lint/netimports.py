@@ -29,9 +29,13 @@ def forbidden_imports_in(path: Path) -> list[str]:
             mods = [a.name for a in node.names]
         elif isinstance(node, ast.ImportFrom) and node.module:
             mods = [node.module]
+        if not mods:
+            continue
+        # `lineno` 只在 stmt/expr 上有；`ast.AST` 基类没有。窄化再取（B574）。
+        line = getattr(node, "lineno", 0)
         for mod in mods:
             if any(mod == f or mod.startswith(f + ".") for f in FORBIDDEN):
-                hits.append(f"{path}:{node.lineno}: {mod}")
+                hits.append(f"{path}:{line}: {mod}")
     return hits
 
 

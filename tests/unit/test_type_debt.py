@@ -56,16 +56,19 @@ def test_verify_mypy_targets_exclude_tests_and_scripts() -> None:
 
 
 # ── 2：台账能数出非零（量具不能恒为 0）───────────────────────
-def test_the_ledger_counts_something() -> None:
-    """**能数出非零**是这条量具有效的最低条件。
+def test_the_ledger_counts_consistently() -> None:
+    """数出来的条数与它返回的行数必须一致。
 
-    第一版因为路径分隔符没归一化，数出来恒为 0——那种量具"永远通过"。
+    **曾经**这条要求"必须数出非零"（量具第一版因路径分隔符没归一化，恒数 0）。
+    B574 把欠账修到 0 之后，非零不再是必要条件——**但"数得准"仍然要**：
+    返回的行数必须等于计数，且每行都是 error。
     """
     mod = _debt_module()
     total, lines = mod.count_errors()  # type: ignore[attr-defined]
-    assert total > 0, "数出来是 0 —— 要么真修完了（那请把预算改 0），要么量具坏了"
     assert len(lines) == total, (len(lines), total)
     assert all("error:" in ln for ln in lines)
+    if total == 0:
+        assert mod.SCRIPT_ERROR_BUDGET == 0, "修到 0 了但预算没跟着清零"
 
 
 # ── 3：只数目标目录，不数顺带追进来的 ───────────────────────
@@ -98,9 +101,13 @@ def test_budget_matches_measured_debt() -> None:
 
 # ── 5：这条量具自己也要能红 ─────────────────────────────────
 def test_check_mode_fails_when_over_budget(monkeypatch: pytest.MonkeyPatch) -> None:
-    """把预算调到 0，`--check` 必须退 1。"""
+    """预算调到 -1（低于实测 0），`--check` 必须退 1。
+
+    原先这条是把预算调到 0 来验"超预算"；欠账真修到 0 之后，
+    0 == 0 变成"恰好一致"，得用 -1 才构造得出"超预算"。
+    """
     mod = _debt_module()
-    monkeypatch.setattr(mod, "SCRIPT_ERROR_BUDGET", 0, raising=False)
+    monkeypatch.setattr(mod, "SCRIPT_ERROR_BUDGET", -1, raising=False)
     rc = mod.main(["--check"])  # type: ignore[attr-defined]
     assert rc == 1, "超预算却没退 1 —— 那这条闸门是摆设"
 

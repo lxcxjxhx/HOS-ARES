@@ -16,6 +16,10 @@ if str(ROOT) not in sys.path:
 from hos_ares_contract import TAG_VOCAB  # noqa: E402
 from hos_ares_core.profile import diff_profiles, load_profile, validate_profile  # noqa: E402
 from hos_ares_oracles import ALL_ORACLES  # noqa: E402
+# `console.py` 在 scripts/lint/ 下：把它加进 sys.path 再导入（B574）。
+# 直接 `from console import ...` 在 b12/ / b16/ 这两个位置找不到。
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lint"))
+from console import utf8_stdout  # noqa: E402
 
 PROFILES = {
     "demo-a": ROOT / "profiles" / "demo-a" / "profile.yaml",
@@ -24,7 +28,9 @@ PROFILES = {
 
 
 def main() -> int:
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    # 控制台编码收口（GBK 控制台会因 ✅/✗ 抛 UnicodeEncodeError）；
+    # 共用实现见 `scripts/lint/console.py`（B574）。
+    utf8_stdout()
     loaded = {name: load_profile(path) for name, path in PROFILES.items()}
     known_o = {c.meta.id for c in ALL_ORACLES}
     status = 0

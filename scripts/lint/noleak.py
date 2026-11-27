@@ -28,6 +28,7 @@ import sys
 from pathlib import Path
 
 import yaml
+from console import utf8_stdout  # noqa: E402  (scripts/lint 在 sys.path 上)
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -165,7 +166,9 @@ def main(argv: list[str]) -> int:
         print(json.dumps({"files": len(_iter_files()), "tokens": sorted(tokens),
                           "hits": hits, "problems": problems}, ensure_ascii=False, indent=2))
     else:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        # 控制台编码收口（GBK 控制台会因 ✅/✗ 抛 UnicodeEncodeError）；
+        # 共用实现见 `scripts/lint/console.py`（B574）。
+        utf8_stdout()
         for h in hits:
             problems.append(f"{h['file']}:{h['line']} 出现客户串 {h['token']!r}: {h['text']}")
         for p in problems:
