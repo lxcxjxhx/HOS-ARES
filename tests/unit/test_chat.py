@@ -1,7 +1,9 @@
 
+from typing import Any
+
 
 # ── B362：规则模式要说怎么升级 ──────────────────────────────────
-def test_rules_mode_tells_how_to_enable_a_model(tmp_path, capsys) -> None:  # noqa: ANN001
+def test_rules_mode_tells_how_to_enable_a_model(tmp_path: Any, capsys: Any) -> None:
     """`model: rules` 读不出是"没配"还是"就是这样"——启动行下面得给一条可执行提示。"""
     import sys
 

@@ -46,7 +46,8 @@ class RecordingTransport:
         return TraceResult(status=step.response.status, body_sha256=step.response.body_sha256)
 
 
-def _moved_routeset(base: str, source: RouteProvenance = RouteProvenance.CONTRACT):
+def _moved_routeset(base: str,
+                    source: RouteProvenance = RouteProvenance.CONTRACT) -> Any:
     """把同一份契约模板搬到另一个基址上解析（符号注入，模板仍由 resolver 给）。"""
     from hos_ares_core.routes.types import RouteCandidate
 

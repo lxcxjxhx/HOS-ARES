@@ -20,6 +20,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 for extra in (ROOT, ROOT / "tests"):
@@ -50,7 +51,7 @@ class _NeverCalled:
     def __init__(self) -> None:
         self.calls = 0
 
-    def send(self, *a, **kw):  # noqa: ANN002, ANN003, ANN201
+    def send(self, *a: Any, **kw: Any) -> Any:
         self.calls += 1
         raise RuntimeError("transport called")
 

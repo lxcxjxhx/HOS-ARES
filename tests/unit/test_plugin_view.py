@@ -34,11 +34,12 @@ from hos_ares_core.plugins.view import (
     stale_hint,
     version_arrow,
 )
+from typing import Any
 
 NOW = datetime(2026, 11, 1, 12, 0, 0, tzinfo=timezone.utc)
 
 
-def _rec(**kw) -> PluginRecord:  # noqa: ANN003
+def _rec(**kw: Any) -> PluginRecord:
     base = dict(
         id="gh:o/burp-mcp", kind="mcp", scenario=Mount.ACT, installed_version="1.2.3",
         source=Source(type="github", repo="o/burp-mcp", commit="abc"),

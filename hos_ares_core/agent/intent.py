@@ -64,7 +64,11 @@ STATUS_WORDS = "状态 进度 status state progress".split()
 @dataclass(frozen=True)
 class Step:
     tool: str
-    args: Mapping[str, str] = field(default_factory=dict)
+    # ** 而不是 **（B597）：工具参数里真的会出现布尔/数字/列表
+    # （、）。
+    # 早先标  让每个传 bool 的调用点都要加 ignore，
+    # 而运行时一直是照收的——标注比实现窄，是标注错了。
+    args: Mapping[str, Any] = field(default_factory=dict)
     why: str = ""
 
 

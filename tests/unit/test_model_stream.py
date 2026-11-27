@@ -18,9 +18,10 @@ import io
 import json
 
 from hos_ares_core.agent.client import HttpChatClient
+from typing import Any
 
 
-def _client(**kw) -> HttpChatClient:
+def _client(**kw: Any) -> HttpChatClient:
     target = "http" + ":" + chr(0x2F) * 2 + "127." + "0.0.1:1" + chr(0x2F) + "v1"
     return HttpChatClient(base_url=target, model="demo", **kw)
 

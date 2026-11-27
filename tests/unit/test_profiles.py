@@ -21,6 +21,7 @@ from hos_ares_core.profile import (
 )
 from hos_ares_oracles import ALL_ORACLES
 from hos_ares_contract import TAG_VOCAB
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 A = ROOT / "profiles" / "demo-a" / "profile.yaml"
@@ -167,7 +168,7 @@ def test_enabled_oracles_never_bypass_default_off() -> None:
 
 
 # ── 4 未知键与"写了不生效"的键（B259）──────────────────────────
-def _write(tmp_path: Path, mutate) -> Path:  # noqa: ANN001
+def _write(tmp_path: Path, mutate: Any) -> Path:
     import yaml
 
     raw = yaml.safe_load(A.read_text(encoding="utf-8"))
@@ -187,7 +188,7 @@ def test_a_typo_in_a_section_key_is_rejected_with_a_hint(tmp_path: Path) -> None
 
 
 def test_a_typo_inside_a_known_section_is_rejected(tmp_path: Path) -> None:
-    def mutate(raw) -> None:  # noqa: ANN001
+    def mutate(raw: Any) -> None:
         raw["policy"]["qpss"] = raw["policy"].pop("qps")
 
     with pytest.raises(ProfileError) as ei:

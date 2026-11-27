@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 
 from hos_ares_cli.cmd_agent import _split_grep_arg
+from typing import Any
 
 
 @pytest.mark.parametrize(("arg", "pattern", "glob"), [
@@ -23,7 +24,7 @@ def test_split(arg: str, pattern: str, glob: str) -> None:
     assert _split_grep_arg(arg) == (pattern, glob)
 
 
-def test_grep_with_a_path_scopes_the_search(tmp_path, monkeypatch) -> None:  # noqa: ANN001
+def test_grep_with_a_path_scopes_the_search(tmp_path: Any, monkeypatch: Any) -> None:
     from hos_ares_core.workbench.fs import Workbench
 
     from hos_ares_cli.cmd_agent import _do_grep

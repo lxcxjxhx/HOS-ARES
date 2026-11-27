@@ -15,6 +15,8 @@ import pytest
 
 from hos_ares_core.selfcheck import run_all
 from hos_ares_core.store import Store
+from collections.abc import Iterator
+from typing import Any
 
 _INSERT = (
     "INSERT INTO findings (id, task_id, asset_id, oracle_id, oracle_version, title,"
@@ -33,7 +35,7 @@ def _add(store: Store, fid: str, *, state: str, capsule: str | None) -> None:
 
 
 @pytest.fixture()
-def store():
+def store() -> Iterator[Any]:
     s = Store(":memory:").init()   # init() 才建表
     try:
         yield s
