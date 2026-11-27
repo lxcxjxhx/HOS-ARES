@@ -45,7 +45,19 @@ for _stream in (sys.stdout, sys.stderr):
 ROOT = Path(__file__).resolve().parents[1]
 PY = sys.executable
 
-MYPP_TARGETS = ("hos_ares_core/", "worker/", "hos_ares_oracles/", "hos_ares/", "hos_ares_cli/", "web/")
+#: mypy 的扫描目标。**`scripts/` 是 B576 加进来的**：
+#:
+#: 它以前不在这里，于是 `scripts/` 里躺了 74 个类型错误而 verify 一直绿
+#: （B570 量化 → B571–B574 逐个修到 0 → B576 并入）。
+#:
+#: 为什么不含 `tests/`：`pyproject.toml` 的 `mypy_path = ["tests", "tests/unit"]`
+#: 让同一个文件能被解析成两个模块名（`test_x` 与 `tests.unit.test_x`），
+#: 全量扫 `tests/` 会报 `Source file found twice under different module names`。
+#: 那是配置层面的歧义，单独处理。
+MYPP_TARGETS = (
+    "hos_ares_core/", "worker/", "hos_ares_oracles/", "hos_ares/", "hos_ares_cli/",
+    "web/", "scripts/",
+)
 
 
 @dataclass(frozen=True)

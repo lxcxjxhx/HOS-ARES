@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from dataclasses import dataclass, field
 from typing import Iterator
 
@@ -44,7 +46,8 @@ class Lab:
         )
         self.token = make_token("secondary")
 
-    def binding(self, tag: str):  # noqa: ANN201 - 绑定的具体类型由路由层拥有
+    def binding(self, tag: str) -> Any:
+        """绑定的具体类型由路由层拥有；这里只透传（B576）。"""
         return R.binding_for(tag)
 
 
