@@ -245,6 +245,20 @@ def parse(text: str, *, history: Sequence[str] = (), _depth: int = 0) -> Plan:
                     understood_as=f"读 {path}", confident=True)
 
     # ── 只有路径：默认读（最常见）────────────────────────────────
+    # **但要先排除"说了编辑动词、却没给出改什么"的句子**（B604）：
+    # 「批量改 a.txt 和 b.txt」含"改"，却缺「把 X 里的 A 改成 B」的结构。
+    # 以前它落到下面这条"只有路径 → 默认读"上，于是**用户说要改，系统去读** ——
+    # 读还能成功（文件在），用户会以为改完了。**静默做错事比说不懂更糟。**
+    if _verb_of(low, EDIT_WORDS) and path:
+        return Plan(
+            raw=raw,
+            understood_as=(
+                "没听懂「改什么」。要这样说："
+                "「把 a.txt 里的 foo 改成 bar」（一次一处）；"
+                "多文件用 patch 工具，或分多条说"
+            ),
+        )
+
     if path:
         return Plan(raw=raw, steps=(Step("read", {"path": path}, "只给了路径，按读处理"),),
                     understood_as=f"读 {path}（没给动词，按读处理）", confident=True)
