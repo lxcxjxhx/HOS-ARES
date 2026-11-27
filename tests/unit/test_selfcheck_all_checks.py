@@ -10,10 +10,12 @@ import pytest
 
 from hos_ares_core.selfcheck import run_all
 from hos_ares_core.store import Store
+from collections.abc import Iterator
+from typing import Any
 
 
 @pytest.fixture()
-def store():
+def store() -> Iterator[Store]:
     s = Store(":memory:").init()
     try:
         yield s
@@ -21,11 +23,11 @@ def store():
         s.close()
 
 
-def _check(store: Store, no: int):
+def _check(store: Store, no: int) -> Any:
     return next(o for o in run_all(store) if o.no == no)
 
 
-def _finding(store: Store, fid: str, **kw) -> None:
+def _finding(store: Store, fid: str, **kw: Any) -> None:
     row = {
         "id": fid, "task_id": "t-1", "asset_id": "a-1", "oracle_id": "idor_cross_account",
         "oracle_version": "1", "title": "标题", "severity": "low", "confidence": 0.9,
@@ -39,7 +41,7 @@ def _finding(store: Store, fid: str, **kw) -> None:
     store.conn.execute(f"INSERT INTO findings ({cols}) VALUES ({ph})", tuple(row.values()))
 
 
-def _task(store: Store, tid: str = "t-1", **kw) -> None:
+def _task(store: Store, tid: str = "t-1", **kw: Any) -> None:
     row = {
         "id": tid, "engagement_id": "e-1", "idem_key": f"k-{tid}", "profile_name": "p",
         "profile_hash": "h", "asset_id": "a-1", "oracle_ids": "[]", "state": "PENDING",
@@ -54,7 +56,7 @@ def _task(store: Store, tid: str = "t-1", **kw) -> None:
     store.conn.execute(f"INSERT INTO tasks ({cols}) VALUES ({ph})", tuple(row.values()))
 
 
-def _capsule(store: Store, cid: str, **kw) -> None:
+def _capsule(store: Store, cid: str, **kw: Any) -> None:
     row = {"id": cid, "finding_id": "f-1", "path": f"c/{cid}.json", "self_sha256": "s",
            "prev_sha256": None, "routeset_sha256": "rs-1", "route_ref": "route://x",
            "sealed_at": "2026-11-20T00:00:00Z", "replay_status": "pending", "replay_at": None}

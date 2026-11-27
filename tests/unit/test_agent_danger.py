@@ -94,11 +94,15 @@ def test_plan_marks_a_dangerous_step_before_it_runs() -> None:
 
     printed: list[str] = []
     original = cmd_chat._say
-    cmd_chat._say = lambda text="": printed.append(str(text))  # type: ignore[assignment]
+    cmd_chat._say = lambda text="": printed.append(str(text))
     try:
-        plan = cmd_chat.Plan(raw="x", steps=(
-            cmd_chat.Step("sh", {"cmd": "rm -rf /"}, "执行命令"),
-            cmd_chat.Step("sh", {"cmd": "echo hi"}, "执行命令"),
+        # Plan / Step 的真身在 hos_ares_core.agent.intent，
+        # cmd_chat 只是转手（未显式导出，mypy 看不到）——直接从源头取（B594）
+        from hos_ares_core.agent.intent import Plan, Step
+
+        plan = Plan(raw="x", steps=(
+            Step("sh", {"cmd": "rm -rf /"}, "执行命令"),
+            Step("sh", {"cmd": "echo hi"}, "执行命令"),
         ), understood_as="两步", confident=True)
         cmd_chat._render_plan(plan)
     finally:
