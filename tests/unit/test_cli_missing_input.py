@@ -18,6 +18,8 @@ $ hos-ares replay --capsule nope.json
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from hos_ares_cli import _io
@@ -31,20 +33,20 @@ _DEAD = "http" + ":" + chr(0x2F) * 2 + "127." + "0.0.1:1"
 
 
 # ── 1. 共用处：读不到就是 CapsuleError，不是 FileNotFoundError ──
-def test_load_capsule_missing_file_is_a_capsule_error(tmp_path) -> None:  # noqa: ANN001
+def test_load_capsule_missing_file_is_a_capsule_error(tmp_path: Path) -> None:
     with pytest.raises(CapsuleError) as ei:
         load_capsule(tmp_path / "nope.json")
     assert "没有这个文件" in str(ei.value), str(ei.value)
     assert "nope.json" in str(ei.value), "得说清是哪一份"
 
 
-def test_load_capsule_on_a_directory_is_a_capsule_error(tmp_path) -> None:  # noqa: ANN001
+def test_load_capsule_on_a_directory_is_a_capsule_error(tmp_path: Path) -> None:
     with pytest.raises(CapsuleError):
         load_capsule(tmp_path)
 
 
 # ── 2. 三个入口：一句人话 + 非零退出码，且没有 traceback ────────
-def test_run_with_a_missing_contract_says_which_file(capsys, tmp_path) -> None:  # noqa: ANN001
+def test_run_with_a_missing_contract_says_which_file(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
     missing = tmp_path / "nope.json"
     code = run_main(["--target", _DEAD, "--openapi", str(missing), "--out", str(tmp_path / "out")])
     err = capsys.readouterr().err
@@ -53,7 +55,7 @@ def test_run_with_a_missing_contract_says_which_file(capsys, tmp_path) -> None: 
     assert "Traceback" not in err, err
 
 
-def test_hunt_with_a_missing_contract_says_which_file(capsys, tmp_path) -> None:  # noqa: ANN001
+def test_hunt_with_a_missing_contract_says_which_file(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
     missing = tmp_path / "nope.json"
     code = hunt_main(["--target", _DEAD, "--openapi", str(missing)])
     err = capsys.readouterr().err
@@ -62,7 +64,7 @@ def test_hunt_with_a_missing_contract_says_which_file(capsys, tmp_path) -> None:
     assert "Traceback" not in err, err
 
 
-def test_replay_with_a_missing_capsule_says_which_file(capsys, tmp_path) -> None:  # noqa: ANN001
+def test_replay_with_a_missing_capsule_says_which_file(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
     code = replay_main(["--capsule", str(tmp_path / "nope.json")])
     out = capsys.readouterr().out
     assert code == 1, out
@@ -71,13 +73,13 @@ def test_replay_with_a_missing_capsule_says_which_file(capsys, tmp_path) -> None
 
 
 # ── 3. 共用读取器的三种"给了但不是文本文件" ──────────────────────
-def test_read_text_arg_says_directory_not_file(capsys, tmp_path) -> None:  # noqa: ANN001
+def test_read_text_arg_says_directory_not_file(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
     assert _io.read_text_arg(str(tmp_path), what="契约文件") is None
     err = capsys.readouterr().err
     assert "是个目录" in err, err
 
 
-def test_read_text_arg_says_not_utf8(capsys, tmp_path) -> None:  # noqa: ANN001
+def test_read_text_arg_says_not_utf8(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
     bad = tmp_path / "gbk.txt"
     bad.write_bytes("中文".encode("gbk"))
     assert _io.read_text_arg(str(bad), what="契约文件") is None
@@ -109,7 +111,7 @@ def test_hunt_with_a_missing_symbol_table_says_which_file() -> None:
     assert "符号表不存在" in err, err
 
 
-def test_hunt_with_a_broken_symbol_table_says_why(tmp_path) -> None:  # noqa: ANN001
+def test_hunt_with_a_broken_symbol_table_says_why(tmp_path: Path) -> None:
     bad = tmp_path / "sym.json"
     bad.write_text("{not json", encoding="utf-8")
     code, err = _hunt_with_symbols(str(bad))
@@ -119,7 +121,7 @@ def test_hunt_with_a_broken_symbol_table_says_why(tmp_path) -> None:  # noqa: AN
 
 
 # ── 5. coverage 的用例集也是用户给的路径（B236）──────────────────
-def test_coverage_with_a_missing_cases_file_says_which_file(capsys, tmp_path) -> None:  # noqa: ANN001
+def test_coverage_with_a_missing_cases_file_says_which_file(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
     from hos_ares_cli.cmd_coverage import main as coverage_main
 
     code = coverage_main(["--cases", str(tmp_path / "nope.yaml"), "--out", str(tmp_path / "out")])
@@ -129,7 +131,7 @@ def test_coverage_with_a_missing_cases_file_says_which_file(capsys, tmp_path) ->
     assert "Traceback" not in err, err
 
 
-def test_coverage_with_broken_yaml_says_why(capsys, tmp_path) -> None:  # noqa: ANN001
+def test_coverage_with_broken_yaml_says_why(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
     from hos_ares_cli.cmd_coverage import main as coverage_main
 
     bad = tmp_path / "cases.yaml"
@@ -141,7 +143,7 @@ def test_coverage_with_broken_yaml_says_why(capsys, tmp_path) -> None:  # noqa: 
 
 
 # ── 6. 发现口径：不可达时不许说"抓取成功"（B236）──────────────────
-def test_discover_does_not_call_an_unreachable_target_a_success(capsys) -> None:  # noqa: ANN001
+def test_discover_does_not_call_an_unreachable_target_a_success(capsys: pytest.CaptureFixture[str]) -> None:
     from hos_ares_cli.cmd_discover import main as discover_main
 
     code = discover_main(["--target", _DEAD])
@@ -152,7 +154,7 @@ def test_discover_does_not_call_an_unreachable_target_a_success(capsys) -> None:
 
 
 # ── B342：参数不合法的退出码是 2，不是 1 ────────────────────────
-def test_bad_target_exits_two(capsys) -> None:  # noqa: ANN001
+def test_bad_target_exits_two(capsys: pytest.CaptureFixture[str]) -> None:
     """`--target not-a-url` 以前 exit=1（读起来像"跑完了"），应属"输入有问题"= 2。"""
     import pytest
 
@@ -178,7 +180,7 @@ def test_broken_spec_message_is_one_line() -> None:
 
 
 # ── B343：档不存在 / 档不合法，要说人话 ──────────────────────────
-def test_missing_profile_says_so_without_a_python_repr(tmp_path, capsys) -> None:  # noqa: ANN001
+def test_missing_profile_says_so_without_a_python_repr(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """改前：`profile 解析失败：FileNotFoundError: [Errno 2] …`。"""
     from hos_ares_cli.cmd_platform import main as platform_main
 
@@ -190,7 +192,7 @@ def test_missing_profile_says_so_without_a_python_repr(tmp_path, capsys) -> None
     assert "FileNotFoundError" not in err, err
 
 
-def test_invalid_profile_says_what_is_wrong(tmp_path, capsys) -> None:  # noqa: ANN001
+def test_invalid_profile_says_what_is_wrong(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     from hos_ares_cli.cmd_platform import main as platform_main
 
     bad = tmp_path / "bad.yaml"

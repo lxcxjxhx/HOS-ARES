@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import re
+import pytest
 
 import json
 from pathlib import Path
@@ -59,8 +60,10 @@ def test_card_counts_are_derived_from_the_material_manifests() -> None:
     import importlib.util
 
     spec = importlib.util.spec_from_file_location("build_tour", SCRIPT)
+    # `spec_from_file_location` 的返回是 `ModuleSpec | None`：
+    # 先断言再解引用，否则下面每一行都报 union-attr（B580）。
+    assert spec is not None and spec.loader is not None, f"加载不了 {SCRIPT}"
     mod = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
     spec.loader.exec_module(mod)
     pages, scenes = mod._counts()
     assert pages is None or pages >= 1
@@ -74,21 +77,25 @@ def test_chinese_numeral_falls_back_past_ten() -> None:
     import importlib.util
 
     spec = importlib.util.spec_from_file_location("build_tour", SCRIPT)
+    # `spec_from_file_location` 的返回是 `ModuleSpec | None`：
+    # 先断言再解引用，否则下面每一行都报 union-attr（B580）。
+    assert spec is not None and spec.loader is not None, f"加载不了 {SCRIPT}"
     mod = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
     spec.loader.exec_module(mod)
     assert mod._cn(5) == "五" and mod._cn(11) == "11"
 
 
 # ── B272：成片比素材旧时必须能查出来 ────────────────────────────
-def test_check_mode_reports_fresh_when_video_is_newer(tmp_path, monkeypatch) -> None:  # noqa: ANN001
+def test_check_mode_reports_fresh_when_video_is_newer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import importlib.util
     import os
     import time
 
     spec = importlib.util.spec_from_file_location("build_tour", SCRIPT)
+    # `spec_from_file_location` 的返回是 `ModuleSpec | None`：
+    # 先断言再解引用，否则下面每一行都报 union-attr（B580）。
+    assert spec is not None and spec.loader is not None, f"加载不了 {SCRIPT}"
     mod = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
     spec.loader.exec_module(mod)
 
     out = tmp_path / "demo"
@@ -108,14 +115,16 @@ def test_check_mode_reports_fresh_when_video_is_newer(tmp_path, monkeypatch) -> 
     assert mod.staleness() == []
 
 
-def test_check_mode_flags_a_newer_material(tmp_path, monkeypatch) -> None:  # noqa: ANN001
+def test_check_mode_flags_a_newer_material(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import importlib.util
     import os
     import time
 
     spec = importlib.util.spec_from_file_location("build_tour", SCRIPT)
+    # `spec_from_file_location` 的返回是 `ModuleSpec | None`：
+    # 先断言再解引用，否则下面每一行都报 union-attr（B580）。
+    assert spec is not None and spec.loader is not None, f"加载不了 {SCRIPT}"
     mod = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
     spec.loader.exec_module(mod)
 
     out = tmp_path / "demo"
