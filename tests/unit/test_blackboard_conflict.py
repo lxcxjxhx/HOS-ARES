@@ -11,10 +11,12 @@ import pytest
 from hos_ares.report.render import render_conflict_table
 from hos_ares_core.blackboard import ORIGIN_RANK, Blackboard
 from hos_ares_core.store import Store
+from collections.abc import Iterator
+from typing import Any
 
 
 @pytest.fixture()
-def store() -> Store:
+def store() -> Iterator[Store]:
     s = Store(":memory:").init()
     yield s
     s.close()
@@ -94,7 +96,7 @@ def test_conflict_report_shape_and_determinism(store: Store) -> None:
     first = bb.conflict_report("t1")
     second = bb.conflict_report("t1")
     assert first == second
-    row = first[0]
+    row: Any = first[0]
     assert set(row) == {"subject", "predicate", "winner", "losers", "reason"}
     assert row["winner"]["value"] == "nginx"
     assert row["losers"][0]["value"] == "apache"

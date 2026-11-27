@@ -16,10 +16,12 @@ from hos_ares_core.blackboard import EVENT_KINDS, Blackboard, EventLog, FactErro
 from hos_ares_core.models import FindingState, new_ulid
 from hos_ares_core.selfcheck import CHECKS, failures, gate_failures, run_all
 from hos_ares_core.store import MIGRATIONS, Store
+from collections.abc import Iterator
+from typing import Any
 
 
 @pytest.fixture()
-def store() -> Store:
+def store() -> Iterator[Store]:
     s = Store(":memory:").init()
     yield s
     s.close()
@@ -152,7 +154,9 @@ def test_event_roundtrip(store: Store) -> None:
                route_ref="route://contract/x", tokens=42, detail={"verdict": "VERIFIED"})
     rows = log.for_task("t1")
     assert len(rows) == 1 and rows[0].tokens == 42
-    assert rows[0].detail["verdict"] == "VERIFIED"
+    detail0 = rows[0].detail
+    assert detail0 is not None, "detail 应该存在"
+    assert detail0["verdict"] == "VERIFIED"
     assert log.has_execution("t1", "sqli_bool_diff")
     assert not log.has_execution("t1", "idor_cross_account")
 
@@ -176,7 +180,7 @@ def test_clean_db_passes_all(store: Store) -> None:
     assert not failures(outs), [o.line() for o in failures(outs)]
 
 
-def _seed_finding(store: Store, **kw) -> str:  # noqa: ANN003
+def _seed_finding(store: Store, **kw: Any) -> str:
     fid = new_ulid()
     row = {
         "id": fid, "task_id": kw.get("task_id", "t1"), "asset_id": "web-01",

@@ -22,13 +22,14 @@ import re
 import pytest
 
 from hos_ares_cli.cmd_chat import main
+from typing import Any
 
 S = chr(0x2F)
 ANSI = re.compile(chr(27) + r"\[[0-9;]*m")
 
 
 @pytest.fixture()
-def run_chat(tmp_path, monkeypatch, capsys):  # noqa: ANN001, ANN201
+def run_chat(tmp_path: Any, monkeypatch: Any, capsys: Any) -> Any:
     def _run(script: str) -> str:
         monkeypatch.setattr("sys.stdin", io.StringIO(script))
         main(["--root", str(tmp_path), "--db", str(tmp_path / "c.db"), "--yes"])
@@ -37,19 +38,19 @@ def run_chat(tmp_path, monkeypatch, capsys):  # noqa: ANN001, ANN201
     return _run
 
 
-def test_help_lists_every_slash_command(run_chat) -> None:  # noqa: ANN001
+def test_help_lists_every_slash_command(run_chat: Any) -> None:
     out = run_chat(S + "help" + chr(10) + "quit" + chr(10))
     for name in ("help", "status", "history", "quit"):
         assert S + name in out, f"help 没提到 {S}{name}：{out[:400]}"
 
 
-def test_help_still_teaches_plain_language(run_chat) -> None:  # noqa: ANN001
+def test_help_still_teaches_plain_language(run_chat: Any) -> None:
     """斜杠命令补上了，但"说人话"这条主线不能丢。"""
     out = run_chat(S + "help" + chr(10) + "quit" + chr(10))
     assert "说人话" in out, out[:400]
 
 
-def test_status_reports_steps_and_layer(run_chat) -> None:  # noqa: ANN001
+def test_status_reports_steps_and_layer(run_chat: Any) -> None:
     out = run_chat(S + "status" + chr(10) + "quit" + chr(10))
     assert "步数" in out and "决策层" in out, out[:400]
     assert "model: rules" in out, "没配模型时决策层必须如实写 rules"
