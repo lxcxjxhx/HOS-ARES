@@ -14,6 +14,9 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 for extra in (ROOT, ROOT / "tests"):
@@ -32,7 +35,7 @@ def test_v4_matrix_is_really_computed() -> None:
     assert "类有用例" in detail and "条" in detail, detail
 
 
-def test_v4_goes_red_on_an_empty_case_library(monkeypatch) -> None:  # noqa: ANN001
+def test_v4_goes_red_on_an_empty_case_library(monkeypatch: Any) -> None:
     import hos_ares.bench.core as bench
     import hos_ares_cli.cmd_parity as parity
 
@@ -61,13 +64,13 @@ def test_e5_parallel_probe_compares_fingerprints() -> None:
         assert "容器级" in detail, detail
 
 
-def test_e5_goes_red_when_concurrency_changes_the_result(monkeypatch) -> None:  # noqa: ANN001
+def test_e5_goes_red_when_concurrency_changes_the_result(monkeypatch: Any) -> None:
     import hos_ares_core.parallel as parallel
     import hos_ares_cli.cmd_parity as parity
 
     calls = {"n": 0}
 
-    def fake_merge(results):  # noqa: ANN001, ANN202
+    def fake_merge(results: Any) -> Any:
         calls["n"] += 1
         return "parallel" if calls["n"] == 1 else "serial"
 
@@ -84,7 +87,7 @@ def test_p1_control_plane_runs_the_dag() -> None:
     assert "阶段" in detail and "缺" in detail
 
 
-def test_p1_goes_red_on_an_empty_workflow(monkeypatch) -> None:  # noqa: ANN001
+def test_p1_goes_red_on_an_empty_workflow(monkeypatch: Any) -> None:
     import hos_ares_cli.cmd_parity as parity
     import hos_ares_core.workflow as workflow
 
@@ -102,7 +105,7 @@ def test_p3_compression_probe_reports_real_numbers() -> None:
     assert "token" in detail and "省" in detail, detail
 
 
-def test_p3_goes_red_when_compression_inflates(monkeypatch) -> None:  # noqa: ANN001
+def test_p3_goes_red_when_compression_inflates(monkeypatch: Any) -> None:
     import hos_ares_core.compression as compression
     import hos_ares_cli.cmd_parity as parity
 
@@ -125,7 +128,7 @@ def test_g3_assertion_table_rows_are_counted() -> None:
     assert "A1–A20" in detail
 
 
-def test_g3_goes_red_on_a_truncated_table(monkeypatch, tmp_path) -> None:  # noqa: ANN001
+def test_g3_goes_red_on_a_truncated_table(monkeypatch: Any, tmp_path: Path) -> None:
     import hos_ares_cli.cmd_parity as parity
 
     plan = tmp_path / "plan-hos-legacy"

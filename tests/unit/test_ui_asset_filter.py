@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 for extra in (ROOT, ROOT / "tests"):
@@ -22,7 +23,7 @@ for extra in (ROOT, ROOT / "tests"):
         sys.path.insert(0, str(extra))
 
 
-def _rows(assets: list[str]):  # noqa: ANN202
+def _rows(assets: list[str]) -> Any:
     from web.console import Row
 
     rows = []
@@ -80,11 +81,11 @@ def test_page_forwards_asset_in_the_query_map() -> None:
 
 
 # ── B184：筛选之后，数字要跟着筛 ────────────────────────────────
-def _mixed():  # noqa: ANN202
+def _mixed() -> Any:
     """asset-1：一条未验证；asset-2：一条未验证；asset-1：一条已确认。"""
     from web.console import Row
 
-    def row(fid: str, asset: str, outcome: str):  # noqa: ANN202
+    def row(fid: str, asset: str, outcome: str) -> Any:
         return Row(finding_id=fid, title="t", severity="high", oracle_id="csp_absent",
                    asset_id=asset, confidence=0.9, route_strength="strong",
                    route_ref="r", replay_status="OK", outcome=outcome,

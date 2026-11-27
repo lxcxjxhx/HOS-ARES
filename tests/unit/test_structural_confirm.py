@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from hos_ares_contract.parser import parse_openapi
 from hos_ares_contract.planner import plan
@@ -46,7 +47,7 @@ def _spec() -> str:
     })
 
 
-def _opset():
+def _opset() -> Any:
     return parse_openapi(_spec(), asset_id="a.test", allowed_hosts=["a.test"])
 
 

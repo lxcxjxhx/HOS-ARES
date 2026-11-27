@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -20,8 +21,8 @@ UI = SLASH + "ui" + SLASH
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def _row(**kw) -> Row:  # noqa: ANN003
-    base = dict(
+def _row(**kw: Any) -> Row:
+    base: dict[str, Any] = dict(
         finding_id="f-1",
         title="对象级授权缺失",
         severity="high",

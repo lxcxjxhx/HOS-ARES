@@ -7,6 +7,8 @@
 """
 
 from __future__ import annotations
+from typing import Any
+
 
 import pytest
 
@@ -27,8 +29,8 @@ def _trace(headers: dict[str, str], *, status: int = 200, error: str | None = No
     )
 
 
-def _judge(oracle, probe: dict[str, str], control: dict[str, str], *,  # noqa: ANN001, ANN202
-           error: str | None = None):
+def _judge(oracle: Any, probe: dict[str, str], control: dict[str, str], *,
+           error: str | None = None) -> Any:
     def pair(role: str, headers: dict[str, str]) -> Pair:
         return Pair(
             variant=Variant(name=f"hdr_{role}", role=role),
@@ -97,7 +99,7 @@ def test_nosniff_value_must_be_nosniff() -> None:
 
 # ── 共同行为 ────────────────────────────────────────────────────
 @pytest.mark.parametrize("oracle", [CspAbsent(), FrameOptAbsent(), NosniffAbsent()])
-def test_error_is_inconclusive(oracle) -> None:  # noqa: ANN001
+def test_error_is_inconclusive(oracle: Any) -> None:
     assert _judge(oracle, {}, {}, error="timeout").verdict is Verdict.INCONCLUSIVE
 
 
@@ -110,13 +112,13 @@ _PROTECTED = {
 
 @pytest.mark.parametrize("oracle", [CspAbsent(), FrameOptAbsent(), NosniffAbsent()],
                          ids=lambda o: o.meta.id)
-def test_protection_on_control_only_also_refutes(oracle) -> None:  # noqa: ANN001
+def test_protection_on_control_only_also_refutes(oracle: Any) -> None:
     """只在一半响应上有保护 = 不稳定，不判"缺失"。"""
     assert _judge(oracle, {}, _PROTECTED[oracle.meta.id]).verdict is Verdict.REFUTED
 
 
 @pytest.mark.parametrize("oracle", [CspAbsent(), FrameOptAbsent(), NosniffAbsent()])
-def test_missing_probe_is_inconclusive(oracle) -> None:  # noqa: ANN001
+def test_missing_probe_is_inconclusive(oracle: Any) -> None:
     pair = Pair(variant=Variant(name="hdr_control", role="control"),
                 baseline=_trace({}), trace=_trace({}))
     assert oracle.judge([pair]).verdict is Verdict.INCONCLUSIVE
