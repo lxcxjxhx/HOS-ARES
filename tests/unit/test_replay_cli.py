@@ -11,6 +11,11 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any
+
+import pytest
+
 import json
 
 import capsule_fixture as F
@@ -18,16 +23,16 @@ from hos_ares_cli.cmd_replay import main as replay_main
 from hos_ares_core.evidence import AssertionBlock, save_capsule, seal_capsule_doc
 
 
-def _save(tmp_path, cap):  # noqa: ANN001, ANN202
+def _save(tmp_path: Path, cap: Any) -> Path:
     return save_capsule(seal_capsule_doc(cap), tmp_path / "caps")
 
 
-def _run(tmp_path, path):  # noqa: ANN001, ANN202
+def _run(tmp_path: Path, path: Path) -> int:
     return replay_main(["--capsule", str(path), "--mode", "offline",
                         "--out", str(tmp_path / "out")])
 
 
-def test_offline_mode_runs_and_writes_record(tmp_path, capsys) -> None:  # noqa: ANN001
+def test_offline_mode_runs_and_writes_record(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     path = _save(tmp_path, F.capsule())
     assert _run(tmp_path, path) == 0
     out = capsys.readouterr().out
@@ -38,7 +43,7 @@ def test_offline_mode_runs_and_writes_record(tmp_path, capsys) -> None:  # noqa:
     assert record["fingerprint"], "算过的谓词要留在记录里"
 
 
-def test_offline_mode_names_unrecomputable_predicates(tmp_path, capsys) -> None:  # noqa: ANN001
+def test_offline_mode_names_unrecomputable_predicates(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """重算不了 → 退出码 0（命令跑完了），但必须说清楚是哪几个谓词。"""
     cap = F.capsule().model_copy(update={"assertion": AssertionBlock(
         kind="csp_absent",
@@ -55,7 +60,7 @@ def test_offline_mode_names_unrecomputable_predicates(tmp_path, capsys) -> None:
     assert "不是「结论被推翻」" in out
 
 
-def test_offline_mode_fails_on_contradiction(tmp_path, capsys) -> None:  # noqa: ANN001
+def test_offline_mode_fails_on_contradiction(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """算出来是假 → 退出码 1（证据与结论矛盾，这是真问题）。"""
     cap = F.capsule().model_copy(update={"assertion": AssertionBlock(
         kind="idor_cross_account",
@@ -69,7 +74,7 @@ def test_offline_mode_fails_on_contradiction(tmp_path, capsys) -> None:  # noqa:
     assert "assertion_not_reproduced" in capsys.readouterr().out
 
 
-def test_tampered_capsule_is_refused(tmp_path, capsys) -> None:  # noqa: ANN001
+def test_tampered_capsule_is_refused(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     path = _save(tmp_path, F.capsule())
     doc = json.loads(path.read_text(encoding="utf-8"))
     doc["confidence"] = 0.42
@@ -78,7 +83,7 @@ def test_tampered_capsule_is_refused(tmp_path, capsys) -> None:  # noqa: ANN001
     assert "TAMPERED" in capsys.readouterr().out
 
 
-def test_live_mode_explains_what_works_instead(tmp_path, capsys) -> None:  # noqa: ANN001
+def test_live_mode_explains_what_works_instead(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """live 仍然 fail-closed——但要说人能去哪儿跑，而不是一句"不行"。"""
     path = _save(tmp_path, F.capsule())
     rc = replay_main(["--capsule", str(path), "--mode", "live", "--out", str(tmp_path / "o")])

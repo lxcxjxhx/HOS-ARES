@@ -15,6 +15,7 @@ import pytest
 
 from hos_ares_core.discovery import Crawler, extract, normalize_href, templatize
 from hos_ares_core.routes.resolver import Resolver
+from hos_ares_core.routes.types import RouteBinding
 from hos_ares_core.routes.sources import CrawlSource
 from hos_ares_core.routes.sources.base import ObservedRecord, StaticSource
 from hos_ares_core.routes.types import AssetRef, RouteCandidate, RouteProvenance, RouteQuery
@@ -32,7 +33,7 @@ def page(*hrefs: str) -> str:
     return f"<html><body>{anchors}</body></html>"
 
 
-def _binding(template: str, names: tuple[str, ...] = ()) -> object:
+def _binding(template: str, names: tuple[str, ...] = ()) -> RouteBinding:
     cand = RouteCandidate(
         method="GET",
         template=template,
@@ -320,6 +321,7 @@ def test_post_form_is_not_submitted() -> None:
 def test_same_template_with_query_still_yields_links() -> None:
     """回归：记录按模板去重，但第二个响应（/search?q=1）的链接不能被跳过。"""
     from hos_ares_core.routes import (
+    RouteBinding,
         AssetRef, Resolver, RouteCandidate, RouteHints, RouteProvenance, RouteQuery,
     )
     from hos_ares_core.routes.sources import StaticSource
