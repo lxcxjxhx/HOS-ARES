@@ -15,6 +15,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 for extra in (ROOT, ROOT / "scripts"):
     if str(extra) not in sys.path:
@@ -28,8 +30,8 @@ EXPECTED = {
 }
 
 
-def test_list_names_every_gate(capsys) -> None:  # noqa: ANN001
-    import verify
+def test_list_names_every_gate(capsys: pytest.CaptureFixture[str]) -> None:
+    import verify  # type: ignore[import-not-found]
 
     assert verify.main(["--list"]) == 0
     out = capsys.readouterr().out
@@ -43,7 +45,7 @@ def test_skip_is_not_pass() -> None:
 
     called: list[list[str]] = []
 
-    def runner(argv):  # noqa: ANN001, ANN202
+    def runner(argv: list[str]) -> tuple[int, str]:
         called.append(list(argv))
         return 0, ""
 
@@ -57,10 +59,10 @@ def test_skip_is_not_pass() -> None:
     assert called, "其余闸门应当照跑"
 
 
-def test_failure_is_one_and_named(capsys) -> None:  # noqa: ANN001
+def test_failure_is_one_and_named(capsys: pytest.CaptureFixture[str]) -> None:
     import verify
 
-    def runner(argv):  # noqa: ANN001, ANN202
+    def runner(argv: list[str]) -> tuple[int, str]:
         return (1, "boom") if "ledger_check.py" in argv[-1] else (0, "")
 
     assert verify.main([], runner=runner) == 1
@@ -96,13 +98,13 @@ def test_bench_smoke_is_in_the_list_and_labelled() -> None:
     assert "--rounds" in gate.argv
 
 
-def test_smoke_gates_run_without_with_tests(capsys) -> None:  # noqa: ANN001
+def test_smoke_gates_run_without_with_tests(capsys: pytest.CaptureFixture[str]) -> None:
     """冒烟属于快闸门：不带 --with-tests 也要跑到。"""
     import verify
 
     seen: list[str] = []
 
-    def runner(argv):  # noqa: ANN001, ANN202
+    def runner(argv: list[str]) -> tuple[int, str]:
         seen.append(argv[-1])
         return 0, ""
 
