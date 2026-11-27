@@ -12,6 +12,7 @@ import math
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from typing import Any
 
 from hos_ares_core.plugins import (
     DEFAULT_TTL_S,
@@ -33,15 +34,17 @@ NOW = datetime(2026, 11, 1, 12, 0, 0, tzinfo=timezone.utc)
 DAY = 86400
 
 
-def _r(rid: str, **kw) -> Result:  # noqa: ANN003
-    base = dict(id=rid, kind="skill", repo=rid.split(":", 1)[-1], stars=100,
+def _r(rid: str, **kw: Any) -> Result:
+    # dict[str, Any]：**base 展开到 Result 时每个参数报 arg-type（B590）
+    base: dict[str, Any] = dict(id=rid, kind="skill", repo=rid.split(":", 1)[-1], stars=100,
                 pushed_at="2026-10-01", archived=False, license="MIT",
                 topics=("security",), install={"method": "raw", "spec": "skills/x.md"})
     base.update(kw)
     return Result(**base)
 
 
-def _entry(query: str = "skill:pentest", results=None, fetched_at=None) -> CacheEntry:  # noqa: ANN001
+def _entry(query: str = "skill:pentest", results: Any = None,
+           fetched_at: Any = None) -> CacheEntry:
     return CacheEntry(query=query, results=list(results or [_r("gh:a/b")]),
                       fetched_at=fetched_at or NOW, ttl_s=DEFAULT_TTL_S)
 
