@@ -42,7 +42,7 @@ def _write(tmp_path: Path, lock_body: str) -> tuple[Path, Path]:
 
 
 def test_missing_pin_is_reported(tmp_path: Path) -> None:
-    import lock_sync
+    import lock_sync  # type: ignore[import-not-found]
 
     py, lock = _write(tmp_path, "PyYAML==6.0.2\n")
     rows = lock_sync.compare(lock_sync.declared(py), lock_sync.locked(lock))

@@ -13,6 +13,7 @@ import inspect
 import pytest
 
 from hos_ares_oracles.common.harness import BANNED_IN_JUDGE, judge_source_violations
+from typing import Any
 
 
 def _judges() -> list[tuple[str, object]]:
@@ -33,7 +34,7 @@ def test_there_are_judges_to_check() -> None:
 
 
 @pytest.mark.parametrize(("oracle_id", "judge"), _judges(), ids=lambda v: str(v)[:24])
-def test_judge_source_is_pure(oracle_id: str, judge: object) -> None:
+def test_judge_source_is_pure(oracle_id: str, judge: Any) -> None:
     source = inspect.getsource(judge)
     hits = judge_source_violations(source)
     assert not hits, f"{oracle_id} 的 judge 里出现禁用符号：{hits}"

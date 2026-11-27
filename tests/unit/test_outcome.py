@@ -195,7 +195,9 @@ def test_record_finding_roundtrip_four_states() -> None:
         "reported": 1, "undetermined": 1, "error": 1, "not_run": 1,
     }
     assert store.agent_reported_count() == 1
-    assert store.get_finding("f-err")["error_reason"] == "target_down"
+    row = store.get_finding("f-err")
+    assert row is not None, "这条结论应该存在"
+    assert row["error_reason"] == "target_down"
 
 
 def test_record_finding_refuses_inconsistent_before_sql() -> None:

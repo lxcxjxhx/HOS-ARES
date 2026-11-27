@@ -27,6 +27,8 @@ from hos_ares_core.workbench.plan import (
     leads_to_todo,
 )
 from hos_ares_core.workbench.shell import ApprovalPolicy, SandboxMode
+from typing import Any
+from typing import cast
 
 GOOD = (SandboxMode.WORKSPACE_WRITE, ApprovalPolicy.ON_RISK)
 
@@ -206,7 +208,7 @@ def test_pending_leads_become_todo_items() -> None:
         {"id": "L" * 20, "verifiable_by": ["idor_cross_account"]},
         {"id": "M" * 20, "verifiable_by": '["sqli_bool_diff"]'},
     ]
-    items = leads_to_todo(leads)
+    items = leads_to_todo(cast(Any, leads))
     assert len(items) == 2
     assert all(i.state is TodoState.PENDING for i in items)
     assert all(i.lead_id for i in items)

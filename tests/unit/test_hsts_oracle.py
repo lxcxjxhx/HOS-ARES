@@ -10,6 +10,7 @@ from __future__ import annotations
 from hos_ares_core.models import Verdict
 from hos_ares_oracles.common.harness import Pair, Trace, Variant
 from hos_ares_oracles.tier_headers import HstsAbsent
+from typing import Any
 
 S = chr(0x2F)
 
@@ -27,7 +28,7 @@ def _trace(headers: dict[str, str], *, scheme: str = "https",
 
 
 def _judge(probe: dict[str, str], control: dict[str, str] | None = None, *,
-           scheme: str = "https", error: str | None = None):  # noqa: ANN202
+           scheme: str = "https", error: str | None = None) -> Any:
     def pair(role: str, headers: dict[str, str]) -> Pair:
         return Pair(
             variant=Variant(name=f"hdr_{role}", role=role),

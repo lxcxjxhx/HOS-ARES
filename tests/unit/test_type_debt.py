@@ -32,6 +32,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -68,7 +69,8 @@ def test_the_ledger_counts_consistently() -> None:
     assert len(lines) == total, (len(lines), total)
     assert all("error:" in ln for ln in lines)
     if total == 0:
-        assert mod.SCRIPT_ERROR_BUDGET == 0, "修到 0 了但预算没跟着清零"
+        budget: Any = getattr(mod, "SCRIPT_ERROR_BUDGET", -1)
+        assert budget == 0, "修到 0 了但预算没跟着清零"
 
 
 # ── 3：只数目标目录，不数顺带追进来的 ───────────────────────

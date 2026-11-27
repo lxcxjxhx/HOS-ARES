@@ -27,6 +27,7 @@ from hos_ares_core.workflow import (
     unmet,
     validate,
 )
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG = ROOT / "config" / "workflow.yaml"
@@ -201,7 +202,11 @@ def test_skip_is_readable_from_the_event_log(wf: Workflow) -> None:
     # 事件本身必须可读回，且带 phase/reason
     evs = log.for_task("t1")
     assert len(evs) == 2
-    assert all(e.kind == "plan" and e.detail.get("skipped") for e in evs)
+    def _skipped(e: Any) -> bool:
+        d = e.detail
+        return e.kind == "plan" and d is not None and bool(d.get("skipped"))
+
+    assert all(_skipped(e) for e in evs)
     store.close()
 
 

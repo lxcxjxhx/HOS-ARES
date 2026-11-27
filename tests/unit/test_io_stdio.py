@@ -9,8 +9,10 @@
 from __future__ import annotations
 
 import io
+import sys
 
 import pytest
+from typing import Any
 
 
 class _Recorder:
@@ -25,7 +27,7 @@ def test_setup_stdio_uses_utf8_sig(monkeypatch: pytest.MonkeyPatch) -> None:
     from hos_ares_cli import _io
 
     recorder = _Recorder()
-    monkeypatch.setattr(_io.sys, "stdin", recorder)
+    monkeypatch.setattr(sys, "stdin", recorder)
     _io.setup_stdio()
     assert recorder.kwargs.get("encoding") == "utf-8-sig", "BOM 会被当成指令的一部分"
 
