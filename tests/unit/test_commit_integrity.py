@@ -64,7 +64,13 @@ def test_client_call_returns_shape_not_dict() -> None:
     声明成 `Mapping` 会逼着实现 `dict(parsed)`，而那正是 B566 的第二处缺陷。
     """
     src = _src("hos_ares_core/agent/client.py")
-    assert "def __call__(self, goal: str, ctx: Mapping[str, Any]) -> Any:" in src
+    # 不钉完整签名文本（参数名或注解一改就误红，B575）：
+    # 只要求「`__call__` 的返回注解不是 Mapping」——那才是这条判据的实质。
+    call_defs = [ln for ln in src.splitlines() if ln.strip().startswith("def __call__")]
+    assert call_defs, "__call__ 不见了"
+    assert any("-> Any:" in ln for ln in call_defs), (
+        f"`__call__` 的返回注解还是具体的 Mapping：{call_defs}"
+    )
 
 
 def test_conformance_modes_exist_in_the_fake_server() -> None:
