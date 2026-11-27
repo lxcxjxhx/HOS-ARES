@@ -14,17 +14,18 @@ import re
 
 import importlib.util
 from pathlib import Path
+from script_module import load_script_module  # noqa: E402
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "demo" / "record_console.py"
 DOC = ROOT / "docs" / "delivery" / "console-tour.md"
 
 
-def _mod():  # noqa: ANN202
-    spec = importlib.util.spec_from_file_location("record_console", SCRIPT)
-    mod = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(mod)
+def _mod() -> Any:
+    # 用共用函数（B587）。这处原来是 `module_from_spec(spec)` 在 `assert` **之前**
+    # —— 断言使用后再写等于没写（B580/B582/B585 同形）。
+    mod: Any = load_script_module("record_console", SCRIPT)
     return mod
 
 

@@ -41,7 +41,7 @@ ROOT = Path(__file__).resolve().parents[2]
 #: 项目自己的模块（通过 sys.path 注入，不是 pip 包）
 OWN_MODULES = frozenset(
     "hos_ares hos_ares_core hos_ares_cli hos_ares_oracles hos_ares_contract web worker "
-    "lab capsule_fixture conftest worker_race".split()
+    "lab capsule_fixture conftest worker_race script_module".split()
 )
 
 #: `scripts/` 下被测试直接 import 的模块（`sys.path` 注入）

@@ -76,12 +76,8 @@ def test_card_counts_are_derived_from_the_material_manifests() -> None:
 def test_chinese_numeral_falls_back_past_ten() -> None:
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location("build_tour", SCRIPT)
-    # `spec_from_file_location` 的返回是 `ModuleSpec | None`：
-    # 先断言再解引用，否则下面每一行都报 union-attr（B580）。
-    assert spec is not None and spec.loader is not None, f"加载不了 {SCRIPT}"
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    # 用共用函数（B587）：断言顺序已在它内部处理
+    mod: Any = load_script_module("build_tour", SCRIPT)
     assert mod._cn(5) == "五" and mod._cn(11) == "11"
 
 
@@ -91,12 +87,8 @@ def test_check_mode_reports_fresh_when_video_is_newer(tmp_path: Path, monkeypatc
     import os
     import time
 
-    spec = importlib.util.spec_from_file_location("build_tour", SCRIPT)
-    # `spec_from_file_location` 的返回是 `ModuleSpec | None`：
-    # 先断言再解引用，否则下面每一行都报 union-attr（B580）。
-    assert spec is not None and spec.loader is not None, f"加载不了 {SCRIPT}"
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    # 用共用函数（B587）：断言顺序已在它内部处理
+    mod: Any = load_script_module("build_tour", SCRIPT)
 
     out = tmp_path / "demo"
     (out / "terminal").mkdir(parents=True)
@@ -120,12 +112,8 @@ def test_check_mode_flags_a_newer_material(tmp_path: Path, monkeypatch: pytest.M
     import os
     import time
 
-    spec = importlib.util.spec_from_file_location("build_tour", SCRIPT)
-    # `spec_from_file_location` 的返回是 `ModuleSpec | None`：
-    # 先断言再解引用，否则下面每一行都报 union-attr（B580）。
-    assert spec is not None and spec.loader is not None, f"加载不了 {SCRIPT}"
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    # 用共用函数（B587）：断言顺序已在它内部处理
+    mod: Any = load_script_module("build_tour", SCRIPT)
 
     out = tmp_path / "demo"
     out.mkdir()
