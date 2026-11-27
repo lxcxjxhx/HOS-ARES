@@ -37,7 +37,11 @@ for _p in (ROOT, ROOT / "tests", ROOT / "tests" / "unit"):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
-from conftest import Lab  # noqa: E402
+# `conftest.Lab` 是 pytest 的夹具类，静态上看不到这个属性（mypy 只在 tests/ 里认它）。
+# 用 importlib 动态取，免得为脚本引入 pytest 的类型依赖（B572）。
+import importlib as _importlib  # noqa: E402
+
+Lab: Any = _importlib.import_module("conftest").Lab
 from test_agent_loop import ORACLE_MAP, LabRuntime, _state  # noqa: E402
 
 from hos_ares_cli._io import setup_stdout  # noqa: E402
@@ -200,7 +204,7 @@ def main(argv: list[str]) -> int:
             if first_oracle is not None else 0
         )
         coverage = len(live["verdicts"]) / max(len(state.pending), 1)
-        checks = {
+        checks: dict[str, dict[str, Any]] = {
             # A：**有没有进入验证**。这是探索模式最核心的一条——
             # 只探路不验证，等于没有发现能力；探路次数再多也不顶用。
             "started_verifying": {

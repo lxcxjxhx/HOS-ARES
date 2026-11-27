@@ -173,8 +173,11 @@ def pick_port(base: int = 18080, tries: int = 200) -> int:
     raise RuntimeError(f"{tries} 个端口都不可用（起点 {base}）")
 
 
-def console_state():
-    """与 ``cmd_console`` 同源的状态装配：产物 + audit + approvals。"""
+def console_state() -> Any:
+    """与 ``cmd_console`` 同源的状态装配：产物 + audit + approvals。
+
+    返回 `Any`：`ConsoleState` 来自 `web/console.py`（在 mypy 目标里），
+    但这里只做透传，标具体类型会让演示脚本随 web 层重构一起红。"""
     from dataclasses import replace
 
     from hos_ares_core.audit_source import load_audit
@@ -202,8 +205,10 @@ def wait_ready(url: str, timeout_s: float = 20.0) -> None:
     raise TimeoutError(f"控制台未在 {timeout_s}s 内就绪：{url}")
 
 
-def _launch(pw):  # noqa: ANN001, ANN201
+def _launch(pw: Any) -> Any:
     """起浏览器：先 playwright 自带 chromium，再退到系统 Edge / Chrome（B269）。
+
+    参数与返回都用 `Any`：playwright 的类型只在它自己的包里。
 
     与 `record_terminal.py` 同一个兜底（B267）——两处写死同一行，就一起坏。
     """
